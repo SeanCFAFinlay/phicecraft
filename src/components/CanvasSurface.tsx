@@ -2,9 +2,8 @@
 // CANVAS SURFACE - Main canvas component with rendering and interaction
 // ============================================================================
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useAppState } from '@/hooks/useAppState';
-import { useCanvas } from '@/hooks/useCanvas';
 import { drawRink } from '@/canvas/RinkRenderer';
 import { drawPlayers } from '@/canvas/PlayerRenderer';
 import {
@@ -24,25 +23,75 @@ import type { Player, SkatePath, Point } from '@/core/types';
 
 export function CanvasSurface() {
   const { state, dispatch, actions } = useAppState();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const holdTimerRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const [canvasReady, setCanvasReady] = useState(false);
 
-  const {
-    canvasRef,
-    containerRef,
-    contextRef,
-    getCanvasSize,
-    getPointerPosition,
-  } = useCanvas({
-    onResize: useCallback((width: number, height: number) => {
+  // Setup canvas and handle resize
+  useEffect(() => {
+    const container = containerRef.current;
+    const canvas = canvasRef.current;
+    if (!container || !canvas) return;
+
+    const setupCanvas = () => {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      if (width === 0 || height === 0) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
       dispatch({ type: 'SET_CANVAS_SIZE', width, height });
-    }, [dispatch]),
-  });
+      setCanvasReady(true);
+    };
+
+    // Initial setup
+    setupCanvas();
+
+    // Resize observer
+    const observer = new ResizeObserver(() => {
+      setupCanvas();
+    });
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [dispatch]);
+
+  // Get canvas size
+  const getCanvasSize = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return { width: 800, height: 600 };
+    return {
+      width: container.clientWidth || 800,
+      height: container.clientHeight || 600,
+    };
+  }, []);
+
+  // Get pointer position
+  const getPointerPosition = useCallback((event: React.PointerEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  }, []);
 
   // Find player at screen position
   const findPlayerAt = useCallback((screenX: number, screenY: number): Player | null => {
     const world = screenToWorld(screenX, screenY, state.camera);
-
     for (let i = state.drill.players.length - 1; i >= 0; i--) {
       const p = state.drill.players[i];
       const dist = Math.sqrt((p.x - world.x) ** 2 + (p.y - world.y) ** 2);
@@ -56,7 +105,6 @@ export function CanvasSurface() {
   // Find skate path at screen position
   const findPathAt = useCallback((screenX: number, screenY: number): { path: SkatePath; point: Point; t: number } | null => {
     const world = screenToWorld(screenX, screenY, state.camera);
-
     for (const path of state.drill.skatePaths) {
       if (!path.points || path.points.length < 2) continue;
       const result = closestPointOnPolyline(path.points, world);
@@ -77,12 +125,17 @@ export function CanvasSurface() {
 
   // Draw the canvas
   const draw = useCallback(() => {
-    const ctx = contextRef.current;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const { width, height } = getCanvasSize();
+    const dpr = window.devicePixelRatio || 1;
 
-    // Clear
+    // Reset transform and clear
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = COLORS.background;
     ctx.fillRect(0, 0, width, height);
 
@@ -169,8 +222,17 @@ export function CanvasSurface() {
     ctx.restore();
   }, [state, getCanvasSize, findPlayerAt]);
 
+  // Draw when state changes or canvas becomes ready
+  useEffect(() => {
+    if (canvasReady) {
+      draw();
+    }
+  }, [draw, canvasReady, state.camera, state.drill, state.interaction, state.selection]);
+
   // Animation loop for playback
   useEffect(() => {
+    if (!state.playback.isPlaying) return;
+
     let startTime: number | null = null;
 
     const animate = (timestamp: number) => {
@@ -183,24 +245,23 @@ export function CanvasSurface() {
 
       dispatch({ type: 'SET_PLAYBACK_PROGRESS', progress });
 
-      // Update player positions
+      // Update player positions along skate paths
       state.drill.players.forEach(player => {
         const path = state.drill.skatePaths.find(sp => sp.ownerId === player.id);
         if (path && path.points.length > 1) {
           const t = Math.min(progress * 1.06, 1);
-          // Calculate position along path
           const totalLen = path.points.reduce((acc, p, i) => {
             if (i === 0) return 0;
             return acc + distance(path.points[i - 1], p);
           }, 0);
-          let targetDist = t * totalLen;
+          const targetDist = t * totalLen;
           let accumulated = 0;
           let px = path.points[0].x, py = path.points[0].y;
 
           for (let i = 1; i < path.points.length; i++) {
             const segLen = distance(path.points[i - 1], path.points[i]);
             if (accumulated + segLen >= targetDist) {
-              const segT = (targetDist - accumulated) / segLen;
+              const segT = segLen > 0 ? (targetDist - accumulated) / segLen : 0;
               px = path.points[i - 1].x + (path.points[i].x - path.points[i - 1].x) * segT;
               py = path.points[i - 1].y + (path.points[i].y - path.points[i - 1].y) * segT;
               break;
@@ -226,9 +287,7 @@ export function CanvasSurface() {
       }
     };
 
-    if (state.playback.isPlaying) {
-      animationFrameRef.current = requestAnimationFrame(animate);
-    }
+    animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
       if (animationFrameRef.current) {
@@ -236,19 +295,6 @@ export function CanvasSurface() {
       }
     };
   }, [state.playback.isPlaying, state.playback.speed, state.playback.duration, dispatch, draw, actions]);
-
-  // Draw on state changes
-  useEffect(() => {
-    draw();
-  }, [draw]);
-
-  // Ensure initial draw after mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      draw();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Pointer handlers
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -274,7 +320,6 @@ export function CanvasSurface() {
       if (player) {
         const holder = getCurrentPuckHolder(state.drill.players, state.drill.events);
         if (!state.selection.passFromPlayerId) {
-          // First tap - select passer
           if (holder && holder.id !== player.id) {
             actions.showToast(`#${player.number} doesn't have the puck`, 'warning');
             return;
@@ -283,7 +328,6 @@ export function CanvasSurface() {
           actions.selectPlayer(player.id);
           actions.setModeBanner(`Pass from #${player.number} - tap a teammate`);
         }
-        // Also start drag
         dispatch({
           type: 'SET_INTERACTION',
           interaction: { dragType: 'pass', dragFromPlayer: player, dragCurrentPosition: pos },
@@ -318,7 +362,6 @@ export function CanvasSurface() {
 
     if (currentTool === 'select') {
       if (player) {
-        // Start skate drawing prep and hold timer
         dispatch({
           type: 'SET_INTERACTION',
           interaction: {
@@ -342,7 +385,6 @@ export function CanvasSurface() {
           actions.showToast('Drag to move player', 'info', 0);
         }, HOLD_DURATION);
       } else {
-        // Check for path tap
         const pathHit = findPathAt(pos.x, pos.y);
         if (pathHit && canAddEvents(state.drill.events)) {
           dispatch({
@@ -381,7 +423,6 @@ export function CanvasSurface() {
       },
     });
 
-    // Moving player
     if (state.interaction.movingPlayer) {
       const world = screenToWorld(pos.x, pos.y, state.camera);
       dispatch({ type: 'MOVE_PLAYER', id: state.interaction.movingPlayer.id, x: world.x, y: world.y });
@@ -389,12 +430,8 @@ export function CanvasSurface() {
       return;
     }
 
-    // Drawing skate
     if (state.ui.currentTool === 'select' && state.interaction.skateOwner && !state.interaction.holdActive && moved) {
-      dispatch({
-        type: 'SET_INTERACTION',
-        interaction: { drawingSkate: true },
-      });
+      dispatch({ type: 'SET_INTERACTION', interaction: { drawingSkate: true } });
       cancelHold();
     }
 
@@ -408,12 +445,8 @@ export function CanvasSurface() {
       });
     }
 
-    // Node drag
     if (state.interaction.nodeActive) {
-      dispatch({
-        type: 'SET_INTERACTION',
-        interaction: { nodeDragPosition: pos },
-      });
+      dispatch({ type: 'SET_INTERACTION', interaction: { nodeDragPosition: pos } });
     }
 
     draw();
@@ -425,7 +458,6 @@ export function CanvasSurface() {
     cancelHold();
     const pos = getPointerPosition(e);
 
-    // Handle moving player end
     if (state.interaction.movingPlayer) {
       actions.showToast('Moved', 'success', 1200);
       dispatch({ type: 'SAVE_START_SNAPSHOT' });
@@ -434,7 +466,6 @@ export function CanvasSurface() {
       return;
     }
 
-    // Handle skate path completion
     if (state.interaction.drawingSkate && state.interaction.pointerMoved && state.interaction.skateRawPoints.length > 5) {
       const smoothed = processRawPath(state.interaction.skateRawPoints);
       const path = createSkatePath(
@@ -449,7 +480,6 @@ export function CanvasSurface() {
       return;
     }
 
-    // Handle drag completion
     if (state.interaction.dragType !== 'none' && state.interaction.pointerMoved && state.interaction.dragFromPlayer) {
       const targetPlayer = findPlayerAt(pos.x, pos.y);
 
@@ -495,7 +525,6 @@ export function CanvasSurface() {
       return;
     }
 
-    // Handle tap (no movement)
     if (!state.interaction.pointerMoved) {
       handleTap(pos.x, pos.y);
     }
@@ -522,7 +551,6 @@ export function CanvasSurface() {
     if (currentTool === 'pass') {
       if (player) {
         if (state.selection.passFromPlayerId && state.selection.passFromPlayerId !== player.id) {
-          // Second tap - receiver
           const fromPlayer = state.drill.players.find(p => p.id === state.selection.passFromPlayerId);
           if (fromPlayer) {
             const validation = validatePass(fromPlayer, player, state.drill.players, state.drill.events);
@@ -536,7 +564,6 @@ export function CanvasSurface() {
             }
           }
         } else if (!state.selection.passFromPlayerId) {
-          // First tap - select passer
           const holder = getCurrentPuckHolder(state.drill.players, state.drill.events);
           if (holder && holder.id !== player.id) {
             actions.showToast(`#${player.number} doesn't have puck - #${holder.number} does`, 'warning');
@@ -546,7 +573,6 @@ export function CanvasSurface() {
           actions.selectPlayer(player.id);
           actions.setModeBanner(`Pass from #${player.number} - tap a teammate`);
         } else {
-          // Tapped same player - cancel
           actions.setPassFrom(null);
           actions.clearBanners();
         }
