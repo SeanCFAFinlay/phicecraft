@@ -18,7 +18,7 @@ import {
 import { COLORS, RINK, PLAYER_HIT_RADIUS, PATH_HIT_DISTANCE, MOVE_THRESHOLD, HOLD_DURATION } from '@/core/constants';
 import { screenToWorld, distance, closestPointOnPolyline, processRawPath } from '@/utils/geometry';
 import { createPlayer, createSkatePath, randomPlayerNumber, randomGoalieNumber } from '@/engine/drill';
-import { validatePass, validateShot, getCurrentPuckHolder, canAddEvents, getTargetNet, getNearestNet } from '@/engine/puck';
+import { validatePass, validateShot, getCurrentPuckHolder, canAddEvents, getTargetNet, getNearestNet, playerHasPuck } from '@/engine/puck';
 import type { Player, SkatePath, Point } from '@/core/types';
 
 export function CanvasSurface() {
@@ -180,12 +180,44 @@ export function CanvasSurface() {
         ? findPlayerAt(state.interaction.dragCurrentPosition.x, state.interaction.dragCurrentPosition.y)
         : null;
 
+      // Use path point if doing path-based pass
+      const fromPoint = state.interaction.nodeActive && state.interaction.nodeWorldPoint
+        ? state.interaction.nodeWorldPoint
+        : { x: state.interaction.dragFromPlayer.x, y: state.interaction.dragFromPlayer.y };
+
       drawDragPreview(
         ctx,
         state.interaction.dragType as 'pass' | 'shoot',
-        { x: state.interaction.dragFromPlayer.x, y: state.interaction.dragFromPlayer.y },
+        fromPoint,
         toWorld,
         targetPlayer !== state.interaction.dragFromPlayer ? targetPlayer : null,
+        RINK.height
+      );
+    }
+
+    // Draw path-based pass preview (when nodeActive)
+    if (state.interaction.nodeActive &&
+        state.interaction.nodeWorldPoint &&
+        state.interaction.nodeDragPosition &&
+        state.interaction.pointerMoved) {
+
+      const toWorld = screenToWorld(
+        state.interaction.nodeDragPosition.x,
+        state.interaction.nodeDragPosition.y,
+        state.camera
+      );
+
+      const targetPlayer = findPlayerAt(
+        state.interaction.nodeDragPosition.x,
+        state.interaction.nodeDragPosition.y
+      );
+
+      drawDragPreview(
+        ctx,
+        'pass',
+        state.interaction.nodeWorldPoint,
+        toWorld,
+        targetPlayer,
         RINK.height
       );
     }
@@ -385,18 +417,29 @@ export function CanvasSurface() {
           actions.showToast('Drag to move player', 'info', 0);
         }, HOLD_DURATION);
       } else {
+        // Check if clicking on a path
         const pathHit = findPathAt(pos.x, pos.y);
         if (pathHit && canAddEvents(state.drill.events)) {
-          dispatch({
-            type: 'SET_INTERACTION',
-            interaction: {
-              nodeActive: true,
-              nodePath: pathHit.path,
-              nodeWorldPoint: pathHit.point,
-              nodeDragPosition: pos,
-            },
-          });
-          actions.setModeBanner('Drag to a player to add a pass from this point');
+          // Find the owner of this path
+          const pathOwner = state.drill.players.find(p => p.id === pathHit.path.ownerId);
+
+          // Check if path owner has the puck (can initiate pass)
+          if (pathOwner && playerHasPuck(pathOwner, state.drill.players, state.drill.events)) {
+            dispatch({
+              type: 'SET_INTERACTION',
+              interaction: {
+                nodeActive: true,
+                nodePath: pathHit.path,
+                nodeWorldPoint: pathHit.point,
+                nodeDragPosition: pos,
+                dragFromPlayer: pathOwner,
+                dragType: 'pass',
+              },
+            });
+            actions.setModeBanner(`Pass from #${pathOwner.number}'s path - drag to receiver`);
+          } else if (pathOwner) {
+            actions.showToast(`#${pathOwner.number} doesn't have the puck yet`, 'warning');
+          }
         }
       }
     }
@@ -475,6 +518,42 @@ export function CanvasSurface() {
       );
       actions.addSkatePath(path);
       actions.showToast('Path drawn - tap path line to add a pass', 'success', 4000);
+      dispatch({ type: 'RESET_INTERACTION' });
+      draw();
+      return;
+    }
+
+    // Handle path-based pass (nodeActive)
+    if (state.interaction.nodeActive && state.interaction.nodePath && state.interaction.nodeWorldPoint) {
+      const targetPlayer = findPlayerAt(pos.x, pos.y);
+      const pathOwner = state.drill.players.find(p => p.id === state.interaction.nodePath!.ownerId);
+
+      if (targetPlayer && pathOwner && targetPlayer.id !== pathOwner.id) {
+        // Find target point - either on target's path or their position
+        const targetPath = state.drill.skatePaths.find(sp => sp.ownerId === targetPlayer.id);
+        let toPoint = { x: targetPlayer.x, y: targetPlayer.y };
+
+        // If target has a path, find the closest point on it
+        if (targetPath && targetPath.points.length > 0) {
+          const world = screenToWorld(pos.x, pos.y, state.camera);
+          const closest = closestPointOnPolyline(targetPath.points, world);
+          toPoint = closest.point;
+        }
+
+        // Create the pass from path point to target
+        actions.addPathPass(
+          pathOwner.id,
+          targetPlayer.id,
+          state.interaction.nodeWorldPoint,
+          toPoint,
+          pathOwner.team
+        );
+        actions.showToast(`Pass from path -> #${targetPlayer.number}`, 'success');
+        actions.clearBanners();
+      } else if (!targetPlayer) {
+        actions.showToast('Drag to a player to complete the pass', 'info');
+      }
+
       dispatch({ type: 'RESET_INTERACTION' });
       draw();
       return;

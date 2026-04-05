@@ -69,7 +69,8 @@ interface AppActions {
   removeSkatePath: (id: ID) => void;
 
   // Events
-  addPass: (fromPlayer: Player, toPlayer: Player) => void;
+  addPass: (fromPlayer: Player, toPlayer: Player, fromPoint?: Point, toPoint?: Point) => void;
+  addPathPass: (fromPlayerId: ID, toPlayerId: ID, fromPoint: Point, toPoint: Point, team: 'home' | 'away') => void;
   addShot: (fromPlayer: Player, targetPoint: Point) => void;
   addDump: (fromPlayer: Player, targetPoint: Point) => void;
 
@@ -206,16 +207,30 @@ export function AppProvider({ children }: AppProviderProps) {
       dispatch({ type: 'REMOVE_SKATE_PATH', id });
     }, []),
 
-    addPass: useCallback((fromPlayer: Player, toPlayer: Player) => {
+    addPass: useCallback((fromPlayer: Player, toPlayer: Player, fromPoint?: Point, toPoint?: Point) => {
       dispatch({ type: 'PUSH_UNDO' });
       const event: PassEvent = {
         id: generateId(),
         type: 'pass',
         fromPlayerId: fromPlayer.id,
         toPlayerId: toPlayer.id,
-        fromPoint: { x: fromPlayer.x, y: fromPlayer.y },
-        toPoint: { x: toPlayer.x, y: toPlayer.y },
+        fromPoint: fromPoint ?? { x: fromPlayer.x, y: fromPlayer.y },
+        toPoint: toPoint ?? { x: toPlayer.x, y: toPlayer.y },
         team: fromPlayer.team,
+      };
+      dispatch({ type: 'ADD_PASS', event });
+    }, []),
+
+    addPathPass: useCallback((fromPlayerId: ID, toPlayerId: ID, fromPoint: Point, toPoint: Point, team: 'home' | 'away') => {
+      dispatch({ type: 'PUSH_UNDO' });
+      const event: PassEvent = {
+        id: generateId(),
+        type: 'pass',
+        fromPlayerId,
+        toPlayerId,
+        fromPoint,
+        toPoint,
+        team,
       };
       dispatch({ type: 'ADD_PASS', event });
     }, []),

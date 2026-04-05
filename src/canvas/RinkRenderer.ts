@@ -1,5 +1,5 @@
 // ============================================================================
-// RINK RENDERER - Hockey rink drawing
+// RINK RENDERER - Professional NHL Hockey Rink
 // ============================================================================
 
 import { RINK, COLORS } from '@/core/constants';
@@ -29,74 +29,246 @@ function roundedRectPath(
 }
 
 /**
- * Draw goal crease
+ * Draw faceoff dot
+ */
+function drawFaceoffDot(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number = 6
+): void {
+  ctx.fillStyle = '#c41e3a';
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Draw faceoff circle with hashmarks
+ */
+function drawFaceoffCircle(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  isEndZone: boolean = true
+): void {
+  // Circle
+  ctx.strokeStyle = '#c41e3a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Center dot
+  drawFaceoffDot(ctx, cx, cy);
+
+  if (isEndZone) {
+    // Hashmarks - 4 sets around the circle
+    const hashLength = 18;
+    const hashOffset = 6;
+    const angles = [
+      -Math.PI / 4,      // Top-right
+      Math.PI / 4,       // Bottom-right
+      Math.PI * 3 / 4,   // Bottom-left
+      -Math.PI * 3 / 4   // Top-left
+    ];
+
+    ctx.strokeStyle = '#c41e3a';
+    ctx.lineWidth = 2;
+
+    angles.forEach(angle => {
+      // Outer hashmark
+      const outerX = cx + Math.cos(angle) * (radius + hashOffset);
+      const outerY = cy + Math.sin(angle) * (radius + hashOffset);
+
+      // Perpendicular direction
+      const perpX = -Math.sin(angle);
+      const perpY = Math.cos(angle);
+
+      ctx.beginPath();
+      ctx.moveTo(outerX - perpX * hashLength / 2, outerY - perpY * hashLength / 2);
+      ctx.lineTo(outerX + perpX * hashLength / 2, outerY + perpY * hashLength / 2);
+      ctx.stroke();
+    });
+
+    // L-shaped marks inside circle at top and bottom
+    const lOffset = radius * 0.65;
+    const lWidth = 12;
+    const lHeight = 20;
+
+    ctx.lineWidth = 2;
+
+    // Top L marks
+    [-1, 1].forEach(side => {
+      ctx.beginPath();
+      // Vertical part
+      ctx.moveTo(cx + side * lOffset, cy - lWidth);
+      ctx.lineTo(cx + side * lOffset, cy - lWidth - lHeight);
+      // Horizontal part
+      ctx.lineTo(cx + side * (lOffset - side * 8), cy - lWidth - lHeight);
+      ctx.stroke();
+    });
+
+    // Bottom L marks
+    [-1, 1].forEach(side => {
+      ctx.beginPath();
+      // Vertical part
+      ctx.moveTo(cx + side * lOffset, cy + lWidth);
+      ctx.lineTo(cx + side * lOffset, cy + lWidth + lHeight);
+      // Horizontal part
+      ctx.lineTo(cx + side * (lOffset - side * 8), cy + lWidth + lHeight);
+      ctx.stroke();
+    });
+  }
+}
+
+/**
+ * Draw goal crease (blue paint)
  */
 function drawCrease(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
-  depth: number,
-  height: number,
-  left: boolean
+  isLeft: boolean
 ): void {
-  ctx.fillStyle = COLORS.crease.fill;
-  ctx.strokeStyle = COLORS.crease.stroke;
-  ctx.lineWidth = 1.8;
+  const creaseWidth = 48;
+  const creaseDepth = 24;
+  const creaseRadius = 36;
+
+  ctx.fillStyle = 'rgba(30, 80, 180, 0.25)';
+  ctx.strokeStyle = '#c41e3a';
+  ctx.lineWidth = 2;
 
   ctx.beginPath();
-  if (left) {
-    ctx.moveTo(cx, cy - height / 2);
-    ctx.lineTo(cx + depth, cy - height / 2);
-    ctx.arc(cx + depth, cy, height / 2, -Math.PI / 2, Math.PI / 2);
-    ctx.lineTo(cx, cy + height / 2);
+  if (isLeft) {
+    ctx.moveTo(cx, cy - creaseWidth / 2);
+    ctx.lineTo(cx + creaseDepth, cy - creaseWidth / 2);
+    ctx.arc(cx + creaseDepth, cy, creaseRadius, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(cx, cy + creaseWidth / 2);
+    ctx.closePath();
   } else {
-    ctx.moveTo(cx, cy - height / 2);
-    ctx.lineTo(cx - depth, cy - height / 2);
-    ctx.arc(cx - depth, cy, height / 2, Math.PI * 1.5, Math.PI / 2, true);
-    ctx.lineTo(cx, cy + height / 2);
+    ctx.moveTo(cx, cy - creaseWidth / 2);
+    ctx.lineTo(cx - creaseDepth, cy - creaseWidth / 2);
+    ctx.arc(cx - creaseDepth, cy, creaseRadius, Math.PI * 1.5, Math.PI / 2, true);
+    ctx.lineTo(cx, cy + creaseWidth / 2);
+    ctx.closePath();
   }
-  ctx.closePath();
   ctx.fill();
   ctx.stroke();
 }
 
 /**
- * Draw net
+ * Draw trapezoid behind net
+ */
+function drawTrapezoid(
+  ctx: CanvasRenderingContext2D,
+  goalLineX: number,
+  rinkY: number,
+  rinkHeight: number,
+  isLeft: boolean
+): void {
+  const trapTop = 56;      // Width at goal line
+  const trapBottom = 88;   // Width at boards
+  const trapDepth = 34;    // Distance from goal line to boards
+
+  ctx.strokeStyle = '#c41e3a';
+  ctx.lineWidth = 2;
+
+  const cy = rinkY + rinkHeight / 2;
+
+  ctx.beginPath();
+  if (isLeft) {
+    ctx.moveTo(goalLineX, cy - trapTop / 2);
+    ctx.lineTo(goalLineX - trapDepth, cy - trapBottom / 2);
+    ctx.moveTo(goalLineX, cy + trapTop / 2);
+    ctx.lineTo(goalLineX - trapDepth, cy + trapBottom / 2);
+  } else {
+    ctx.moveTo(goalLineX, cy - trapTop / 2);
+    ctx.lineTo(goalLineX + trapDepth, cy - trapBottom / 2);
+    ctx.moveTo(goalLineX, cy + trapTop / 2);
+    ctx.lineTo(goalLineX + trapDepth, cy + trapBottom / 2);
+  }
+  ctx.stroke();
+}
+
+/**
+ * Draw the goal/net
  */
 function drawNet(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
-  size: number,
-  left: boolean
+  isLeft: boolean
 ): void {
-  const netWidth = size * 0.58;
-  const netHeight = size * 1.28;
-  const sx = left ? cx : cx - netWidth;
+  const netWidth = 24;
+  const netHeight = 48;
 
-  // Frame
-  ctx.strokeStyle = 'rgba(230, 70, 70, 0.95)';
-  ctx.lineWidth = 3;
-  ctx.setLineDash([]);
-  ctx.strokeRect(sx, cy - netHeight / 2, netWidth, netHeight);
+  // Net frame (red posts)
+  ctx.strokeStyle = '#c41e3a';
+  ctx.lineWidth = 4;
+
+  const nx = isLeft ? cx - netWidth : cx;
+
+  ctx.beginPath();
+  ctx.moveTo(nx, cy - netHeight / 2);
+  ctx.lineTo(nx, cy + netHeight / 2);
+  ctx.moveTo(nx + netWidth, cy - netHeight / 2);
+  ctx.lineTo(nx + netWidth, cy + netHeight / 2);
+  // Back of net
+  if (isLeft) {
+    ctx.moveTo(nx, cy - netHeight / 2);
+    ctx.lineTo(nx, cy + netHeight / 2);
+  } else {
+    ctx.moveTo(nx + netWidth, cy - netHeight / 2);
+    ctx.lineTo(nx + netWidth, cy + netHeight / 2);
+  }
+  ctx.stroke();
 
   // Net mesh
-  ctx.strokeStyle = 'rgba(200, 200, 200, 0.18)';
-  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.lineWidth = 0.5;
 
-  for (let i = 1; i < 3; i++) {
-    // Horizontal lines
+  const meshSpacing = 8;
+  for (let i = 1; i < netHeight / meshSpacing; i++) {
     ctx.beginPath();
-    ctx.moveTo(sx, cy - netHeight / 2 + (netHeight / 3) * i);
-    ctx.lineTo(sx + netWidth, cy - netHeight / 2 + (netHeight / 3) * i);
-    ctx.stroke();
-
-    // Vertical lines
-    ctx.beginPath();
-    ctx.moveTo(sx + (netWidth / 3) * i, cy - netHeight / 2);
-    ctx.lineTo(sx + (netWidth / 3) * i, cy + netHeight / 2);
+    ctx.moveTo(nx, cy - netHeight / 2 + i * meshSpacing);
+    ctx.lineTo(nx + netWidth, cy - netHeight / 2 + i * meshSpacing);
     ctx.stroke();
   }
+  for (let i = 1; i < netWidth / meshSpacing; i++) {
+    ctx.beginPath();
+    ctx.moveTo(nx + i * meshSpacing, cy - netHeight / 2);
+    ctx.lineTo(nx + i * meshSpacing, cy + netHeight / 2);
+    ctx.stroke();
+  }
+}
+
+/**
+ * Draw center ice logo area
+ */
+function drawCenterIce(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number
+): void {
+  // Center circle
+  ctx.strokeStyle = '#c41e3a';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Center dot
+  drawFaceoffDot(ctx, cx, cy, 8);
+
+  // Inner decorative circle (optional team logo area)
+  ctx.strokeStyle = 'rgba(196, 30, 58, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.7, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 /**
@@ -114,98 +286,109 @@ export function drawRink(ctx: CanvasRenderingContext2D): void {
   ctx.save();
   ctx.clip();
 
-  // Ice gradient
+  // Ice surface - clean white with subtle gradient
   const iceGradient = ctx.createLinearGradient(rx, ry, rx, ry + rh);
-  iceGradient.addColorStop(0, COLORS.ice.light);
-  iceGradient.addColorStop(0.5, COLORS.ice.mid);
-  iceGradient.addColorStop(1, COLORS.ice.dark);
+  iceGradient.addColorStop(0, '#ffffff');
+  iceGradient.addColorStop(0.5, '#f8fafc');
+  iceGradient.addColorStop(1, '#f1f5f9');
   ctx.fillStyle = iceGradient;
   ctx.fillRect(rx, ry, rw, rh);
 
-  // Red center line
-  ctx.strokeStyle = COLORS.redLine;
-  ctx.lineWidth = 4;
-  ctx.setLineDash([]);
+  // Add subtle ice texture
+  ctx.fillStyle = 'rgba(200, 220, 240, 0.08)';
+  for (let i = 0; i < 50; i++) {
+    const tx = rx + Math.random() * rw;
+    const ty = ry + Math.random() * rh;
+    ctx.beginPath();
+    ctx.arc(tx, ty, Math.random() * 15 + 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Goal lines
+  const goalLineX = rw * RINK.goalLineOffset;
+  ctx.strokeStyle = '#c41e3a';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(rx + rw / 2, ry + 2);
-  ctx.lineTo(rx + rw / 2, ry + rh - 2);
+  ctx.moveTo(rx + goalLineX, ry);
+  ctx.lineTo(rx + goalLineX, ry + rh);
+  ctx.moveTo(rx + rw - goalLineX, ry);
+  ctx.lineTo(rx + rw - goalLineX, ry + rh);
   ctx.stroke();
 
   // Blue lines
   const blueLineX = rw * RINK.blueLineOffset;
-  ctx.strokeStyle = COLORS.blueLine;
-  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#1e3a8a';
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.moveTo(rx + blueLineX, ry);
+  ctx.lineTo(rx + blueLineX, ry + rh);
+  ctx.moveTo(rx + rw - blueLineX, ry);
+  ctx.lineTo(rx + rw - blueLineX, ry + rh);
+  ctx.stroke();
+
+  // Center red line (dashed)
+  ctx.strokeStyle = '#c41e3a';
+  ctx.lineWidth = 12;
+  ctx.setLineDash([20, 20]);
+  ctx.beginPath();
+  ctx.moveTo(rx + rw / 2, ry);
+  ctx.lineTo(rx + rw / 2, ry + rh);
+  ctx.stroke();
   ctx.setLineDash([]);
-  ctx.beginPath();
-  ctx.moveTo(rx + blueLineX, ry + 2);
-  ctx.lineTo(rx + blueLineX, ry + rh - 2);
-  ctx.moveTo(rx + rw - blueLineX, ry + 2);
-  ctx.lineTo(rx + rw - blueLineX, ry + rh - 2);
-  ctx.stroke();
 
-  // Center circle
-  ctx.strokeStyle = 'rgba(190, 12, 12, 0.25)';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.arc(rx + rw / 2, ry + rh / 2, rh * 0.22, 0, Math.PI * 2);
-  ctx.stroke();
+  // Center ice circle
+  const centerRadius = rh * 0.3;
+  drawCenterIce(ctx, rx + rw / 2, ry + rh / 2, centerRadius);
 
-  // Center dot
-  ctx.fillStyle = 'rgba(190, 12, 12, 0.7)';
-  ctx.beginPath();
-  ctx.arc(rx + rw / 2, ry + rh / 2, 5, 0, Math.PI * 2);
-  ctx.fill();
+  // End zone faceoff circles (4 total)
+  const faceoffRadius = rh * 0.28;
+  const faceoffY1 = ry + rh * 0.28;
+  const faceoffY2 = ry + rh * 0.72;
+  const faceoffXLeft = rx + blueLineX * 0.5;
+  const faceoffXRight = rx + rw - blueLineX * 0.5;
 
-  // Goal lines
-  const goalLineX = rw * RINK.goalLineOffset;
-  ctx.strokeStyle = 'rgba(190, 12, 12, 0.6)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(rx + goalLineX, ry + rh * 0.1);
-  ctx.lineTo(rx + goalLineX, ry + rh * 0.9);
-  ctx.moveTo(rx + rw - goalLineX, ry + rh * 0.1);
-  ctx.lineTo(rx + rw - goalLineX, ry + rh * 0.9);
-  ctx.stroke();
+  drawFaceoffCircle(ctx, faceoffXLeft, faceoffY1, faceoffRadius, true);
+  drawFaceoffCircle(ctx, faceoffXLeft, faceoffY2, faceoffRadius, true);
+  drawFaceoffCircle(ctx, faceoffXRight, faceoffY1, faceoffRadius, true);
+  drawFaceoffCircle(ctx, faceoffXRight, faceoffY2, faceoffRadius, true);
+
+  // Neutral zone faceoff dots (4 total)
+  const neutralDotOffset = 28;
+  drawFaceoffDot(ctx, rx + blueLineX + neutralDotOffset, faceoffY1, 5);
+  drawFaceoffDot(ctx, rx + blueLineX + neutralDotOffset, faceoffY2, 5);
+  drawFaceoffDot(ctx, rx + rw - blueLineX - neutralDotOffset, faceoffY1, 5);
+  drawFaceoffDot(ctx, rx + rw - blueLineX - neutralDotOffset, faceoffY2, 5);
 
   // Creases
-  const creaseDepth = rh * 0.09;
-  const creaseHeight = rh * 0.16;
-  drawCrease(ctx, rx + goalLineX, ry + rh / 2, creaseDepth, creaseHeight, true);
-  drawCrease(ctx, rx + rw - goalLineX, ry + rh / 2, creaseDepth, creaseHeight, false);
+  drawCrease(ctx, rx + goalLineX, ry + rh / 2, true);
+  drawCrease(ctx, rx + rw - goalLineX, ry + rh / 2, false);
 
-  // Faceoff circles
-  const faceoffCircles = [
-    [rx + blueLineX * 0.62, ry + rh * 0.27],
-    [rx + blueLineX * 0.62, ry + rh * 0.73],
-    [rx + rw - blueLineX * 0.62, ry + rh * 0.27],
-    [rx + rw - blueLineX * 0.62, ry + rh * 0.73],
-  ];
+  // Trapezoids
+  drawTrapezoid(ctx, rx + goalLineX, ry, rh, true);
+  drawTrapezoid(ctx, rx + rw - goalLineX, ry, rh, false);
 
-  faceoffCircles.forEach(([fx, fy]) => {
-    // Circle
-    ctx.strokeStyle = 'rgba(190, 12, 12, 0.18)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(fx, fy, rh * 0.14, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Dot
-    ctx.fillStyle = 'rgba(190, 12, 12, 0.7)';
-    ctx.beginPath();
-    ctx.arc(fx, fy, 4, 0, Math.PI * 2);
-    ctx.fill();
-  });
+  // Referee crease (half circle at center ice)
+  ctx.strokeStyle = '#c41e3a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(rx + rw / 2, ry + rh, 20, Math.PI, 0, false);
+  ctx.stroke();
 
   ctx.restore();
 
-  // Border
-  ctx.strokeStyle = 'rgba(85, 155, 210, 0.65)';
-  ctx.lineWidth = 3;
+  // Boards (thick dark border)
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 6;
   roundedRectPath(ctx, rx, ry, rw, rh, cr);
   ctx.stroke();
 
-  // Nets (outside clip)
-  const netSize = rh * 0.065;
-  drawNet(ctx, rx + rw * 0.019, ry + rh / 2, netSize, true);
-  drawNet(ctx, rx + rw * 0.981, ry + rh / 2, netSize, false);
+  // Glass reflection effect on boards
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  ctx.lineWidth = 2;
+  roundedRectPath(ctx, rx + 3, ry + 3, rw - 6, rh - 6, cr - 3);
+  ctx.stroke();
+
+  // Nets
+  drawNet(ctx, rx + goalLineX - 4, ry + rh / 2, true);
+  drawNet(ctx, rx + rw - goalLineX + 4, ry + rh / 2, false);
 }
