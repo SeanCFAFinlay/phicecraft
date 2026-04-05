@@ -643,7 +643,7 @@ export function CanvasSurface() {
   return (
     <div
       ref={containerRef}
-      className="flex-1 relative overflow-hidden bg-[#050e18]"
+      className="absolute inset-0 overflow-hidden bg-[#050e18]"
       style={{ touchAction: 'none' }}
     >
       <canvas
