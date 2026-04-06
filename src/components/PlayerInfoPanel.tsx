@@ -27,7 +27,7 @@ export function PlayerInfoPanel() {
 
   return (
     <div
-      className={`absolute top-1.5 right-1.5 bg-app-surface border border-app-border rounded-xl py-3 px-3.5 z-[15] min-w-[135px] shadow-xl transition-transform ${
+      className={`fixed top-16 right-2 bg-[#0c1825] border border-[#1a3045] rounded-xl py-3 px-3.5 z-50 min-w-[135px] shadow-xl transition-transform ${
         state.ui.showPlayerInfo ? 'translate-x-0' : 'translate-x-[160%]'
       }`}
     >

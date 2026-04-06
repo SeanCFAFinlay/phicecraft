@@ -1,5 +1,5 @@
 // ============================================================================
-// PLAYBAR - Timeline and playback controls
+// PLAYBAR - Timeline and playback controls (fixed row)
 // ============================================================================
 
 import React from 'react';
@@ -52,83 +52,80 @@ export function Playbar() {
   };
 
   return (
-    <>
+    <div className="flex-shrink-0 h-[60px] flex items-center gap-3 px-3 bg-[#0c1825] border-t border-[#1a3045]">
+      {/* Rewind */}
+      <button
+        onClick={handleRewind}
+        className="w-10 h-10 rounded-full border border-[#1a3045] bg-white/5 text-white text-base flex items-center justify-center cursor-pointer flex-shrink-0 transition-all active:scale-90 hover:bg-white/10"
+      >
+        ⏮
+      </button>
+
+      {/* Play/Stop */}
+      <button
+        onClick={handlePlay}
+        className={`w-12 h-12 rounded-full border-2 text-white text-xl flex items-center justify-center cursor-pointer flex-shrink-0 transition-all active:scale-90 ${
+          isPlaying
+            ? 'bg-red-500 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]'
+            : 'bg-cyan-500 border-cyan-500 shadow-[0_0_20px_rgba(0,200,240,0.4)]'
+        }`}
+      >
+        {isPlaying ? '■' : '▶'}
+      </button>
+
+      {/* Step */}
+      <button
+        onClick={handleStep}
+        className="w-10 h-10 rounded-full border border-[#1a3045] bg-white/5 text-white text-base flex items-center justify-center cursor-pointer flex-shrink-0 transition-all active:scale-90 hover:bg-white/10"
+      >
+        ⏭
+      </button>
+
+      {/* Timeline */}
+      <div
+        onClick={handleTimelineClick}
+        className="flex-1 py-3 cursor-pointer min-w-0"
+      >
+        <div className="h-2 bg-white/10 rounded-full relative">
+          {/* Fill */}
+          <div
+            className="h-full bg-gradient-to-r from-cyan-400 to-cyan-600 rounded-full transition-all"
+            style={{ width: `${progress * 100}%` }}
+          />
+
+          {/* Markers */}
+          {markers.map((marker, i) => (
+            <div
+              key={i}
+              className={`absolute top-1/2 w-2 h-2 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none border border-black/50 ${
+                marker.type === 'shot' || marker.type === 'dump'
+                  ? 'bg-orange-500'
+                  : 'bg-yellow-400'
+              }`}
+              style={{ left: `${marker.position * 100}%` }}
+            />
+          ))}
+
+          {/* Playhead */}
+          <div
+            className="absolute top-1/2 w-4 h-4 rounded-full bg-white border-2 border-cyan-400 -translate-x-1/2 -translate-y-1/2 shadow-lg"
+            style={{ left: `${progress * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Time display */}
+      <div className="text-xs text-gray-400 min-w-[36px] text-right flex-shrink-0 tabular-nums">
+        {formatTime(progress, duration)}
+      </div>
+
       {/* Speed button */}
       <button
         onClick={handleSpeedClick}
-        className="absolute right-2 bottom-[76px] bg-app-surface border border-app-border rounded-lg px-2.5 py-1 text-[10px] font-extrabold text-app-cyan cursor-pointer z-[16] hover:bg-app-cyan/10"
+        className="px-3 py-1.5 bg-white/5 border border-[#1a3045] rounded-lg text-xs font-bold text-cyan-400 cursor-pointer flex-shrink-0 hover:bg-white/10 active:scale-95"
       >
         {speed}×
       </button>
-
-      {/* Playbar */}
-      <div className="h-[62px] flex-shrink-0 flex items-center gap-2 px-2.5 bg-app-surface border-t border-app-border">
-        {/* Rewind */}
-        <button
-          onClick={handleRewind}
-          className="w-9 h-9 rounded-full border border-app-border bg-white/5 text-app-text text-[15px] flex items-center justify-center cursor-pointer flex-shrink-0 transition-transform active:scale-[0.88] hover:bg-white/10"
-        >
-          ⏮
-        </button>
-
-        {/* Play/Stop */}
-        <button
-          onClick={handlePlay}
-          className={`w-12 h-12 rounded-full border text-white text-[19px] flex items-center justify-center cursor-pointer flex-shrink-0 transition-transform active:scale-[0.88] ${
-            isPlaying
-              ? 'bg-app-red border-app-red shadow-[0_0_16px_rgba(230,57,70,0.3)]'
-              : 'bg-app-cyan border-app-cyan shadow-[0_0_16px_rgba(0,200,240,0.3)]'
-          }`}
-        >
-          {isPlaying ? '■' : '▶'}
-        </button>
-
-        {/* Step */}
-        <button
-          onClick={handleStep}
-          className="w-9 h-9 rounded-full border border-app-border bg-white/5 text-app-text text-[15px] flex items-center justify-center cursor-pointer flex-shrink-0 transition-transform active:scale-[0.88] hover:bg-white/10"
-        >
-          ⏭
-        </button>
-
-        {/* Timeline */}
-        <div
-          onClick={handleTimelineClick}
-          className="flex-1 py-2 cursor-pointer"
-        >
-          <div className="h-1 bg-white/10 rounded-sm relative">
-            {/* Fill */}
-            <div
-              className="h-full bg-gradient-to-r from-app-cyan to-app-cyan-dark rounded-sm"
-              style={{ width: `${progress * 100}%` }}
-            />
-
-            {/* Markers */}
-            {markers.map((marker, i) => (
-              <div
-                key={i}
-                className={`absolute top-1/2 w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none border border-black/40 ${
-                  marker.type === 'shot' || marker.type === 'dump'
-                    ? 'bg-app-orange'
-                    : 'bg-app-gold'
-                }`}
-                style={{ left: `${marker.position * 100}%` }}
-              />
-            ))}
-
-            {/* Dot */}
-            <div
-              className="absolute top-1/2 w-[15px] h-[15px] rounded-full bg-white border-[2.5px] border-app-cyan -translate-x-1/2 -translate-y-1/2 shadow-md"
-              style={{ left: `${progress * 100}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Time */}
-        <div className="text-xs text-app-dim min-w-[32px] text-right flex-shrink-0 tabular-nums">
-          {formatTime(progress, duration)}
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
