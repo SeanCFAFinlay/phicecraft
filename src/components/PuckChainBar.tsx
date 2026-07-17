@@ -4,24 +4,39 @@
 
 import React from 'react';
 import { useAppState } from '@/hooks/useAppState';
-import { getPuckChain } from '@/engine/puck';
+import { getPuckChain, getCurrentPuckHolder } from '@/engine/puck';
 
 export function PuckChainBar() {
-  const { state } = useAppState();
+  const { state, actions } = useAppState();
   const chain = getPuckChain(state.drill.players, state.drill.events);
+  const carrier = getCurrentPuckHolder(state.drill.players, state.drill.events);
 
   return (
     <div className="flex-shrink-0 h-8 flex items-center gap-1.5 px-2.5 bg-[rgba(6,14,22,0.95)] border-b border-app-border overflow-x-auto scrollbar-hide">
       <span className="text-[9px] tracking-wider text-app-dim uppercase flex-shrink-0 whitespace-nowrap">
-        PUCK CHAIN:
+        POSSESSION:
       </span>
+
+      {carrier && (
+        <span className="flex-shrink-0 rounded-md border border-app-gold/60 bg-app-gold/10 px-2 py-0.5 text-[9px] font-black tracking-wide text-app-gold">
+          ACTIVE CARRIER #{carrier.number}
+        </span>
+      )}
 
       {chain.length === 0 ? (
         <span className="text-[10px] text-white/20">
           No puck carrier — tap a player → Give Puck
         </span>
       ) : (
-        chain.map((node, index) => (
+        chain.map((node, index) => {
+          const event = node.eventIndex == null
+            ? undefined
+            : state.drill.events[node.eventIndex];
+          const shotResult = event?.type === 'shot'
+            ? event.result?.toUpperCase() ?? 'GOAL'
+            : 'SHOT';
+
+          return (
           <React.Fragment key={index}>
             {index > 0 && (
               <span className={`text-[11px] ${
@@ -34,7 +49,10 @@ export function PuckChainBar() {
             )}
 
             {node.action === 'shot' || node.action === 'dump' ? (
-              <div
+              <button
+                type="button"
+                onClick={() => event && actions.selectEvent(event.id)}
+                title={node.action === 'dump' ? 'Open this loose puck action and assign a receiver' : 'Inspect shot result'}
                 className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-[8px] font-extrabold flex-shrink-0"
                 style={{
                   background: 'rgba(255, 107, 15, 0.2)',
@@ -44,8 +62,10 @@ export function PuckChainBar() {
                   color: '#ff6b0f',
                 }}
               >
-                GOAL
-              </div>
+                {node.action === 'shot'
+                  ? shotResult
+                  : 'LOOSE'}
+              </button>
             ) : node.player ? (
               <div
                 className={`w-[22px] h-[22px] rounded-full flex items-center justify-center text-[9px] font-extrabold flex-shrink-0 border-2 ${
@@ -58,7 +78,8 @@ export function PuckChainBar() {
               </div>
             ) : null}
           </React.Fragment>
-        ))
+          );
+        })
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import type {
   Drill,
   Camera,
   UndoSnapshot,
+  Point,
 } from './types';
 import {
   DEFAULT_CAMERA,
@@ -17,10 +18,18 @@ import {
   DEFAULT_UI,
   RINK,
   MAX_UNDO_STACK,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  FIT_PADDING,
 } from './constants';
 import { createNewDrill } from '@/engine/drill';
 import { removePlayerFromEvents } from '@/engine/puck';
-import { createPlayerSnapshot } from '@/engine/playback';
+import {
+  updateGhostTrail,
+} from '@/engine/playback';
+import { compileDrill } from '@/sim/compileDrill';
+import { sampleFrame } from '@/sim/sampleFrame';
+import { clamp } from '@/utils/geometry';
 
 /**
  * Create initial application state
@@ -31,56 +40,162 @@ export function createInitialState(): AppState {
   return {
     drill,
     camera: { ...DEFAULT_CAMERA },
+    cameraUserAdjusted: false,
     canvasWidth: 0,
     canvasHeight: 0,
     selection: { ...DEFAULT_SELECTION },
     interaction: { ...DEFAULT_INTERACTION },
     playback: { ...DEFAULT_PLAYBACK },
+    playbackPositions: {},
+    playbackPlayerFrames: {},
     animatedPuck: null,
     ghostTrails: new Map(),
-    startSnapshot: createPlayerSnapshot(drill.players),
     ui: { ...DEFAULT_UI },
     undoStack: [],
+    redoStack: [],
     drillList: [],
     currentDrillId: drill.id,
   };
 }
 
 /**
- * Calculate camera to fit rink in viewport
+ * Calculate camera to fit the whole rink in the viewport
  */
 function calculateFitCamera(canvasWidth: number, canvasHeight: number): Camera {
-  // Guard against zero dimensions
   if (canvasWidth <= 0 || canvasHeight <= 0) {
-    return { x: 0, y: 0, zoom: 1 };
+    return { ...DEFAULT_CAMERA };
   }
 
-  const padding = 16;
   const zoom = Math.min(
-    (canvasWidth - padding * 2) / RINK.width,
-    (canvasHeight - padding * 2) / RINK.height
+    (canvasWidth - FIT_PADDING * 2) / RINK.width,
+    (canvasHeight - FIT_PADDING * 2) / RINK.height
   );
-  const x = (canvasWidth - RINK.width * zoom) / 2;
-  const y = (canvasHeight - RINK.height * zoom) / 2;
 
-  return { x, y, zoom };
-}
-
-/**
- * Create an undo snapshot
- */
-function createUndoSnapshot(drill: Drill): UndoSnapshot {
   return {
-    players: JSON.parse(JSON.stringify(drill.players)),
-    skatePaths: JSON.parse(JSON.stringify(drill.skatePaths)),
-    events: JSON.parse(JSON.stringify(drill.events)),
+    zoom,
+    x: (canvasWidth - RINK.width * zoom) / 2 - RINK.x * zoom,
+    y: (canvasHeight - RINK.height * zoom) / 2 - RINK.y * zoom,
   };
 }
 
 /**
- * Main application reducer
+ * Reset playback-derived state back to a clean slate
+ */
+const CLEARED_PLAYBACK = {
+  playbackPositions: {} as Record<string, Point>,
+  playbackPlayerFrames: {},
+  animatedPuck: null,
+  ghostTrails: new Map<string, Point[]>(),
+};
+
+/**
+ * Re-derive everything that depends on playback progress. Pure: given the same
+ * drill and progress it always produces the same positions, puck and events.
+ */
+function derivePlayback(state: AppState, progress: number): AppState {
+  const { players, skatePaths } = state.drill;
+  const compiled = compileDrill(state.drill);
+  const frame = sampleFrame(compiled, progress * compiled.durationSeconds);
+  const positions = Object.fromEntries(
+    Object.entries(frame.players).map(([id, playerFrame]) => [id, playerFrame.position])
+  );
+
+  // Trails only accumulate while actually playing - scrubbing shouldn't smear.
+  let ghostTrails = state.ghostTrails;
+  if (state.playback.isPlaying) {
+    for (const player of players) {
+      const hasPath = skatePaths.some(sp => sp.ownerId === player.id);
+      if (hasPath) {
+        ghostTrails = updateGhostTrail(ghostTrails, player.id, positions[player.id]);
+      }
+    }
+  }
+
+  return {
+    ...state,
+    playback: {
+      ...state.playback,
+      progress,
+      duration: frame.durationSeconds,
+      firedEvents: frame.firedEventIndices,
+      lifecycle: state.playback.isPlaying && frame.lifecycle === 'ready' ? 'active' : frame.lifecycle,
+    },
+    playbackPositions: positions,
+    playbackPlayerFrames: frame.players,
+    animatedPuck: frame.puck,
+    ghostTrails,
+  };
+}
+
+/**
+ * Create an undo snapshot of the drill's mutable content
+ */
+function createUndoSnapshot(drill: Drill): UndoSnapshot {
+  return structuredClone({
+    players: drill.players,
+    skatePaths: drill.skatePaths,
+    events: drill.events,
+  });
+}
+
+function applySnapshot(state: AppState, snapshot: UndoSnapshot): Drill {
+  return {
+    ...state.drill,
+    players: snapshot.players,
+    skatePaths: snapshot.skatePaths,
+    events: snapshot.events,
+    updatedAt: Date.now(),
+  };
+}
+
+/**
+ * Actions that change drill content and should each be a single undo step.
+ *
+ * MOVE_PLAYER is deliberately absent: it fires continuously while dragging, so
+ * the caller dispatches PUSH_UNDO once when the gesture starts instead.
+ */
+const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
+  'ADD_PLAYER',
+  'REMOVE_PLAYER',
+  'SET_PUCK_CARRIER',
+  'UPDATE_PLAYER_VISUAL',
+  'ADD_SKATE_PATH',
+  'REMOVE_SKATE_PATH',
+  'UPDATE_SKATE_PATH',
+  'ADD_PASS',
+  'ADD_SHOT',
+  'ADD_DUMP',
+  'ADD_PICKUP',
+  'REMOVE_EVENT',
+  'UPDATE_PASS_RESULT',
+  'UPDATE_SHOT_RESULT',
+  'CONVERT_DUMP_TO_PASS',
+  'RETARGET_PASS',
+  'CLEAR_ALL_EVENTS',
+]);
+
+/**
+ * Main application reducer.
+ *
+ * Wraps the core reducer to record undo history for drill-mutating actions, so
+ * individual call sites can't forget to.
  */
 export function appReducer(state: AppState, action: AppAction): AppState {
+  const next = reduce(state, action);
+
+  // Nothing changed (e.g. a rejected SET_PUCK_CARRIER) - don't record history.
+  if (next === state) return state;
+
+  if (UNDOABLE_ACTIONS.has(action.type) || action.type === 'PUSH_UNDO') {
+    const undoStack = [...state.undoStack, createUndoSnapshot(state.drill)];
+    if (undoStack.length > MAX_UNDO_STACK) undoStack.shift();
+    return { ...next, undoStack, redoStack: [] };
+  }
+
+  return next;
+}
+
+function reduce(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     // ========================================================================
     // DRILL MANAGEMENT
@@ -90,14 +205,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const drill = createNewDrill();
       return {
         ...state,
+        ...CLEARED_PLAYBACK,
         drill,
         selection: { ...DEFAULT_SELECTION },
         interaction: { ...DEFAULT_INTERACTION },
-        playback: { ...DEFAULT_PLAYBACK },
-        animatedPuck: null,
-        ghostTrails: new Map(),
-        startSnapshot: createPlayerSnapshot(drill.players),
+        playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
         undoStack: [],
+        redoStack: [],
         currentDrillId: drill.id,
       };
     }
@@ -105,14 +219,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'LOAD_DRILL': {
       return {
         ...state,
+        ...CLEARED_PLAYBACK,
         drill: action.drill,
         selection: { ...DEFAULT_SELECTION },
         interaction: { ...DEFAULT_INTERACTION },
-        playback: { ...DEFAULT_PLAYBACK },
-        animatedPuck: null,
-        ghostTrails: new Map(),
-        startSnapshot: createPlayerSnapshot(action.drill.players),
+        playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
         undoStack: [],
+        redoStack: [],
         currentDrillId: action.drill.id,
       };
     }
@@ -120,11 +233,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'RENAME_DRILL': {
       return {
         ...state,
-        drill: {
-          ...state.drill,
-          name: action.name,
-          updatedAt: Date.now(),
-        },
+        drill: { ...state.drill, name: action.name, updatedAt: Date.now() },
       };
     }
 
@@ -136,10 +245,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'SET_DRILL_LIST': {
-      return {
-        ...state,
-        drillList: action.drills,
-      };
+      return { ...state, drillList: action.drills };
     }
 
     // ========================================================================
@@ -154,28 +260,27 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           players: [...state.drill.players, action.player],
           updatedAt: Date.now(),
         },
-        startSnapshot: createPlayerSnapshot([...state.drill.players, action.player]),
       };
     }
 
     case 'REMOVE_PLAYER': {
-      const newPlayers = state.drill.players.filter(p => p.id !== action.id);
-      const newPaths = state.drill.skatePaths.filter(sp => sp.ownerId !== action.id);
-      const newEvents = removePlayerFromEvents(action.id, state.drill.events);
+      const players = state.drill.players.filter(p => p.id !== action.id);
+      const skatePaths = state.drill.skatePaths.filter(sp => sp.ownerId !== action.id);
+      const events = removePlayerFromEvents(action.id, state.drill.events);
+
+      // Removing the initial carrier would leave the drill with no puck at all,
+      // so hand it to whoever is left.
+      const hasCarrier = players.some(p => p.hasPuck);
+      const withPuck = hasCarrier || players.length === 0
+        ? players
+        : players.map((p, i) => ({ ...p, hasPuck: i === 0 }));
 
       return {
         ...state,
-        drill: {
-          ...state.drill,
-          players: newPlayers,
-          skatePaths: newPaths,
-          events: newEvents,
-          updatedAt: Date.now(),
-        },
+        drill: { ...state.drill, players: withPuck, skatePaths, events, updatedAt: Date.now() },
         selection: state.selection.selectedPlayerId === action.id
           ? { ...state.selection, selectedPlayerId: null }
           : state.selection,
-        startSnapshot: createPlayerSnapshot(newPlayers),
       };
     }
 
@@ -192,25 +297,31 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     }
 
+    case 'UPDATE_PLAYER_VISUAL': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          players: state.drill.players.map(player => player.id === action.id
+            ? { ...player, visual: { handedness: 'right', visor: true, ...player.visual, ...action.visual } }
+            : player),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
     case 'SET_PUCK_CARRIER': {
-      // Can only set initial puck carrier if no events exist
-      if (state.drill.events.length > 0) {
-        return state;
-      }
+      // The initial carrier only makes sense before any events exist; after
+      // that possession is derived from the event chain.
+      if (state.drill.events.length > 0) return state;
 
       return {
         ...state,
         drill: {
           ...state.drill,
-          players: state.drill.players.map(p => ({
-            ...p,
-            hasPuck: p.id === action.id,
-          })),
+          players: state.drill.players.map(p => ({ ...p, hasPuck: p.id === action.id })),
           updatedAt: Date.now(),
         },
-        startSnapshot: createPlayerSnapshot(
-          state.drill.players.map(p => ({ ...p, hasPuck: p.id === action.id }))
-        ),
       };
     }
 
@@ -219,13 +330,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     // ========================================================================
 
     case 'ADD_SKATE_PATH': {
+      // One path per player - a second drag replaces the first.
+      const skatePaths = [
+        ...state.drill.skatePaths.filter(sp => sp.ownerId !== action.path.ownerId),
+        action.path,
+      ];
       return {
         ...state,
-        drill: {
-          ...state.drill,
-          skatePaths: [...state.drill.skatePaths, action.path],
-          updatedAt: Date.now(),
-        },
+        drill: { ...state.drill, skatePaths, updatedAt: Date.now() },
       };
     }
 
@@ -240,11 +352,25 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     }
 
+    case 'UPDATE_SKATE_PATH': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          skatePaths: state.drill.skatePaths.map(path => path.id === action.id ? { ...path, ...action.updates } : path),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
     // ========================================================================
     // EVENT ACTIONS
     // ========================================================================
 
-    case 'ADD_PASS': {
+    case 'ADD_PASS':
+    case 'ADD_SHOT':
+    case 'ADD_DUMP':
+    case 'ADD_PICKUP': {
       return {
         ...state,
         drill: {
@@ -252,31 +378,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           events: [...state.drill.events, action.event],
           updatedAt: Date.now(),
         },
-        startSnapshot: createPlayerSnapshot(state.drill.players),
-      };
-    }
-
-    case 'ADD_SHOT': {
-      return {
-        ...state,
-        drill: {
-          ...state.drill,
-          events: [...state.drill.events, action.event],
-          updatedAt: Date.now(),
-        },
-        startSnapshot: createPlayerSnapshot(state.drill.players),
-      };
-    }
-
-    case 'ADD_DUMP': {
-      return {
-        ...state,
-        drill: {
-          ...state.drill,
-          events: [...state.drill.events, action.event],
-          updatedAt: Date.now(),
-        },
-        startSnapshot: createPlayerSnapshot(state.drill.players),
       };
     }
 
@@ -291,24 +392,68 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     }
 
-    case 'CLEAR_ALL_EVENTS': {
-      // Reset puck to first player
-      const resetPlayers = state.drill.players.map((p, i) => ({
-        ...p,
-        hasPuck: i === 0,
-      }));
-
+    case 'UPDATE_PASS_RESULT': {
+      const eventIndex = state.drill.events.findIndex(event => event.id === action.id);
+      const updatedEvents = state.drill.events.map(event =>
+        event.id === action.id && event.type === 'pass'
+          ? { ...event, catchResult: action.result }
+          : event
+      );
       return {
         ...state,
         drill: {
           ...state.drill,
-          skatePaths: [],
-          events: [],
-          players: resetPlayers,
+          // A miss breaks possession. Later authored actions are no longer
+          // physically valid and must be rebuilt after a recovery.
+          events: action.result === 'missed' && eventIndex >= 0
+            ? updatedEvents.slice(0, eventIndex + 1)
+            : updatedEvents,
           updatedAt: Date.now(),
         },
+      };
+    }
+
+    case 'UPDATE_SHOT_RESULT': {
+      const eventIndex = state.drill.events.findIndex(event => event.id === action.id);
+      const updatedEvents = state.drill.events.map(event =>
+        event.id === action.id && event.type === 'shot'
+          ? { ...event, result: action.result }
+          : event
+      );
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          events: action.result !== 'rebound' && eventIndex >= 0
+            ? updatedEvents.slice(0, eventIndex + 1)
+            : updatedEvents,
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'CONVERT_DUMP_TO_PASS':
+    case 'RETARGET_PASS': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          events: state.drill.events.map(existing =>
+            existing.id === action.event.id ? action.event : existing
+          ),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'CLEAR_ALL_EVENTS': {
+      const players = state.drill.players.map((p, i) => ({ ...p, hasPuck: i === 0 }));
+      return {
+        ...state,
+        ...CLEARED_PLAYBACK,
+        drill: { ...state.drill, skatePaths: [], events: [], players, updatedAt: Date.now() },
         selection: { ...DEFAULT_SELECTION },
-        startSnapshot: createPlayerSnapshot(resetPlayers),
+        playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
       };
     }
 
@@ -319,14 +464,38 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_CAMERA': {
       return {
         ...state,
-        camera: action.camera,
+        camera: {
+          ...action.camera,
+          zoom: clamp(action.camera.zoom, MIN_ZOOM, MAX_ZOOM),
+        },
+        cameraUserAdjusted: true,
       };
     }
 
     case 'FIT_CAMERA': {
+      // An explicit "show me the whole rink" also hands control back to
+      // auto-fit, so resizing keeps the rink framed.
       return {
         ...state,
         camera: calculateFitCamera(state.canvasWidth, state.canvasHeight),
+        cameraUserAdjusted: false,
+      };
+    }
+
+    case 'ZOOM_AT': {
+      const { camera } = state;
+      const zoom = clamp(camera.zoom * action.factor, MIN_ZOOM, MAX_ZOOM);
+      // Keep the world point under the cursor pinned to the same screen point.
+      const scale = zoom / camera.zoom;
+
+      return {
+        ...state,
+        camera: {
+          zoom,
+          x: action.screenPoint.x - (action.screenPoint.x - camera.x) * scale,
+          y: action.screenPoint.y - (action.screenPoint.y - camera.y) * scale,
+        },
+        cameraUserAdjusted: true,
       };
     }
 
@@ -335,33 +504,19 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const ch = state.canvasHeight;
 
       if (action.zone === 'full') {
-        return {
-          ...state,
-          camera: calculateFitCamera(cw, ch),
-        };
+        return { ...state, camera: calculateFitCamera(cw, ch), cameraUserAdjusted: false };
       }
 
-      const zoom = 2;
-      const rx = RINK.x;
-      const ry = RINK.y;
-      const rw = RINK.width;
-      const rh = RINK.height;
-
-      let cx: number;
-      if (action.zone === 'offensive') {
-        cx = rx + rw * 0.62;
-      } else {
-        cx = rx + rw * 0.38;
-      }
-      const cy = ry + rh / 2;
+      const zoom = clamp(2, MIN_ZOOM, MAX_ZOOM);
+      const cx = action.zone === 'offensive'
+        ? RINK.x + RINK.width * 0.62
+        : RINK.x + RINK.width * 0.38;
+      const cy = RINK.centerY;
 
       return {
         ...state,
-        camera: {
-          x: -cx * zoom + cw / 2,
-          y: -cy * zoom + ch / 2,
-          zoom,
-        },
+        camera: { x: -cx * zoom + cw / 2, y: -cy * zoom + ch / 2, zoom },
+        cameraUserAdjusted: true,
       };
     }
 
@@ -370,11 +525,16 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     // ========================================================================
 
     case 'SET_CANVAS_SIZE': {
+      // Keep re-fitting on resize until the user takes the camera over. The
+      // first layout pass reports a stale height, so fitting only once would
+      // leave the rink cropped.
+      const shouldFit = !state.cameraUserAdjusted && action.width > 0 && action.height > 0;
+
       return {
         ...state,
         canvasWidth: action.width,
         canvasHeight: action.height,
-        camera: calculateFitCamera(action.width, action.height),
+        camera: shouldFit ? calculateFitCamera(action.width, action.height) : state.camera,
       };
     }
 
@@ -385,20 +545,22 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'SELECT_PLAYER': {
       return {
         ...state,
-        selection: {
-          ...state.selection,
-          selectedPlayerId: action.id,
-        },
+        selection: { ...state.selection, selectedPlayerId: action.id, selectedEventId: null },
       };
     }
 
     case 'SET_PASS_FROM': {
       return {
         ...state,
-        selection: {
-          ...state.selection,
-          passFromPlayerId: action.id,
-        },
+        selection: { ...state.selection, passFromPlayerId: action.id },
+      };
+    }
+
+    case 'SELECT_EVENT': {
+      return {
+        ...state,
+        selection: { ...state.selection, selectedEventId: action.id, selectedPlayerId: null },
+        ui: { ...state.ui, showPlayerInfo: false },
       };
     }
 
@@ -409,18 +571,12 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_INTERACTION': {
       return {
         ...state,
-        interaction: {
-          ...state.interaction,
-          ...action.interaction,
-        },
+        interaction: { ...state.interaction, ...action.interaction },
       };
     }
 
     case 'RESET_INTERACTION': {
-      return {
-        ...state,
-        interaction: { ...DEFAULT_INTERACTION },
-      };
+      return { ...state, interaction: { ...DEFAULT_INTERACTION } };
     }
 
     // ========================================================================
@@ -428,125 +584,42 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     // ========================================================================
 
     case 'START_PLAYBACK': {
-      return {
-        ...state,
-        playback: {
-          ...state.playback,
-          isPlaying: true,
-          progress: 0,
-          firedEvents: [],
+      return derivePlayback(
+        {
+          ...state,
+          ...CLEARED_PLAYBACK,
+          playback: { ...state.playback, isPlaying: true, progress: 0, firedEvents: [] },
         },
-        ghostTrails: new Map(),
-        animatedPuck: null,
-      };
+        0
+      );
     }
 
     case 'STOP_PLAYBACK': {
-      return {
-        ...state,
-        playback: {
-          ...state.playback,
-          isPlaying: false,
-        },
-        animatedPuck: null,
-      };
+      return { ...state, playback: { ...state.playback, isPlaying: false } };
     }
 
     case 'SET_PLAYBACK_PROGRESS': {
-      return {
-        ...state,
-        playback: {
-          ...state.playback,
-          progress: action.progress,
-        },
-      };
+      return derivePlayback(state, clamp(action.progress, 0, 1));
     }
 
     case 'SET_PLAYBACK_SPEED': {
-      return {
-        ...state,
-        playback: {
-          ...state.playback,
-          speed: action.speed,
-        },
-      };
-    }
-
-    case 'FIRE_EVENT': {
-      return {
-        ...state,
-        playback: {
-          ...state.playback,
-          firedEvents: [...state.playback.firedEvents, action.index],
-        },
-      };
+      return { ...state, playback: { ...state.playback, speed: action.speed } };
     }
 
     case 'RESET_PLAYBACK': {
       return {
         ...state,
+        ...CLEARED_PLAYBACK,
         playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
-        ghostTrails: new Map(),
-        animatedPuck: null,
-      };
-    }
-
-    // ========================================================================
-    // ANIMATION
-    // ========================================================================
-
-    case 'SET_ANIMATED_PUCK': {
-      return {
-        ...state,
-        animatedPuck: action.puck,
-      };
-    }
-
-    case 'UPDATE_GHOST_TRAIL': {
-      const newTrails = new Map(state.ghostTrails);
-      const trail = newTrails.get(action.playerId) ?? [];
-      trail.push(action.point);
-      if (trail.length > 55) trail.shift();
-      newTrails.set(action.playerId, trail);
-
-      return {
-        ...state,
-        ghostTrails: newTrails,
       };
     }
 
     case 'CLEAR_GHOST_TRAILS': {
-      return {
-        ...state,
-        ghostTrails: new Map(),
-      };
+      return { ...state, ghostTrails: new Map() };
     }
 
-    // ========================================================================
-    // SNAPSHOT
-    // ========================================================================
-
-    case 'SAVE_START_SNAPSHOT': {
-      return {
-        ...state,
-        startSnapshot: createPlayerSnapshot(state.drill.players),
-      };
-    }
-
-    case 'RESTORE_START_SNAPSHOT': {
-      return {
-        ...state,
-        drill: {
-          ...state.drill,
-          players: state.drill.players.map(player => {
-            const snap = state.startSnapshot.find(s => s.id === player.id);
-            if (snap) {
-              return { ...player, x: snap.x, y: snap.y, hasPuck: snap.hasPuck };
-            }
-            return player;
-          }),
-        },
-      };
+    case 'SET_PLAYBACK_LIFECYCLE': {
+      return { ...state, playback: { ...state.playback, lifecycle: action.lifecycle } };
     }
 
     // ========================================================================
@@ -556,10 +629,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_TOOL': {
       return {
         ...state,
-        ui: {
-          ...state.ui,
-          currentTool: action.tool,
-        },
+        ui: { ...state.ui, currentTool: action.tool },
         selection: action.tool !== 'pass'
           ? { ...state.selection, passFromPlayerId: null }
           : state.selection,
@@ -567,24 +637,21 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     }
 
-    case 'TOGGLE_MENU': {
+    case 'SET_EDITOR_STEP': {
       return {
         ...state,
-        ui: {
-          ...state.ui,
-          showMenu: !state.ui.showMenu,
-        },
+        ui: { ...state.ui, editorStep: action.step },
+        selection: { ...state.selection, passFromPlayerId: null },
+        interaction: { ...DEFAULT_INTERACTION },
       };
     }
 
+    case 'TOGGLE_MENU': {
+      return { ...state, ui: { ...state.ui, showMenu: !state.ui.showMenu } };
+    }
+
     case 'CLOSE_MENU': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          showMenu: false,
-        },
-      };
+      return { ...state, ui: { ...state.ui, showMenu: false } };
     }
 
     case 'SHOW_CONTEXT_MENU': {
@@ -612,111 +679,55 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'SHOW_RENAME_MODAL': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          showRenameModal: true,
-        },
-      };
+      return { ...state, ui: { ...state.ui, showRenameModal: true } };
     }
 
     case 'HIDE_RENAME_MODAL': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          showRenameModal: false,
-        },
-      };
+      return { ...state, ui: { ...state.ui, showRenameModal: false } };
     }
 
     case 'SHOW_PLAYER_INFO': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          showPlayerInfo: true,
-        },
-      };
+      return { ...state, ui: { ...state.ui, showPlayerInfo: true } };
     }
 
     case 'HIDE_PLAYER_INFO': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          showPlayerInfo: false,
-        },
-      };
+      return { ...state, ui: { ...state.ui, showPlayerInfo: false } };
     }
 
     case 'ADD_TOAST': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          toasts: [...state.ui.toasts, action.toast],
-        },
-      };
+      return { ...state, ui: { ...state.ui, toasts: [...state.ui.toasts, action.toast] } };
     }
 
     case 'REMOVE_TOAST': {
       return {
         ...state,
-        ui: {
-          ...state.ui,
-          toasts: state.ui.toasts.filter(t => t.id !== action.id),
-        },
+        ui: { ...state.ui, toasts: state.ui.toasts.filter(t => t.id !== action.id) },
       };
     }
 
     case 'SET_MODE_BANNER': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          modeBanner: action.message,
-          playBanner: null,
-        },
-      };
+      return { ...state, ui: { ...state.ui, modeBanner: action.message, playBanner: null } };
     }
 
     case 'SET_PLAY_BANNER': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          playBanner: action.message,
-          modeBanner: null,
-        },
-      };
+      return { ...state, ui: { ...state.ui, playBanner: action.message, modeBanner: null } };
     }
 
     case 'CLEAR_BANNERS': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          modeBanner: null,
-          playBanner: null,
-        },
-      };
+      return { ...state, ui: { ...state.ui, modeBanner: null, playBanner: null } };
+    }
+
+    case 'TOGGLE_DIAGNOSTICS': {
+      return { ...state, ui: { ...state.ui, showDiagnostics: !state.ui.showDiagnostics } };
     }
 
     // ========================================================================
-    // UNDO
+    // UNDO / REDO
     // ========================================================================
 
     case 'PUSH_UNDO': {
-      const newStack = [...state.undoStack, createUndoSnapshot(state.drill)];
-      if (newStack.length > MAX_UNDO_STACK) {
-        newStack.shift();
-      }
-      return {
-        ...state,
-        undoStack: newStack,
-      };
+      // The stack entry itself is added by appReducer; this just marks the point.
+      return { ...state };
     }
 
     case 'POP_UNDO': {
@@ -725,23 +736,32 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const snapshot = state.undoStack[state.undoStack.length - 1];
       return {
         ...state,
-        drill: {
-          ...state.drill,
-          players: snapshot.players,
-          skatePaths: snapshot.skatePaths,
-          events: snapshot.events,
-          updatedAt: Date.now(),
-        },
+        ...CLEARED_PLAYBACK,
+        drill: applySnapshot(state, snapshot),
         undoStack: state.undoStack.slice(0, -1),
-        startSnapshot: createPlayerSnapshot(snapshot.players),
+        redoStack: [...state.redoStack, createUndoSnapshot(state.drill)],
+        playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
+        selection: { ...DEFAULT_SELECTION },
+      };
+    }
+
+    case 'REDO': {
+      if (state.redoStack.length === 0) return state;
+
+      const snapshot = state.redoStack[state.redoStack.length - 1];
+      return {
+        ...state,
+        ...CLEARED_PLAYBACK,
+        drill: applySnapshot(state, snapshot),
+        redoStack: state.redoStack.slice(0, -1),
+        undoStack: [...state.undoStack, createUndoSnapshot(state.drill)],
+        playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
+        selection: { ...DEFAULT_SELECTION },
       };
     }
 
     case 'CLEAR_UNDO': {
-      return {
-        ...state,
-        undoStack: [],
-      };
+      return { ...state, undoStack: [], redoStack: [] };
     }
 
     default:

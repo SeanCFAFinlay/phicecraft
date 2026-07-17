@@ -2,20 +2,13 @@
 // TOP BAR - Header with menu, logo, drill name, and actions
 // ============================================================================
 
-import React from 'react';
 import { useAppState } from '@/hooks/useAppState';
 
 export function TopBar() {
   const { state, actions } = useAppState();
 
-  const handleUndo = () => {
-    if (state.undoStack.length === 0) {
-      actions.showToast('Nothing to undo', 'info');
-      return;
-    }
-    actions.undo();
-    actions.showToast('Undone', 'success', 1200);
-  };
+  const canUndo = state.undoStack.length > 0;
+  const canRedo = state.redoStack.length > 0;
 
   const handleClear = () => {
     if (!confirm('Clear all paths and events?')) return;
@@ -28,6 +21,7 @@ export function TopBar() {
       {/* Menu button */}
       <button
         onClick={actions.toggleMenu}
+        aria-label={state.ui.showMenu ? 'Close main menu' : 'Open main menu'}
         className="w-9 h-9 flex flex-col justify-center items-center gap-[5px] p-0 bg-transparent border-none cursor-pointer"
       >
         <span className={`block w-[19px] h-[2px] bg-app-cyan rounded-sm transition-transform duration-200 ${
@@ -49,6 +43,7 @@ export function TopBar() {
       {/* Drill name */}
       <button
         onClick={actions.showRenameModal}
+        aria-label={`Rename drill ${state.drill.name}`}
         className="flex-1 text-[11px] text-app-dim text-center overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer px-2 py-1 rounded hover:bg-app-cyan/5 active:bg-app-cyan/10"
       >
         {state.drill.name}
@@ -56,11 +51,22 @@ export function TopBar() {
 
       {/* Undo button */}
       <button
-        onClick={handleUndo}
-        className="w-[34px] h-[34px] bg-white/5 border border-app-border rounded-lg text-app-text text-[15px] cursor-pointer flex items-center justify-center flex-shrink-0 hover:bg-app-cyan/10 active:scale-95"
+        onClick={actions.undo}
+        disabled={!canUndo}
+        className="w-[34px] h-[34px] bg-white/5 border border-app-border rounded-lg text-app-text text-[15px] cursor-pointer flex items-center justify-center flex-shrink-0 hover:bg-app-cyan/10 active:scale-95 disabled:opacity-30 disabled:cursor-default"
         title="Undo"
       >
         ↩
+      </button>
+
+      {/* Redo button */}
+      <button
+        onClick={actions.redo}
+        disabled={!canRedo}
+        className="w-[34px] h-[34px] bg-white/5 border border-app-border rounded-lg text-app-text text-[15px] cursor-pointer flex items-center justify-center flex-shrink-0 hover:bg-app-cyan/10 active:scale-95 disabled:opacity-30 disabled:cursor-default"
+        title="Redo"
+      >
+        ↪
       </button>
 
       {/* Clear button */}

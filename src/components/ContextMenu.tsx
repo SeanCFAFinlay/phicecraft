@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { useAppState } from '@/hooks/useAppState';
-import { getCurrentPuckHolder, canAddEvents, getTargetNet, validatePass, validateShot } from '@/engine/puck';
+import { getCurrentPuckHolder, canAddEvents, getTargetNet, validateShot } from '@/engine/puck';
 import { RINK } from '@/core/constants';
 
 interface MenuButtonProps {
@@ -61,7 +61,7 @@ export function ContextMenu() {
   const hasPuck = holder?.id === player.id || (player.hasPuck && state.drill.events.length === 0);
   const canPass = canAddEvents(state.drill.events) && hasPuck;
   const canShoot = canAddEvents(state.drill.events) && hasPuck;
-  const showGivePuck = !hasPuck && state.drill.events.length === 0;
+  const showGivePuck = !hasPuck;
 
   const handlePass = () => {
     actions.hideContextMenu();
@@ -114,11 +114,11 @@ export function ContextMenu() {
   const handleGivePuck = () => {
     actions.hideContextMenu();
     if (state.drill.events.length > 0) {
-      actions.showToast('Clear events first to reassign initial puck carrier', 'warning');
-      return;
+      if (!confirm(`Start a new possession sequence with #${player.number}? Existing passes, shots and dumps will be cleared.`)) return;
+      actions.clearAllEvents();
     }
     actions.setPuckCarrier(player.id);
-    actions.showToast(`#${player.number} now has the puck`, 'success');
+    actions.showToast(`#${player.number} is the active puck carrier`, 'success');
   };
 
   const handleDelete = () => {
@@ -175,7 +175,7 @@ export function ContextMenu() {
       {showGivePuck && (
         <MenuButton
           icon="🏒"
-          label="Give Puck"
+          label="Set as Puck Carrier"
           onClick={handleGivePuck}
         />
       )}

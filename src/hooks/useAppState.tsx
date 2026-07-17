@@ -2,11 +2,11 @@
 // APP STATE HOOK - React context and reducer for global state
 // ============================================================================
 
-import React, {
+import {
   createContext,
   useContext,
   useReducer,
-  useCallback,
+  useMemo,
   useEffect,
   useRef,
   type ReactNode,
@@ -21,22 +21,33 @@ import type {
   PassEvent,
   ShotEvent,
   DumpEvent,
+  PickupEvent,
   Point,
   ID,
   Camera,
   Toast,
+  Team,
   InteractionState,
 } from '@/core/types';
 import { createInitialState, appReducer } from '@/core/state';
 import { generateId } from '@/utils/id';
+import { closestPointOnPolyline, distance } from '@/utils/geometry';
+import { getPassInterception, getPlayerStickPositionAtProgress, getPuckStateAtProgress, getTimeForSkatingProgress } from '@/engine/playback';
 import {
   getDrillList,
   getDrill,
-  saveDrill,
+  saveDrill as persistDrill,
+  deleteDrill as removeStoredDrill,
   getCurrentDrillId,
   setCurrentDrillId,
+  exportAllDrills,
+  importDrills as importDrillsJson,
 } from '@/storage';
-import { TOOL_HINTS } from '@/core/constants';
+import { TOOL_HINTS, RINK_CENTER_X, AUTOSAVE_DELAY } from '@/core/constants';
+import { giveAndGoRegressionDrill } from '@/fixtures/giveAndGo.v1';
+import { fiveManCornerRetrievalDrill } from '@/fixtures/fiveManCornerRetrieval.v1';
+import { fiveManCrossCornerDrill } from '@/fixtures/fiveManCrossCorner.v1';
+import { fiveManLowHighDrill } from '@/fixtures/fiveManLowHigh.v1';
 
 // ============================================================================
 // CONTEXT
@@ -51,44 +62,63 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 // ============================================================================
-// ACTION HELPERS
+// ACTIONS
 // ============================================================================
 
-interface AppActions {
+export interface AppActions {
   // Tool
   setTool: (tool: Tool) => void;
+  setEditorStep: (step: AppState['ui']['editorStep']) => void;
 
   // Players
   addPlayer: (player: Player) => void;
   removePlayer: (id: ID) => void;
+  beginPlayerMove: () => void;
   movePlayer: (id: ID, x: number, y: number) => void;
   setPuckCarrier: (id: ID) => void;
+  updatePlayerVisual: (id: ID, visual: Partial<NonNullable<Player['visual']>>) => void;
 
   // Paths
   addSkatePath: (path: SkatePath) => void;
   removeSkatePath: (id: ID) => void;
+  updateSkatePath: (id: ID, updates: Pick<SkatePath, 'mode' | 'finish'>) => void;
 
   // Events
   addPass: (fromPlayer: Player, toPlayer: Player, fromPoint?: Point, toPoint?: Point) => void;
-  addPathPass: (fromPlayerId: ID, toPlayerId: ID, fromPoint: Point, toPoint: Point, team: 'home' | 'away') => void;
-  addShot: (fromPlayer: Player, targetPoint: Point) => void;
-  addDump: (fromPlayer: Player, targetPoint: Point) => void;
+  addPathPass: (fromPlayerId: ID, toPlayerId: ID, fromPoint: Point, toPoint: Point, team: Team) => void;
+  addShot: (fromPlayer: Player, targetPoint: Point, fromPoint?: Point) => void;
+  addDump: (fromPlayer: Player, targetPoint: Point, fromPoint?: Point) => void;
+  addPickup: (player: Player) => void;
 
   // Selection
   selectPlayer: (id: ID | null) => void;
   setPassFrom: (id: ID | null) => void;
+  selectEvent: (id: ID | null) => void;
+  removeEvent: (id: ID) => void;
+  updatePassResult: (id: ID, result: 'caught' | 'missed') => void;
+  updateShotResult: (id: ID, result: 'goal' | 'save' | 'rebound' | 'wide' | 'post') => void;
+  convertDumpToPass: (eventId: ID, receiverId: ID) => void;
+  retargetPass: (eventId: ID, receiverId: ID) => void;
 
   // Drill management
   newDrill: () => void;
+  loadMechanicsDemo: () => void;
+  loadFiveManCornerRetrieval: () => void;
+  loadFiveManCrossCorner: () => void;
+  loadFiveManLowHigh: () => void;
   renameDrill: (name: string) => void;
   loadDrill: (id: ID) => void;
   saveDrill: () => void;
+  deleteDrill: (id: ID) => void;
   clearAllEvents: () => void;
+  exportDrills: () => void;
+  importDrills: (json: string) => void;
 
   // Camera
   setCamera: (camera: Camera) => void;
   fitCamera: () => void;
   zoomToZone: (zone: 'full' | 'offensive' | 'defensive') => void;
+  zoomAt: (factor: number, screenPoint: Point) => void;
 
   // Interaction
   setInteraction: (interaction: Partial<InteractionState>) => void;
@@ -104,6 +134,7 @@ interface AppActions {
   // Undo
   pushUndo: () => void;
   undo: () => void;
+  redo: () => void;
 
   // UI
   showToast: (message: string, type?: Toast['type'], duration?: number) => void;
@@ -118,44 +149,58 @@ interface AppActions {
   setModeBanner: (message: string | null) => void;
   setPlayBanner: (message: string | null) => void;
   clearBanners: () => void;
+  toggleDiagnostics: () => void;
+}
+
+/**
+ * Trigger a browser download of a text file
+ */
+function downloadFile(filename: string, contents: string): void {
+  const blob = new Blob([contents], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 // ============================================================================
 // PROVIDER
 // ============================================================================
 
-interface AppProviderProps {
-  children: ReactNode;
-}
-
-export function AppProvider({ children }: AppProviderProps) {
+export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, null, createInitialState);
   const autoSaveTimeoutRef = useRef<number | null>(null);
 
+  // Actions are built once and must never go stale, so anything that needs to
+  // read current state reads it through this ref rather than closing over it.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // Load drill list and current drill on mount
   useEffect(() => {
-    const drillList = getDrillList();
-    dispatch({ type: 'SET_DRILL_LIST', drills: drillList });
+    dispatch({ type: 'SET_DRILL_LIST', drills: getDrillList() });
 
     const currentId = getCurrentDrillId();
     if (currentId) {
       const drill = getDrill(currentId);
-      if (drill) {
-        dispatch({ type: 'LOAD_DRILL', drill });
-      }
+      if (drill) dispatch({ type: 'LOAD_DRILL', drill });
     }
   }, []);
 
-  // Auto-save drill when it changes
+  // Auto-save the drill when it changes. Playback no longer writes to the
+  // drill, so this only fires on real edits.
   useEffect(() => {
     if (autoSaveTimeoutRef.current) {
       window.clearTimeout(autoSaveTimeoutRef.current);
     }
 
     autoSaveTimeoutRef.current = window.setTimeout(() => {
-      saveDrill(state.drill);
+      persistDrill(state.drill);
       setCurrentDrillId(state.drill.id);
-    }, 1000);
+      dispatch({ type: 'SET_DRILL_LIST', drills: getDrillList() });
+    }, AUTOSAVE_DELAY);
 
     return () => {
       if (autoSaveTimeoutRef.current) {
@@ -164,268 +209,460 @@ export function AppProvider({ children }: AppProviderProps) {
     };
   }, [state.drill]);
 
-  // Action creators
-  const actions: AppActions = {
-    setTool: useCallback((tool: Tool) => {
-      dispatch({ type: 'SET_TOOL', tool });
-      const hint = TOOL_HINTS[tool];
-      if (hint) {
-        const toast: Toast = {
+  const actions = useMemo<AppActions>(() => {
+    const toast = (message: string, type: Toast['type'] = 'info', duration = 2500) => {
+      const t: Toast = { id: generateId(), message, type, duration };
+      dispatch({ type: 'ADD_TOAST', toast: t });
+      if (duration > 0) {
+        window.setTimeout(() => dispatch({ type: 'REMOVE_TOAST', id: t.id }), duration);
+      }
+    };
+
+    const refreshDrillList = () =>
+      dispatch({ type: 'SET_DRILL_LIST', drills: getDrillList() });
+
+    return {
+      setTool: tool => {
+        dispatch({ type: 'SET_TOOL', tool });
+        const hint = TOOL_HINTS[tool];
+        if (hint) toast(hint, 'info', 3800);
+      },
+      setEditorStep: step => dispatch({ type: 'SET_EDITOR_STEP', step }),
+
+      addPlayer: player => dispatch({ type: 'ADD_PLAYER', player }),
+      removePlayer: id => dispatch({ type: 'REMOVE_PLAYER', id }),
+      beginPlayerMove: () => dispatch({ type: 'PUSH_UNDO' }),
+      movePlayer: (id, x, y) => dispatch({ type: 'MOVE_PLAYER', id, x, y }),
+      setPuckCarrier: id => dispatch({ type: 'SET_PUCK_CARRIER', id }),
+      updatePlayerVisual: (id, visual) => dispatch({ type: 'UPDATE_PLAYER_VISUAL', id, visual }),
+
+      addSkatePath: path => dispatch({ type: 'ADD_SKATE_PATH', path }),
+      removeSkatePath: id => dispatch({ type: 'REMOVE_SKATE_PATH', id }),
+      updateSkatePath: (id, updates) => dispatch({ type: 'UPDATE_SKATE_PATH', id, updates }),
+
+      addPass: (fromPlayer, toPlayer, fromPoint, toPoint) => {
+        const s = stateRef.current;
+        const authoredSource = fromPoint ?? { x: fromPlayer.x, y: fromPlayer.y };
+        const requestedTarget = toPoint ?? { x: toPlayer.x, y: toPlayer.y };
+        const sourcePath = s.drill.skatePaths.find(path => path.ownerId === fromPlayer.id);
+        const previousArrival = s.drill.events.length
+          ? s.drill.events[s.drill.events.length - 1].arrivalAt ?? 0
+          : 0;
+        const authoredTime = sourcePath
+          ? getTimeForSkatingProgress(closestPointOnPolyline(sourcePath.points, authoredSource).t)
+          : Math.max(0.12, previousArrival + 0.04);
+        const sourceTime = Math.min(0.94, Math.max(authoredTime, previousArrival + 0.04));
+        const source = getPlayerStickPositionAtProgress(fromPlayer, s.drill.skatePaths, sourceTime);
+        const interception = getPassInterception(
+          source,
+          toPlayer,
+          s.drill.skatePaths,
+          sourceTime,
+          s.playback.duration
+        );
+        // A pass addressed to a player always resolves to that skater's stick
+        // socket. Clicking the body is the easy targeting gesture; the engine
+        // handles the hockey-specific catch point for stationary and moving
+        // receivers alike.
+        const target = interception.toPoint;
+        const arrivalAt = interception.arrivalAt;
+        const event: PassEvent = {
           id: generateId(),
-          message: hint,
-          type: 'info',
-          duration: 3800,
+          type: 'pass',
+          fromPlayerId: fromPlayer.id,
+          toPlayerId: toPlayer.id,
+          fromPoint: source,
+          toPoint: target,
+          team: fromPlayer.team,
+          at: sourceTime,
+          arrivalAt,
+          catchResult: 'caught',
+          catchQuality: distance(requestedTarget, target) < 45 ? 'good' : 'assisted',
         };
-        dispatch({ type: 'ADD_TOAST', toast });
-      }
-    }, []),
+        dispatch({ type: 'ADD_PASS', event });
+      },
 
-    addPlayer: useCallback((player: Player) => {
-      dispatch({ type: 'ADD_PLAYER', player });
-    }, []),
+      addPathPass: (fromPlayerId, toPlayerId, fromPoint, toPoint, team) => {
+        const s = stateRef.current;
+        const fromPath = s.drill.skatePaths.find(path => path.ownerId === fromPlayerId);
+        const receiver = s.drill.players.find(player => player.id === toPlayerId);
+        const passer = s.drill.players.find(player => player.id === fromPlayerId);
+        const authoredTime = fromPath
+          ? getTimeForSkatingProgress(closestPointOnPolyline(fromPath.points, fromPoint).t)
+          : 0.12;
+        const previousArrival = s.drill.events.length
+          ? s.drill.events[s.drill.events.length - 1].arrivalAt ?? 0
+          : 0;
+        const at = Math.min(0.94, Math.max(authoredTime, previousArrival + 0.04));
+        const releasePoint = passer
+          ? getPlayerStickPositionAtProgress(passer, s.drill.skatePaths, at)
+          : fromPoint;
+        const interception = receiver
+          ? getPassInterception(releasePoint, receiver, s.drill.skatePaths, at, s.playback.duration)
+          : { toPoint, arrivalAt: Math.min(0.98, at + 0.06) };
+        const event: PassEvent = {
+          id: generateId(),
+          type: 'pass',
+          fromPlayerId,
+          toPlayerId,
+          fromPoint: releasePoint,
+          toPoint: interception.toPoint,
+          team,
+          at,
+          arrivalAt: interception.arrivalAt,
+          catchResult: 'caught',
+          catchQuality: distance(toPoint, interception.toPoint) < 45 ? 'good' : 'assisted',
+        };
+        dispatch({ type: 'ADD_PASS', event });
+      },
 
-    removePlayer: useCallback((id: ID) => {
-      dispatch({ type: 'PUSH_UNDO' });
-      dispatch({ type: 'REMOVE_PLAYER', id });
-    }, []),
+      addShot: (fromPlayer, targetPoint, fromPoint) => {
+        const s = stateRef.current;
+        const authoredSource = fromPoint ?? { x: fromPlayer.x, y: fromPlayer.y };
+        const sourcePath = s.drill.skatePaths.find(path => path.ownerId === fromPlayer.id);
+        const pathTime = sourcePath
+          ? getTimeForSkatingProgress(closestPointOnPolyline(sourcePath.points, authoredSource).t)
+          : Math.max(0.12, (s.drill.events[s.drill.events.length - 1]?.arrivalAt ?? 0) + 0.04);
+        const at = Math.min(0.94, pathTime);
+        const source = getPlayerStickPositionAtProgress(fromPlayer, s.drill.skatePaths, at);
+        const flight = Math.max(0.025, (distance(source, targetPoint) / 5) / 75 / s.playback.duration);
+        const event: ShotEvent = {
+          id: generateId(),
+          type: 'shot',
+          fromPlayerId: fromPlayer.id,
+          fromPoint: source,
+          toPoint: targetPoint,
+          targetNet: targetPoint.x < RINK_CENTER_X ? 'L' : 'R',
+          team: fromPlayer.team,
+          at,
+          arrivalAt: Math.min(1, at + flight),
+          result: 'goal',
+        };
+        dispatch({ type: 'ADD_SHOT', event });
+      },
 
-    movePlayer: useCallback((id: ID, x: number, y: number) => {
-      dispatch({ type: 'MOVE_PLAYER', id, x, y });
-    }, []),
+      addDump: (fromPlayer, targetPoint, fromPoint) => {
+        const s = stateRef.current;
+        const authoredSource = fromPoint ?? { x: fromPlayer.x, y: fromPlayer.y };
+        const sourcePath = s.drill.skatePaths.find(path => path.ownerId === fromPlayer.id);
+        const pathTime = sourcePath
+          ? getTimeForSkatingProgress(closestPointOnPolyline(sourcePath.points, authoredSource).t)
+          : Math.max(0.12, (s.drill.events[s.drill.events.length - 1]?.arrivalAt ?? 0) + 0.04);
+        const at = Math.min(0.94, pathTime);
+        const source = getPlayerStickPositionAtProgress(fromPlayer, s.drill.skatePaths, at);
+        const flight = Math.max(0.035, (distance(source, targetPoint) / 5) / 50 / s.playback.duration);
+        const event: DumpEvent = {
+          id: generateId(),
+          type: 'dump',
+          fromPlayerId: fromPlayer.id,
+          fromPoint: source,
+          toPoint: targetPoint,
+          targetNet: 'dump',
+          team: fromPlayer.team,
+          at,
+          arrivalAt: Math.min(1, at + flight),
+        };
+        dispatch({ type: 'ADD_DUMP', event });
+      },
 
-    setPuckCarrier: useCallback((id: ID) => {
-      dispatch({ type: 'SET_PUCK_CARRIER', id });
-    }, []),
+      addPickup: player => {
+        const s = stateRef.current;
+        const last = s.drill.events[s.drill.events.length - 1];
+        if (!last) return;
+        const searchStart = Math.min(0.96, (last.arrivalAt ?? 0.72) + 0.01);
+        let best: { at: number; puck: Point; stick: Point; gap: number } | null = null;
 
-    addSkatePath: useCallback((path: SkatePath) => {
-      dispatch({ type: 'PUSH_UNDO' });
-      dispatch({ type: 'ADD_SKATE_PATH', path });
-    }, []),
+        for (let sample = 0; sample <= 48; sample++) {
+          const at = searchStart + (0.98 - searchStart) * (sample / 48);
+          const puck = getPuckStateAtProgress(
+            s.drill.players,
+            s.drill.skatePaths,
+            s.drill.events,
+            at
+          );
+          if (!puck || puck.state !== 'loose') continue;
+          const stick = getPlayerStickPositionAtProgress(player, s.drill.skatePaths, at);
+          const gap = distance(puck, stick);
+          if (!best || gap < best.gap) {
+            best = { at, puck: { x: puck.x, y: puck.y }, stick, gap };
+          }
+        }
 
-    removeSkatePath: useCallback((id: ID) => {
-      dispatch({ type: 'PUSH_UNDO' });
-      dispatch({ type: 'REMOVE_SKATE_PATH', id });
-    }, []),
+        if (!best || best.gap > 32) {
+          toast(
+            `#${player.number} cannot reach the puck. Draw their route through the loose puck first.`,
+            'error',
+            4200
+          );
+          return;
+        }
 
-    addPass: useCallback((fromPlayer: Player, toPlayer: Player, fromPoint?: Point, toPoint?: Point) => {
-      dispatch({ type: 'PUSH_UNDO' });
-      const event: PassEvent = {
-        id: generateId(),
-        type: 'pass',
-        fromPlayerId: fromPlayer.id,
-        toPlayerId: toPlayer.id,
-        fromPoint: fromPoint ?? { x: fromPlayer.x, y: fromPlayer.y },
-        toPoint: toPoint ?? { x: toPlayer.x, y: toPlayer.y },
-        team: fromPlayer.team,
-      };
-      dispatch({ type: 'ADD_PASS', event });
-    }, []),
+        const arrivalAt = Math.min(0.995, best.at + 0.02);
+        const catchPoint = getPlayerStickPositionAtProgress(player, s.drill.skatePaths, arrivalAt);
+        const event: PickupEvent = {
+          id: generateId(),
+          type: 'pickup',
+          fromPlayerId: player.id,
+          fromPoint: best.puck,
+          toPoint: catchPoint,
+          team: player.team,
+          at: best.at,
+          arrivalAt,
+        };
+        dispatch({ type: 'ADD_PICKUP', event });
+      },
 
-    addPathPass: useCallback((fromPlayerId: ID, toPlayerId: ID, fromPoint: Point, toPoint: Point, team: 'home' | 'away') => {
-      dispatch({ type: 'PUSH_UNDO' });
-      const event: PassEvent = {
-        id: generateId(),
-        type: 'pass',
-        fromPlayerId,
-        toPlayerId,
-        fromPoint,
-        toPoint,
-        team,
-      };
-      dispatch({ type: 'ADD_PASS', event });
-    }, []),
+      selectPlayer: id => {
+        dispatch({ type: 'SELECT_PLAYER', id });
+        dispatch({ type: id ? 'SHOW_PLAYER_INFO' : 'HIDE_PLAYER_INFO' });
+      },
+      setPassFrom: id => dispatch({ type: 'SET_PASS_FROM', id }),
+      selectEvent: id => dispatch({ type: 'SELECT_EVENT', id }),
+      removeEvent: id => dispatch({ type: 'REMOVE_EVENT', id }),
+      updatePassResult: (id, result) => dispatch({ type: 'UPDATE_PASS_RESULT', id, result }),
+      updateShotResult: (id, result) => dispatch({ type: 'UPDATE_SHOT_RESULT', id, result }),
+      convertDumpToPass: (eventId, receiverId) => {
+        const s = stateRef.current;
+        const existing = s.drill.events.find(event => event.id === eventId);
+        const receiver = s.drill.players.find(player => player.id === receiverId);
+        if (!existing || existing.type !== 'dump' || !receiver || receiver.id === existing.fromPlayerId) {
+          toast('That receiver is not available for this puck action', 'error');
+          return;
+        }
+        const at = existing.at ?? 0.5;
+        const interception = getPassInterception(
+          existing.fromPoint,
+          receiver,
+          s.drill.skatePaths,
+          at,
+          s.playback.duration
+        );
+        const pass: PassEvent = {
+          id: existing.id,
+          type: 'pass',
+          fromPlayerId: existing.fromPlayerId,
+          toPlayerId: receiver.id,
+          fromPoint: existing.fromPoint,
+          toPoint: interception.toPoint,
+          team: existing.team,
+          at,
+          arrivalAt: interception.arrivalAt,
+          catchResult: 'caught',
+          catchQuality: 'good',
+        };
+        dispatch({ type: 'CONVERT_DUMP_TO_PASS', event: pass });
+        toast(`Pass assigned to #${receiver.number} — receiver will collect`, 'success', 3600);
+      },
+      retargetPass: (eventId, receiverId) => {
+        const s = stateRef.current;
+        const existing = s.drill.events.find(event => event.id === eventId);
+        const receiver = s.drill.players.find(player => player.id === receiverId);
+        if (!existing || existing.type !== 'pass' || !receiver || receiver.id === existing.fromPlayerId) {
+          toast('That receiver is not available for this pass', 'error');
+          return;
+        }
+        const at = existing.at ?? 0.5;
+        const interception = getPassInterception(
+          existing.fromPoint,
+          receiver,
+          s.drill.skatePaths,
+          at,
+          s.playback.duration
+        );
+        dispatch({
+          type: 'RETARGET_PASS',
+          event: {
+            ...existing,
+            toPlayerId: receiver.id,
+            toPoint: interception.toPoint,
+            arrivalAt: interception.arrivalAt,
+            catchResult: 'caught',
+            catchQuality: 'good',
+          },
+        });
+        toast(`Receiver changed to #${receiver.number}`, 'success');
+      },
 
-    addShot: useCallback((fromPlayer: Player, targetPoint: Point) => {
-      dispatch({ type: 'PUSH_UNDO' });
-      const event: ShotEvent = {
-        id: generateId(),
-        type: 'shot',
-        fromPlayerId: fromPlayer.id,
-        fromPoint: { x: fromPlayer.x, y: fromPlayer.y },
-        toPoint: targetPoint,
-        targetNet: targetPoint.x < 500 ? 'L' : 'R',
-        team: fromPlayer.team,
-      };
-      dispatch({ type: 'ADD_SHOT', event });
-    }, []),
+      newDrill: () => dispatch({ type: 'NEW_DRILL' }),
+      loadMechanicsDemo: () => {
+        const now = Date.now();
+        dispatch({
+          type: 'LOAD_DRILL',
+          drill: {
+            ...structuredClone(giveAndGoRegressionDrill),
+            id: generateId(),
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      },
+      loadFiveManCornerRetrieval: () => {
+        const now = Date.now();
+        dispatch({
+          type: 'LOAD_DRILL',
+          drill: {
+            ...structuredClone(fiveManCornerRetrievalDrill),
+            id: generateId(),
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      },
+      loadFiveManCrossCorner: () => {
+        const now = Date.now();
+        dispatch({
+          type: 'LOAD_DRILL',
+          drill: {
+            ...structuredClone(fiveManCrossCornerDrill),
+            id: generateId(),
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      },
+      loadFiveManLowHigh: () => {
+        const now = Date.now();
+        dispatch({
+          type: 'LOAD_DRILL',
+          drill: {
+            ...structuredClone(fiveManLowHighDrill),
+            id: generateId(),
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      },
+      renameDrill: name => dispatch({ type: 'RENAME_DRILL', name }),
 
-    addDump: useCallback((fromPlayer: Player, targetPoint: Point) => {
-      dispatch({ type: 'PUSH_UNDO' });
-      const event: DumpEvent = {
-        id: generateId(),
-        type: 'dump',
-        fromPlayerId: fromPlayer.id,
-        fromPoint: { x: fromPlayer.x, y: fromPlayer.y },
-        toPoint: targetPoint,
-        targetNet: 'dump',
-        team: fromPlayer.team,
-      };
-      dispatch({ type: 'ADD_DUMP', event });
-    }, []),
-
-    selectPlayer: useCallback((id: ID | null) => {
-      dispatch({ type: 'SELECT_PLAYER', id });
-      if (id) {
-        dispatch({ type: 'SHOW_PLAYER_INFO' });
-      } else {
-        dispatch({ type: 'HIDE_PLAYER_INFO' });
-      }
-    }, []),
-
-    setPassFrom: useCallback((id: ID | null) => {
-      dispatch({ type: 'SET_PASS_FROM', id });
-    }, []),
-
-    newDrill: useCallback(() => {
-      dispatch({ type: 'NEW_DRILL' });
-    }, []),
-
-    renameDrill: useCallback((name: string) => {
-      dispatch({ type: 'RENAME_DRILL', name });
-    }, []),
-
-    loadDrill: useCallback((id: ID) => {
-      const drill = getDrill(id);
-      if (drill) {
+      loadDrill: id => {
+        const drill = getDrill(id);
+        if (!drill) {
+          toast('Could not load that drill', 'error');
+          return;
+        }
         dispatch({ type: 'LOAD_DRILL', drill });
         setCurrentDrillId(id);
-      }
-    }, []),
+      },
 
-    saveDrill: useCallback(() => {
-      saveDrill(state.drill);
-    }, [state.drill]),
+      saveDrill: () => {
+        persistDrill(stateRef.current.drill);
+        refreshDrillList();
+        toast('Drill saved', 'success');
+      },
 
-    clearAllEvents: useCallback(() => {
-      dispatch({ type: 'PUSH_UNDO' });
-      dispatch({ type: 'CLEAR_ALL_EVENTS' });
-    }, []),
+      deleteDrill: id => {
+        removeStoredDrill(id);
+        dispatch({ type: 'DELETE_DRILL', id });
 
-    setCamera: useCallback((camera: Camera) => {
-      dispatch({ type: 'SET_CAMERA', camera });
-    }, []),
+        // Deleting the drill you're looking at leaves nothing on screen, so
+        // fall back to the next most recent, or a fresh drill.
+        if (stateRef.current.drill.id === id) {
+          const next = getDrillList().find(d => d.id !== id);
+          const drill = next ? getDrill(next.id) : null;
+          if (drill) {
+            dispatch({ type: 'LOAD_DRILL', drill });
+            setCurrentDrillId(drill.id);
+          } else {
+            dispatch({ type: 'NEW_DRILL' });
+            setCurrentDrillId(null);
+          }
+        }
+        toast('Drill deleted', 'success');
+      },
 
-    fitCamera: useCallback(() => {
-      dispatch({ type: 'FIT_CAMERA' });
-    }, []),
+      clearAllEvents: () => dispatch({ type: 'CLEAR_ALL_EVENTS' }),
 
-    zoomToZone: useCallback((zone: 'full' | 'offensive' | 'defensive') => {
-      dispatch({ type: 'ZOOM_TO_ZONE', zone });
-    }, []),
+      exportDrills: () => {
+        // Flush the current drill first so an export never misses recent edits.
+        persistDrill(stateRef.current.drill);
+        const json = exportAllDrills();
+        downloadFile('phicecraft-drills.json', json);
+        toast('Drills exported', 'success');
+      },
 
-    setInteraction: useCallback((interaction: Partial<InteractionState>) => {
-      dispatch({ type: 'SET_INTERACTION', interaction });
-    }, []),
+      importDrills: json => {
+        const { imported, failed } = importDrillsJson(json);
+        refreshDrillList();
 
-    resetInteraction: useCallback(() => {
-      dispatch({ type: 'RESET_INTERACTION' });
-    }, []),
+        if (imported === 0) {
+          toast('Nothing could be imported from that file', 'error');
+          return;
+        }
 
-    startPlayback: useCallback(() => {
-      dispatch({ type: 'SAVE_START_SNAPSHOT' });
-      dispatch({ type: 'START_PLAYBACK' });
-    }, []),
+        // Show the user what they just imported rather than leaving them on the
+        // old drill wondering whether it worked.
+        const newest = getDrillList()[0];
+        const drill = newest ? getDrill(newest.id) : null;
+        if (drill) {
+          dispatch({ type: 'LOAD_DRILL', drill });
+          setCurrentDrillId(drill.id);
+        }
 
-    stopPlayback: useCallback(() => {
-      dispatch({ type: 'STOP_PLAYBACK' });
-      dispatch({ type: 'CLEAR_BANNERS' });
-    }, []),
+        toast(
+          failed > 0
+            ? `Imported ${imported} drill(s), ${failed} failed`
+            : `Imported ${imported} drill(s)`,
+          failed > 0 ? 'warning' : 'success'
+        );
+      },
 
-    setPlaybackProgress: useCallback((progress: number) => {
-      dispatch({ type: 'SET_PLAYBACK_PROGRESS', progress });
-    }, []),
+      setCamera: camera => dispatch({ type: 'SET_CAMERA', camera }),
+      fitCamera: () => dispatch({ type: 'FIT_CAMERA' }),
+      zoomToZone: zone => dispatch({ type: 'ZOOM_TO_ZONE', zone }),
+      zoomAt: (factor, screenPoint) => dispatch({ type: 'ZOOM_AT', factor, screenPoint }),
 
-    setPlaybackSpeed: useCallback((speed: number) => {
-      dispatch({ type: 'SET_PLAYBACK_SPEED', speed });
-    }, []),
+      setInteraction: interaction => dispatch({ type: 'SET_INTERACTION', interaction }),
+      resetInteraction: () => dispatch({ type: 'RESET_INTERACTION' }),
 
-    resetPlayback: useCallback(() => {
-      dispatch({ type: 'RESET_PLAYBACK' });
-      dispatch({ type: 'RESTORE_START_SNAPSHOT' });
-    }, []),
+      startPlayback: () => dispatch({ type: 'START_PLAYBACK' }),
+      stopPlayback: () => {
+        dispatch({ type: 'STOP_PLAYBACK' });
+        dispatch({ type: 'CLEAR_BANNERS' });
+      },
+      setPlaybackProgress: progress => dispatch({ type: 'SET_PLAYBACK_PROGRESS', progress }),
+      setPlaybackSpeed: speed => dispatch({ type: 'SET_PLAYBACK_SPEED', speed }),
+      resetPlayback: () => dispatch({ type: 'RESET_PLAYBACK' }),
 
-    pushUndo: useCallback(() => {
-      dispatch({ type: 'PUSH_UNDO' });
-    }, []),
+      pushUndo: () => dispatch({ type: 'PUSH_UNDO' }),
+      undo: () => {
+        if (stateRef.current.undoStack.length === 0) {
+          toast('Nothing to undo', 'info', 1200);
+          return;
+        }
+        dispatch({ type: 'POP_UNDO' });
+      },
+      redo: () => {
+        if (stateRef.current.redoStack.length === 0) {
+          toast('Nothing to redo', 'info', 1200);
+          return;
+        }
+        dispatch({ type: 'REDO' });
+      },
 
-    undo: useCallback(() => {
-      dispatch({ type: 'POP_UNDO' });
-    }, []),
+      showToast: toast,
+      toggleMenu: () => dispatch({ type: 'TOGGLE_MENU' }),
+      closeMenu: () => dispatch({ type: 'CLOSE_MENU' }),
+      showContextMenu: (position, playerId) =>
+        dispatch({ type: 'SHOW_CONTEXT_MENU', position, playerId }),
+      hideContextMenu: () => dispatch({ type: 'HIDE_CONTEXT_MENU' }),
+      showRenameModal: () => dispatch({ type: 'SHOW_RENAME_MODAL' }),
+      hideRenameModal: () => dispatch({ type: 'HIDE_RENAME_MODAL' }),
+      showPlayerInfo: () => dispatch({ type: 'SHOW_PLAYER_INFO' }),
+      hidePlayerInfo: () => dispatch({ type: 'HIDE_PLAYER_INFO' }),
+      setModeBanner: message => dispatch({ type: 'SET_MODE_BANNER', message }),
+      setPlayBanner: message => dispatch({ type: 'SET_PLAY_BANNER', message }),
+      clearBanners: () => dispatch({ type: 'CLEAR_BANNERS' }),
+      toggleDiagnostics: () => dispatch({ type: 'TOGGLE_DIAGNOSTICS' }),
+    };
+  }, []);
 
-    showToast: useCallback((
-      message: string,
-      type: Toast['type'] = 'info',
-      duration: number = 2500
-    ) => {
-      const toast: Toast = {
-        id: generateId(),
-        message,
-        type,
-        duration,
-      };
-      dispatch({ type: 'ADD_TOAST', toast });
+  const value = useMemo(() => ({ state, dispatch, actions }), [state, actions]);
 
-      if (duration > 0) {
-        setTimeout(() => {
-          dispatch({ type: 'REMOVE_TOAST', id: toast.id });
-        }, duration);
-      }
-    }, []),
-
-    toggleMenu: useCallback(() => {
-      dispatch({ type: 'TOGGLE_MENU' });
-    }, []),
-
-    closeMenu: useCallback(() => {
-      dispatch({ type: 'CLOSE_MENU' });
-    }, []),
-
-    showContextMenu: useCallback((position: Point, playerId: ID) => {
-      dispatch({ type: 'SHOW_CONTEXT_MENU', position, playerId });
-    }, []),
-
-    hideContextMenu: useCallback(() => {
-      dispatch({ type: 'HIDE_CONTEXT_MENU' });
-    }, []),
-
-    showRenameModal: useCallback(() => {
-      dispatch({ type: 'SHOW_RENAME_MODAL' });
-    }, []),
-
-    hideRenameModal: useCallback(() => {
-      dispatch({ type: 'HIDE_RENAME_MODAL' });
-    }, []),
-
-    showPlayerInfo: useCallback(() => {
-      dispatch({ type: 'SHOW_PLAYER_INFO' });
-    }, []),
-
-    hidePlayerInfo: useCallback(() => {
-      dispatch({ type: 'HIDE_PLAYER_INFO' });
-    }, []),
-
-    setModeBanner: useCallback((message: string | null) => {
-      dispatch({ type: 'SET_MODE_BANNER', message });
-    }, []),
-
-    setPlayBanner: useCallback((message: string | null) => {
-      dispatch({ type: 'SET_PLAY_BANNER', message });
-    }, []),
-
-    clearBanners: useCallback(() => {
-      dispatch({ type: 'CLEAR_BANNERS' });
-    }, []),
-  };
-
-  return (
-    <AppContext.Provider value={{ state, dispatch, actions }}>
-      {children}
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 // ============================================================================
-// HOOK
+// HOOKS
 // ============================================================================
 
 export function useAppState() {
@@ -434,35 +671,4 @@ export function useAppState() {
     throw new Error('useAppState must be used within an AppProvider');
   }
   return context;
-}
-
-// Convenience hooks for specific parts of state
-export function useCurrentTool() {
-  const { state } = useAppState();
-  return state.ui.currentTool;
-}
-
-export function useDrill() {
-  const { state } = useAppState();
-  return state.drill;
-}
-
-export function usePlayback() {
-  const { state } = useAppState();
-  return state.playback;
-}
-
-export function useCamera() {
-  const { state } = useAppState();
-  return state.camera;
-}
-
-export function useSelection() {
-  const { state } = useAppState();
-  return state.selection;
-}
-
-export function useInteraction() {
-  const { state } = useAppState();
-  return state.interaction;
 }

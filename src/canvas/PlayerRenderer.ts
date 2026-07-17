@@ -2,9 +2,13 @@
 // PLAYER RENDERER - Player circle drawing
 // ============================================================================
 
-import type { Player, ID, DrillEvent } from '@/core/types';
-import { PLAYER_RADIUS, GOALIE_RING_OFFSET, COLORS, RINK } from '@/core/constants';
+import type { Player, ID, DrillEvent, SkatePath, PlaybackPlayerFrame, AnimatedPuck } from '@/core/types';
+import { PLAYER_RADIUS, GOALIE_RING_OFFSET, ROUTE_HANDLE_OFFSET, ROUTE_HANDLE_RADIUS, COLORS, RINK } from '@/core/constants';
 import { getCurrentPuckHolder } from '@/engine/puck';
+import { getPlayerHeadingAtProgress } from '@/engine/playback';
+import { drawDetailedSkater } from './skater/SkaterRenderer';
+import { drawDetailedGoalie } from './skater/GoalieRenderer';
+import { getBladePosition } from '@/sim/skaterMotor';
 
 interface PlayerRenderOptions {
   isSelected: boolean;
@@ -14,6 +18,28 @@ interface PlayerRenderOptions {
   isNodeActive: boolean;
   isPuckHolder: boolean;
   showInitialPuck: boolean;
+  heading?: number;
+  showRouteHandle?: boolean;
+  isPreparingReceive?: boolean;
+  playbackFrame?: PlaybackPlayerFrame;
+  reducedEffects?: boolean;
+  trackedPuck?: AnimatedPuck | null;
+}
+
+function createDesignFrame(player: Player, heading: number): PlaybackPlayerFrame {
+  const position = { x: player.x, y: player.y };
+  return {
+    id: player.id,
+    position,
+    velocity: { x: 0, y: 0 },
+    heading,
+    angularVelocity: 0,
+    speed: 0,
+    routeProgress: 0,
+    stridePhase: 0.12,
+    action: 'idle',
+    bladePosition: getBladePosition(player, position, heading),
+  };
 }
 
 /**
@@ -24,7 +50,7 @@ export function drawPlayer(
   player: Player,
   options: PlayerRenderOptions
 ): void {
-  const { isSelected, isDragging, isMoving, isPassFrom, isNodeActive, isPuckHolder, showInitialPuck } = options;
+  const { isSelected, isDragging, isMoving, isPassFrom, isNodeActive, isPuckHolder, showInitialPuck, heading = 0, showRouteHandle = false, isPreparingReceive = false, playbackFrame, reducedEffects = false, trackedPuck } = options;
   const pr = PLAYER_RADIUS;
   const isHighlighted = isDragging || isNodeActive || isPassFrom;
 
@@ -63,101 +89,68 @@ export function drawPlayer(
     ctx.setLineDash([]);
   }
 
-  // Shadow
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
-  ctx.beginPath();
-  ctx.ellipse(player.x + 1, player.y + 4, pr, pr * 0.3, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Body gradient
-  const gradient = ctx.createRadialGradient(
-    player.x - pr * 0.3,
-    player.y - pr * 0.3,
-    0,
-    player.x,
-    player.y,
-    pr
-  );
-
-  if (player.team === 'home') {
-    gradient.addColorStop(0, COLORS.home.light);
-    gradient.addColorStop(1, COLORS.home.dark);
-  } else if (player.team === 'away') {
-    gradient.addColorStop(0, COLORS.away.light);
-    gradient.addColorStop(1, COLORS.away.dark);
-  } else {
-    gradient.addColorStop(0, '#ccc');
-    gradient.addColorStop(1, '#555');
-  }
-
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, pr, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Shine highlight
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.13)';
-  ctx.beginPath();
-  ctx.arc(player.x - pr * 0.28, player.y - pr * 0.28, pr * 0.43, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Border
-  let borderColor: string;
-  let borderWidth: number;
-
-  if (isHighlighted) {
-    borderColor = COLORS.gold;
-    borderWidth = 2.5;
-  } else if (isSelected) {
-    borderColor = player.team === 'home' ? COLORS.home.light : COLORS.away.light;
-    borderWidth = 2.5;
-  } else {
-    borderColor = 'rgba(255, 255, 255, 0.36)';
-    borderWidth = 1.5;
-  }
-
-  ctx.strokeStyle = borderColor;
-  ctx.lineWidth = borderWidth;
-  ctx.setLineDash([]);
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, pr, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Goalie ring
+  const frame = playbackFrame ?? createDesignFrame(player, heading);
   if (player.role === 'G') {
-    ctx.strokeStyle = 'rgba(255, 202, 0, 0.88)';
-    ctx.lineWidth = 3;
+    drawDetailedGoalie(ctx, player, frame, isPuckHolder || showInitialPuck, trackedPuck);
+
+    ctx.strokeStyle = 'rgba(255, 202, 0, 0.78)';
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.arc(player.x, player.y, pr + GOALIE_RING_OFFSET, 0, Math.PI * 2);
     ctx.stroke();
+  } else {
+    drawDetailedSkater(ctx, player, frame, {
+      isSelected,
+      isHighlighted,
+      isPuckHolder: isPuckHolder || showInitialPuck,
+      isPreparingReceive,
+      reducedEffects,
+    });
   }
 
-  // Number
-  const fontSize = Math.max(8, Math.round(pr * 0.82));
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${fontSize}px Arial`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(player.number, player.x, player.y + 1);
-
-  // Puck indicator
-  if (showInitialPuck || isPuckHolder) {
-    ctx.fillStyle = COLORS.puck.fill;
-    ctx.strokeStyle = COLORS.puck.stroke;
-    ctx.lineWidth = 1.2;
+  if (showRouteHandle) {
+    const hx = player.x + ROUTE_HANDLE_OFFSET;
+    const hy = player.y;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 200, 240, 0.65)';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = 'rgba(5, 24, 35, 0.96)';
+    ctx.strokeStyle = COLORS.cyan;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(
-      player.x + pr * 0.72,
-      player.y + pr * 0.72,
-      6.5,
-      4.5,
-      0,
-      0,
-      Math.PI * 2
-    );
+    ctx.arc(hx, hy, ROUTE_HANDLE_RADIUS, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#dff9ff';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(hx - 5, hy + 4);
+    ctx.quadraticCurveTo(hx + 1, hy + 7, hx + 7, hy + 1);
+    ctx.moveTo(hx - 4, hy - 4);
+    ctx.lineTo(hx + 5, hy + 2);
+    ctx.stroke();
+    ctx.restore();
   }
+}
+
+export interface DrawPlayersOptions {
+  selectedPlayerId?: ID | null;
+  passFromPlayerId?: ID | null;
+  dragFromPlayer?: Player | null;
+  movingPlayer?: Player | null;
+  nodeActiveOwnerId?: ID | null;
+  /**
+   * Whether to mark the puck carrier with a puck. False during playback, where
+   * the animated puck is the single source of truth for where the puck is.
+   */
+  showPuckIndicator?: boolean;
+  skatePaths?: SkatePath[];
+  playbackProgress?: number;
+  receivingPlayerId?: ID;
+  playerFrames?: Record<ID, PlaybackPlayerFrame>;
+  reducedEffects?: boolean;
+  trackedPuck?: AnimatedPuck | null;
 }
 
 /**
@@ -167,17 +160,33 @@ export function drawPlayers(
   ctx: CanvasRenderingContext2D,
   players: Player[],
   events: DrillEvent[],
-  selectedPlayerId: ID | null,
-  passFromPlayerId: ID | null,
-  dragFromPlayer: Player | null,
-  movingPlayer: Player | null,
-  nodeActiveOwnerId: ID | null
+  options: DrawPlayersOptions = {}
 ): void {
+  const {
+    selectedPlayerId = null,
+    passFromPlayerId = null,
+    dragFromPlayer = null,
+    movingPlayer = null,
+    nodeActiveOwnerId = null,
+    showPuckIndicator = true,
+    skatePaths = [],
+    playbackProgress,
+    receivingPlayerId,
+    playerFrames = {},
+    reducedEffects = false,
+    trackedPuck = null,
+  } = options;
+
   const currentHolder = getCurrentPuckHolder(players, events);
 
   players.forEach(player => {
     const isPuckHolder = currentHolder?.id === player.id;
-    const showInitialPuck = player.hasPuck && events.length === 0;
+    const hasRoute = skatePaths.some(path => path.ownerId === player.id);
+    const routeHeading = hasRoute
+      ? getPlayerHeadingAtProgress(player, skatePaths, playbackProgress ?? 0)
+      : player.role === 'G'
+        ? player.x < RINK.centerX ? 0 : Math.PI
+        : player.team === 'home' ? 0 : Math.PI;
 
     drawPlayer(ctx, player, {
       isSelected: player.id === selectedPlayerId,
@@ -185,8 +194,14 @@ export function drawPlayers(
       isMoving: movingPlayer?.id === player.id,
       isPassFrom: player.id === passFromPlayerId,
       isNodeActive: player.id === nodeActiveOwnerId,
-      isPuckHolder: isPuckHolder && events.length > 0,
-      showInitialPuck,
+      isPuckHolder: showPuckIndicator && isPuckHolder && events.length > 0,
+      showInitialPuck: showPuckIndicator && player.hasPuck && events.length === 0,
+      heading: routeHeading,
+      showRouteHandle: player.id === selectedPlayerId && playbackProgress === undefined,
+      isPreparingReceive: player.id === receivingPlayerId,
+      playbackFrame: playerFrames[player.id],
+      reducedEffects,
+      trackedPuck,
     });
   });
 }

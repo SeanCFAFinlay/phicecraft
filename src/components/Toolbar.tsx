@@ -41,23 +41,29 @@ function ToolButton({ tool, icon, label, color }: ToolButtonProps) {
 }
 
 export function Toolbar() {
+  const { state } = useAppState();
+  const step = state.ui.editorStep;
   return (
     <div className="flex-shrink-0 bg-[#0c1825] border-t border-[#1a3045] px-2 py-2">
       <div className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-hide">
-        {/* Selection & Drawing */}
+        {/* Selection is available throughout the workflow. */}
         <ToolButton tool="select" icon="✋" label="Select" />
-        <ToolButton tool="skate" icon="⛸️" label="Skate" />
+        {step === 'movement' && <ToolButton tool="skate" icon="⛸️" label="Skate" />}
 
         {/* Puck actions */}
-        <div className="w-px h-8 bg-[#1a3045] mx-1" />
-        <ToolButton tool="pass" icon="➡️" label="Pass" color="#ffd60a" />
-        <ToolButton tool="shoot" icon="🏒" label="Shoot" color="#ff6b0f" />
+        {step === 'puck' && <>
+          <div className="w-px h-8 bg-[#1a3045] mx-1" />
+          <ToolButton tool="pass" icon="➡️" label="Pass" color="#ffd60a" />
+          <ToolButton tool="shoot" icon="🏒" label="Shoot" color="#ff6b0f" />
+        </>}
 
         {/* Add players */}
-        <div className="w-px h-8 bg-[#1a3045] mx-1" />
-        <ToolButton tool="home" icon="🔴" label="Home" color="#e63946" />
-        <ToolButton tool="away" icon="🔵" label="Away" color="#3a86ff" />
-        <ToolButton tool="goalie" icon="🥅" label="Goalie" />
+        {step === 'setup' && <>
+          <div className="w-px h-8 bg-[#1a3045] mx-1" />
+          <ToolButton tool="home" icon="🔴" label="Home" color="#e63946" />
+          <ToolButton tool="away" icon="🔵" label="Away" color="#3a86ff" />
+          <ToolButton tool="goalie" icon="🥅" label="Goalie" />
+        </>}
 
         {/* Erase */}
         <div className="w-px h-8 bg-[#1a3045] mx-1" />

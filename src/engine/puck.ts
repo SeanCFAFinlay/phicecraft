@@ -34,6 +34,10 @@ export function getPuckChain(players: Player[], events: DrillEvent[]): PuckChain
   // Process each event
   events.forEach((event, index) => {
     if (event.type === 'pass') {
+      if (event.catchResult === 'missed') {
+        chain.push({ player: null, action: 'pass', eventIndex: index });
+        return;
+      }
       const receiver = players.find(p => p.id === event.toPlayerId);
       if (receiver) {
         chain.push({
@@ -42,6 +46,9 @@ export function getPuckChain(players: Player[], events: DrillEvent[]): PuckChain
           eventIndex: index,
         });
       }
+    } else if (event.type === 'pickup') {
+      const picker = players.find(p => p.id === event.fromPlayerId) ?? null;
+      chain.push({ player: picker, action: 'pickup', eventIndex: index });
     } else if (event.type === 'shot' || event.type === 'dump') {
       chain.push({
         player: null,
@@ -70,8 +77,13 @@ export function getCurrentPuckHolder(players: Player[], events: DrillEvent[]): P
       return null;
     }
 
+    if (event.type === 'pickup') {
+      return players.find(p => p.id === event.fromPlayerId) ?? null;
+    }
+
     // Pass was last event - receiver has puck
     if (event.type === 'pass') {
+      if (event.catchResult === 'missed') return null;
       return players.find(p => p.id === event.toPlayerId) ?? null;
     }
   }
@@ -88,7 +100,8 @@ export function getCurrentPuckHolder(players: Player[], events: DrillEvent[]): P
 export function canAddEvents(events: DrillEvent[]): boolean {
   if (events.length === 0) return true;
   const lastEvent = events[events.length - 1];
-  return lastEvent.type !== 'shot' && lastEvent.type !== 'dump';
+  return lastEvent.type !== 'shot' && lastEvent.type !== 'dump' &&
+    !(lastEvent.type === 'pass' && lastEvent.catchResult === 'missed');
 }
 
 /**
@@ -115,6 +128,9 @@ export function validatePass(
 
   // Check if from player has the puck
   const currentHolder = getCurrentPuckHolder(players, events);
+  if (!currentHolder) {
+    return { valid: false, error: 'The puck is loose — add a recovery before the next pass' };
+  }
   if (currentHolder && currentHolder.id !== fromPlayer.id) {
     return {
       valid: false,
@@ -156,6 +172,9 @@ export function validateShot(
 
   // Check if from player has the puck
   const currentHolder = getCurrentPuckHolder(players, events);
+  if (!currentHolder) {
+    return { valid: false, error: 'The puck is loose — recover it before shooting' };
+  }
   if (currentHolder && currentHolder.id !== fromPlayer.id) {
     return {
       valid: false,

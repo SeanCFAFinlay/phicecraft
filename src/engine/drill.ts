@@ -6,13 +6,13 @@ import type {
   Drill,
   Player,
   SkatePath,
-  DrillEvent,
+
   Team,
   PlayerRole,
   ID,
 } from '@/core/types';
 import { generateId } from '@/utils/id';
-import { RINK } from '@/core/constants';
+import { RINK, FT } from '@/core/constants';
 
 /**
  * Create a new player
@@ -33,6 +33,10 @@ export function createPlayer(
     number,
     role,
     hasPuck,
+    visual: {
+      handedness: team === 'home' ? 'right' : 'left',
+      visor: role !== 'G',
+    },
   };
 }
 
@@ -54,30 +58,41 @@ export function randomGoalieNumber(): string {
  * Create the default starting lineup
  */
 export function createDefaultPlayers(): Player[] {
-  const cx = RINK.x + RINK.width / 2;
-  const cy = RINK.y + RINK.height / 2;
-  const w = RINK.width;
-  const h = RINK.height;
+  const { centerX, centerY, goalLineLeftX, goalLineRightX } = RINK;
 
-  const players: Player[] = [
-    // Home team (attacking right)
-    createPlayer(cx - w * 0.14, cy, 'home', '11', 'C', true), // Center - has puck
-    createPlayer(cx - w * 0.22, cy - h * 0.22, 'home', '13', 'LW'),
-    createPlayer(cx - w * 0.22, cy + h * 0.22, 'home', '44', 'RW'),
-    createPlayer(cx - w * 0.31, cy - h * 0.13, 'home', '5', 'D'),
-    createPlayer(cx - w * 0.31, cy + h * 0.13, 'home', '7', 'D'),
-    createPlayer(RINK.x + w * 0.04, cy, 'home', '31', 'G'),
+  // Positions are in feet off centre ice, so the lineup reads like a coach's
+  // board rather than a set of magic fractions.
+  const home = (
+    aheadFt: number,
+    acrossFt: number,
+    number: string,
+    role: PlayerRole,
+    hasPuck = false
+  ) => createPlayer(centerX - aheadFt * FT, centerY + acrossFt * FT, 'home', number, role, hasPuck);
 
-    // Away team (attacking left)
-    createPlayer(cx + w * 0.14, cy, 'away', '87', 'C'),
-    createPlayer(cx + w * 0.22, cy - h * 0.22, 'away', '19', 'LW'),
-    createPlayer(cx + w * 0.22, cy + h * 0.22, 'away', '71', 'RW'),
-    createPlayer(cx + w * 0.31, cy - h * 0.13, 'away', '6', 'D'),
-    createPlayer(cx + w * 0.31, cy + h * 0.13, 'away', '8', 'D'),
-    createPlayer(RINK.x + w * 0.96, cy, 'away', '1', 'G'),
+  const away = (aheadFt: number, acrossFt: number, number: string, role: PlayerRole) =>
+    createPlayer(centerX + aheadFt * FT, centerY + acrossFt * FT, 'away', number, role);
+
+  // Goalies stand in their crease, a few feet off the goal line.
+  const goalieOffsetFt = 3;
+
+  return [
+    // Home team, attacking right, breaking out of their own end
+    home(28, 0, '11', 'C', true),
+    home(44, -18, '13', 'LW'),
+    home(44, 18, '44', 'RW'),
+    home(62, -11, '5', 'D'),
+    home(62, 11, '7', 'D'),
+    createPlayer(goalLineLeftX + goalieOffsetFt * FT, centerY, 'home', '31', 'G'),
+
+    // Away team, attacking left
+    away(28, 0, '87', 'C'),
+    away(44, -18, '19', 'LW'),
+    away(44, 18, '71', 'RW'),
+    away(62, -11, '6', 'D'),
+    away(62, 11, '8', 'D'),
+    createPlayer(goalLineRightX - goalieOffsetFt * FT, centerY, 'away', '1', 'G'),
   ];
-
-  return players;
 }
 
 /**
@@ -87,6 +102,7 @@ export function createNewDrill(name: string = 'Neutral Zone Entry'): Drill {
   const now = Date.now();
 
   return {
+    schemaVersion: 2,
     id: generateId(),
     name,
     createdAt: now,
@@ -94,6 +110,12 @@ export function createNewDrill(name: string = 'Neutral Zone Entry'): Drill {
     players: createDefaultPlayers(),
     skatePaths: [],
     events: [],
+    settings: {
+      assistance: 'standard',
+      recovery: 'nearest-teammate',
+      timeLimitSeconds: 8,
+      reducedEffects: false,
+    },
   };
 }
 
@@ -110,6 +132,8 @@ export function createSkatePath(
     ownerId,
     team,
     points: points.map(p => ({ x: p.x, y: p.y })),
+    mode: 'skate',
+    finish: 'stop',
   };
 }
 
@@ -121,6 +145,7 @@ export function duplicateDrill(drill: Drill, newName?: string): Drill {
 
   // Deep clone the drill
   const clone: Drill = {
+    schemaVersion: 2,
     id: generateId(),
     name: newName ?? `${drill.name} (Copy)`,
     createdAt: now,
@@ -128,6 +153,7 @@ export function duplicateDrill(drill: Drill, newName?: string): Drill {
     players: drill.players.map(p => ({ ...p, id: generateId() })),
     skatePaths: [],
     events: [],
+    settings: drill.settings ? { ...drill.settings } : undefined,
   };
 
   // Rebuild ID mappings
@@ -220,12 +246,30 @@ export function validateDrill(drill: Drill): DrillValidation {
  * Repair drill data (fix common issues)
  */
 export function repairDrill(drill: Drill): Drill {
-  const repaired = { ...drill };
+  const repaired = { ...drill, schemaVersion: 2 as const };
 
   // Ensure arrays exist
   if (!Array.isArray(repaired.players)) repaired.players = [];
   if (!Array.isArray(repaired.skatePaths)) repaired.skatePaths = [];
   if (!Array.isArray(repaired.events)) repaired.events = [];
+  repaired.settings = {
+    assistance: repaired.settings?.assistance ?? 'standard',
+    recovery: repaired.settings?.recovery ?? 'nearest-teammate',
+    timeLimitSeconds: Math.max(2, repaired.settings?.timeLimitSeconds ?? 8),
+    reducedEffects: repaired.settings?.reducedEffects ?? false,
+  };
+  repaired.players = repaired.players.map(player => ({
+    ...player,
+    visual: player.visual ?? {
+      handedness: player.team === 'home' ? 'right' : 'left',
+      visor: player.role !== 'G',
+    },
+  }));
+  repaired.skatePaths = repaired.skatePaths.map(path => ({
+    ...path,
+    mode: path.mode ?? 'skate',
+    finish: path.finish ?? 'stop',
+  }));
 
   // Ensure exactly one puck carrier
   const carriers = repaired.players.filter(p => p.hasPuck);
@@ -282,6 +326,7 @@ export function importDrillFromJson(json: string): Drill | null {
 
     // Assign new ID and timestamps
     const drill: Drill = {
+      schemaVersion: 2,
       id: generateId(),
       name: data.name,
       createdAt: Date.now(),
@@ -289,6 +334,7 @@ export function importDrillFromJson(json: string): Drill | null {
       players: data.players ?? [],
       skatePaths: data.skatePaths ?? [],
       events: data.events ?? [],
+      settings: data.settings,
     };
 
     // Repair any issues

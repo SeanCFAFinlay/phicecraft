@@ -28,3 +28,7 @@ npm-debug.log*
 *.tsbuildinfo
 
 .vercel
+
+# Local browser verification artifacts
+.playwright-cli/
+output/playwright/

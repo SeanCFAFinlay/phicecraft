@@ -4,7 +4,7 @@
 
 import type { Point, SkatePath, DrillEvent, Player, ID } from '@/core/types';
 import { COLORS, RINK } from '@/core/constants';
-import { generateArcPoints, pointAtParameter } from '@/utils/geometry';
+import { pointAtParameter } from '@/utils/geometry';
 
 /**
  * Draw an arrow head at the end of a line
@@ -210,13 +210,7 @@ export function drawPassEvent(
     ? COLORS.pass.home
     : COLORS.pass.away;
 
-  const arcPoints = generateArcPoints(
-    event.fromPoint.x,
-    event.fromPoint.y,
-    event.toPoint.x,
-    event.toPoint.y,
-    0.18
-  );
+  const arcPoints = [event.fromPoint, event.toPoint];
 
   drawCurvedLine(ctx, arcPoints, color, false, 2.8);
 
@@ -243,13 +237,7 @@ export function drawShotEvent(
 ): void {
   const color = COLORS.shot;
 
-  const arcPoints = generateArcPoints(
-    event.fromPoint.x,
-    event.fromPoint.y,
-    event.toPoint.x,
-    event.toPoint.y,
-    0.06
-  );
+  const arcPoints = [event.fromPoint, event.toPoint];
 
   drawCurvedLine(ctx, arcPoints, color, false, 3);
 
@@ -272,7 +260,8 @@ export function drawShotEvent(
  */
 export function drawEvents(
   ctx: CanvasRenderingContext2D,
-  events: DrillEvent[]
+  events: DrillEvent[],
+  selectedEventId?: ID | null
 ): void {
   events.forEach((event, index) => {
     const eventNumber = index + 1;
@@ -281,6 +270,30 @@ export function drawEvents(
       drawPassEvent(ctx, event, eventNumber);
     } else if (event.type === 'shot' || event.type === 'dump') {
       drawShotEvent(ctx, event, eventNumber);
+    } else if (event.type === 'pickup') {
+      ctx.save();
+      ctx.strokeStyle = '#00e676';
+      ctx.fillStyle = 'rgba(0,230,118,.16)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(event.toPoint.x, event.toPoint.y, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      drawBadge(ctx, event.toPoint.x, event.toPoint.y - 23, String(eventNumber), '#00e676');
+      ctx.restore();
+    }
+
+    if (event.id === selectedEventId) {
+      ctx.save();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      for (const point of [event.fromPoint, event.toPoint]) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 11, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
   });
 }
@@ -403,15 +416,25 @@ export function drawGhostTrails(
 export function drawAnimatedPuck(
   ctx: CanvasRenderingContext2D,
   x: number,
-  y: number
+  y: number,
+  state: 'possessed' | 'in_flight' | 'loose' | 'shot' | 'dead' = 'possessed'
 ): void {
+  ctx.save();
+  if (state === 'in_flight' || state === 'shot') {
+    ctx.shadowColor = state === 'shot' ? 'rgba(255,107,15,.9)' : 'rgba(255,214,10,.9)';
+    ctx.shadowBlur = 10;
+  } else if (state === 'loose') {
+    ctx.shadowColor = 'rgba(255,255,255,.85)';
+    ctx.shadowBlur = 7;
+  }
   ctx.fillStyle = '#111';
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = state === 'loose' ? '#ffffff' : 'rgba(255, 255, 255, 0.62)';
+  ctx.lineWidth = state === 'loose' ? 2.2 : 1.5;
   ctx.beginPath();
   ctx.ellipse(x, y, 7, 5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+  ctx.restore();
 }
 
 /**

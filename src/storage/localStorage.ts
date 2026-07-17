@@ -5,6 +5,7 @@
 import type { Drill, ID } from '@/core/types';
 import { STORAGE_KEYS } from '@/core/constants';
 import { repairDrill, validateDrill } from '@/engine/drill';
+import { migrateDrill } from './migrations';
 
 /**
  * Drill list item for storage
@@ -61,7 +62,7 @@ export function getDrill(id: ID): Drill | null {
     const data = localStorage.getItem(key);
     if (!data) return null;
 
-    const drill = JSON.parse(data) as Drill;
+    const drill = migrateDrill(JSON.parse(data) as Drill);
 
     // Validate and repair if needed
     const validation = validateDrill(drill);
@@ -82,9 +83,10 @@ export function getDrill(id: ID): Drill | null {
  */
 export function saveDrill(drill: Drill): boolean {
   try {
+    const migrated = migrateDrill(drill);
     // Save drill data
     const key = `${STORAGE_KEYS.DRILLS}_${drill.id}`;
-    localStorage.setItem(key, JSON.stringify(drill));
+    localStorage.setItem(key, JSON.stringify(migrated));
 
     // Update drill list
     const list = getDrillList();
@@ -93,7 +95,7 @@ export function saveDrill(drill: Drill): boolean {
     const meta: StoredDrillMeta = {
       id: drill.id,
       name: drill.name,
-      updatedAt: drill.updatedAt,
+      updatedAt: migrated.updatedAt,
     };
 
     if (existingIndex >= 0) {
@@ -183,7 +185,7 @@ export function importDrills(json: string): { imported: number; failed: number }
 
     for (const drill of drills) {
       if (drill && typeof drill === 'object' && drill.name) {
-        const repaired = repairDrill(drill as Drill);
+        const repaired = repairDrill(migrateDrill(drill as Drill));
         if (saveDrill(repaired)) {
           imported++;
         } else {

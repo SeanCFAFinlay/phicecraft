@@ -2,7 +2,7 @@
 // SIDE MENU - Slide-out navigation menu
 // ============================================================================
 
-import React from 'react';
+import { useRef, type ChangeEvent } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 
 interface MenuItemProps {
@@ -26,6 +26,47 @@ function MenuItem({ icon, label, onClick, dim }: MenuItemProps) {
   );
 }
 
+/**
+ * A saved drill: click the name to open it, the × to delete it.
+ */
+function DrillRow({
+  name,
+  isCurrent,
+  onOpen,
+  onDelete,
+}: {
+  name: string;
+  isCurrent: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className={`flex items-center border-l-2 transition-colors ${
+        isCurrent ? 'border-l-app-cyan bg-app-cyan/5' : 'border-transparent hover:bg-app-cyan/5'
+      }`}
+    >
+      <button
+        onClick={onOpen}
+        className={`flex-1 flex items-center gap-2.5 py-2.5 px-3.5 text-[13px] text-left bg-transparent cursor-pointer overflow-hidden ${
+          isCurrent ? 'text-app-cyan' : 'text-app-text hover:text-app-cyan'
+        }`}
+      >
+        <span className="text-[15px] w-5 text-center flex-shrink-0">🏒</span>
+        <span className="truncate">{name}</span>
+      </button>
+      <button
+        onClick={onDelete}
+        aria-label={`Delete ${name}`}
+        title={`Delete ${name}`}
+        className="w-9 h-9 mr-1 flex-shrink-0 bg-transparent text-app-dim text-sm cursor-pointer rounded hover:bg-red-500/15 hover:text-red-400"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function MenuDivider() {
   return <div className="h-px bg-app-border mx-3.5 my-1" />;
 }
@@ -40,6 +81,7 @@ function MenuSection({ title }: { title: string }) {
 
 export function SideMenu() {
   const { state, actions } = useAppState();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleNewDrill = () => {
     if (!confirm('Start new drill?')) return;
@@ -47,6 +89,36 @@ export function SideMenu() {
     actions.newDrill();
     actions.closeMenu();
     actions.showToast('New drill', 'success');
+  };
+
+  const handleDeleteDrill = (id: string, name: string) => {
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    actions.stopPlayback();
+    actions.deleteDrill(id);
+  };
+
+  const handleOpenDrill = (id: string) => {
+    if (id === state.drill.id) {
+      actions.closeMenu();
+      return;
+    }
+    actions.stopPlayback();
+    actions.loadDrill(id);
+    actions.closeMenu();
+  };
+
+  const handleImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset immediately so picking the same file twice still fires a change.
+    e.target.value = '';
+    if (!file) return;
+
+    try {
+      actions.importDrills(await file.text());
+      actions.closeMenu();
+    } catch {
+      actions.showToast('Could not read that file', 'error');
+    }
   };
 
   return (
@@ -134,6 +206,83 @@ export function SideMenu() {
           label="New Drill"
           onClick={handleNewDrill}
         />
+        <MenuItem
+          icon="🧪"
+          label="Open Mechanics Demo"
+          onClick={() => {
+            actions.stopPlayback();
+            actions.loadMechanicsDemo();
+            actions.closeMenu();
+            actions.showToast('Loaded the #11 to #13 pass-and-shoot demo', 'success', 3200);
+          }}
+        />
+        <MenuItem
+          icon="🏒"
+          label="Open 5-Man Corner Retrieval"
+          onClick={() => {
+            actions.stopPlayback();
+            actions.loadFiveManCornerRetrieval();
+            actions.closeMenu();
+            actions.showToast('Loaded coach dump, retrieval, two passes, and shot', 'success', 3600);
+          }}
+        />
+        <MenuItem
+          icon="↔️"
+          label="Open 5-Man Cross-Corner Attack"
+          onClick={() => {
+            actions.stopPlayback();
+            actions.loadFiveManCrossCorner();
+            actions.closeMenu();
+            actions.showToast('Loaded cross-corner attack and slot shot', 'success', 3400);
+          }}
+        />
+        <MenuItem
+          icon="🔺"
+          label="Open Full-Ice Criss-Cross Point Shot"
+          onClick={() => {
+            actions.stopPlayback();
+            actions.loadFiveManLowHigh();
+            actions.closeMenu();
+            actions.showToast('Loaded full-ice criss-cross, point pass, and slot shot', 'success', 3600);
+          }}
+        />
+        <MenuItem
+          icon="⬇"
+          label="Export All (JSON)"
+          onClick={() => actions.exportDrills()}
+        />
+        <MenuItem
+          icon="⬆"
+          label="Import from File"
+          onClick={() => fileInputRef.current?.click()}
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={handleImportFile}
+          className="hidden"
+        />
+
+        <MenuDivider />
+
+        {/* Saved drills */}
+        <MenuSection title={`Saved Drills (${state.drillList.length})`} />
+        {state.drillList.length === 0 ? (
+          <div className="px-3.5 py-3 text-[12px] text-app-dim italic">
+            No saved drills yet
+          </div>
+        ) : (
+          state.drillList.map(drill => (
+            <DrillRow
+              key={drill.id}
+              name={drill.name}
+              isCurrent={drill.id === state.drill.id}
+              onOpen={() => handleOpenDrill(drill.id)}
+              onDelete={() => handleDeleteDrill(drill.id, drill.name)}
+            />
+          ))
+        )}
 
         <MenuDivider />
 
@@ -168,17 +317,19 @@ export function SideMenu() {
 
         {/* How To Use */}
         <MenuSection title="How To Use" />
-        <MenuItem icon="🏒" label="Tap player with puck → Pass/Shoot" onClick={() => {}} dim />
-        <MenuItem icon="⟶" label="Pass tool: tap passer → tap receiver" onClick={() => {}} dim />
+        <MenuItem icon="🏒" label="Drag from puck carrier → pass or dump" onClick={() => {}} dim />
+        <MenuItem icon="⟶" label="Drag from any route point → release puck there" onClick={() => {}} dim />
+        <MenuItem icon="🥅" label="Shot starts from carrier's final route point" onClick={() => {}} dim />
         <MenuItem icon="〰" label="Drag any player → draws skate route" onClick={() => {}} dim />
-        <MenuItem icon="✋" label="Hold player (0.8s) → reposition" onClick={() => {}} dim />
-        <MenuItem icon="🤏" label="Pinch → zoom in/out" onClick={() => {}} dim />
+        <MenuItem icon="✋" label="Hold player (0.7s) → reposition" onClick={() => {}} dim />
+        <MenuItem icon="🤏" label="Pinch or scroll → zoom in/out" onClick={() => {}} dim />
+        <MenuItem icon="🖐" label="Drag empty ice → pan the rink" onClick={() => {}} dim />
 
         <MenuDivider />
 
         {/* Version */}
         <MenuSection title="Version" />
-        <MenuItem icon="✅" label="v1.0 — Full hockey pass/shot logic" onClick={() => {}} dim />
+        <MenuItem icon="✅" label="v2.0 — Deterministic hockey mechanics" onClick={() => {}} dim />
       </div>
     </>
   );
