@@ -27,8 +27,8 @@ export const fiveManCrossCornerDrill: Drill = {
   events: [
     { id: 'coach-upper-dump', type: 'dump', fromPlayerId: 'coach', fromPoint: { x: 96 * FT, y: 78 * FT }, toPoint: { x: 182 * FT, y: 15 * FT }, targetNet: 'dump', team: 'home', at: 0.05, arrivalAt: 0.17 },
     { id: 'pickup-17', type: 'pickup', fromPlayerId: 'p17', fromPoint: { x: 182 * FT, y: 15 * FT }, toPoint: { x: 181 * FT, y: 20 * FT }, team: 'home', at: 0.45, arrivalAt: 0.48 },
-    { id: 'pass-17-21', type: 'pass', fromPlayerId: 'p17', toPlayerId: 'p21', fromPoint: { x: 181 * FT, y: 20 * FT }, toPoint: { x: 174 * FT, y: 59 * FT }, team: 'home', at: 0.53, arrivalAt: 0.6, catchResult: 'caught', catchQuality: 'good' },
-    { id: 'pass-21-19', type: 'pass', fromPlayerId: 'p21', toPlayerId: 'p19', fromPoint: { x: 174 * FT, y: 59 * FT }, toPoint: { x: 163 * FT, y: 42.5 * FT }, team: 'home', at: 0.64, arrivalAt: 0.71, catchResult: 'caught', catchQuality: 'good' },
-    { id: 'shot-19', type: 'shot', fromPlayerId: 'p19', fromPoint: { x: 163 * FT, y: 42.5 * FT }, toPoint: { x: RINK.netRightX, y: RINK.netRightY }, targetNet: 'R', team: 'home', at: 0.77, arrivalAt: 0.84, result: 'goal' },
+    { id: 'pass-17-21', type: 'pass', fromPlayerId: 'p17', toPlayerId: 'p21', fromPoint: { x: 181 * FT, y: 20 * FT }, toPoint: { x: 174 * FT, y: 59 * FT }, team: 'home', at: 0.53, arrivalAt: 0.6 },
+    { id: 'pass-21-19', type: 'pass', fromPlayerId: 'p21', toPlayerId: 'p19', fromPoint: { x: 174 * FT, y: 59 * FT }, toPoint: { x: 163 * FT, y: 42.5 * FT }, team: 'home', at: 0.64, arrivalAt: 0.71 },
+    { id: 'shot-19', type: 'shot', fromPlayerId: 'p19', fromPoint: { x: 163 * FT, y: 42.5 * FT }, toPoint: { x: RINK.netRightX, y: RINK.netRightY - 2.2 * FT }, targetNet: 'R', team: 'home', at: 0.77, arrivalAt: 0.84 },
   ],
 };

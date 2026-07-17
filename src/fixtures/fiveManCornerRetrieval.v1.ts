@@ -107,17 +107,17 @@ export const fiveManCornerRetrievalDrill: Drill = {
     {
       id: 'pass-21-19', type: 'pass', fromPlayerId: 'p21', toPlayerId: 'p19',
       fromPoint: { x: 181 * FT, y: 67 * FT }, toPoint: { x: 155 * FT, y: 42.5 * FT },
-      team: 'home', at: 0.53, arrivalAt: 0.6, catchResult: 'caught', catchQuality: 'good',
+      team: 'home', at: 0.53, arrivalAt: 0.6,
     },
     {
       id: 'pass-19-17', type: 'pass', fromPlayerId: 'p19', toPlayerId: 'p17',
       fromPoint: { x: 155 * FT, y: 42.5 * FT }, toPoint: { x: 166 * FT, y: 31 * FT },
-      team: 'home', at: 0.64, arrivalAt: 0.71, catchResult: 'caught', catchQuality: 'good',
+      team: 'home', at: 0.64, arrivalAt: 0.71,
     },
     {
       id: 'shot-17', type: 'shot', fromPlayerId: 'p17',
-      fromPoint: { x: 166 * FT, y: 31 * FT }, toPoint: { x: RINK.netRightX, y: RINK.netRightY },
-      targetNet: 'R', team: 'home', at: 0.77, arrivalAt: 0.84, result: 'goal',
+      fromPoint: { x: 166 * FT, y: 31 * FT }, toPoint: { x: RINK.netRightX, y: RINK.netRightY - 2.2 * FT },
+      targetNet: 'R', team: 'home', at: 0.77, arrivalAt: 0.84,
     },
   ],
 };

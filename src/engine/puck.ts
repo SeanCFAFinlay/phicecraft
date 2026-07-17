@@ -10,7 +10,7 @@ import type {
   Team,
   Point,
 } from '@/core/types';
-import { NET_LEFT, NET_RIGHT } from '@/core/constants';
+import { FT, NET_LEFT, NET_RIGHT, RINK_MARKS } from '@/core/constants';
 
 /**
  * Get the complete puck chain - sequence of who has/had the puck
@@ -204,6 +204,16 @@ export function getNearestNet(point: Point): Point {
     (point.x - NET_RIGHT.x) ** 2 + (point.y - NET_RIGHT.y) ** 2
   );
   return distToLeft < distToRight ? NET_LEFT : NET_RIGHT;
+}
+
+/** Preserve a dragged shot's vertical aim while constraining it to the mouth. */
+export function getAimedNetTarget(point: Point): Point {
+  const net = getNearestNet(point);
+  const aimLimit = RINK_MARKS.goalHalfWidth - 0.75 * FT;
+  return {
+    x: net.x,
+    y: Math.max(net.y - aimLimit, Math.min(net.y + aimLimit, point.y)),
+  };
 }
 
 /**

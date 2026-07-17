@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { useAppState } from '@/hooks/useAppState';
-import { formatTime } from '@/engine/playback';
+import { formatTime, getNextPlaybackCheckpoint } from '@/engine/playback';
 import { Timeline } from './Timeline';
 import { validateDrillMechanics } from '@/engine/drillValidation';
 
@@ -42,7 +42,7 @@ export function Playbar() {
       actions.stopPlayback();
       return;
     }
-    actions.setPlaybackProgress(Math.min(progress + 0.1, 1));
+    actions.setPlaybackProgress(getNextPlaybackCheckpoint(state.drill.events, progress));
   };
 
   const handleSpeedClick = () => {

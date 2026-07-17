@@ -11,7 +11,13 @@ function normalizeAngle(angle: number): number {
 
 function actionNearEvent(event: DrillEvent, playerId: string, time: number, departure: number, arrival: number): SkaterAction | null {
   if (event.fromPlayerId === playerId && Math.abs(time - departure) <= 0.2) {
-    return event.type === 'shot' ? 'shot' : event.type === 'pass' || event.type === 'dump' ? 'pass' : null;
+    return event.type === 'shot'
+      ? 'shot'
+      : event.type === 'pickup'
+        ? 'recover'
+        : event.type === 'pass' || event.type === 'dump'
+          ? 'pass'
+          : null;
   }
   if (event.type === 'pass' && event.toPlayerId === playerId && time >= arrival - 0.3 && time <= arrival + 0.22) {
     return 'receive';

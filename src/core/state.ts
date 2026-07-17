@@ -424,7 +424,7 @@ function reduce(state: AppState, action: AppAction): AppState {
         ...state,
         drill: {
           ...state.drill,
-          events: action.result !== 'rebound' && eventIndex >= 0
+          events: action.result !== undefined && action.result !== 'rebound' && eventIndex >= 0
             ? updatedEvents.slice(0, eventIndex + 1)
             : updatedEvents,
           updatedAt: Date.now(),

@@ -41,12 +41,12 @@ export const giveAndGoRegressionDrill: Drill = {
     {
       id: 'pass-11-13', type: 'pass', fromPlayerId: 'p11', toPlayerId: 'p13',
       fromPoint: { x: 72 * FT, y: 42.5 * FT }, toPoint: { x: 101 * FT, y: 29 * FT },
-      team: 'home', at: 0.28, arrivalAt: 0.4, catchResult: 'caught', catchQuality: 'good',
+      team: 'home', at: 0.28, arrivalAt: 0.4,
     },
     {
       id: 'shot-13', type: 'shot', fromPlayerId: 'p13',
-      fromPoint: { x: 142 * FT, y: 37 * FT }, toPoint: { x: RINK.netRightX, y: RINK.netRightY },
-      targetNet: 'R', team: 'home', at: 0.72, arrivalAt: 0.82, result: 'goal',
+      fromPoint: { x: 142 * FT, y: 37 * FT }, toPoint: { x: RINK.netRightX, y: RINK.netRightY - 2.2 * FT },
+      targetNet: 'R', team: 'home', at: 0.72, arrivalAt: 0.82,
     },
   ],
 };

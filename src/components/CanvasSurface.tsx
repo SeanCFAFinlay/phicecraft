@@ -33,7 +33,7 @@ import {
   getCurrentPuckHolder,
   canAddEvents,
   getTargetNet,
-  getNearestNet,
+  getAimedNetTarget,
   playerHasPuck,
 } from '@/engine/puck';
 import type { Player, SkatePath, Point, Camera, ID } from '@/core/types';
@@ -934,7 +934,7 @@ export function CanvasSurface() {
           if (validation.valid) {
             actions.addShot(
               fromPlayer,
-              getNearestNet(screenToWorld(pos.x, pos.y, s.camera)),
+              getAimedNetTarget(screenToWorld(pos.x, pos.y, s.camera)),
               getFinalPlayerPoint(fromPlayer)
             );
             actions.showToast('Shot on net!', 'success');

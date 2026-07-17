@@ -2,6 +2,7 @@ import type { Player, Point, SkatePath } from '@/core/types';
 import { distance } from '@/utils/geometry';
 import { buildMotionProfile } from './movementCurves';
 import { validateRoute } from './routeValidation';
+import { smoothRoutePoints } from './routeSmoothing';
 import type { CompiledRoute, MechanicsConfig } from './types';
 
 export function compileRoute(
@@ -10,9 +11,10 @@ export function compileRoute(
   config: MechanicsConfig
 ): CompiledRoute {
   const pathPoints = path?.points?.length ? path.points : [{ x: player.x, y: player.y }];
-  const points = pathPoints[0].x === player.x && pathPoints[0].y === player.y
+  const authoredPoints = pathPoints[0].x === player.x && pathPoints[0].y === player.y
     ? pathPoints.map(point => ({ ...point }))
     : [{ x: player.x, y: player.y }, ...pathPoints.map(point => ({ ...point }))];
+  const points = smoothRoutePoints(authoredPoints);
   const segmentLengths: number[] = [];
   const cumulativeLengths = [0];
   let totalLength = 0;
@@ -37,7 +39,7 @@ export function compileRoute(
     totalLength,
     durationSeconds: motion.duration,
     motion,
-    warnings: validateRoute(points),
+    warnings: validateRoute(authoredPoints),
   };
 }
 

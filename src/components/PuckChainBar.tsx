@@ -33,7 +33,7 @@ export function PuckChainBar() {
             ? undefined
             : state.drill.events[node.eventIndex];
           const shotResult = event?.type === 'shot'
-            ? event.result?.toUpperCase() ?? 'GOAL'
+            ? event.result?.toUpperCase() ?? 'AUTO'
             : 'SHOT';
 
           return (

@@ -213,6 +213,18 @@ export function getEventArrivalTime(
   return event.arrivalAt ?? Math.min(1, departure + PUCK_FLIGHT_FRACTION / Math.max(totalEvents, 1));
 }
 
+/** Step through meaningful hockey moments instead of arbitrary 10% jumps. */
+export function getNextPlaybackCheckpoint(events: DrillEvent[], progress: number): number {
+  const checkpoints = events
+    .flatMap((event, index) => [
+      getEventDepartureTime(event, index, events.length),
+      getEventArrivalTime(event, index, events.length),
+    ])
+    .concat(1)
+    .sort((a, b) => a - b);
+  return checkpoints.find(checkpoint => checkpoint > progress + 0.0001) ?? 1;
+}
+
 /**
  * Indices of every event that has fired at or before `progress`.
  * Derived, not accumulated, so scrubbing backwards works correctly.

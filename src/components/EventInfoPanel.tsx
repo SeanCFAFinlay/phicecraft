@@ -1,5 +1,7 @@
 import { useAppState } from '@/hooks/useAppState';
 import { getEventArrivalTime, getEventDepartureTime } from '@/engine/playback';
+import { compileDrill } from '@/sim/compileDrill';
+import { sampleFrame } from '@/sim/sampleFrame';
 
 export function EventInfoPanel() {
   const { state, actions } = useAppState();
@@ -21,6 +23,15 @@ export function EventInfoPanel() {
         : 'Dump / area pass';
   const departure = getEventDepartureTime(event, index, state.drill.events.length);
   const arrival = getEventArrivalTime(event, index, state.drill.events.length);
+  const compiled = compileDrill(state.drill);
+  const execution = sampleFrame(compiled, compiled.durationSeconds).eventExecutions[index];
+  const passOutcome = event.type === 'pass'
+    ? event.catchResult ?? (execution?.outcome === 'missed' ? 'missed' : execution?.outcome === 'caught' ? 'caught' : undefined)
+    : undefined;
+  const shotOutcomes = ['goal', 'save', 'rebound', 'wide', 'post'] as const;
+  const computedShotOutcome = event.type === 'shot' && shotOutcomes.some(result => result === execution?.outcome)
+    ? execution.outcome as typeof shotOutcomes[number]
+    : undefined;
 
   return (
     <aside className="fixed top-24 right-3 z-50 w-[230px] rounded-2xl border border-app-gold/25 bg-[#081522]/95 p-4 shadow-2xl backdrop-blur-md">
@@ -42,23 +53,24 @@ export function EventInfoPanel() {
       {event.type === 'pass' && (
         <>
           <div className={`mt-2 rounded-lg border px-3 py-2 text-[10px] font-bold uppercase tracking-wide ${
-            event.catchQuality === 'unreachable'
+            passOutcome === 'missed'
               ? 'border-red-400/30 bg-red-500/10 text-red-300'
-              : event.catchQuality === 'assisted'
-                ? 'border-yellow-400/30 bg-yellow-400/10 text-yellow-300'
-                : 'border-green-400/30 bg-green-400/10 text-green-300'
+              : 'border-green-400/30 bg-green-400/10 text-green-300'
           }`}>
-            {event.catchResult === 'missed' ? 'Missed pass — puck loose' : `${event.catchQuality ?? 'good'} reception`}
+            {event.catchResult ? 'Coach override' : 'Engine outcome'}: {passOutcome ?? 'pending'}
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <button
-              onClick={() => actions.updatePassResult(event.id, 'caught')}
-              className={`rounded-lg border px-2 py-2 text-[9px] font-bold ${event.catchResult !== 'missed' ? 'border-green-400/50 bg-green-400/15 text-green-300' : 'border-white/10 text-white/40'}`}
-            >Caught</button>
-            <button
-              onClick={() => actions.updatePassResult(event.id, 'missed')}
-              className={`rounded-lg border px-2 py-2 text-[9px] font-bold ${event.catchResult === 'missed' ? 'border-red-400/50 bg-red-400/15 text-red-300' : 'border-white/10 text-white/40'}`}
-            >Miss</button>
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {([
+              { label: 'Auto', value: undefined },
+              { label: 'Caught', value: 'caught' as const },
+              { label: 'Miss', value: 'missed' as const },
+            ]).map(option => (
+              <button
+                key={option.label}
+                onClick={() => actions.updatePassResult(event.id, option.value)}
+                className={`rounded-lg border px-2 py-2 text-[9px] font-bold ${event.catchResult === option.value ? 'border-green-400/50 bg-green-400/15 text-green-300' : 'border-white/10 text-white/40'}`}
+              >{option.label}</button>
+            ))}
           </div>
           <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
             <div className="text-[8px] font-black uppercase tracking-wide text-white/35">Receiver</div>
@@ -85,15 +97,15 @@ export function EventInfoPanel() {
       {event.type === 'shot' && (
         <>
           <div className="mt-2 rounded-lg border border-app-orange/30 bg-app-orange/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-app-orange">
-            Result: {event.result ?? 'goal'}
+            {event.result ? 'Coach override' : 'Engine outcome'}: {event.result ?? computedShotOutcome ?? 'pending'}
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            {(['goal', 'save', 'rebound', 'wide', 'post'] as const).map(result => (
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {([undefined, ...shotOutcomes] as const).map(result => (
               <button
-                key={result}
+                key={result ?? 'auto'}
                 onClick={() => actions.updateShotResult(event.id, result)}
-                className={`rounded-lg border px-2 py-2 text-[9px] font-bold uppercase ${(event.result ?? 'goal') === result ? 'border-app-orange/50 bg-app-orange/15 text-app-orange' : 'border-white/10 text-white/40'}`}
-              >{result}</button>
+                className={`rounded-lg border px-2 py-2 text-[9px] font-bold uppercase ${event.result === result ? 'border-app-orange/50 bg-app-orange/15 text-app-orange' : 'border-white/10 text-white/40'}`}
+              >{result ?? 'auto'}</button>
             ))}
           </div>
         </>

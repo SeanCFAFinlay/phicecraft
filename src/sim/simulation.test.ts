@@ -11,6 +11,15 @@ import { isInsideRink } from './collision/rinkGeometry';
 import { migrateDrill } from '@/storage/migrations';
 import { nextLifecycle } from '@/engine/drillLifecycle';
 import { validateDrillMechanics } from '@/engine/drillValidation';
+import { getAimedNetTarget } from '@/engine/puck';
+import { distance } from '@/utils/geometry';
+import { smoothRoutePoints } from './routeSmoothing';
+import {
+  getAuthoredPassInterception,
+  getAuthoredPlayerFrame,
+  getAuthoredReleaseProgress,
+  getRouteMotionAtProgress,
+} from './authoring';
 
 describe('deterministic hockey simulation', () => {
   it('accelerates, cruises, and stops each skater from route distance', () => {
@@ -72,6 +81,70 @@ describe('deterministic hockey simulation', () => {
     expect(complete.puck?.state).toBe('dead');
     expect(complete.puck?.result).toBe('goal');
     expect(complete.lifecycle).toBe('success');
+  });
+
+  it('blocks later authored actions when the expected receiver misses', () => {
+    const missed = structuredClone(giveAndGoRegressionDrill);
+    if (missed.events[0].type === 'pass') missed.events[0].catchResult = 'missed';
+    const complete = sampleFrame(compileDrill(missed), 8);
+
+    expect(complete.eventExecutions[0].outcome).toBe('missed');
+    expect(complete.eventExecutions[1].status).toBe('blocked');
+    expect(complete.lifecycle).toBe('failure');
+    expect(complete.puck?.result).not.toBe('goal');
+  });
+
+  it('lets the goalie stop a centre shot while an earned corner shot scores', () => {
+    const centreShot = structuredClone(giveAndGoRegressionDrill);
+    const shot = centreShot.events[1];
+    if (shot.type === 'shot') {
+      shot.toPoint = { x: RINK.netRightX, y: RINK.netRightY };
+      delete shot.result;
+    }
+
+    const saved = sampleFrame(compileDrill(centreShot), 8);
+    const scored = sampleFrame(compileDrill(giveAndGoRegressionDrill), 8);
+    expect(['save', 'rebound']).toContain(saved.eventExecutions[1].outcome);
+    expect(saved.lifecycle).toBe('failure');
+    expect(scored.eventExecutions[1].outcome).toBe('goal');
+    expect(scored.lifecycle).toBe('success');
+  });
+
+  it('preserves dragged vertical aim inside the selected goal mouth', () => {
+    const target = getAimedNetTarget({ x: RINK.width, y: RINK.height });
+    expect(target.x).toBe(RINK.netRightX);
+    expect(target.y).toBeCloseTo(RINK.centerY + 2.25 * FT, 6);
+  });
+
+  it('rounds route corners without moving the authored start or finish', () => {
+    const authored = [
+      { x: 20 * FT, y: 20 * FT },
+      { x: 60 * FT, y: 20 * FT },
+      { x: 60 * FT, y: 60 * FT },
+    ];
+    const smoothed = smoothRoutePoints(authored);
+    expect(smoothed.length).toBeGreaterThan(authored.length);
+    expect(smoothed[0]).toEqual(authored[0]);
+    expect(smoothed[smoothed.length - 1]).toEqual(authored[authored.length - 1]);
+  });
+
+  it('uses the physical skating motor for authoring release time and pass lead', () => {
+    const compiled = compileDrill(giveAndGoRegressionDrill);
+    const route = compiled.routes.get('p13')!;
+    const endpoint = route.points[route.points.length - 1];
+    const releaseProgress = getAuthoredReleaseProgress(giveAndGoRegressionDrill, 'p13', endpoint);
+    const motion = getRouteMotionAtProgress(giveAndGoRegressionDrill, 'p13', releaseProgress)!;
+    const passer = getAuthoredPlayerFrame(giveAndGoRegressionDrill, 'p11', 0.2)!;
+    const interception = getAuthoredPassInterception(
+      giveAndGoRegressionDrill,
+      passer.bladePosition,
+      'p13',
+      0.2
+    )!;
+    const receiver = getAuthoredPlayerFrame(giveAndGoRegressionDrill, 'p13', interception.arrivalAt)!;
+
+    expect(motion.distance).toBeCloseTo(route.totalLength, 5);
+    expect(distance(interception.toPoint, receiver.bladePosition)).toBeLessThan(0.001);
   });
 
   it('keeps loose pucks inside rounded rink geometry and removes energy', () => {

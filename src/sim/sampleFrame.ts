@@ -1,13 +1,57 @@
-import type { AnimatedPuck, ID, PassEvent, PlaybackPlayerFrame, Point, ShotEvent } from '@/core/types';
+import type {
+  AnimatedPuck,
+  ID,
+  PassEvent,
+  PlaybackPlayerFrame,
+  Point,
+  ShotEvent,
+} from '@/core/types';
+import { RINK } from '@/core/constants';
 import { distance } from '@/utils/geometry';
 import { evaluateReception } from './receptionSolver';
 import { sampleSkater } from './skaterMotor';
 import { solveLoosePuck } from './puckSolver';
 import { resolveShotResult, shotVelocity } from './shotSolver';
-import { drillOutcome } from './scoring';
 import { chooseNearestPursuer } from './pursuitSolver';
 import { canCollectPuck } from './pickupSolver';
-import type { CompiledDrill, CompiledEvent, SimulationFrame } from './types';
+import type {
+  CompiledDrill,
+  CompiledEvent,
+  EventExecution,
+  SimulationFrame,
+} from './types';
+
+type PuckResult = AnimatedPuck['result'];
+
+type StablePuckState =
+  | {
+      mode: 'possessed';
+      carrierId: ID;
+      result?: PuckResult;
+    }
+  | {
+      mode: 'loose';
+      position: Point;
+      velocity: Point;
+      sinceSeconds: number;
+      pickupAvailableAt: number;
+      excludedCollectorId?: ID;
+      intendedReceiverId?: ID;
+      result?: PuckResult;
+    }
+  | {
+      mode: 'dead';
+      position: Point;
+      velocity: Point;
+      result: PuckResult;
+    };
+
+interface PuckResolution {
+  puck: AnimatedPuck | null;
+  firedEventIndices: number[];
+  eventExecutions: EventExecution[];
+  lastShotResult?: NonNullable<ShotEvent['result']>;
+}
 
 function playerFrameAt(compiled: CompiledDrill, id: ID, timeSeconds: number): PlaybackPlayerFrame | null {
   const player = compiled.players.get(id);
@@ -26,22 +70,39 @@ export function getCompiledEventEndpoints(compiled: CompiledDrill, event: Compil
   };
 }
 
-function looseAfterEvent(
+function puckFromStableState(
   compiled: CompiledDrill,
-  event: CompiledEvent,
-  from: Point,
-  to: Point,
-  timeSeconds: number,
-  speed: number,
-  reverse = false
-): AnimatedPuck {
-  const dx = (reverse ? from.x : to.x + (to.x - from.x)) - to.x;
-  const dy = (reverse ? from.y : to.y + (to.y - from.y)) - to.y;
-  const length = Math.hypot(dx, dy) || 1;
+  state: StablePuckState,
+  timeSeconds: number
+): AnimatedPuck | null {
+  if (state.mode === 'possessed') {
+    const carrier = playerFrameAt(compiled, state.carrierId, timeSeconds);
+    return carrier
+      ? {
+          ...carrier.bladePosition,
+          visible: true,
+          state: 'possessed',
+          carrierId: carrier.id,
+          velocity: carrier.velocity,
+          result: state.result,
+        }
+      : null;
+  }
+
+  if (state.mode === 'dead') {
+    return {
+      ...state.position,
+      visible: true,
+      state: 'dead',
+      velocity: state.velocity,
+      result: state.result,
+    };
+  }
+
   const motion = solveLoosePuck(
-    to,
-    { x: (dx / length) * speed, y: (dy / length) * speed },
-    Math.max(0, timeSeconds - event.arrivalSeconds),
+    state.position,
+    state.velocity,
+    Math.max(0, timeSeconds - state.sinceSeconds),
     compiled.config
   );
   return {
@@ -49,118 +110,300 @@ function looseAfterEvent(
     visible: true,
     state: 'loose',
     velocity: motion.velocity,
+    intendedReceiverId: state.intendedReceiverId,
+    result: state.result,
   };
 }
 
-function autoCollectLoosePuck(
+/**
+ * Advance a loose puck through fixed steps and grant control only when a
+ * skater's blade actually enters the pickup radius. A short post-release
+ * lockout prevents the passer or missed receiver from instantly snapping the
+ * puck back onto their stick.
+ */
+function advanceStableState(
   compiled: CompiledDrill,
-  frames: Record<ID, PlaybackPlayerFrame>,
-  event: CompiledEvent,
-  loose: AnimatedPuck
-): AnimatedPuck {
-  if (compiled.config.recovery !== 'nearest-teammate') return loose;
-  const teammateIds = compiled.source.players
-    .filter(player => player.team === event.source.team)
-    .map(player => player.id);
-  const pursuerId = chooseNearestPursuer(frames, teammateIds, loose);
-  const pursuer = pursuerId ? frames[pursuerId] : null;
-  if (!pursuer || !canCollectPuck(pursuer, loose, compiled.config.pickupRadius)) return loose;
-  return {
-    ...pursuer.bladePosition,
-    visible: true,
-    state: 'possessed',
-    carrierId: pursuer.id,
-    velocity: pursuer.velocity,
-    result: 'caught',
-  };
-}
-
-function samplePuck(
-  compiled: CompiledDrill,
-  frames: Record<ID, PlaybackPlayerFrame>,
-  timeSeconds: number
-): AnimatedPuck | null {
-  const initialCarrier = compiled.source.players.find(player => player.hasPuck);
-  const fired = compiled.events.filter(event => event.departureSeconds <= timeSeconds + 1e-9);
-  if (fired.length === 0) {
-    const carrierFrame = initialCarrier ? frames[initialCarrier.id] : null;
-    return carrierFrame
-      ? { ...carrierFrame.bladePosition, visible: true, state: 'possessed', carrierId: initialCarrier?.id }
-      : null;
+  state: StablePuckState,
+  targetSeconds: number
+): StablePuckState {
+  if (
+    state.mode !== 'loose' ||
+    compiled.config.recovery !== 'nearest-teammate' ||
+    targetSeconds <= state.sinceSeconds
+  ) {
+    return state;
   }
 
-  const event = fired[fired.length - 1];
-  const { from, to } = getCompiledEventEndpoints(compiled, event);
+  let position = { ...state.position };
+  let velocity = { ...state.velocity };
+  let time = state.sinceSeconds;
+  const collectionStep = 1 / 30;
+  const skaterIds = compiled.source.players
+    .filter(player => player.role !== 'G')
+    .map(player => player.id);
+
+  while (time < targetSeconds - 0.000001) {
+    const dt = Math.min(collectionStep, targetSeconds - time);
+    const motion = solveLoosePuck(position, velocity, dt, compiled.config);
+    position = motion.position;
+    velocity = motion.velocity;
+    time += dt;
+
+    if (time + 0.000001 < state.pickupAvailableAt) continue;
+    const frames: Record<ID, PlaybackPlayerFrame> = {};
+    for (const id of skaterIds) {
+      const frame = playerFrameAt(compiled, id, time);
+      if (frame) frames[id] = frame;
+    }
+    const eligibleIds = skaterIds.filter(id => id !== state.excludedCollectorId);
+    const pursuerId = chooseNearestPursuer(frames, eligibleIds, position);
+    const pursuer = pursuerId ? frames[pursuerId] : null;
+    if (pursuer && canCollectPuck(pursuer, position, compiled.config.pickupRadius)) {
+      return { mode: 'possessed', carrierId: pursuer.id, result: 'caught' };
+    }
+  }
+
+  return {
+    ...state,
+    position,
+    velocity,
+    sinceSeconds: targetSeconds,
+  };
+}
+
+function defendingGoalieAt(
+  compiled: CompiledDrill,
+  shot: ShotEvent,
+  timeSeconds: number
+): PlaybackPlayerFrame | null {
+  const goalX = shot.targetNet === 'L' ? RINK.goalLineLeftX : RINK.goalLineRightX;
+  const candidates = compiled.source.players
+    .filter(player => player.role === 'G' && player.team !== shot.team)
+    .map(player => ({
+      frame: playerFrameAt(compiled, player.id, timeSeconds),
+      gap: Math.abs(player.x - goalX),
+    }))
+    .filter((candidate): candidate is { frame: PlaybackPlayerFrame; gap: number } => Boolean(candidate.frame));
+  return candidates.sort((a, b) => a.gap - b.gap)[0]?.frame ?? null;
+}
+
+function interpolateFlight(
+  event: CompiledEvent,
+  from: Point,
+  to: Point,
+  timeSeconds: number
+): AnimatedPuck {
   const duration = Math.max(0.001, event.arrivalSeconds - event.departureSeconds);
   const t = Math.max(0, Math.min(1, (timeSeconds - event.departureSeconds) / duration));
-  const velocity = { x: (to.x - from.x) / duration, y: (to.y - from.y) / duration };
+  return {
+    x: from.x + (to.x - from.x) * t,
+    y: from.y + (to.y - from.y) * t,
+    visible: true,
+    state: event.source.type === 'shot' ? 'shot' : 'in_flight',
+    intendedReceiverId: event.source.type === 'pass' ? event.source.toPlayerId : undefined,
+    velocity: { x: (to.x - from.x) / duration, y: (to.y - from.y) / duration },
+  };
+}
 
-  if (t < 1) {
-    return {
-      x: from.x + (to.x - from.x) * t,
-      y: from.y + (to.y - from.y) * t,
-      visible: true,
-      state: event.source.type === 'shot' ? 'shot' : event.source.type === 'pickup' ? 'loose' : 'in_flight',
-      intendedReceiverId: event.source.type === 'pass' ? event.source.toPlayerId : undefined,
-      velocity,
-    };
-  }
+function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolution {
+  const initialCarrier = compiled.source.players.find(player => player.hasPuck);
+  let state: StablePuckState | null = initialCarrier
+    ? { mode: 'possessed', carrierId: initialCarrier.id }
+    : null;
+  const firedEventIndices: number[] = [];
+  const eventExecutions: EventExecution[] = compiled.events.map(event => ({
+    eventId: event.source.id,
+    index: event.index,
+    status: 'pending',
+  }));
+  let lastShotResult: NonNullable<ShotEvent['result']> | undefined;
 
-  if (event.source.type === 'pickup') {
-    const frame = frames[event.source.fromPlayerId];
-    return frame ? { ...frame.bladePosition, visible: true, state: 'possessed', carrierId: frame.id } : null;
-  }
-
-  if (event.source.type === 'dump') {
-    return autoCollectLoosePuck(
-      compiled,
-      frames,
-      event,
-      looseAfterEvent(compiled, event, from, to, timeSeconds, compiled.config.passSpeed * 0.75)
-    );
-  }
-
-  if (event.source.type === 'pass') {
-    const receiver = frames[event.source.toPlayerId];
-    if (!receiver) return looseAfterEvent(compiled, event, from, to, timeSeconds, compiled.config.passSpeed);
-    // Reception is resolved exactly once at arrival. After a catch, the puck
-    // follows the receiver instead of being re-tested as the skater moves on.
-    const receiverAtArrival = playerFrameAt(compiled, event.source.toPlayerId, event.arrivalSeconds) ?? receiver;
-    const evaluation = evaluateReception(event.source as PassEvent, to, velocity, receiverAtArrival, compiled.config);
-    if (!evaluation.caught) {
-      return autoCollectLoosePuck(compiled, frames, event, {
-        ...looseAfterEvent(compiled, event, from, to, timeSeconds, Math.max(30, Math.hypot(velocity.x, velocity.y) * 0.55)),
-        intendedReceiverId: event.source.toPlayerId,
-        result: 'missed',
-      });
+  for (const event of compiled.events) {
+    if (event.departureSeconds > timeSeconds + 0.000001) break;
+    const execution = eventExecutions[event.index];
+    if (!state) {
+      execution.status = 'blocked';
+      execution.reason = 'No puck exists at release time.';
+      continue;
     }
-    return {
-      ...receiver.bladePosition,
-      visible: true,
-      state: 'possessed',
-      carrierId: receiver.id,
-      velocity: receiver.velocity,
-      result: 'caught',
-    };
+
+    state = advanceStableState(compiled, state, event.departureSeconds);
+
+    if (event.source.type === 'pickup') {
+      if (state.mode !== 'loose') {
+        execution.status = 'blocked';
+        execution.reason = state.mode === 'possessed'
+          ? `Puck is already controlled by ${state.carrierId}.`
+          : 'Puck is dead and cannot be recovered.';
+        continue;
+      }
+
+      firedEventIndices.push(event.index);
+      if (timeSeconds < event.arrivalSeconds - 0.000001) {
+        execution.status = 'active';
+        return {
+          puck: puckFromStableState(compiled, state, timeSeconds),
+          firedEventIndices,
+          eventExecutions,
+          lastShotResult,
+        };
+      }
+
+      const looseAtArrival = puckFromStableState(compiled, state, event.arrivalSeconds);
+      const picker = playerFrameAt(compiled, event.source.fromPlayerId, event.arrivalSeconds);
+      const assistMultiplier = compiled.config.assistance === 'high'
+        ? 1.8
+        : compiled.config.assistance === 'standard'
+          ? 1.35
+          : 1;
+      const reachable = Boolean(
+        looseAtArrival &&
+        picker &&
+        distance(looseAtArrival, picker.bladePosition) <= compiled.config.pickupRadius * assistMultiplier
+      );
+
+      if (compiled.config.recovery === 'authored' || reachable) {
+        state = { mode: 'possessed', carrierId: event.source.fromPlayerId, result: 'caught' };
+        execution.status = 'completed';
+        execution.outcome = 'recovered';
+      } else {
+        state = advanceStableState(compiled, state, event.arrivalSeconds);
+        execution.status = 'completed';
+        execution.outcome = 'missed';
+        execution.reason = 'The player never brought the blade within pickup range.';
+      }
+      continue;
+    }
+
+    if (state.mode !== 'possessed' || state.carrierId !== event.source.fromPlayerId) {
+      execution.status = 'blocked';
+      execution.reason = state.mode === 'possessed'
+        ? `${event.source.fromPlayerId} cannot release a puck controlled by ${state.carrierId}.`
+        : 'The puck is loose or dead at release time.';
+      continue;
+    }
+
+    firedEventIndices.push(event.index);
+    const { from, to } = getCompiledEventEndpoints(compiled, event);
+    if (timeSeconds < event.arrivalSeconds - 0.000001) {
+      execution.status = 'active';
+      return {
+        puck: interpolateFlight(event, from, to, timeSeconds),
+        firedEventIndices,
+        eventExecutions,
+        lastShotResult,
+      };
+    }
+
+    const duration = Math.max(0.001, event.arrivalSeconds - event.departureSeconds);
+    const flightVelocity = { x: (to.x - from.x) / duration, y: (to.y - from.y) / duration };
+    execution.status = 'completed';
+
+    if (event.source.type === 'pass') {
+      const receiver = playerFrameAt(compiled, event.source.toPlayerId, event.arrivalSeconds);
+      if (!receiver) {
+        state = {
+          mode: 'loose',
+          position: to,
+          velocity: { x: flightVelocity.x * 0.55, y: flightVelocity.y * 0.55 },
+          sinceSeconds: event.arrivalSeconds,
+          pickupAvailableAt: event.arrivalSeconds + 0.35,
+          intendedReceiverId: event.source.toPlayerId,
+          result: 'missed',
+        };
+        execution.outcome = 'missed';
+        execution.reason = 'Receiver is missing from the drill.';
+        continue;
+      }
+
+      const evaluation = evaluateReception(
+        event.source as PassEvent,
+        to,
+        flightVelocity,
+        receiver,
+        compiled.config
+      );
+      if (evaluation.caught) {
+        state = { mode: 'possessed', carrierId: receiver.id, result: 'caught' };
+        execution.outcome = 'caught';
+      } else {
+        state = {
+          mode: 'loose',
+          position: to,
+          velocity: { x: flightVelocity.x * 0.55, y: flightVelocity.y * 0.55 },
+          sinceSeconds: event.arrivalSeconds,
+          pickupAvailableAt: event.arrivalSeconds + 0.35,
+          excludedCollectorId: receiver.id,
+          intendedReceiverId: receiver.id,
+          result: 'missed',
+        };
+        execution.outcome = 'missed';
+        execution.reason = `Reception failed by ${evaluation.gap.toFixed(1)} units at ${evaluation.relativeSpeed.toFixed(1)} units/s.`;
+      }
+      continue;
+    }
+
+    if (event.source.type === 'dump') {
+      state = {
+        mode: 'loose',
+        position: to,
+        velocity: shotVelocity(from, to, compiled.config.passSpeed * 0.35),
+        sinceSeconds: event.arrivalSeconds,
+        pickupAvailableAt: event.arrivalSeconds,
+      };
+      execution.outcome = 'released';
+      continue;
+    }
+
+    const shot = event.source as ShotEvent;
+    const result = resolveShotResult(shot, compiled.config, {
+      from,
+      to,
+      goalie: defendingGoalieAt(compiled, shot, event.arrivalSeconds),
+    });
+    lastShotResult = result;
+    execution.outcome = result;
+
+    if (result === 'rebound' || result === 'post') {
+      state = {
+        mode: 'loose',
+        position: to,
+        velocity: shotVelocity(to, from, compiled.config.shotSpeed * 0.42),
+        sinceSeconds: event.arrivalSeconds,
+        pickupAvailableAt: event.arrivalSeconds + 0.15,
+        result,
+      };
+    } else if (result === 'wide') {
+      state = {
+        mode: 'loose',
+        position: to,
+        velocity: shotVelocity(from, to, compiled.config.shotSpeed * 0.5),
+        sinceSeconds: event.arrivalSeconds,
+        pickupAvailableAt: event.arrivalSeconds + 0.15,
+        result,
+      };
+    } else {
+      state = {
+        mode: 'dead',
+        position: to,
+        velocity: result === 'goal'
+          ? shotVelocity(from, to, compiled.config.shotSpeed)
+          : { x: 0, y: 0 },
+        result,
+      };
+    }
   }
 
-  const shot = event.source as ShotEvent;
-  const result = resolveShotResult(shot, compiled.config);
-  if (result === 'rebound' || result === 'post') {
-    return autoCollectLoosePuck(compiled, frames, event, {
-      ...looseAfterEvent(compiled, event, from, to, timeSeconds, compiled.config.shotSpeed * 0.42, true),
-      result,
-    });
+  if (!state) {
+    return { puck: null, firedEventIndices, eventExecutions, lastShotResult };
   }
-  if (result === 'wide') {
-    return autoCollectLoosePuck(compiled, frames, event, {
-      ...looseAfterEvent(compiled, event, from, to, timeSeconds, compiled.config.shotSpeed * 0.5), result,
-    });
-  }
-  if (result === 'save') {
-    return { ...to, visible: true, state: 'dead', velocity: { x: 0, y: 0 }, result };
-  }
-  return { ...to, visible: true, state: 'dead', velocity: shotVelocity(from, to, compiled.config.shotSpeed), result: 'goal' };
+  state = advanceStableState(compiled, state, timeSeconds);
+  return {
+    puck: puckFromStableState(compiled, state, timeSeconds),
+    firedEventIndices,
+    eventExecutions,
+    lastShotResult,
+  };
 }
 
 export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: number): SimulationFrame {
@@ -170,13 +413,21 @@ export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: numbe
     const route = compiled.routes.get(id);
     if (route) players[id] = sampleSkater(player, route, timeSeconds, compiled.events);
   }
-  const puck = samplePuck(compiled, players, timeSeconds);
-  const firedEventIndices = compiled.events
-    .filter(event => event.departureSeconds <= timeSeconds + 1e-9)
-    .map(event => event.index);
-  const terminal = timeSeconds >= compiled.durationSeconds - 1e-9;
-  const outcome = terminal ? drillOutcome(compiled.events) : null;
-  const lifecycle = !terminal ? (timeSeconds <= 0 ? 'ready' : 'active') : outcome ?? 'review';
+
+  const resolution = samplePuck(compiled, timeSeconds);
+  const terminal = timeSeconds >= compiled.durationSeconds - 0.000001;
+  const hasAuthoredShot = compiled.events.some(event => event.source.type === 'shot');
+  const lifecycle = !terminal
+    ? timeSeconds <= 0
+      ? 'ready'
+      : 'active'
+    : resolution.lastShotResult
+      ? resolution.lastShotResult === 'goal'
+        ? 'success'
+        : 'failure'
+      : hasAuthoredShot
+        ? 'failure'
+        : 'review';
 
   return {
     timeSeconds,
@@ -184,8 +435,9 @@ export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: numbe
     durationSeconds: compiled.durationSeconds,
     lifecycle,
     players,
-    puck,
-    firedEventIndices,
+    puck: resolution.puck,
+    firedEventIndices: resolution.firedEventIndices,
+    eventExecutions: resolution.eventExecutions,
   };
 }
 

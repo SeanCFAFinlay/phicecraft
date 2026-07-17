@@ -1,5 +1,6 @@
 import type { Drill, ID } from '@/core/types';
 import { compileDrill } from '@/sim/compileDrill';
+import { sampleFrame } from '@/sim/sampleFrame';
 
 export interface MechanicsIssue {
   severity: 'error' | 'warning';
@@ -32,6 +33,22 @@ export function validateDrillMechanics(drill: Drill): MechanicsIssue[] {
         severity: 'error',
         eventId: compiled.events[index].source.id,
         message: `Puck event ${index + 1} starts before event ${index} has finished.`,
+      });
+    }
+  }
+  const finalFrame = sampleFrame(compiled, compiled.durationSeconds);
+  for (const execution of finalFrame.eventExecutions) {
+    if (execution.status === 'blocked') {
+      issues.push({
+        severity: 'error',
+        eventId: execution.eventId,
+        message: execution.reason ?? `Puck event ${execution.index + 1} cannot execute.`,
+      });
+    } else if (execution.outcome === 'missed') {
+      issues.push({
+        severity: 'warning',
+        eventId: execution.eventId,
+        message: execution.reason ?? `Puck event ${execution.index + 1} ends without possession.`,
       });
     }
   }

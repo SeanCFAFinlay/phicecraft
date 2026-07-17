@@ -199,6 +199,7 @@ export type SkaterAction =
   | 'turn'
   | 'stop'
   | 'receive'
+  | 'recover'
   | 'pass'
   | 'shot';
 
@@ -432,8 +433,8 @@ export type AppAction =
   | { type: 'ADD_DUMP'; event: DumpEvent }
   | { type: 'ADD_PICKUP'; event: PickupEvent }
   | { type: 'REMOVE_EVENT'; id: ID }
-  | { type: 'UPDATE_PASS_RESULT'; id: ID; result: 'caught' | 'missed' }
-  | { type: 'UPDATE_SHOT_RESULT'; id: ID; result: 'goal' | 'save' | 'rebound' | 'wide' | 'post' }
+  | { type: 'UPDATE_PASS_RESULT'; id: ID; result: 'caught' | 'missed' | undefined }
+  | { type: 'UPDATE_SHOT_RESULT'; id: ID; result: 'goal' | 'save' | 'rebound' | 'wide' | 'post' | undefined }
   | { type: 'CONVERT_DUMP_TO_PASS'; event: PassEvent }
   | { type: 'RETARGET_PASS'; event: PassEvent }
   | { type: 'CLEAR_ALL_EVENTS' }

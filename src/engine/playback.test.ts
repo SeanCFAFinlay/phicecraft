@@ -11,6 +11,7 @@ import {
   updateGhostTrail,
   formatTime,
   getTimelineMarkers,
+  getNextPlaybackCheckpoint,
 } from './playback';
 import { GHOST_TRAIL_MAX_LENGTH } from '@/core/constants';
 import type { Player, SkatePath, PassEvent, ShotEvent, PickupEvent, Point } from '@/core/types';
@@ -144,6 +145,15 @@ describe('getFiredEventIndices', () => {
     const timed = { ...pass('a', 'b'), at: 0.62, arrivalAt: 0.7 };
     expect(getFiredEventIndices([timed], 0.61)).toEqual([]);
     expect(getFiredEventIndices([timed], 0.62)).toEqual([0]);
+  });
+});
+
+describe('getNextPlaybackCheckpoint', () => {
+  it('steps through event release and reception moments', () => {
+    const timed = { ...pass('a', 'b'), at: 0.62, arrivalAt: 0.7 };
+    expect(getNextPlaybackCheckpoint([timed], 0)).toBe(0.62);
+    expect(getNextPlaybackCheckpoint([timed], 0.62)).toBe(0.7);
+    expect(getNextPlaybackCheckpoint([timed], 0.7)).toBe(1);
   });
 });
 

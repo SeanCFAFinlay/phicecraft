@@ -27,8 +27,8 @@ export const fiveManLowHighDrill: Drill = {
   events: [
     { id: 'coach-lower-dump', type: 'dump', fromPlayerId: 'coach', fromPoint: { x: 38 * FT, y: 8 * FT }, toPoint: { x: 182 * FT, y: 70 * FT }, targetNet: 'dump', team: 'home', at: 0.42, arrivalAt: 0.5 },
     { id: 'pickup-21', type: 'pickup', fromPlayerId: 'p21', fromPoint: { x: 182 * FT, y: 70 * FT }, toPoint: { x: 181 * FT, y: 66 * FT }, team: 'home', at: 0.65, arrivalAt: 0.67 },
-    { id: 'pass-21-6', type: 'pass', fromPlayerId: 'p21', toPlayerId: 'p6', fromPoint: { x: 181 * FT, y: 66 * FT }, toPoint: { x: 140 * FT, y: 57 * FT }, team: 'home', at: 0.7, arrivalAt: 0.74, catchResult: 'caught', catchQuality: 'good' },
-    { id: 'pass-6-19', type: 'pass', fromPlayerId: 'p6', toPlayerId: 'p19', fromPoint: { x: 140 * FT, y: 57 * FT }, toPoint: { x: 163 * FT, y: 43 * FT }, team: 'home', at: 0.78, arrivalAt: 0.82, catchResult: 'caught', catchQuality: 'good' },
-    { id: 'shot-19', type: 'shot', fromPlayerId: 'p19', fromPoint: { x: 163 * FT, y: 43 * FT }, toPoint: { x: RINK.netRightX, y: RINK.netRightY }, targetNet: 'R', team: 'home', at: 0.88, arrivalAt: 0.93, result: 'goal' },
+    { id: 'pass-21-6', type: 'pass', fromPlayerId: 'p21', toPlayerId: 'p6', fromPoint: { x: 181 * FT, y: 66 * FT }, toPoint: { x: 140 * FT, y: 57 * FT }, team: 'home', at: 0.7, arrivalAt: 0.74 },
+    { id: 'pass-6-19', type: 'pass', fromPlayerId: 'p6', toPlayerId: 'p19', fromPoint: { x: 140 * FT, y: 57 * FT }, toPoint: { x: 163 * FT, y: 43 * FT }, team: 'home', at: 0.78, arrivalAt: 0.82 },
+    { id: 'shot-19', type: 'shot', fromPlayerId: 'p19', fromPoint: { x: 163 * FT, y: 43 * FT }, toPoint: { x: RINK.netRightX, y: RINK.netRightY + 2.2 * FT }, targetNet: 'R', team: 'home', at: 0.88, arrivalAt: 0.93 },
   ],
 };

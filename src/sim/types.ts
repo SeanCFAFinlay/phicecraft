@@ -77,6 +77,15 @@ export interface SimulationFrame {
   players: Record<ID, PlaybackPlayerFrame>;
   puck: AnimatedPuck | null;
   firedEventIndices: number[];
+  eventExecutions: EventExecution[];
+}
+
+export interface EventExecution {
+  eventId: ID;
+  index: number;
+  status: 'pending' | 'active' | 'completed' | 'blocked';
+  outcome?: AnimatedPuck['result'] | 'released' | 'recovered';
+  reason?: string;
 }
 
 export interface PuckMotionState {

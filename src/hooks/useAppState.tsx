@@ -31,8 +31,13 @@ import type {
 } from '@/core/types';
 import { createInitialState, appReducer } from '@/core/state';
 import { generateId } from '@/utils/id';
-import { closestPointOnPolyline, distance } from '@/utils/geometry';
-import { getPassInterception, getPlayerStickPositionAtProgress, getPuckStateAtProgress, getTimeForSkatingProgress } from '@/engine/playback';
+import { distance } from '@/utils/geometry';
+import {
+  getAuthoredPassInterception,
+  getAuthoredPlayerBlade,
+  getAuthoredPuck,
+  getAuthoredReleaseProgress,
+} from '@/sim/authoring';
 import {
   getDrillList,
   getDrill,
@@ -95,8 +100,8 @@ export interface AppActions {
   setPassFrom: (id: ID | null) => void;
   selectEvent: (id: ID | null) => void;
   removeEvent: (id: ID) => void;
-  updatePassResult: (id: ID, result: 'caught' | 'missed') => void;
-  updateShotResult: (id: ID, result: 'goal' | 'save' | 'rebound' | 'wide' | 'post') => void;
+  updatePassResult: (id: ID, result: 'caught' | 'missed' | undefined) => void;
+  updateShotResult: (id: ID, result: 'goal' | 'save' | 'rebound' | 'wide' | 'post' | undefined) => void;
   convertDumpToPass: (eventId: ID, receiverId: ID) => void;
   retargetPass: (eventId: ID, receiverId: ID) => void;
 
@@ -240,26 +245,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       removeSkatePath: id => dispatch({ type: 'REMOVE_SKATE_PATH', id }),
       updateSkatePath: (id, updates) => dispatch({ type: 'UPDATE_SKATE_PATH', id, updates }),
 
-      addPass: (fromPlayer, toPlayer, fromPoint, toPoint) => {
+      addPass: (fromPlayer, toPlayer, fromPoint, _toPoint) => {
         const s = stateRef.current;
         const authoredSource = fromPoint ?? { x: fromPlayer.x, y: fromPlayer.y };
-        const requestedTarget = toPoint ?? { x: toPlayer.x, y: toPlayer.y };
         const sourcePath = s.drill.skatePaths.find(path => path.ownerId === fromPlayer.id);
         const previousArrival = s.drill.events.length
           ? s.drill.events[s.drill.events.length - 1].arrivalAt ?? 0
           : 0;
         const authoredTime = sourcePath
-          ? getTimeForSkatingProgress(closestPointOnPolyline(sourcePath.points, authoredSource).t)
+          ? getAuthoredReleaseProgress(s.drill, fromPlayer.id, authoredSource)
           : Math.max(0.12, previousArrival + 0.04);
         const sourceTime = Math.min(0.94, Math.max(authoredTime, previousArrival + 0.04));
-        const source = getPlayerStickPositionAtProgress(fromPlayer, s.drill.skatePaths, sourceTime);
-        const interception = getPassInterception(
-          source,
-          toPlayer,
-          s.drill.skatePaths,
-          sourceTime,
-          s.playback.duration
-        );
+        const source = getAuthoredPlayerBlade(s.drill, fromPlayer.id, sourceTime) ?? authoredSource;
+        const interception = getAuthoredPassInterception(s.drill, source, toPlayer.id, sourceTime) ?? {
+          toPoint: { x: toPlayer.x, y: toPlayer.y },
+          arrivalAt: Math.min(0.98, sourceTime + 0.08),
+        };
         // A pass addressed to a player always resolves to that skater's stick
         // socket. Clicking the body is the easy targeting gesture; the engine
         // handles the hockey-specific catch point for stationary and moving
@@ -276,8 +277,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           team: fromPlayer.team,
           at: sourceTime,
           arrivalAt,
-          catchResult: 'caught',
-          catchQuality: distance(requestedTarget, target) < 45 ? 'good' : 'assisted',
         };
         dispatch({ type: 'ADD_PASS', event });
       },
@@ -288,17 +287,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const receiver = s.drill.players.find(player => player.id === toPlayerId);
         const passer = s.drill.players.find(player => player.id === fromPlayerId);
         const authoredTime = fromPath
-          ? getTimeForSkatingProgress(closestPointOnPolyline(fromPath.points, fromPoint).t)
+          ? getAuthoredReleaseProgress(s.drill, fromPlayerId, fromPoint)
           : 0.12;
         const previousArrival = s.drill.events.length
           ? s.drill.events[s.drill.events.length - 1].arrivalAt ?? 0
           : 0;
         const at = Math.min(0.94, Math.max(authoredTime, previousArrival + 0.04));
         const releasePoint = passer
-          ? getPlayerStickPositionAtProgress(passer, s.drill.skatePaths, at)
+          ? getAuthoredPlayerBlade(s.drill, passer.id, at) ?? fromPoint
           : fromPoint;
         const interception = receiver
-          ? getPassInterception(releasePoint, receiver, s.drill.skatePaths, at, s.playback.duration)
+          ? getAuthoredPassInterception(s.drill, releasePoint, receiver.id, at) ?? { toPoint, arrivalAt: Math.min(0.98, at + 0.08) }
           : { toPoint, arrivalAt: Math.min(0.98, at + 0.06) };
         const event: PassEvent = {
           id: generateId(),
@@ -310,8 +309,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           team,
           at,
           arrivalAt: interception.arrivalAt,
-          catchResult: 'caught',
-          catchQuality: distance(toPoint, interception.toPoint) < 45 ? 'good' : 'assisted',
         };
         dispatch({ type: 'ADD_PASS', event });
       },
@@ -320,11 +317,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const s = stateRef.current;
         const authoredSource = fromPoint ?? { x: fromPlayer.x, y: fromPlayer.y };
         const sourcePath = s.drill.skatePaths.find(path => path.ownerId === fromPlayer.id);
+        const previousArrival = s.drill.events[s.drill.events.length - 1]?.arrivalAt ?? 0;
         const pathTime = sourcePath
-          ? getTimeForSkatingProgress(closestPointOnPolyline(sourcePath.points, authoredSource).t)
-          : Math.max(0.12, (s.drill.events[s.drill.events.length - 1]?.arrivalAt ?? 0) + 0.04);
-        const at = Math.min(0.94, pathTime);
-        const source = getPlayerStickPositionAtProgress(fromPlayer, s.drill.skatePaths, at);
+          ? getAuthoredReleaseProgress(s.drill, fromPlayer.id, authoredSource)
+          : Math.max(0.12, previousArrival + 0.04);
+        const at = Math.min(0.94, Math.max(pathTime, previousArrival + 0.04));
+        const source = getAuthoredPlayerBlade(s.drill, fromPlayer.id, at) ?? authoredSource;
         const flight = Math.max(0.025, (distance(source, targetPoint) / 5) / 75 / s.playback.duration);
         const event: ShotEvent = {
           id: generateId(),
@@ -336,7 +334,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           team: fromPlayer.team,
           at,
           arrivalAt: Math.min(1, at + flight),
-          result: 'goal',
         };
         dispatch({ type: 'ADD_SHOT', event });
       },
@@ -345,11 +342,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const s = stateRef.current;
         const authoredSource = fromPoint ?? { x: fromPlayer.x, y: fromPlayer.y };
         const sourcePath = s.drill.skatePaths.find(path => path.ownerId === fromPlayer.id);
+        const previousArrival = s.drill.events[s.drill.events.length - 1]?.arrivalAt ?? 0;
         const pathTime = sourcePath
-          ? getTimeForSkatingProgress(closestPointOnPolyline(sourcePath.points, authoredSource).t)
-          : Math.max(0.12, (s.drill.events[s.drill.events.length - 1]?.arrivalAt ?? 0) + 0.04);
-        const at = Math.min(0.94, pathTime);
-        const source = getPlayerStickPositionAtProgress(fromPlayer, s.drill.skatePaths, at);
+          ? getAuthoredReleaseProgress(s.drill, fromPlayer.id, authoredSource)
+          : Math.max(0.12, previousArrival + 0.04);
+        const at = Math.min(0.94, Math.max(pathTime, previousArrival + 0.04));
+        const source = getAuthoredPlayerBlade(s.drill, fromPlayer.id, at) ?? authoredSource;
         const flight = Math.max(0.035, (distance(source, targetPoint) / 5) / 50 / s.playback.duration);
         const event: DumpEvent = {
           id: generateId(),
@@ -374,14 +372,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         for (let sample = 0; sample <= 48; sample++) {
           const at = searchStart + (0.98 - searchStart) * (sample / 48);
-          const puck = getPuckStateAtProgress(
-            s.drill.players,
-            s.drill.skatePaths,
-            s.drill.events,
-            at
-          );
+          const puck = getAuthoredPuck(s.drill, at);
           if (!puck || puck.state !== 'loose') continue;
-          const stick = getPlayerStickPositionAtProgress(player, s.drill.skatePaths, at);
+          const stick = getAuthoredPlayerBlade(s.drill, player.id, at) ?? { x: player.x, y: player.y };
           const gap = distance(puck, stick);
           if (!best || gap < best.gap) {
             best = { at, puck: { x: puck.x, y: puck.y }, stick, gap };
@@ -398,7 +391,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
 
         const arrivalAt = Math.min(0.995, best.at + 0.02);
-        const catchPoint = getPlayerStickPositionAtProgress(player, s.drill.skatePaths, arrivalAt);
+        const catchPoint = getAuthoredPlayerBlade(s.drill, player.id, arrivalAt) ?? best.stick;
         const event: PickupEvent = {
           id: generateId(),
           type: 'pickup',
@@ -430,13 +423,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return;
         }
         const at = existing.at ?? 0.5;
-        const interception = getPassInterception(
-          existing.fromPoint,
-          receiver,
-          s.drill.skatePaths,
-          at,
-          s.playback.duration
-        );
+        const interception = getAuthoredPassInterception(s.drill, existing.fromPoint, receiver.id, at) ?? {
+          toPoint: { x: receiver.x, y: receiver.y },
+          arrivalAt: Math.min(0.98, at + 0.08),
+        };
         const pass: PassEvent = {
           id: existing.id,
           type: 'pass',
@@ -447,8 +437,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           team: existing.team,
           at,
           arrivalAt: interception.arrivalAt,
-          catchResult: 'caught',
-          catchQuality: 'good',
         };
         dispatch({ type: 'CONVERT_DUMP_TO_PASS', event: pass });
         toast(`Pass assigned to #${receiver.number} — receiver will collect`, 'success', 3600);
@@ -462,13 +450,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return;
         }
         const at = existing.at ?? 0.5;
-        const interception = getPassInterception(
-          existing.fromPoint,
-          receiver,
-          s.drill.skatePaths,
-          at,
-          s.playback.duration
-        );
+        const interception = getAuthoredPassInterception(s.drill, existing.fromPoint, receiver.id, at) ?? {
+          toPoint: { x: receiver.x, y: receiver.y },
+          arrivalAt: Math.min(0.98, at + 0.08),
+        };
         dispatch({
           type: 'RETARGET_PASS',
           event: {
@@ -476,8 +461,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             toPlayerId: receiver.id,
             toPoint: interception.toPoint,
             arrivalAt: interception.arrivalAt,
-            catchResult: 'caught',
-            catchQuality: 'good',
+            catchResult: undefined,
+            catchQuality: undefined,
           },
         });
         toast(`Receiver changed to #${receiver.number}`, 'success');
