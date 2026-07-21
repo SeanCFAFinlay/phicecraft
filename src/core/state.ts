@@ -21,6 +21,7 @@ import {
   MIN_ZOOM,
   MAX_ZOOM,
   FIT_PADDING,
+  TABLETOP_MAX_TILT,
 } from './constants';
 import { createNewDrill } from '@/engine/drill';
 import { removePlayerFromEvents } from '@/engine/puck';
@@ -61,9 +62,13 @@ export function createInitialState(): AppState {
 /**
  * Calculate camera to fit the whole rink in the viewport
  */
-function calculateFitCamera(canvasWidth: number, canvasHeight: number): Camera {
+function calculateFitCamera(canvasWidth: number, canvasHeight: number, base?: Camera): Camera {
+  // The tabletop lean/spin is a view preference that survives a re-fit.
+  const rotation = base?.rotation ?? 0;
+  const tilt = base?.tilt ?? 0;
+
   if (canvasWidth <= 0 || canvasHeight <= 0) {
-    return { ...DEFAULT_CAMERA };
+    return { ...DEFAULT_CAMERA, rotation, tilt };
   }
 
   const zoom = Math.min(
@@ -75,6 +80,8 @@ function calculateFitCamera(canvasWidth: number, canvasHeight: number): Camera {
     zoom,
     x: (canvasWidth - RINK.width * zoom) / 2 - RINK.x * zoom,
     y: (canvasHeight - RINK.height * zoom) / 2 - RINK.y * zoom,
+    rotation,
+    tilt,
   };
 }
 
@@ -467,6 +474,7 @@ function reduce(state: AppState, action: AppAction): AppState {
         camera: {
           ...action.camera,
           zoom: clamp(action.camera.zoom, MIN_ZOOM, MAX_ZOOM),
+          tilt: clamp(action.camera.tilt ?? 0, 0, TABLETOP_MAX_TILT),
         },
         cameraUserAdjusted: true,
       };
@@ -474,10 +482,11 @@ function reduce(state: AppState, action: AppAction): AppState {
 
     case 'FIT_CAMERA': {
       // An explicit "show me the whole rink" also hands control back to
-      // auto-fit, so resizing keeps the rink framed.
+      // auto-fit, so resizing keeps the rink framed. The tabletop lean/spin is
+      // a view preference, so it rides along rather than snapping back to flat.
       return {
         ...state,
-        camera: calculateFitCamera(state.canvasWidth, state.canvasHeight),
+        camera: calculateFitCamera(state.canvasWidth, state.canvasHeight, state.camera),
         cameraUserAdjusted: false,
       };
     }
@@ -491,6 +500,7 @@ function reduce(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         camera: {
+          ...camera,
           zoom,
           x: action.screenPoint.x - (action.screenPoint.x - camera.x) * scale,
           y: action.screenPoint.y - (action.screenPoint.y - camera.y) * scale,
@@ -503,8 +513,15 @@ function reduce(state: AppState, action: AppAction): AppState {
       const cw = state.canvasWidth;
       const ch = state.canvasHeight;
 
+      const rotation = state.camera.rotation ?? 0;
+      const tilt = state.camera.tilt ?? 0;
+
       if (action.zone === 'full') {
-        return { ...state, camera: calculateFitCamera(cw, ch), cameraUserAdjusted: false };
+        return {
+          ...state,
+          camera: calculateFitCamera(cw, ch, state.camera),
+          cameraUserAdjusted: false,
+        };
       }
 
       const zoom = clamp(2, MIN_ZOOM, MAX_ZOOM);
@@ -515,7 +532,7 @@ function reduce(state: AppState, action: AppAction): AppState {
 
       return {
         ...state,
-        camera: { x: -cx * zoom + cw / 2, y: -cy * zoom + ch / 2, zoom },
+        camera: { x: -cx * zoom + cw / 2, y: -cy * zoom + ch / 2, zoom, rotation, tilt },
         cameraUserAdjusted: true,
       };
     }
@@ -534,7 +551,9 @@ function reduce(state: AppState, action: AppAction): AppState {
         ...state,
         canvasWidth: action.width,
         canvasHeight: action.height,
-        camera: shouldFit ? calculateFitCamera(action.width, action.height) : state.camera,
+        camera: shouldFit
+          ? calculateFitCamera(action.width, action.height, state.camera)
+          : state.camera,
       };
     }
 

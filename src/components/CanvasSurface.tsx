@@ -4,8 +4,8 @@
 
 import { useRef, useEffect, useCallback } from 'react';
 import { useAppState } from '@/hooks/useAppState';
-import { drawRink } from '@/canvas/RinkRenderer';
-import { drawPlayers } from '@/canvas/PlayerRenderer';
+import { drawRink, drawArenaBase, drawArenaWalls } from '@/canvas/RinkRenderer';
+import { drawPlayers, drawArenaPlayers } from '@/canvas/PlayerRenderer';
 import { drawMechanicsDiagnostics } from '@/canvas/DiagnosticsRenderer';
 import {
   drawSkatePaths,
@@ -24,8 +24,10 @@ import {
   ROUTE_HANDLE_OFFSET,
   ROUTE_HANDLE_RADIUS,
   WHEEL_ZOOM_SENSITIVITY,
+  TABLETOP_MIN_TILT,
+  TABLETOP_MAX_TILT,
 } from '@/core/constants';
-import { screenToWorld, distance, closestPointOnPolyline, processRawPath } from '@/utils/geometry';
+import { screenToWorld, distance, closestPointOnPolyline, processRawPath, cameraMatrix } from '@/utils/geometry';
 import { createPlayer, createSkatePath, randomPlayerNumber, randomGoalieNumber } from '@/engine/drill';
 import {
   validatePass,
@@ -56,7 +58,14 @@ interface PanGesture {
   startCamera: Camera;
 }
 
-type Gesture = PinchGesture | PanGesture | null;
+/** A drag on empty ice while the tabletop is tilted, spinning/leaning the view */
+interface OrbitGesture {
+  kind: 'orbit';
+  startPointer: Point;
+  startCamera: Camera;
+}
+
+type Gesture = PinchGesture | PanGesture | OrbitGesture | null;
 
 export function CanvasSurface() {
   const { state, dispatch, actions } = useAppState();
@@ -226,11 +235,22 @@ export function CanvasSurface() {
     // visible around the regulation playing surface.
     ctx.clearRect(0, 0, width, height);
 
-    ctx.save();
-    ctx.translate(camera.x, camera.y);
-    ctx.scale(camera.zoom, camera.zoom);
+    // Tabletop view: the sheet is leaned/spun, so the boards become raised
+    // walls. The far half of the arena is painted behind the play, the near
+    // half after it, and the ground plane uses the full affine camera matrix.
+    const tabletop = (camera.tilt ?? 0) > TABLETOP_MIN_TILT;
+    const matrix = cameraMatrix(camera);
 
-    drawRink(ctx);
+    if (tabletop) {
+      drawArenaBase(ctx, { camera, dpr });
+      drawArenaWalls(ctx, { camera, dpr }, 'far');
+    }
+
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+
+    drawRink(ctx, { elevated: tabletop });
 
     // While playing or scrubbing, players render at their interpolated
     // positions. The drill itself is never touched. An empty map means the
@@ -334,7 +354,7 @@ export function CanvasSurface() {
       if (passFrom) drawPassFromHighlight(ctx, passFrom);
     }
 
-    drawPlayers(ctx, players, drill.events, {
+    const playerOptions = {
       selectedPlayerId: selection.selectedPlayerId,
       passFromPlayerId: selection.passFromPlayerId,
       dragFromPlayer: interaction.dragFromPlayer,
@@ -352,7 +372,13 @@ export function CanvasSurface() {
       playerFrames: scrubbing || playback.isPlaying ? s.playbackPlayerFrames : undefined,
       reducedEffects: drill.settings?.reducedEffects ?? false,
       trackedPuck: s.animatedPuck,
-    });
+    };
+
+    // In the tabletop view the skaters become upright standing pieces, drawn in
+    // screen space after the ground layer so they sit *on* the ice, not in it.
+    if (!tabletop) {
+      drawPlayers(ctx, players, drill.events, playerOptions);
+    }
 
     if (s.animatedPuck?.visible) {
       drawAnimatedPuck(ctx, s.animatedPuck.x, s.animatedPuck.y, s.animatedPuck.state);
@@ -363,6 +389,12 @@ export function CanvasSurface() {
     }
 
     ctx.restore();
+
+    if (tabletop) {
+      drawArenaPlayers(ctx, { camera, dpr }, players, drill.events, playerOptions);
+      // Near boards/glass sit in front of the skaters closest to the camera.
+      drawArenaWalls(ctx, { camera, dpr }, 'near');
+    }
   }, [findPassReceiverAt, getFinalPlayerPoint]);
 
   // Redraw after every committed render. Canvas painting is cheap next to the
@@ -470,6 +502,7 @@ export function CanvasSurface() {
     dispatch({
       type: 'SET_CAMERA',
       camera: {
+        ...startCamera,
         zoom: startCamera.zoom * scale,
         x: mid.x - (startMidpoint.x - startCamera.x) * scale,
         y: mid.y - (startMidpoint.y - startCamera.y) * scale,
@@ -610,8 +643,11 @@ export function CanvasSurface() {
         return;
       }
 
+      // With the sheet leaned into tabletop view, dragging empty ice spins and
+      // tilts the arena; flat top-down keeps the classic pan for authoring.
+      const tabletop = (s.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
       gestureRef.current = {
-        kind: 'pan',
+        kind: tabletop ? 'orbit' : 'pan',
         startPointer: pos,
         startCamera: { ...s.camera },
       };
@@ -636,10 +672,26 @@ export function CanvasSurface() {
         dispatch({
           type: 'SET_CAMERA',
           camera: {
+            ...gesture.startCamera,
             zoom: gesture.startCamera.zoom,
             x: gesture.startCamera.x + (pos.x - gesture.startPointer.x),
             y: gesture.startCamera.y + (pos.y - gesture.startPointer.y),
           },
+        });
+        return;
+      }
+
+      if (gesture?.kind === 'orbit') {
+        const dx = pos.x - gesture.startPointer.x;
+        const dy = pos.y - gesture.startPointer.y;
+        const rotation = (gesture.startCamera.rotation ?? 0) + dx * 0.006;
+        const tilt = Math.max(
+          0,
+          Math.min(TABLETOP_MAX_TILT, (gesture.startCamera.tilt ?? 0) - dy * 0.005)
+        );
+        dispatch({
+          type: 'SET_CAMERA',
+          camera: { ...gesture.startCamera, rotation, tilt },
         });
         return;
       }
@@ -831,7 +883,7 @@ export function CanvasSurface() {
         return;
       }
 
-      if (gesture?.kind === 'pan') {
+      if (gesture?.kind === 'pan' || gesture?.kind === 'orbit') {
         gestureRef.current = null;
         dispatch({ type: 'RESET_INTERACTION' });
         return;

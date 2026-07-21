@@ -170,6 +170,14 @@ export interface Camera {
   x: number;      // Translation X
   y: number;      // Translation Y
   zoom: number;   // Scale factor
+  /**
+   * Tabletop view controls. Both default to 0, which reproduces the classic
+   * flat top-down diagram exactly. `rotation` spins the rink around its centre
+   * (yaw, radians); `tilt` leans it away from the viewer (pitch, radians) so
+   * the boards read as raised walls.
+   */
+  rotation?: number;
+  tilt?: number;
 }
 
 // ============================================================================

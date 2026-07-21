@@ -2,13 +2,14 @@
 // PLAYER RENDERER - Player circle drawing
 // ============================================================================
 
-import type { Player, ID, DrillEvent, SkatePath, PlaybackPlayerFrame, AnimatedPuck } from '@/core/types';
+import type { Player, ID, DrillEvent, SkatePath, PlaybackPlayerFrame, AnimatedPuck, Camera } from '@/core/types';
 import { PLAYER_RADIUS, GOALIE_RING_OFFSET, ROUTE_HANDLE_OFFSET, ROUTE_HANDLE_RADIUS, COLORS, RINK } from '@/core/constants';
 import { getCurrentPuckHolder } from '@/engine/puck';
 import { getPlayerHeadingAtProgress } from '@/engine/playback';
 import { drawDetailedSkater } from './skater/SkaterRenderer';
 import { drawDetailedGoalie } from './skater/GoalieRenderer';
 import { getBladePosition } from '@/sim/skaterMotor';
+import { cameraMatrix, applyAffine } from '@/utils/geometry';
 
 interface PlayerRenderOptions {
   isSelected: boolean;
@@ -204,4 +205,219 @@ export function drawPlayers(
       trackedPuck,
     });
   });
+}
+
+// ============================================================================
+// TABLETOP PLAYERS
+//
+// In the tilted arena the skaters are rebuilt as upright, camera-facing tokens
+// that stand off the ice - the same extruded, "table hockey model" language as
+// the raised boards - each with a foreshortened contact shadow so it reads as a
+// physical piece sitting on the sheet rather than a decal painted onto it.
+// ============================================================================
+
+function shadeColor(hex: string, amount: number): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return hex;
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  const r = clamp(parseInt(m[1], 16) + amount);
+  const g = clamp(parseInt(m[2], 16) + amount);
+  const b = clamp(parseInt(m[3], 16) + amount);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function ellipse(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number
+): void {
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, Math.max(0.5, rx), Math.max(0.5, ry), 0, 0, Math.PI * 2);
+}
+
+/**
+ * A single standing player piece, drawn in screen space at its projected ground
+ * point `g`, rising by `height`.
+ */
+function drawStandingPlayer(
+  ctx: CanvasRenderingContext2D,
+  player: Player,
+  g: { x: number; y: number },
+  z: number,
+  k: number,
+  height: number,
+  flags: { isSelected: boolean; isHighlighted: boolean; hasPuck: boolean }
+): void {
+  const isGoalie = player.role === 'G';
+  const teamCol = player.team === 'home' ? COLORS.home.primary : COLORS.away.primary;
+  const bodyR = PLAYER_RADIUS * z * (isGoalie ? 1.02 : 0.86);
+  const baseRx = bodyR;
+  const baseRy = Math.max(bodyR * 0.34, bodyR * k);
+  const topY = g.y - height;
+  const headR = bodyR * (isGoalie ? 0.62 : 0.66);
+
+  // Contact shadow on the ice.
+  ctx.save();
+  ellipse(ctx, g.x, g.y + baseRy * 0.15, baseRx * 1.18, baseRy * 1.18);
+  ctx.fillStyle = 'rgba(6, 16, 26, 0.32)';
+  ctx.fill();
+  ctx.restore();
+
+  // Selection / highlight ring drawn flat on the ice around the base.
+  if (flags.isHighlighted || flags.isSelected) {
+    ctx.save();
+    ctx.setLineDash(flags.isHighlighted ? [] : [baseRx * 0.35, baseRx * 0.28]);
+    ctx.lineWidth = Math.max(2, bodyR * 0.22);
+    ctx.strokeStyle = flags.isHighlighted
+      ? 'rgba(255, 210, 10, 0.95)'
+      : player.team === 'home'
+        ? 'rgba(255, 120, 130, 0.9)'
+        : 'rgba(120, 180, 255, 0.9)';
+    ellipse(ctx, g.x, g.y + baseRy * 0.15, baseRx * 1.42, baseRy * 1.42);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Body: an upright capsule with a rounded (elliptical) base and top so it
+  // reads as a cylinder catching the overhead light.
+  const bodyGrad = ctx.createLinearGradient(0, topY, 0, g.y);
+  bodyGrad.addColorStop(0, shadeColor(teamCol, 46));
+  bodyGrad.addColorStop(0.5, teamCol);
+  bodyGrad.addColorStop(1, shadeColor(teamCol, -46));
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(g.x - baseRx, topY);
+  ctx.lineTo(g.x - baseRx, g.y);
+  ctx.ellipse(g.x, g.y, baseRx, baseRy, 0, Math.PI, 0, true);
+  ctx.lineTo(g.x + baseRx, topY);
+  ctx.ellipse(g.x, topY, baseRx, baseRy, 0, 0, Math.PI, true);
+  ctx.closePath();
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1, bodyR * 0.09);
+  ctx.strokeStyle = 'rgba(4, 12, 20, 0.55)';
+  ctx.stroke();
+
+  // Top cap highlight.
+  ellipse(ctx, g.x, topY, baseRx, baseRy);
+  ctx.fillStyle = shadeColor(teamCol, 60);
+  ctx.fill();
+
+  // Head sitting on the shoulders.
+  const headCy = topY - headR * 0.65;
+  const headGrad = ctx.createRadialGradient(
+    g.x - headR * 0.3,
+    headCy - headR * 0.3,
+    headR * 0.2,
+    g.x,
+    headCy,
+    headR
+  );
+  headGrad.addColorStop(0, isGoalie ? '#eef3f7' : shadeColor(teamCol, 70));
+  headGrad.addColorStop(1, isGoalie ? '#9fb1c0' : shadeColor(teamCol, -20));
+  ctx.beginPath();
+  ctx.arc(g.x, headCy, headR, 0, Math.PI * 2);
+  ctx.fillStyle = headGrad;
+  ctx.fill();
+  ctx.lineWidth = Math.max(0.8, bodyR * 0.07);
+  ctx.strokeStyle = 'rgba(4, 12, 20, 0.5)';
+  ctx.stroke();
+
+  if (isGoalie) {
+    // Mask bar hint across the face.
+    ctx.strokeStyle = 'rgba(30, 44, 58, 0.7)';
+    ctx.lineWidth = Math.max(0.8, headR * 0.16);
+    ctx.beginPath();
+    ctx.moveTo(g.x - headR * 0.7, headCy);
+    ctx.lineTo(g.x + headR * 0.7, headCy);
+    ctx.stroke();
+  }
+
+  // Jersey number on the body, facing the camera.
+  const fs = Math.max(7, bodyR * 0.95);
+  ctx.font = `800 ${fs}px Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = 'rgba(4, 12, 20, 0.55)';
+  ctx.lineWidth = Math.max(1, fs * 0.14);
+  const numY = topY + (g.y - topY) * 0.5;
+  ctx.strokeText(String(player.number), g.x, numY);
+  ctx.fillText(String(player.number), g.x, numY);
+  ctx.restore();
+
+  // Puck resting at the piece's feet.
+  if (flags.hasPuck) {
+    ctx.save();
+    const pr = PLAYER_RADIUS * z * 0.24;
+    ellipse(ctx, g.x + baseRx * 0.75, g.y + baseRy * 0.55, pr, Math.max(pr * 0.42, pr * k));
+    ctx.fillStyle = '#0b0b0b';
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/**
+ * Draw every player as an upright tabletop piece, sorted back-to-front so the
+ * near skaters overlap the far ones the way solid models would.
+ */
+export function drawArenaPlayers(
+  ctx: CanvasRenderingContext2D,
+  view: { camera: Camera; dpr: number },
+  players: Player[],
+  events: DrillEvent[],
+  options: DrawPlayersOptions = {}
+): void {
+  const { camera, dpr } = view;
+  const {
+    selectedPlayerId = null,
+    passFromPlayerId = null,
+    dragFromPlayer = null,
+    movingPlayer = null,
+    nodeActiveOwnerId = null,
+    showPuckIndicator = true,
+  } = options;
+
+  const tilt = camera.tilt ?? 0;
+  const z = camera.zoom;
+  const k = Math.cos(tilt);
+  const s = Math.sin(tilt);
+  const m = cameraMatrix(camera);
+  const currentHolder = getCurrentPuckHolder(players, events);
+
+  // Height the pieces stand, growing as the sheet leans further back.
+  const height = PLAYER_RADIUS * z * (1.5 + 1.9 * s);
+
+  const projected = players
+    .map(player => ({ player, g: applyAffine(m, player.x, player.y) }))
+    .sort((a, b) => a.g.y - b.g.y); // far (higher on screen) first
+
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  for (const { player, g } of projected) {
+    const isHighlighted =
+      dragFromPlayer?.id === player.id ||
+      player.id === nodeActiveOwnerId ||
+      player.id === passFromPlayerId ||
+      movingPlayer?.id === player.id;
+    const isPuckHolder = currentHolder?.id === player.id;
+    const hasPuck =
+      showPuckIndicator &&
+      ((isPuckHolder && events.length > 0) || (player.hasPuck && events.length === 0));
+
+    drawStandingPlayer(ctx, player, g, z, k, height, {
+      isSelected: player.id === selectedPlayerId,
+      isHighlighted,
+      hasPuck,
+    });
+  }
+
+  ctx.restore();
 }

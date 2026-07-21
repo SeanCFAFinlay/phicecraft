@@ -15,6 +15,7 @@ import {
   PlayerInfoPanel,
   EventInfoPanel,
   WorkflowBar,
+  ViewControls,
   DiagnosticsOverlay,
   ValidationPanel,
   ToastContainer,
@@ -49,6 +50,7 @@ function AppContent() {
         <CanvasSurface />
 
         {/* Floating overlays only */}
+        <ViewControls />
         <ToastContainer />
         <ModeBanner />
         <PlayBanner />

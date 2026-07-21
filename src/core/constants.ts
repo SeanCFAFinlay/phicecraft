@@ -127,6 +127,41 @@ export const WHEEL_ZOOM_SENSITIVITY = 0.0015;
 export const FIT_PADDING = 16; // Screen pixels of margin around the rink
 
 // ============================================================================
+// TABLETOP (PSEUDO-3D) VIEW
+//
+// The rink can be leaned back and spun so the boards read as raised walls,
+// like a physical table-hockey model. All of this is affine (rotate + vertical
+// foreshorten), so hit-testing stays exact and a tilt of 0 is byte-for-byte the
+// old flat diagram.
+// ============================================================================
+
+/** Below this tilt we render the flat diagram; above it the arena is built. */
+export const TABLETOP_MIN_TILT = 0.04;
+/** The angle the "3D" button snaps to (about 55° of lean). */
+export const TABLETOP_DEFAULT_TILT = 0.95;
+/** Never let the sheet lean so far it becomes an unreadable sliver. */
+export const TABLETOP_MAX_TILT = 1.32; // ~75°
+
+/** Board / glass heights in feet, raised in screen space off the ice edge. */
+export const ARENA = {
+  boardHeightFt: 3.5,
+  glassHeightFt: 6,
+  baseThicknessFt: 5,
+};
+
+/** Perimeter advertising panels, cycled around the boards. */
+export const ARENA_ADS: { label: string; bg: string; fg: string }[] = [
+  { label: 'TOSHIBA', bg: '#f4f6f8', fg: '#d1122e' },
+  { label: 'Coca-Cola', bg: '#d1122e', fg: '#ffffff' },
+  { label: 'BAUER', bg: '#111820', fg: '#f4f6f8' },
+  { label: 'ŠKODA', bg: '#0a5c36', fg: '#ffffff' },
+  { label: 'NIKE', bg: '#f4f6f8', fg: '#111820' },
+  { label: 'Zepter', bg: '#123a8f', fg: '#ffffff' },
+  { label: 'TISSOT', bg: '#f4f6f8', fg: '#111820' },
+  { label: 'OMEGA', bg: '#111820', fg: '#f2c94c' },
+];
+
+// ============================================================================
 // PLAYBACK
 // ============================================================================
 
@@ -251,6 +286,8 @@ export const DEFAULT_CAMERA: Camera = {
   x: 0,
   y: 0,
   zoom: 1,
+  rotation: 0,
+  tilt: 0,
 };
 
 export const DEFAULT_PLAYBACK: PlaybackState = {

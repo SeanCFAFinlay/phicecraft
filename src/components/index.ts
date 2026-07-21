@@ -14,6 +14,7 @@ export * from './EventInfoPanel';
 export * from './WorkflowBar';
 export * from './Timeline';
 export * from './DiagnosticsOverlay';
+export * from './ViewControls';
 export * from './ValidationPanel';
 export * from './Toast';
 export * from './Banners';

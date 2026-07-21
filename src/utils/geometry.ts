@@ -3,12 +3,83 @@
 // ============================================================================
 
 import type { Point, Camera } from '@/core/types';
+import { RINK } from '@/core/constants';
 
 /**
  * Calculate distance between two points
  */
 export function distance(a: Point, b: Point): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
+
+// ============================================================================
+// CAMERA TRANSFORM
+//
+// The world->screen mapping is a single 2x3 affine matrix so that a rotated,
+// tilted "tabletop" view stays perfectly invertible - hit-testing just runs the
+// inverse. With rotation = tilt = 0 the matrix collapses to plain translate +
+// scale, identical to the original flat diagram.
+//
+//   screen.x = a*wx + c*wy + e
+//   screen.y = b*wx + d*wy + f
+// ============================================================================
+
+export interface Affine {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
+}
+
+/**
+ * Build the world->screen affine matrix for a camera. Rotation spins the sheet
+ * about the rink centre; tilt foreshortens the depth (screen-vertical) axis by
+ * cos(tilt), which is what makes a flat plane read as a table leaning away.
+ */
+export function cameraMatrix(camera: Camera): Affine {
+  const { x, y, zoom } = camera;
+  const rotation = camera.rotation ?? 0;
+  const tilt = camera.tilt ?? 0;
+
+  const cx = RINK.centerX;
+  const cy = RINK.centerY;
+  const k = Math.cos(tilt); // vertical foreshorten: 1 flat -> 0 edge-on
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+
+  // Linear part = zoom * foreshorten * rotate, applied about the rink centre.
+  const a = zoom * cos;
+  const c = -zoom * sin;
+  const b = zoom * k * sin;
+  const d = zoom * k * cos;
+
+  // Keep camera.x / camera.y meaning identical to the flat case: world (0,0)
+  // still lands at (camera.x, camera.y) when rotation = tilt = 0.
+  const ox = x + zoom * cx;
+  const oy = y + zoom * cy;
+  const e = ox - a * cx - c * cy;
+  const f = oy - b * cx - d * cy;
+
+  return { a, b, c, d, e, f };
+}
+
+/** Apply an affine matrix to a world point. */
+export function applyAffine(m: Affine, wx: number, wy: number): Point {
+  return { x: m.a * wx + m.c * wy + m.e, y: m.b * wx + m.d * wy + m.f };
+}
+
+/** Invert an affine matrix (screen -> world). */
+export function invertAffine(m: Affine, sx: number, sy: number): Point {
+  const det = m.a * m.d - m.b * m.c;
+  if (Math.abs(det) < 1e-9) return { x: 0, y: 0 };
+  const px = sx - m.e;
+  const py = sy - m.f;
+  return {
+    x: (m.d * px - m.c * py) / det,
+    y: (-m.b * px + m.a * py) / det,
+  };
 }
 
 /**
@@ -25,20 +96,21 @@ export function midpoint(a: Point, b: Point): Point {
  * Convert world coordinates to screen coordinates
  */
 export function worldToScreen(wx: number, wy: number, camera: Camera): Point {
-  return {
-    x: wx * camera.zoom + camera.x,
-    y: wy * camera.zoom + camera.y,
-  };
+  // Fast path for the flat diagram keeps the common case allocation-light.
+  if (!camera.rotation && !camera.tilt) {
+    return { x: wx * camera.zoom + camera.x, y: wy * camera.zoom + camera.y };
+  }
+  return applyAffine(cameraMatrix(camera), wx, wy);
 }
 
 /**
  * Convert screen coordinates to world coordinates
  */
 export function screenToWorld(sx: number, sy: number, camera: Camera): Point {
-  return {
-    x: (sx - camera.x) / camera.zoom,
-    y: (sy - camera.y) / camera.zoom,
-  };
+  if (!camera.rotation && !camera.tilt) {
+    return { x: (sx - camera.x) / camera.zoom, y: (sy - camera.y) / camera.zoom };
+  }
+  return invertAffine(cameraMatrix(camera), sx, sy);
 }
 
 /**
