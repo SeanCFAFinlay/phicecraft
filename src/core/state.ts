@@ -23,7 +23,15 @@ import {
   FIT_PADDING,
   TABLETOP_MAX_TILT,
 } from './constants';
+import { DEFAULT_JERSEYS } from '@/core/types';
 import { createNewDrill } from '@/engine/drill';
+
+const FALLBACK_SETTINGS = {
+  assistance: 'standard' as const,
+  recovery: 'nearest-teammate' as const,
+  timeLimitSeconds: 8,
+  reducedEffects: false,
+};
 import { removePlayerFromEvents } from '@/engine/puck';
 import {
   updateGhostTrail,
@@ -168,6 +176,8 @@ const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'REMOVE_PLAYER',
   'SET_PUCK_CARRIER',
   'UPDATE_PLAYER_VISUAL',
+  'SET_JERSEY',
+  'SWAP_JERSEYS',
   'ADD_COACH',
   'REMOVE_COACH',
   'ADD_SKATE_PATH',
@@ -303,6 +313,38 @@ function reduce(state: AppState, action: AppAction): AppState {
           players: state.drill.players.map(p =>
             p.id === action.id ? { ...p, x: action.x, y: action.y } : p
           ),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'SET_JERSEY': {
+      const jerseys = {
+        home: state.drill.settings?.jerseys?.home ?? DEFAULT_JERSEYS.home,
+        away: state.drill.settings?.jerseys?.away ?? DEFAULT_JERSEYS.away,
+        [action.team]: action.hex,
+      };
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          settings: { ...(state.drill.settings ?? FALLBACK_SETTINGS), jerseys },
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'SWAP_JERSEYS': {
+      const home = state.drill.settings?.jerseys?.home ?? DEFAULT_JERSEYS.home;
+      const away = state.drill.settings?.jerseys?.away ?? DEFAULT_JERSEYS.away;
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          settings: {
+            ...(state.drill.settings ?? FALLBACK_SETTINGS),
+            jerseys: { home: away, away: home },
+          },
           updatedAt: Date.now(),
         },
       };

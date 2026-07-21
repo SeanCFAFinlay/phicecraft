@@ -51,6 +51,7 @@ import {
   playerHasPuck,
 } from '@/engine/puck';
 import type { Player, SkatePath, Point, Camera, ID, CoachMarker, DrillEvent } from '@/core/types';
+import { jerseyColor } from '@/core/types';
 
 /** Hit radius for grabbing an edit handle, in screen pixels. */
 const HANDLE_HIT = 20;
@@ -167,12 +168,16 @@ export function CanvasSurface() {
   }, []);
 
   const findPlayerAt = useCallback((screenX: number, screenY: number): Player | null => {
-    const { camera, drill } = stateRef.current;
+    const s = stateRef.current;
+    const { camera, drill } = s;
     const world = screenToWorld(screenX, screenY, camera);
-    // Topmost first, matching draw order.
+    // Topmost first, matching draw order. When the play is paused mid-scrub the
+    // tokens are drawn at their interpolated positions, so hit-test there too -
+    // otherwise you couldn't grab the player you can actually see.
     for (let i = drill.players.length - 1; i >= 0; i--) {
       const p = drill.players[i];
-      if (distance(p, world) < PLAYER_HIT_RADIUS) return p;
+      const at = s.playbackPositions[p.id] ?? p;
+      if (distance(at, world) < PLAYER_HIT_RADIUS) return p;
     }
     return null;
   }, []);
@@ -479,6 +484,10 @@ export function CanvasSurface() {
       playerFrames: scrubbing || playback.isPlaying ? s.playbackPlayerFrames : undefined,
       reducedEffects: drill.settings?.reducedEffects ?? false,
       trackedPuck: s.animatedPuck,
+      jerseys: {
+        home: jerseyColor('home', drill.settings),
+        away: jerseyColor('away', drill.settings),
+      },
     };
 
     // In the tabletop view the skaters become upright standing pieces, drawn in
@@ -511,7 +520,11 @@ export function CanvasSurface() {
     ctx.restore();
 
     if (tabletop) {
-      drawArenaPlayers(ctx, { camera, dpr }, players, drill.events, playerOptions);
+      const jerseys = {
+        home: jerseyColor('home', drill.settings),
+        away: jerseyColor('away', drill.settings),
+      };
+      drawArenaPlayers(ctx, { camera, dpr }, players, drill.events, playerOptions, jerseys);
       drawArenaCoaches(ctx, { camera, dpr }, coaches, null);
       // Near boards/glass sit in front of the skaters closest to the camera.
       drawArenaWalls(ctx, { camera, dpr }, 'near');
@@ -950,6 +963,14 @@ export function CanvasSurface() {
         if (event) {
           actions.selectEvent(event.id);
           actions.selectPlayer(null);
+          return;
+        }
+        // Tapping a skate line selects its owner so its route handles appear -
+        // this is how you adjust a path while the play is paused.
+        const pathHit = findPathAt(screenX, screenY);
+        if (pathHit) {
+          actions.selectPlayer(pathHit.path.ownerId);
+          actions.selectEvent(null);
           return;
         }
         actions.selectPlayer(null);

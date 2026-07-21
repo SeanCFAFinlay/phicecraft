@@ -11,6 +11,7 @@ interface DetailedSkaterOptions {
   isPuckHolder: boolean;
   isPreparingReceive: boolean;
   reducedEffects: boolean;
+  jersey?: string;
 }
 
 function localPoint(player: Player, frame: PlaybackPlayerFrame, point: Point): Point {
@@ -38,7 +39,7 @@ export function drawDetailedSkater(
   options: DetailedSkaterOptions
 ): void {
   const pose = deriveSkaterPose(frame);
-  const palette = getSkaterPalette(player.team);
+  const palette = getSkaterPalette(player.team, options.jersey);
   // The mechanics retain the regulation interaction radius, while the visual
   // model is slightly enlarged so equipment remains readable in full-rink view.
   const r = PLAYER_RADIUS * 1.12;
@@ -62,7 +63,11 @@ export function drawDetailedSkater(
   ctx.fill();
   ctx.restore();
 
-  const atlas = getHockeySpriteAtlas();
+  // The pre-rendered atlas bakes in the classic red/blue jerseys, so a custom
+  // jersey colour falls back to the procedural body, which honours the palette.
+  const defaultHex = player.team === 'home' ? '#e63946' : '#2f80ed';
+  const customJersey = !!options.jersey && options.jersey.toLowerCase() !== defaultHex;
+  const atlas = customJersey ? null : getHockeySpriteAtlas();
   if (atlas) {
     const source = player.team === 'home' ? HOCKEY_SPRITES.homeSkater : HOCKEY_SPRITES.awaySkater;
     const drawWidth = 62;

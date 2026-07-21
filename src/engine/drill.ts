@@ -267,6 +267,7 @@ export function repairDrill(drill: Drill): Drill {
     recovery: repaired.settings?.recovery ?? 'nearest-teammate',
     timeLimitSeconds: Math.max(2, repaired.settings?.timeLimitSeconds ?? 8),
     reducedEffects: repaired.settings?.reducedEffects ?? false,
+    jerseys: repaired.settings?.jerseys,
   };
   repaired.players = repaired.players.map(player => ({
     ...player,

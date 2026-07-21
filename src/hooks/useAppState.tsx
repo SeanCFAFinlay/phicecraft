@@ -84,6 +84,8 @@ export interface AppActions {
   movePlayer: (id: ID, x: number, y: number) => void;
   setPuckCarrier: (id: ID) => void;
   updatePlayerVisual: (id: ID, visual: Partial<NonNullable<Player['visual']>>) => void;
+  setJersey: (team: Team, hex: string) => void;
+  swapJerseys: () => void;
 
   // Coaches
   addCoach: (coach: CoachMarker) => void;
@@ -251,6 +253,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPuckCarrier: id => dispatch({ type: 'SET_PUCK_CARRIER', id }),
       updatePlayerVisual: (id, visual) => dispatch({ type: 'UPDATE_PLAYER_VISUAL', id, visual }),
 
+      setJersey: (team, hex) => dispatch({ type: 'SET_JERSEY', team, hex }),
+      swapJerseys: () => dispatch({ type: 'SWAP_JERSEYS' }),
       addCoach: coach => dispatch({ type: 'ADD_COACH', coach }),
       moveCoach: (id, x, y) => dispatch({ type: 'MOVE_COACH', id, x, y }),
       removeCoach: id => dispatch({ type: 'REMOVE_COACH', id }),

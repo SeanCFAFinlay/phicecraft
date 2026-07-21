@@ -12,7 +12,29 @@ export interface SkaterPalette {
   glove: string;
 }
 
-export function getSkaterPalette(team: Team): SkaterPalette {
+function shade(hex: string, amount: number): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return hex;
+  const c = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  const r = c(parseInt(m[1], 16) + amount);
+  const g = c(parseInt(m[2], 16) + amount);
+  const b = c(parseInt(m[3], 16) + amount);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+export function getSkaterPalette(team: Team, jerseyOverride?: string): SkaterPalette {
+  const base = getBasePalette(team);
+  if (!jerseyOverride) return base;
+  return {
+    ...base,
+    jersey: jerseyOverride,
+    jerseyDark: shade(jerseyOverride, -52),
+    jerseyLight: shade(jerseyOverride, 52),
+    glove: shade(jerseyOverride, -40),
+  };
+}
+
+function getBasePalette(team: Team): SkaterPalette {
   return team === 'home'
     ? {
         jersey: '#e63946',

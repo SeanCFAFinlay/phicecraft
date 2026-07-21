@@ -7,9 +7,10 @@ export function drawDetailedGoalie(
   player: Player,
   frame: PlaybackPlayerFrame,
   isPuckHolder: boolean,
-  puck?: AnimatedPuck | null
+  puck?: AnimatedPuck | null,
+  jersey?: string
 ): void {
-  const palette = getSkaterPalette(player.team);
+  const palette = getSkaterPalette(player.team, jersey);
   const trackedHeading = puck?.visible
     ? Math.atan2(puck.y - player.y, puck.x - player.x)
     : frame.heading;
@@ -26,7 +27,9 @@ export function drawDetailedGoalie(
   ctx.fill();
   ctx.restore();
 
-  const atlas = getHockeySpriteAtlas();
+  const defaultHex = player.team === 'home' ? '#e63946' : '#2f80ed';
+  const customJersey = !!jersey && jersey.toLowerCase() !== defaultHex;
+  const atlas = customJersey ? null : getHockeySpriteAtlas();
   if (atlas) {
     const source = player.team === 'home' ? HOCKEY_SPRITES.homeGoalie : HOCKEY_SPRITES.awayGoalie;
     const drawWidth = 66;

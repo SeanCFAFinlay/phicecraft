@@ -25,6 +25,7 @@ interface PlayerRenderOptions {
   playbackFrame?: PlaybackPlayerFrame;
   reducedEffects?: boolean;
   trackedPuck?: AnimatedPuck | null;
+  jersey?: string;
 }
 
 function createDesignFrame(player: Player, heading: number): PlaybackPlayerFrame {
@@ -51,7 +52,7 @@ export function drawPlayer(
   player: Player,
   options: PlayerRenderOptions
 ): void {
-  const { isSelected, isDragging, isMoving, isPassFrom, isNodeActive, isPuckHolder, showInitialPuck, heading = 0, showRouteHandle = false, isPreparingReceive = false, playbackFrame, reducedEffects = false, trackedPuck } = options;
+  const { isSelected, isDragging, isMoving, isPassFrom, isNodeActive, isPuckHolder, showInitialPuck, heading = 0, showRouteHandle = false, isPreparingReceive = false, playbackFrame, reducedEffects = false, trackedPuck, jersey } = options;
   const pr = PLAYER_RADIUS;
   const isHighlighted = isDragging || isNodeActive || isPassFrom;
 
@@ -92,7 +93,7 @@ export function drawPlayer(
 
   const frame = playbackFrame ?? createDesignFrame(player, heading);
   if (player.role === 'G') {
-    drawDetailedGoalie(ctx, player, frame, isPuckHolder || showInitialPuck, trackedPuck);
+    drawDetailedGoalie(ctx, player, frame, isPuckHolder || showInitialPuck, trackedPuck, jersey);
 
     ctx.strokeStyle = 'rgba(255, 202, 0, 0.78)';
     ctx.lineWidth = 2.2;
@@ -106,6 +107,7 @@ export function drawPlayer(
       isPuckHolder: isPuckHolder || showInitialPuck,
       isPreparingReceive,
       reducedEffects,
+      jersey,
     });
   }
 
@@ -152,6 +154,7 @@ export interface DrawPlayersOptions {
   playerFrames?: Record<ID, PlaybackPlayerFrame>;
   reducedEffects?: boolean;
   trackedPuck?: AnimatedPuck | null;
+  jerseys?: { home: string; away: string };
 }
 
 /**
@@ -176,6 +179,7 @@ export function drawPlayers(
     playerFrames = {},
     reducedEffects = false,
     trackedPuck = null,
+    jerseys,
   } = options;
 
   const currentHolder = getCurrentPuckHolder(players, events);
@@ -203,6 +207,7 @@ export function drawPlayers(
       playbackFrame: playerFrames[player.id],
       reducedEffects,
       trackedPuck,
+      jersey: jerseys ? (player.team === 'home' ? jerseys.home : jerseys.away) : undefined,
     });
   });
 }
@@ -248,119 +253,199 @@ function drawStandingPlayer(
   z: number,
   k: number,
   height: number,
-  flags: { isSelected: boolean; isHighlighted: boolean; hasPuck: boolean }
+  flags: { isSelected: boolean; isHighlighted: boolean; hasPuck: boolean },
+  jersey: string
 ): void {
   const isGoalie = player.role === 'G';
-  const teamCol = player.team === 'home' ? COLORS.home.primary : COLORS.away.primary;
-  const bodyR = PLAYER_RADIUS * z * (isGoalie ? 1.02 : 0.86);
-  const baseRx = bodyR;
-  const baseRy = Math.max(bodyR * 0.34, bodyR * k);
-  const topY = g.y - height;
-  const headR = bodyR * (isGoalie ? 0.62 : 0.66);
+  const bodyR = PLAYER_RADIUS * z * (isGoalie ? 1.05 : 0.86);
+  const baseRy = Math.max(bodyR * 0.32, bodyR * k);
+  const H = height;
 
-  // Contact shadow on the ice.
+  const jLight = shadeColor(jersey, 52);
+  const jDark = shadeColor(jersey, -52);
+  const pants = '#182432';
+  const skin = '#e9b58c';
+  const cx = g.x;
+
+  // Vertical anatomy, feet at g.y and helmet crown at g.y - H.
+  const skateY = g.y;
+  const hipY = g.y - H * 0.30;
+  const shoulderY = hipY - H * 0.42;
+  const headR = bodyR * 0.72;
+  const headCy = shoulderY - headR * 0.9;
+  const shoulderHalf = bodyR * 1.12;
+  const hipHalf = bodyR * 0.72;
+
   ctx.save();
-  ellipse(ctx, g.x, g.y + baseRy * 0.15, baseRx * 1.18, baseRy * 1.18);
-  ctx.fillStyle = 'rgba(6, 16, 26, 0.32)';
-  ctx.fill();
-  ctx.restore();
 
-  // Selection / highlight ring drawn flat on the ice around the base.
+  // Contact shadow.
+  ellipse(ctx, cx, g.y + baseRy * 0.15, bodyR * 1.25, baseRy * 1.2);
+  ctx.fillStyle = 'rgba(6, 16, 26, 0.34)';
+  ctx.fill();
+
+  // Selection / highlight ring on the ice.
   if (flags.isHighlighted || flags.isSelected) {
     ctx.save();
-    ctx.setLineDash(flags.isHighlighted ? [] : [baseRx * 0.35, baseRx * 0.28]);
+    ctx.setLineDash(flags.isHighlighted ? [] : [bodyR * 0.35, bodyR * 0.28]);
     ctx.lineWidth = Math.max(2, bodyR * 0.22);
-    ctx.strokeStyle = flags.isHighlighted
-      ? 'rgba(255, 210, 10, 0.95)'
-      : player.team === 'home'
-        ? 'rgba(255, 120, 130, 0.9)'
-        : 'rgba(120, 180, 255, 0.9)';
-    ellipse(ctx, g.x, g.y + baseRy * 0.15, baseRx * 1.42, baseRy * 1.42);
+    ctx.strokeStyle = flags.isHighlighted ? 'rgba(255, 210, 10, 0.95)' : shadeColor(jersey, 70);
+    ellipse(ctx, cx, g.y + baseRy * 0.15, bodyR * 1.5, baseRy * 1.5);
     ctx.stroke();
     ctx.restore();
   }
 
-  // Body: an upright capsule with a rounded (elliptical) base and top so it
-  // reads as a cylinder catching the overhead light.
-  const bodyGrad = ctx.createLinearGradient(0, topY, 0, g.y);
-  bodyGrad.addColorStop(0, shadeColor(teamCol, 46));
-  bodyGrad.addColorStop(0.5, teamCol);
-  bodyGrad.addColorStop(1, shadeColor(teamCol, -46));
+  const outline = 'rgba(4, 12, 20, 0.55)';
+  const lw = Math.max(0.8, bodyR * 0.08);
 
-  ctx.save();
+  // Stick angled down to the ice (drawn behind the body).
+  const bladeX = cx + (player.team === 'home' ? bodyR * 1.5 : bodyR * 1.5);
+  ctx.strokeStyle = '#c9a24b';
+  ctx.lineWidth = Math.max(1.2, bodyR * 0.16);
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(g.x - baseRx, topY);
-  ctx.lineTo(g.x - baseRx, g.y);
-  ctx.ellipse(g.x, g.y, baseRx, baseRy, 0, Math.PI, 0, true);
-  ctx.lineTo(g.x + baseRx, topY);
-  ctx.ellipse(g.x, topY, baseRx, baseRy, 0, 0, Math.PI, true);
+  ctx.moveTo(cx + bodyR * 0.5, hipY - H * 0.05);
+  ctx.lineTo(bladeX, g.y - baseRy * 0.1);
+  ctx.stroke();
+  ctx.strokeStyle = '#2a2f36';
+  ctx.lineWidth = Math.max(1.4, bodyR * 0.2);
+  ctx.beginPath();
+  ctx.moveTo(bladeX - bodyR * 0.1, g.y - baseRy * 0.1);
+  ctx.lineTo(bladeX + bodyR * 0.5, g.y + baseRy * 0.05);
+  ctx.stroke();
+
+  // Legs + skates.
+  const legHalf = bodyR * 0.34;
+  for (const sx of [-1, 1]) {
+    const lx = cx + sx * hipHalf * 0.5;
+    ctx.fillStyle = pants;
+    roundedBar(ctx, lx, hipY, skateY - baseRy * 0.5, legHalf);
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+    // Skate blade.
+    ctx.fillStyle = '#dfe6ec';
+    ellipse(ctx, lx, skateY - baseRy * 0.15, legHalf * 1.5, Math.max(1.5, baseRy * 0.5));
+    ctx.fill();
+    ctx.fillStyle = '#0f1620';
+    ctx.fillRect(lx - legHalf * 1.3, skateY - baseRy * 0.05, legHalf * 2.6, Math.max(1, bodyR * 0.08));
+  }
+
+  // Torso jersey: shoulders wider than hips.
+  const bodyGrad = ctx.createLinearGradient(cx - shoulderHalf, 0, cx + shoulderHalf, 0);
+  bodyGrad.addColorStop(0, jDark);
+  bodyGrad.addColorStop(0.5, jersey);
+  bodyGrad.addColorStop(1, jLight);
+  ctx.beginPath();
+  ctx.moveTo(cx - hipHalf, hipY);
+  ctx.lineTo(cx - shoulderHalf, shoulderY + bodyR * 0.2);
+  ctx.quadraticCurveTo(cx - shoulderHalf, shoulderY - bodyR * 0.15, cx - shoulderHalf * 0.55, shoulderY - bodyR * 0.2);
+  ctx.quadraticCurveTo(cx, shoulderY - bodyR * 0.4, cx + shoulderHalf * 0.55, shoulderY - bodyR * 0.2);
+  ctx.quadraticCurveTo(cx + shoulderHalf, shoulderY - bodyR * 0.15, cx + shoulderHalf, shoulderY + bodyR * 0.2);
+  ctx.lineTo(cx + hipHalf, hipY);
+  ctx.quadraticCurveTo(cx, hipY + bodyR * 0.32, cx - hipHalf, hipY);
   ctx.closePath();
   ctx.fillStyle = bodyGrad;
   ctx.fill();
-  ctx.lineWidth = Math.max(1, bodyR * 0.09);
-  ctx.strokeStyle = 'rgba(4, 12, 20, 0.55)';
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = lw;
   ctx.stroke();
 
-  // Top cap highlight.
-  ellipse(ctx, g.x, topY, baseRx, baseRy);
-  ctx.fillStyle = shadeColor(teamCol, 60);
-  ctx.fill();
-
-  // Head sitting on the shoulders.
-  const headCy = topY - headR * 0.65;
-  const headGrad = ctx.createRadialGradient(
-    g.x - headR * 0.3,
-    headCy - headR * 0.3,
-    headR * 0.2,
-    g.x,
-    headCy,
-    headR
-  );
-  headGrad.addColorStop(0, isGoalie ? '#eef3f7' : shadeColor(teamCol, 70));
-  headGrad.addColorStop(1, isGoalie ? '#9fb1c0' : shadeColor(teamCol, -20));
+  // Sleeve cuffs / trim stripe near the hem.
+  ctx.strokeStyle = shadeColor(jersey, 80);
+  ctx.lineWidth = Math.max(1, bodyR * 0.12);
   ctx.beginPath();
-  ctx.arc(g.x, headCy, headR, 0, Math.PI * 2);
-  ctx.fillStyle = headGrad;
-  ctx.fill();
-  ctx.lineWidth = Math.max(0.8, bodyR * 0.07);
-  ctx.strokeStyle = 'rgba(4, 12, 20, 0.5)';
+  ctx.moveTo(cx - hipHalf * 0.9, hipY - bodyR * 0.08);
+  ctx.quadraticCurveTo(cx, hipY + bodyR * 0.16, cx + hipHalf * 0.9, hipY - bodyR * 0.08);
   ctx.stroke();
 
-  if (isGoalie) {
-    // Mask bar hint across the face.
-    ctx.strokeStyle = 'rgba(30, 44, 58, 0.7)';
-    ctx.lineWidth = Math.max(0.8, headR * 0.16);
-    ctx.beginPath();
-    ctx.moveTo(g.x - headR * 0.7, headCy);
-    ctx.lineTo(g.x + headR * 0.7, headCy);
-    ctx.stroke();
-  }
-
-  // Jersey number on the body, facing the camera.
-  const fs = Math.max(7, bodyR * 0.95);
+  // Number on the chest.
+  const fs = Math.max(7, bodyR * 0.92);
   ctx.font = `800 ${fs}px Arial, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = 'rgba(4, 12, 20, 0.55)';
-  ctx.lineWidth = Math.max(1, fs * 0.14);
-  const numY = topY + (g.y - topY) * 0.5;
-  ctx.strokeText(String(player.number), g.x, numY);
-  ctx.fillText(String(player.number), g.x, numY);
-  ctx.restore();
+  const numY = (shoulderY + hipY) / 2;
+  ctx.lineWidth = Math.max(1, fs * 0.16);
+  ctx.strokeStyle = 'rgba(4, 12, 20, 0.6)';
+  ctx.fillStyle = pickReadableText(jersey);
+  ctx.strokeText(String(player.number), cx, numY);
+  ctx.fillText(String(player.number), cx, numY);
 
-  // Puck resting at the piece's feet.
-  if (flags.hasPuck) {
-    ctx.save();
-    const pr = PLAYER_RADIUS * z * 0.24;
-    ellipse(ctx, g.x + baseRx * 0.75, g.y + baseRy * 0.55, pr, Math.max(pr * 0.42, pr * k));
-    ctx.fillStyle = '#0b0b0b';
+  // Neck.
+  ctx.fillStyle = skin;
+  ctx.fillRect(cx - headR * 0.35, headCy + headR * 0.5, headR * 0.7, headR * 0.7);
+
+  // Head: helmet dome + face + visor.
+  const helmet = isGoalie ? shadeColor(jersey, -10) : jersey;
+  // Face.
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.arc(cx, headCy + headR * 0.15, headR * 0.82, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = Math.max(0.7, bodyR * 0.05);
+  ctx.stroke();
+  // Helmet dome (upper portion).
+  ctx.fillStyle = helmet;
+  ctx.beginPath();
+  ctx.arc(cx, headCy, headR, Math.PI, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  if (isGoalie) {
+    // Cage bars on the mask.
+    ctx.strokeStyle = 'rgba(30, 40, 52, 0.75)';
+    ctx.lineWidth = Math.max(0.6, headR * 0.1);
+    for (const oy of [-0.2, 0.1, 0.4]) {
+      ctx.beginPath();
+      ctx.moveTo(cx - headR * 0.7, headCy + headR * oy);
+      ctx.lineTo(cx + headR * 0.7, headCy + headR * oy);
+      ctx.stroke();
+    }
+  } else {
+    // Visor band.
+    ctx.fillStyle = 'rgba(150, 205, 235, 0.6)';
+    ctx.beginPath();
+    ctx.ellipse(cx, headCy + headR * 0.12, headR * 0.7, headR * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    ctx.stroke();
-    ctx.restore();
   }
+
+  // Puck at the stick blade.
+  if (flags.hasPuck) {
+    ctx.fillStyle = '#0b0b0b';
+    ellipse(ctx, bladeX + bodyR * 0.35, g.y + baseRy * 0.05, bodyR * 0.24, Math.max(1.4, baseRy * 0.4));
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/** A vertical rounded bar (limb) from yTop to yBottom, centred at x. */
+function roundedBar(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  yTop: number,
+  yBottom: number,
+  half: number
+): void {
+  ctx.beginPath();
+  ctx.moveTo(x - half, yTop);
+  ctx.lineTo(x - half, yBottom);
+  ctx.arc(x, yBottom, half, Math.PI, 0, true);
+  ctx.lineTo(x + half, yTop);
+  ctx.arc(x, yTop, half, 0, Math.PI, true);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** Pick black or white text for contrast against a jersey colour. */
+function pickReadableText(hex: string): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return '#ffffff';
+  const lum = 0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16);
+  return lum > 150 ? '#111820' : '#ffffff';
 }
 
 /**
@@ -372,7 +457,8 @@ export function drawArenaPlayers(
   view: { camera: Camera; dpr: number },
   players: Player[],
   events: DrillEvent[],
-  options: DrawPlayersOptions = {}
+  options: DrawPlayersOptions = {},
+  jerseys: { home: string; away: string } = { home: COLORS.home.primary, away: COLORS.away.primary }
 ): void {
   const { camera, dpr } = view;
   const {
@@ -412,11 +498,20 @@ export function drawArenaPlayers(
       showPuckIndicator &&
       ((isPuckHolder && events.length > 0) || (player.hasPuck && events.length === 0));
 
-    drawStandingPlayer(ctx, player, g, z, k, height, {
-      isSelected: player.id === selectedPlayerId,
-      isHighlighted,
-      hasPuck,
-    });
+    drawStandingPlayer(
+      ctx,
+      player,
+      g,
+      z,
+      k,
+      height,
+      {
+        isSelected: player.id === selectedPlayerId,
+        isHighlighted,
+        hasPuck,
+      },
+      player.team === 'home' ? jerseys.home : jerseys.away
+    );
   }
 
   ctx.restore();

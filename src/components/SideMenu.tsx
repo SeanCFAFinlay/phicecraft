@@ -4,6 +4,34 @@
 
 import { useRef, type ChangeEvent } from 'react';
 import { useAppState } from '@/hooks/useAppState';
+import { JERSEY_COLORS, jerseyColor, type Team } from '@/core/types';
+
+/** A row of jersey colour swatches for one team. */
+function JerseyRow({ team }: { team: Team }) {
+  const { state, actions } = useAppState();
+  const current = jerseyColor(team, state.drill.settings);
+  return (
+    <div className="flex items-center gap-1.5 px-3.5 py-1.5">
+      <span className="w-12 text-[11px] uppercase tracking-wide text-app-dim">{team}</span>
+      <div className="flex flex-wrap gap-1">
+        {JERSEY_COLORS.map(c => {
+          const active = current.toLowerCase() === c.hex.toLowerCase();
+          return (
+            <button
+              key={c.hex}
+              title={c.name}
+              onClick={() => actions.setJersey(team, c.hex)}
+              className={`h-5 w-5 rounded-full border transition ${
+                active ? 'border-white ring-2 ring-app-cyan' : 'border-white/25 hover:border-white/60'
+              }`}
+              style={{ backgroundColor: c.hex }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 interface MenuItemProps {
   icon: string;
@@ -199,6 +227,17 @@ export function SideMenu() {
           label="New Drill"
           onClick={handleNewDrill}
         />
+
+        <MenuDivider />
+
+        {/* Jerseys */}
+        <MenuSection title="Jerseys" />
+        <JerseyRow team="home" />
+        <JerseyRow team="away" />
+        <MenuItem icon="🔁" label="Swap Team Colours" onClick={() => actions.swapJerseys()} />
+
+        <MenuDivider />
+
         <MenuItem
           icon="🧪"
           label="Open Mechanics Demo"

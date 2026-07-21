@@ -25,6 +25,7 @@ export function migrateDrill(input: Drill): Drill {
       recovery: drill.settings?.recovery ?? 'nearest-teammate',
       timeLimitSeconds: Math.max(2, drill.settings?.timeLimitSeconds ?? 8),
       reducedEffects: drill.settings?.reducedEffects ?? false,
+      jerseys: drill.settings?.jerseys,
     },
   };
 }

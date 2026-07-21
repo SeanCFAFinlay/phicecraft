@@ -183,6 +183,31 @@ export interface DrillSettings {
   recovery: 'authored' | 'nearest-teammate';
   timeLimitSeconds: number;
   reducedEffects: boolean;
+  /** Base jersey colours per team (hex). Absent = the classic red/blue. */
+  jerseys?: { home: string; away: string };
+}
+
+/** Selectable jersey colours, shown in the jersey switcher. */
+export const JERSEY_COLORS: { name: string; hex: string }[] = [
+  { name: 'Red', hex: '#e63946' },
+  { name: 'Blue', hex: '#2f80ed' },
+  { name: 'Green', hex: '#129d5a' },
+  { name: 'Black', hex: '#2b2f36' },
+  { name: 'Gold', hex: '#e6a817' },
+  { name: 'Purple', hex: '#7b46c9' },
+  { name: 'Teal', hex: '#0fb5b0' },
+  { name: 'Orange', hex: '#ef7d1a' },
+  { name: 'White', hex: '#e8edf2' },
+];
+
+export const DEFAULT_JERSEYS = { home: '#e63946', away: '#2f80ed' };
+
+/** The base jersey colour for a team, honouring any per-drill override. */
+export function jerseyColor(team: Team, settings?: DrillSettings): string {
+  const j = settings?.jerseys;
+  return team === 'home'
+    ? j?.home ?? DEFAULT_JERSEYS.home
+    : j?.away ?? DEFAULT_JERSEYS.away;
 }
 
 // ============================================================================
@@ -453,6 +478,8 @@ export type AppAction =
   | { type: 'MOVE_PLAYER'; id: ID; x: number; y: number }
   | { type: 'UPDATE_PLAYER_VISUAL'; id: ID; visual: Partial<PlayerVisualProfile> }
   | { type: 'SET_PUCK_CARRIER'; id: ID }
+  | { type: 'SET_JERSEY'; team: Team; hex: string }
+  | { type: 'SWAP_JERSEYS' }
 
   // Coach actions
   | { type: 'ADD_COACH'; coach: CoachMarker }
