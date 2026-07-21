@@ -333,6 +333,51 @@ export function processRawPath(rawPoints: Point[]): Point[] {
 }
 
 /**
+ * A small, evenly-spaced set of draggable control points for an existing skate
+ * route. The first control is pinned to the route's start (the player), the
+ * rest are handles the author can drag to reshape the route.
+ */
+export function routeControlPoints(points: Point[], count = 5): Point[] {
+  if (points.length <= count) return points.map(p => ({ x: p.x, y: p.y }));
+  const controls: Point[] = [];
+  for (let i = 0; i < count; i++) {
+    const idx = Math.round((i / (count - 1)) * (points.length - 1));
+    controls.push({ x: points[idx].x, y: points[idx].y });
+  }
+  return controls;
+}
+
+/**
+ * Rebuild a smooth route from a small control set (used while dragging a
+ * control handle), keeping the start anchored.
+ */
+export function routeFromControls(controls: Point[]): Point[] {
+  if (controls.length < 2) return controls.map(p => ({ x: p.x, y: p.y }));
+  return smoothPath(controls, 3);
+}
+
+/**
+ * Sample the puck line for an event. With a `via` midpoint the puck bends
+ * through it (a quadratic that passes through `via` at its midpoint); otherwise
+ * it is a straight from->to segment.
+ */
+export function eventCurvePoints(from: Point, to: Point, via?: Point): Point[] {
+  if (!via) return [from, to];
+  // Control point chosen so the sampled midpoint lands exactly on `via`.
+  const cx = 2 * via.x - (from.x + to.x) / 2;
+  const cy = 2 * via.y - (from.y + to.y) / 2;
+  const pts: Point[] = [];
+  for (let t = 0; t <= 1.0001; t += 1 / 18) {
+    const u = 1 - t;
+    pts.push({
+      x: u * u * from.x + 2 * u * t * cx + t * t * to.x,
+      y: u * u * from.y + 2 * u * t * cy + t * t * to.y,
+    });
+  }
+  return pts;
+}
+
+/**
  * Calculate angle between two points (in radians)
  */
 export function angle(from: Point, to: Point): number {

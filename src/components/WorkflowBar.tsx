@@ -25,15 +25,17 @@ export function WorkflowBar() {
           <button
             key={step.id}
             onClick={() => {
+              // Steps are now optional guides, not gates - everything is doable
+              // from Select at any time. Tapping one just re-centres the coaching.
               actions.setEditorStep(step.id);
-              actions.setTool(step.id === 'puck' ? 'pass' : 'select');
+              actions.setTool('select');
               actions.showToast(
-                step.id === 'setup' ? 'Place players and confirm the puck carrier'
-                  : step.id === 'movement' ? 'Select a player and use the cyan handle to draw movement'
-                    : step.id === 'puck' ? 'Drag from the carrier or their route to pass, dump, or shoot'
+                step.id === 'setup' ? 'Place players (Home/Away/Goalie/Coach); the carrier holds the puck'
+                  : step.id === 'movement' ? 'Drag any player to draw their route — both teams move'
+                    : step.id === 'puck' ? 'Drag the puck carrier to a teammate (pass), a net (shot), or open ice (dump)'
                       : 'Play, scrub, inspect timing, and correct the drill',
                 'info',
-                3200
+                3600
               );
             }}
             className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wide transition-colors ${

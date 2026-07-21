@@ -6,7 +6,7 @@ import type {
   Drill,
   Player,
   SkatePath,
-
+  CoachMarker,
   Team,
   PlayerRole,
   ID,
@@ -110,6 +110,7 @@ export function createNewDrill(name: string = 'Neutral Zone Entry'): Drill {
     players: createDefaultPlayers(),
     skatePaths: [],
     events: [],
+    coaches: [],
     settings: {
       assistance: 'standard',
       recovery: 'nearest-teammate',
@@ -138,6 +139,13 @@ export function createSkatePath(
 }
 
 /**
+ * Create a coach marker (the big bearded man on the ice).
+ */
+export function createCoach(x: number, y: number, name = 'Coach'): CoachMarker {
+  return { id: generateId(), x, y, name };
+}
+
+/**
  * Duplicate a drill
  */
 export function duplicateDrill(drill: Drill, newName?: string): Drill {
@@ -153,6 +161,7 @@ export function duplicateDrill(drill: Drill, newName?: string): Drill {
     players: drill.players.map(p => ({ ...p, id: generateId() })),
     skatePaths: [],
     events: [],
+    coaches: (drill.coaches ?? []).map(c => ({ ...c, id: generateId() })),
     settings: drill.settings ? { ...drill.settings } : undefined,
   };
 
@@ -252,6 +261,7 @@ export function repairDrill(drill: Drill): Drill {
   if (!Array.isArray(repaired.players)) repaired.players = [];
   if (!Array.isArray(repaired.skatePaths)) repaired.skatePaths = [];
   if (!Array.isArray(repaired.events)) repaired.events = [];
+  if (!Array.isArray(repaired.coaches)) repaired.coaches = [];
   repaired.settings = {
     assistance: repaired.settings?.assistance ?? 'standard',
     recovery: repaired.settings?.recovery ?? 'nearest-teammate',

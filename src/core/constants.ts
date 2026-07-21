@@ -358,14 +358,15 @@ export const ROLE_NAMES: Record<string, string> = {
 // ============================================================================
 
 export const TOOL_HINTS: Record<string, string> = {
-  select: 'Tap player for actions - drag player = skate path - tap path = pass',
+  select: 'Drag a player to draw a route · drag the puck carrier to pass/shoot · hold a player to move · drag a line to reshape',
   skate: 'Drag from any player to draw their skate route',
   pass: 'Drag from the puck carrier or any point on their route to a teammate or open ice',
   shoot: 'Drag toward the net — the shot starts at the carrier’s final route position',
   home: 'Tap empty ice to place a Home player',
   away: 'Tap empty ice to place an Away player',
   goalie: 'Tap to place a Goalie',
-  erase: 'Tap a player or path to remove it',
+  coach: 'Tap empty ice to place the coach — a big bearded man',
+  erase: 'Tap a player, coach, path, or puck line to remove it',
 };
 
 // ============================================================================

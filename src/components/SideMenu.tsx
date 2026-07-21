@@ -165,26 +165,19 @@ export function SideMenu() {
           }}
         />
         <MenuItem
-          icon="⟶"
-          label="Pass Tool"
+          icon="💾"
+          label="Save Play"
           onClick={() => {
-            actions.setTool('pass');
+            actions.saveDrill();
             actions.closeMenu();
           }}
         />
         <MenuItem
-          icon="🥅"
-          label="Shoot Tool"
+          icon="📋"
+          label="Save As New Play…"
           onClick={() => {
-            actions.setTool('shoot');
-            actions.closeMenu();
-          }}
-        />
-        <MenuItem
-          icon="〰"
-          label="Skate Tool"
-          onClick={() => {
-            actions.setTool('skate');
+            const name = prompt('Name this play', `${state.drill.name} (copy)`);
+            if (name && name.trim()) actions.saveAsNewPlay(name);
             actions.closeMenu();
           }}
         />
@@ -266,11 +259,11 @@ export function SideMenu() {
 
         <MenuDivider />
 
-        {/* Saved drills */}
-        <MenuSection title={`Saved Drills (${state.drillList.length})`} />
+        {/* Saved plays library */}
+        <MenuSection title={`Saved Plays (${state.drillList.length})`} />
         {state.drillList.length === 0 ? (
           <div className="px-3.5 py-3 text-[12px] text-app-dim italic">
-            No saved drills yet
+            No saved plays yet — use “Save Play” above
           </div>
         ) : (
           state.drillList.map(drill => (

@@ -6,6 +6,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { drawRink, drawArenaBase, drawArenaWalls } from '@/canvas/RinkRenderer';
 import { drawPlayers, drawArenaPlayers } from '@/canvas/PlayerRenderer';
+import { drawCoachTopDown, drawArenaCoaches } from '@/canvas/CoachRenderer';
 import { drawMechanicsDiagnostics } from '@/canvas/DiagnosticsRenderer';
 import {
   drawSkatePaths,
@@ -15,6 +16,9 @@ import {
   drawGhostTrails,
   drawAnimatedPuck,
   drawPassFromHighlight,
+  drawRouteEditHandles,
+  drawEventEditHandles,
+  eventBendPoint,
 } from '@/canvas/PathRenderer';
 import {
   RINK,
@@ -27,8 +31,16 @@ import {
   TABLETOP_MIN_TILT,
   TABLETOP_MAX_TILT,
 } from '@/core/constants';
-import { screenToWorld, distance, closestPointOnPolyline, processRawPath, cameraMatrix } from '@/utils/geometry';
-import { createPlayer, createSkatePath, randomPlayerNumber, randomGoalieNumber } from '@/engine/drill';
+import {
+  screenToWorld,
+  distance,
+  closestPointOnPolyline,
+  processRawPath,
+  cameraMatrix,
+  routeControlPoints,
+  routeFromControls,
+} from '@/utils/geometry';
+import { createPlayer, createSkatePath, createCoach, randomPlayerNumber, randomGoalieNumber } from '@/engine/drill';
 import {
   validatePass,
   validateShot,
@@ -38,7 +50,12 @@ import {
   getAimedNetTarget,
   playerHasPuck,
 } from '@/engine/puck';
-import type { Player, SkatePath, Point, Camera, ID } from '@/core/types';
+import type { Player, SkatePath, Point, Camera, ID, CoachMarker, DrillEvent } from '@/core/types';
+
+/** Hit radius for grabbing an edit handle, in screen pixels. */
+const HANDLE_HIT = 20;
+/** Distance from a net (world units) at which a carrier drag becomes a shot. */
+const SHOT_SNAP_DISTANCE = 22 * 5;
 import { compileDrill } from '@/sim/compileDrill';
 import { getCompiledEventEndpoints } from '@/sim/sampleFrame';
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
@@ -65,7 +82,34 @@ interface OrbitGesture {
   startCamera: Camera;
 }
 
-type Gesture = PinchGesture | PanGesture | OrbitGesture | null;
+/** Dragging the coach figure to reposition it */
+interface CoachMoveGesture {
+  kind: 'coachMove';
+  id: ID;
+}
+
+/** Dragging a control handle on a skate route to reshape it */
+interface RoutePointGesture {
+  kind: 'routePoint';
+  pathId: ID;
+  index: number;
+  controls: Point[];
+}
+
+/** Dragging a puck line's bend handle, or a shot/dump endpoint */
+interface EventEditGesture {
+  kind: 'eventBend' | 'eventEnd';
+  eventId: ID;
+}
+
+type Gesture =
+  | PinchGesture
+  | PanGesture
+  | OrbitGesture
+  | CoachMoveGesture
+  | RoutePointGesture
+  | EventEditGesture
+  | null;
 
 export function CanvasSurface() {
   const { state, dispatch, actions } = useAppState();
@@ -198,6 +242,60 @@ export function CanvasSurface() {
     return null;
   }, []);
 
+  const findCoachAt = useCallback((screenX: number, screenY: number): CoachMarker | null => {
+    const { camera, drill } = stateRef.current;
+    const world = screenToWorld(screenX, screenY, camera);
+    const coaches = drill.coaches ?? [];
+    for (let i = coaches.length - 1; i >= 0; i--) {
+      if (distance(coaches[i], world) < PLAYER_HIT_RADIUS * 1.2) return coaches[i];
+    }
+    return null;
+  }, []);
+
+  // A control handle on the currently selected player's route.
+  const findRouteControlAt = useCallback(
+    (screenX: number, screenY: number): { path: SkatePath; index: number; controls: Point[] } | null => {
+      const s = stateRef.current;
+      if (s.playback.isPlaying) return null;
+      const ownerId = s.selection.selectedPlayerId;
+      if (!ownerId) return null;
+      const path = s.drill.skatePaths.find(sp => sp.ownerId === ownerId);
+      if (!path || path.points.length < 2) return null;
+      const controls = routeControlPoints(path.points);
+      const world = screenToWorld(screenX, screenY, s.camera);
+      // Skip index 0 - it is pinned to the player.
+      for (let i = 1; i < controls.length; i++) {
+        if (distance(controls[i], world) * s.camera.zoom < HANDLE_HIT) {
+          return { path, index: i, controls };
+        }
+      }
+      return null;
+    },
+    []
+  );
+
+  // A bend or endpoint handle on the currently selected event.
+  const findEventHandleAt = useCallback(
+    (screenX: number, screenY: number): { event: DrillEvent; part: 'eventBend' | 'eventEnd' } | null => {
+      const s = stateRef.current;
+      if (s.playback.isPlaying) return null;
+      const id = s.selection.selectedEventId;
+      if (!id) return null;
+      const event = s.drill.events.find(e => e.id === id);
+      if (!event) return null;
+      const world = screenToWorld(screenX, screenY, s.camera);
+      if ((event.type === 'shot' || event.type === 'dump') &&
+        distance(event.toPoint, world) * s.camera.zoom < HANDLE_HIT) {
+        return { event, part: 'eventEnd' };
+      }
+      if (distance(eventBendPoint(event), world) * s.camera.zoom < HANDLE_HIT) {
+        return { event, part: 'eventBend' };
+      }
+      return null;
+    },
+    []
+  );
+
   const getFinalPlayerPoint = useCallback((player: Player): Point => {
     const path = stateRef.current.drill.skatePaths.find(sp => sp.ownerId === player.id);
     return path?.points.length ? path.points[path.points.length - 1] : { x: player.x, y: player.y };
@@ -251,6 +349,15 @@ export function CanvasSurface() {
     ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
 
     drawRink(ctx, { elevated: tabletop });
+
+    // Coaches sit on the ice under the play. In the tabletop view they stand up
+    // as pieces (drawn later, in screen space); here they are the flat marker.
+    const coaches = drill.coaches ?? [];
+    if (!tabletop) {
+      for (const coach of coaches) {
+        drawCoachTopDown(ctx, coach, false);
+      }
+    }
 
     // While playing or scrubbing, players render at their interpolated
     // positions. The drill itself is never touched. An empty map means the
@@ -380,6 +487,19 @@ export function CanvasSurface() {
       drawPlayers(ctx, players, drill.events, playerOptions);
     }
 
+    // Edit handles: reshape the selected player's route or bend/re-aim the
+    // selected puck line. Hidden during playback.
+    if (!playback.isPlaying) {
+      if (selection.selectedPlayerId) {
+        const selRoute = drill.skatePaths.find(sp => sp.ownerId === selection.selectedPlayerId);
+        if (selRoute && selRoute.points.length >= 2) drawRouteEditHandles(ctx, selRoute.points);
+      }
+      if (selection.selectedEventId) {
+        const selEvent = drill.events.find(e => e.id === selection.selectedEventId);
+        if (selEvent) drawEventEditHandles(ctx, selEvent);
+      }
+    }
+
     if (s.animatedPuck?.visible) {
       drawAnimatedPuck(ctx, s.animatedPuck.x, s.animatedPuck.y, s.animatedPuck.state);
     }
@@ -392,6 +512,7 @@ export function CanvasSurface() {
 
     if (tabletop) {
       drawArenaPlayers(ctx, { camera, dpr }, players, drill.events, playerOptions);
+      drawArenaCoaches(ctx, { camera, dpr }, coaches, null);
       // Near boards/glass sit in front of the skaters closest to the camera.
       drawArenaWalls(ctx, { camera, dpr }, 'near');
     }
@@ -556,6 +677,91 @@ export function CanvasSurface() {
         }
       }
 
+      // ---- UNIFIED SELECT ----------------------------------------------------
+      // One tool does it all by context: grab a handle to reshape a line, drag a
+      // player to draw their route (or, if they hold the puck, to pass/shoot),
+      // hold a player to reposition, drag the coach to move him, else pan/orbit.
+      if (currentTool === 'select') {
+        // Reshape/re-aim handles on the current selection.
+        const evHandle = findEventHandleAt(pos.x, pos.y);
+        if (evHandle) {
+          actions.pushUndo();
+          gestureRef.current = { kind: evHandle.part, eventId: evHandle.event.id };
+          return;
+        }
+        const routeCtl = findRouteControlAt(pos.x, pos.y);
+        if (routeCtl) {
+          actions.pushUndo();
+          gestureRef.current = {
+            kind: 'routePoint',
+            pathId: routeCtl.path.id,
+            index: routeCtl.index,
+            controls: routeCtl.controls,
+          };
+          return;
+        }
+
+        if (player) {
+          actions.selectPlayer(player.id);
+          actions.selectEvent(null);
+          const isCarrier =
+            playerHasPuck(player, s.drill.players, s.drill.events) && canAddEvents(s.drill.events);
+          dispatch({
+            type: 'SET_INTERACTION',
+            interaction: isCarrier
+              ? { dragType: 'pass', dragFromPlayer: player, dragCurrentPosition: pos, holdTarget: player }
+              : {
+                  drawingSkate: true,
+                  skateOwner: player,
+                  skateRawPoints: [{ x: player.x, y: player.y }],
+                  holdTarget: player,
+                },
+          });
+          actions.setModeBanner(
+            isCarrier
+              ? `Drag #${player.number} to pass/shoot · hold to move`
+              : `Drag #${player.number} to draw a route · hold to move`
+          );
+          // Hold in place to reposition instead of drawing.
+          cancelHold();
+          holdTimerRef.current = window.setTimeout(() => {
+            actions.beginPlayerMove();
+            dispatch({
+              type: 'SET_INTERACTION',
+              interaction: {
+                movingPlayer: player,
+                holdActive: true,
+                drawingSkate: false,
+                dragType: 'none',
+                dragFromPlayer: null,
+                skateRawPoints: [],
+              },
+            });
+            actions.setModeBanner(`Moving #${player.number} — release to drop`);
+          }, 230);
+          return;
+        }
+
+        const coach = findCoachAt(pos.x, pos.y);
+        if (coach) {
+          actions.selectPlayer(null);
+          actions.selectEvent(null);
+          actions.pushUndo();
+          gestureRef.current = { kind: 'coachMove', id: coach.id };
+          actions.setModeBanner('Moving coach — release to drop');
+          return;
+        }
+
+        // Empty ice: pan (flat) or orbit (tabletop).
+        const tabletopSelect = (s.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
+        gestureRef.current = {
+          kind: tabletopSelect ? 'orbit' : 'pan',
+          startPointer: pos,
+          startCamera: { ...s.camera },
+        };
+        return;
+      }
+
       if (currentTool === 'pass') {
         if (!canAddEvents(s.drill.events)) {
           actions.showToast('Pass unavailable — this drill ends with a shot or dump. Undo or clear it first.', 'warning', 5000);
@@ -605,54 +811,21 @@ export function CanvasSurface() {
         return;
       }
 
-      // A puck carrier's route is itself an action surface. In Select or Pass
-      // mode, press any point on it and drag the puck line to a teammate or to
-      // open ice for a dump.
-      const pathHit = findPathAt(pos.x, pos.y);
-      if (!player && (currentTool === 'select' || currentTool === 'pass') && pathHit && canAddEvents(s.drill.events)) {
-        const pathOwner = s.drill.players.find(p => p.id === pathHit.path.ownerId);
-        if (pathOwner && playerHasPuck(pathOwner, s.drill.players, s.drill.events)) {
-          dispatch({
-            type: 'SET_INTERACTION',
-            interaction: {
-              nodeActive: true,
-              nodePath: pathHit.path,
-              nodeWorldPoint: pathHit.point,
-              nodeDragPosition: pos,
-              dragFromPlayer: pathOwner,
-              dragType: 'pass',
-            },
-          });
-          actions.setModeBanner(`Puck at #${pathOwner.number}'s route — drag to pass or dump`);
-          return;
-        }
-        if (pathOwner) actions.showToast(`#${pathOwner.number} does not have the puck`, 'warning');
-        return;
-      }
-
-      if (currentTool !== 'select') return;
-
-      if (player) {
-        dispatch({
-          type: 'SET_INTERACTION',
-          interaction: {
-            holdTarget: player,
-          },
-        });
-        actions.selectPlayer(player.id);
-        return;
-      }
-
-      // With the sheet leaned into tabletop view, dragging empty ice spins and
-      // tilts the arena; flat top-down keeps the classic pan for authoring.
-      const tabletop = (s.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
-      gestureRef.current = {
-        kind: tabletop ? 'orbit' : 'pan',
-        startPointer: pos,
-        startCamera: { ...s.camera },
-      };
+      // Placement / erase tools (home, away, goalie, coach, erase) act on tap,
+      // handled in handleTap on pointer-up. Nothing to start on press.
     },
-    [getPointerPosition, beginPinch, findPlayerAt, findPathAt, dispatch, actions]
+    [
+      getPointerPosition,
+      beginPinch,
+      findPlayerAt,
+      findPathAt,
+      findCoachAt,
+      findRouteControlAt,
+      findEventHandleAt,
+      cancelHold,
+      dispatch,
+      actions,
+    ]
   );
 
   const handlePointerMove = useCallback(
@@ -696,6 +869,32 @@ export function CanvasSurface() {
         return;
       }
 
+      // Edit gestures reshape drill geometry live; changes are applied on each
+      // move and were snapshotted for undo when the gesture began.
+      if (gesture?.kind === 'coachMove') {
+        const world = screenToWorld(pos.x, pos.y, stateRef.current.camera);
+        actions.moveCoach(gesture.id, world.x, world.y);
+        return;
+      }
+      if (gesture?.kind === 'routePoint') {
+        const world = screenToWorld(pos.x, pos.y, stateRef.current.camera);
+        const controls = gesture.controls.map((c, i) =>
+          i === gesture.index ? { x: world.x, y: world.y } : c
+        );
+        actions.updateSkatePoints(gesture.pathId, routeFromControls(controls));
+        return;
+      }
+      if (gesture?.kind === 'eventEnd') {
+        const world = screenToWorld(pos.x, pos.y, stateRef.current.camera);
+        actions.updateEventPath(gesture.eventId, { x: world.x, y: world.y });
+        return;
+      }
+      if (gesture?.kind === 'eventBend') {
+        const world = screenToWorld(pos.x, pos.y, stateRef.current.camera);
+        actions.updateEventPath(gesture.eventId, undefined, { x: world.x, y: world.y });
+        return;
+      }
+
       const s = stateRef.current;
       if (s.playback.isPlaying || !s.interaction.isPointerDown) return;
 
@@ -703,6 +902,8 @@ export function CanvasSurface() {
         ? distance(pos, s.interaction.pointerDownPosition) > MOVE_THRESHOLD
         : false;
 
+      // Moving off the press point means the user is drawing/passing, not
+      // holding to reposition - so cancel the pending hold-to-move.
       if (moved && !s.interaction.holdActive) cancelHold();
 
       if (s.interaction.movingPlayer) {
@@ -712,27 +913,6 @@ export function CanvasSurface() {
           interaction: { pointerMoved: true, dragCurrentPosition: pos },
         });
         actions.movePlayer(s.interaction.movingPlayer.id, world.x, world.y);
-        return;
-      }
-
-      if (
-        moved &&
-        s.ui.currentTool === 'select' &&
-        s.interaction.holdTarget &&
-        !s.interaction.drawingSkate
-      ) {
-        const world = screenToWorld(pos.x, pos.y, s.camera);
-        actions.beginPlayerMove();
-        dispatch({
-          type: 'SET_INTERACTION',
-          interaction: {
-            pointerMoved: true,
-            holdActive: true,
-            movingPlayer: s.interaction.holdTarget,
-            dragCurrentPosition: pos,
-          },
-        });
-        actions.movePlayer(s.interaction.holdTarget.id, world.x, world.y);
         return;
       }
 
@@ -761,16 +941,20 @@ export function CanvasSurface() {
       const { currentTool } = s.ui;
 
       if (currentTool === 'select') {
+        if (player) {
+          actions.selectPlayer(player.id);
+          actions.selectEvent(null);
+          return;
+        }
         const event = findEventAt(screenX, screenY);
         if (event) {
           actions.selectEvent(event.id);
+          actions.selectPlayer(null);
           return;
         }
-        if (player) {
-          actions.selectPlayer(player.id);
-        } else {
-          actions.selectPlayer(null);
-        }
+        actions.selectPlayer(null);
+        actions.selectEvent(null);
+        actions.clearBanners();
         return;
       }
 
@@ -847,11 +1031,24 @@ export function CanvasSurface() {
         return;
       }
 
+      if (currentTool === 'coach') {
+        if (player || findCoachAt(screenX, screenY)) return;
+        actions.addCoach(createCoach(world.x, world.y));
+        actions.showToast('Coach placed — drag him with Select', 'success');
+        return;
+      }
+
       if (currentTool === 'erase') {
         if (player) {
           actions.removePlayer(player.id);
           actions.selectPlayer(null);
           actions.showToast('Player removed', 'success');
+          return;
+        }
+        const coach = findCoachAt(screenX, screenY);
+        if (coach) {
+          actions.removeCoach(coach.id);
+          actions.showToast('Coach removed', 'success');
           return;
         }
         const pathHit = findPathAt(screenX, screenY);
@@ -867,7 +1064,7 @@ export function CanvasSurface() {
         }
       }
     },
-    [findPlayerAt, findPathAt, findEventAt, actions, getFinalPlayerPoint]
+    [findPlayerAt, findPathAt, findEventAt, findCoachAt, actions, getFinalPlayerPoint]
   );
 
   const handlePointerUp = useCallback(
@@ -884,6 +1081,18 @@ export function CanvasSurface() {
       }
 
       if (gesture?.kind === 'pan' || gesture?.kind === 'orbit') {
+        gestureRef.current = null;
+        dispatch({ type: 'RESET_INTERACTION' });
+        return;
+      }
+
+      // Edit gestures already applied their changes live; just close them out.
+      if (
+        gesture?.kind === 'coachMove' ||
+        gesture?.kind === 'routePoint' ||
+        gesture?.kind === 'eventBend' ||
+        gesture?.kind === 'eventEnd'
+      ) {
         gestureRef.current = null;
         dispatch({ type: 'RESET_INTERACTION' });
         return;
@@ -913,7 +1122,9 @@ export function CanvasSurface() {
           processRawPath(s.interaction.skateRawPoints)
         );
         actions.addSkatePath(path);
-        actions.showToast('Path drawn - tap path line to add a pass', 'success', 4000);
+        // Keep the owner selected so its route handles appear for tweaking.
+        actions.selectPlayer(s.interaction.skateOwner.id);
+        actions.showToast('Route drawn — drag its handles to reshape', 'success', 3600);
         dispatch({ type: 'RESET_INTERACTION' });
         return;
       }
@@ -959,7 +1170,12 @@ export function CanvasSurface() {
         const fromPlayer = s.interaction.dragFromPlayer;
 
         if (s.interaction.dragType === 'pass') {
-          const targetPlayer = findPassReceiverAt(pos.x, pos.y, fromPlayer.id);
+          // A pass only lands on a teammate; dragging onto an opponent (or the
+          // opposing goalie) is not a pass, so the net check below can turn it
+          // into a shot instead.
+          const receiver = findPassReceiverAt(pos.x, pos.y, fromPlayer.id);
+          const targetPlayer = receiver && receiver.team === fromPlayer.team ? receiver : null;
+          const release = screenToWorld(pos.x, pos.y, s.camera);
           if (targetPlayer && targetPlayer.id !== fromPlayer.id) {
             const validation = validatePass(fromPlayer, targetPlayer, s.drill.players, s.drill.events);
             if (validation.valid) {
@@ -971,15 +1187,28 @@ export function CanvasSurface() {
               actions.showToast(validation.error!, 'warning');
             }
           } else {
-            const dumpPoint = screenToWorld(pos.x, pos.y, s.camera);
-            actions.addDump(
-              fromPlayer,
-              dumpPoint,
-              { x: fromPlayer.x, y: fromPlayer.y }
-            );
-            actions.showToast('Dump placed — the line is the puck route', 'success');
-            actions.setPassFrom(null);
-            actions.clearBanners();
+            // Released near a net = shot; anywhere else on open ice = dump. This
+            // folds pass, shoot and dump into the one carrier drag.
+            const nearNet = Math.min(
+              distance(release, { x: RINK.netLeftX, y: RINK.netLeftY }),
+              distance(release, { x: RINK.netRightX, y: RINK.netRightY })
+            ) < SHOT_SNAP_DISTANCE;
+            if (nearNet) {
+              const validation = validateShot(fromPlayer, s.drill.players, s.drill.events);
+              if (validation.valid) {
+                actions.addShot(fromPlayer, getAimedNetTarget(release), getFinalPlayerPoint(fromPlayer));
+                actions.showToast('Shot on net!', 'success');
+                actions.setPassFrom(null);
+                actions.clearBanners();
+              } else {
+                actions.showToast(validation.error!, 'warning');
+              }
+            } else {
+              actions.addDump(fromPlayer, release, { x: fromPlayer.x, y: fromPlayer.y });
+              actions.showToast('Dump placed — the line is the puck route', 'success');
+              actions.setPassFrom(null);
+              actions.clearBanners();
+            }
           }
         } else if (s.interaction.dragType === 'shoot') {
           const validation = validateShot(fromPlayer, s.drill.players, s.drill.events);

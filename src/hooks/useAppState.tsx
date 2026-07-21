@@ -18,6 +18,7 @@ import type {
   Tool,
   Player,
   SkatePath,
+  CoachMarker,
   PassEvent,
   ShotEvent,
   DumpEvent,
@@ -53,6 +54,7 @@ import { giveAndGoRegressionDrill } from '@/fixtures/giveAndGo.v1';
 import { fiveManCornerRetrievalDrill } from '@/fixtures/fiveManCornerRetrieval.v1';
 import { fiveManCrossCornerDrill } from '@/fixtures/fiveManCrossCorner.v1';
 import { fiveManLowHighDrill } from '@/fixtures/fiveManLowHigh.v1';
+import { duplicateDrill } from '@/engine/drill';
 
 // ============================================================================
 // CONTEXT
@@ -83,10 +85,17 @@ export interface AppActions {
   setPuckCarrier: (id: ID) => void;
   updatePlayerVisual: (id: ID, visual: Partial<NonNullable<Player['visual']>>) => void;
 
+  // Coaches
+  addCoach: (coach: CoachMarker) => void;
+  moveCoach: (id: ID, x: number, y: number) => void;
+  removeCoach: (id: ID) => void;
+
   // Paths
   addSkatePath: (path: SkatePath) => void;
   removeSkatePath: (id: ID) => void;
   updateSkatePath: (id: ID, updates: Pick<SkatePath, 'mode' | 'finish'>) => void;
+  updateSkatePoints: (id: ID, points: Point[]) => void;
+  updateEventPath: (id: ID, toPoint?: Point, via?: Point | null) => void;
 
   // Events
   addPass: (fromPlayer: Player, toPlayer: Player, fromPoint?: Point, toPoint?: Point) => void;
@@ -114,6 +123,7 @@ export interface AppActions {
   renameDrill: (name: string) => void;
   loadDrill: (id: ID) => void;
   saveDrill: () => void;
+  saveAsNewPlay: (name: string) => void;
   deleteDrill: (id: ID) => void;
   clearAllEvents: () => void;
   exportDrills: () => void;
@@ -241,8 +251,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPuckCarrier: id => dispatch({ type: 'SET_PUCK_CARRIER', id }),
       updatePlayerVisual: (id, visual) => dispatch({ type: 'UPDATE_PLAYER_VISUAL', id, visual }),
 
+      addCoach: coach => dispatch({ type: 'ADD_COACH', coach }),
+      moveCoach: (id, x, y) => dispatch({ type: 'MOVE_COACH', id, x, y }),
+      removeCoach: id => dispatch({ type: 'REMOVE_COACH', id }),
       addSkatePath: path => dispatch({ type: 'ADD_SKATE_PATH', path }),
       removeSkatePath: id => dispatch({ type: 'REMOVE_SKATE_PATH', id }),
+      updateSkatePoints: (id, points) => dispatch({ type: 'UPDATE_SKATE_POINTS', id, points }),
+      updateEventPath: (id, toPoint, via) => dispatch({ type: 'UPDATE_EVENT_PATH', id, toPoint, via }),
       updateSkatePath: (id, updates) => dispatch({ type: 'UPDATE_SKATE_PATH', id, updates }),
 
       addPass: (fromPlayer, toPlayer, fromPoint, _toPoint) => {
@@ -532,7 +547,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveDrill: () => {
         persistDrill(stateRef.current.drill);
         refreshDrillList();
-        toast('Drill saved', 'success');
+        toast('Play saved', 'success');
+      },
+
+      // Save the current setup as a brand-new named play, leaving the original
+      // untouched, and switch to editing the copy.
+      saveAsNewPlay: name => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        const copy = duplicateDrill(stateRef.current.drill, trimmed);
+        persistDrill(copy);
+        dispatch({ type: 'LOAD_DRILL', drill: copy });
+        setCurrentDrillId(copy.id);
+        refreshDrillList();
+        toast(`Saved as “${trimmed}”`, 'success');
       },
 
       deleteDrill: id => {

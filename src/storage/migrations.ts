@@ -19,6 +19,7 @@ export function migrateDrill(input: Drill): Drill {
       mode: path.mode ?? 'skate',
       finish: path.finish ?? 'stop',
     })),
+    coaches: drill.coaches ?? [],
     settings: {
       assistance: drill.settings?.assistance ?? 'standard',
       recovery: drill.settings?.recovery ?? 'nearest-teammate',

@@ -4,7 +4,7 @@
 
 import type { Point, SkatePath, DrillEvent, Player, ID } from '@/core/types';
 import { COLORS, RINK } from '@/core/constants';
-import { pointAtParameter } from '@/utils/geometry';
+import { pointAtParameter, eventCurvePoints, routeControlPoints } from '@/utils/geometry';
 
 /**
  * Draw an arrow head at the end of a line
@@ -210,7 +210,7 @@ export function drawPassEvent(
     ? COLORS.pass.home
     : COLORS.pass.away;
 
-  const arcPoints = [event.fromPoint, event.toPoint];
+  const arcPoints = eventCurvePoints(event.fromPoint, event.toPoint, event.via);
 
   drawCurvedLine(ctx, arcPoints, color, false, 2.8);
 
@@ -237,7 +237,7 @@ export function drawShotEvent(
 ): void {
   const color = COLORS.shot;
 
-  const arcPoints = [event.fromPoint, event.toPoint];
+  const arcPoints = eventCurvePoints(event.fromPoint, event.toPoint, event.via);
 
   drawCurvedLine(ctx, arcPoints, color, false, 3);
 
@@ -373,6 +373,85 @@ export function drawDragPreview(
   }
 
   ctx.restore();
+}
+
+/**
+ * The bend handle position for an event (its `via` point, or the straight
+ * midpoint when it has not been bent yet).
+ */
+export function eventBendPoint(event: DrillEvent): Point {
+  if (event.via) return event.via;
+  return {
+    x: (event.fromPoint.x + event.toPoint.x) / 2,
+    y: (event.fromPoint.y + event.toPoint.y) / 2,
+  };
+}
+
+/**
+ * Draggable control handles for reshaping the selected player's skate route.
+ * The start (index 0) is pinned to the player, so only the rest are shown.
+ */
+export function drawRouteEditHandles(ctx: CanvasRenderingContext2D, points: Point[]): void {
+  const controls = routeControlPoints(points);
+  ctx.save();
+  ctx.setLineDash([]);
+  for (let i = 1; i < controls.length; i++) {
+    const c = controls[i];
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 7, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 200, 240, 0.28)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 7, 0, Math.PI * 2);
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = COLORS.cyan;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = '#eaffff';
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
+ * Draggable handles for editing a puck line: a bend handle at the middle and,
+ * for shots/dumps, an endpoint handle to re-aim the target.
+ */
+export function drawEventEditHandles(ctx: CanvasRenderingContext2D, event: DrillEvent): void {
+  ctx.save();
+  const bend = eventBendPoint(event);
+  // Bend handle (gold diamond with a bright centre).
+  ctx.translate(bend.x, bend.y);
+  ctx.fillStyle = 'rgba(255, 214, 10, 0.22)';
+  ctx.strokeStyle = COLORS.gold;
+  ctx.lineWidth = 2.4;
+  const d = 9;
+  ctx.beginPath();
+  ctx.moveTo(0, -d);
+  ctx.lineTo(d, 0);
+  ctx.lineTo(0, d);
+  ctx.lineTo(-d, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, 2.4, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff7d6';
+  ctx.fill();
+  ctx.restore();
+
+  if (event.type === 'shot' || event.type === 'dump') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(event.toPoint.x, event.toPoint.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(6, 24, 35, 0.9)';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COLORS.orange;
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 /**

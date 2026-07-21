@@ -28,6 +28,7 @@ export type Tool =
   | 'home'
   | 'away'
   | 'goalie'
+  | 'coach'
   | 'erase';
 
 // Net designation
@@ -69,6 +70,21 @@ export interface Player {
 }
 
 // ============================================================================
+// COACH
+//
+// A non-playing figure placed on the ice (the big bearded coach). It is never a
+// puck carrier, pass target, or simulated skater - purely a marker the drill
+// author can reposition.
+// ============================================================================
+
+export interface CoachMarker {
+  id: ID;
+  x: number;
+  y: number;
+  name?: string;
+}
+
+// ============================================================================
 // SKATE PATH
 // ============================================================================
 
@@ -98,6 +114,11 @@ interface BaseEvent {
   at?: number;
   /** Normalized drill time when the puck reaches its destination. */
   arrivalAt?: number;
+  /**
+   * Optional control point the puck curves through. Set when the author drags
+   * a puck line's midpoint handle to bend its path; absent = straight line.
+   */
+  via?: Point;
 }
 
 // Pass event - puck goes from one player to another
@@ -152,6 +173,8 @@ export interface Drill {
   players: Player[];
   skatePaths: SkatePath[];
   events: DrillEvent[];
+  /** Non-playing coach markers. Optional for backward compatibility. */
+  coaches?: CoachMarker[];
   settings?: DrillSettings;
 }
 
@@ -324,6 +347,7 @@ export interface UndoSnapshot {
   players: Player[];
   skatePaths: SkatePath[];
   events: DrillEvent[];
+  coaches: CoachMarker[];
 }
 
 // ============================================================================
@@ -430,10 +454,17 @@ export type AppAction =
   | { type: 'UPDATE_PLAYER_VISUAL'; id: ID; visual: Partial<PlayerVisualProfile> }
   | { type: 'SET_PUCK_CARRIER'; id: ID }
 
+  // Coach actions
+  | { type: 'ADD_COACH'; coach: CoachMarker }
+  | { type: 'MOVE_COACH'; id: ID; x: number; y: number }
+  | { type: 'REMOVE_COACH'; id: ID }
+
   // Path actions
   | { type: 'ADD_SKATE_PATH'; path: SkatePath }
   | { type: 'REMOVE_SKATE_PATH'; id: ID }
   | { type: 'UPDATE_SKATE_PATH'; id: ID; updates: Pick<SkatePath, 'mode' | 'finish'> }
+  | { type: 'UPDATE_SKATE_POINTS'; id: ID; points: Point[] }
+  | { type: 'UPDATE_EVENT_PATH'; id: ID; toPoint?: Point; via?: Point | null }
 
   // Event actions
   | { type: 'ADD_PASS'; event: PassEvent }

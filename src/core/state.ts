@@ -142,6 +142,7 @@ function createUndoSnapshot(drill: Drill): UndoSnapshot {
     players: drill.players,
     skatePaths: drill.skatePaths,
     events: drill.events,
+    coaches: drill.coaches ?? [],
   });
 }
 
@@ -151,6 +152,7 @@ function applySnapshot(state: AppState, snapshot: UndoSnapshot): Drill {
     players: snapshot.players,
     skatePaths: snapshot.skatePaths,
     events: snapshot.events,
+    coaches: snapshot.coaches ?? [],
     updatedAt: Date.now(),
   };
 }
@@ -166,6 +168,8 @@ const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'REMOVE_PLAYER',
   'SET_PUCK_CARRIER',
   'UPDATE_PLAYER_VISUAL',
+  'ADD_COACH',
+  'REMOVE_COACH',
   'ADD_SKATE_PATH',
   'REMOVE_SKATE_PATH',
   'UPDATE_SKATE_PATH',
@@ -299,6 +303,72 @@ function reduce(state: AppState, action: AppAction): AppState {
           players: state.drill.players.map(p =>
             p.id === action.id ? { ...p, x: action.x, y: action.y } : p
           ),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'ADD_COACH': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          coaches: [...(state.drill.coaches ?? []), action.coach],
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'MOVE_COACH': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          coaches: (state.drill.coaches ?? []).map(c =>
+            c.id === action.id ? { ...c, x: action.x, y: action.y } : c
+          ),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'REMOVE_COACH': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          coaches: (state.drill.coaches ?? []).filter(c => c.id !== action.id),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'UPDATE_SKATE_POINTS': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          skatePaths: state.drill.skatePaths.map(sp =>
+            sp.id === action.id ? { ...sp, points: action.points } : sp
+          ),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'UPDATE_EVENT_PATH': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          events: state.drill.events.map(ev => {
+            if (ev.id !== action.id) return ev;
+            const next = { ...ev };
+            if (action.toPoint) next.toPoint = action.toPoint;
+            if (action.via === null) delete next.via;
+            else if (action.via) next.via = action.via;
+            return next;
+          }),
           updatedAt: Date.now(),
         },
       };
