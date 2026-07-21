@@ -35,7 +35,13 @@ export function TopBar() {
         }`} />
       </button>
 
-      {/* Logo */}
+      {/* Brand: PH Hockey Practice badge + wordmark */}
+      <img
+        src="/assets/ph-logo.png"
+        alt="PH Hockey Practice"
+        className="h-9 w-9 flex-shrink-0 rounded-lg object-contain"
+        draggable={false}
+      />
       <div className="text-lg font-black tracking-wider text-white flex-shrink-0">
         PHICE<span className="text-app-cyan">CRAFT</span>
       </div>
