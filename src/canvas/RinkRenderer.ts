@@ -365,6 +365,94 @@ function drawIceSurfaceDetail(ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
+/**
+ * Very faint end-zone tints (home red, away blue) that add depth without
+ * fighting the diagram's markings.
+ */
+function drawZoneTints(ctx: CanvasRenderingContext2D): void {
+  const { x, y, width, height, blueLineLeftX, blueLineRightX } = RINK;
+  ctx.save();
+  const leftEnd = ctx.createLinearGradient(x, 0, blueLineLeftX, 0);
+  leftEnd.addColorStop(0, 'rgba(200, 40, 55, 0.05)');
+  leftEnd.addColorStop(1, 'rgba(200, 40, 55, 0)');
+  ctx.fillStyle = leftEnd;
+  ctx.fillRect(x, y, blueLineLeftX - x, height);
+
+  const rightEnd = ctx.createLinearGradient(x + width, 0, blueLineRightX, 0);
+  rightEnd.addColorStop(0, 'rgba(48, 128, 237, 0.05)');
+  rightEnd.addColorStop(1, 'rgba(48, 128, 237, 0)');
+  ctx.fillStyle = rightEnd;
+  ctx.fillRect(blueLineRightX, y, x + width - blueLineRightX, height);
+  ctx.restore();
+}
+
+/** Draw a string of characters spread along the top arc of a circle. */
+function drawArcTextTop(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  radius: number,
+  anglePer: number
+): void {
+  const start = -Math.PI / 2 - ((text.length - 1) * anglePer) / 2;
+  for (let i = 0; i < text.length; i++) {
+    const a = start + i * anglePer;
+    ctx.save();
+    ctx.translate(radius * Math.cos(a), radius * Math.sin(a));
+    ctx.rotate(a + Math.PI / 2);
+    ctx.fillText(text[i], 0, 0);
+    ctx.restore();
+  }
+}
+
+/**
+ * The PH Hockey Practice centre-ice crest: a brand-coloured monogram painted on
+ * the sheet, kept translucent so the lines and circle stay legible over it.
+ */
+function drawCenterIceLogo(ctx: CanvasRenderingContext2D): void {
+  const { centerX: cx, centerY: cy } = RINK;
+  const R = 19 * FT;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.globalAlpha = 0.62;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Concentric brand rings.
+  ctx.lineWidth = 1.6;
+  ctx.strokeStyle = 'rgba(47, 128, 237, 0.55)';
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(22, 163, 74, 0.55)';
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.9, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Curved tagline around the top.
+  ctx.fillStyle = 'rgba(22, 163, 74, 0.8)';
+  ctx.font = `800 ${R * 0.14}px Arial, sans-serif`;
+  drawArcTextTop(ctx, 'TRAIN · PLAY · IMPROVE', R * 0.72, 0.115);
+
+  // PH monogram with a green-to-blue gradient.
+  const grad = ctx.createLinearGradient(-R * 0.55, 0, R * 0.55, 0);
+  grad.addColorStop(0, '#16a34a');
+  grad.addColorStop(1, '#2f80ed');
+  ctx.font = `900 ${R * 0.9}px "Arial Black", Arial, sans-serif`;
+  ctx.lineWidth = R * 0.035;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.strokeText('PH', 0, -R * 0.04);
+  ctx.fillStyle = grad;
+  ctx.fillText('PH', 0, -R * 0.04);
+
+  // Wordmark beneath.
+  ctx.fillStyle = 'rgba(30, 41, 59, 0.82)';
+  ctx.font = `800 ${R * 0.15}px Arial, sans-serif`;
+  ctx.fillText('HOCKEY PRACTICE', 0, R * 0.52);
+
+  ctx.restore();
+}
+
 function drawCenterLine(ctx: CanvasRenderingContext2D): void {
   ctx.save();
   ctx.strokeStyle = COLORS.redLine;
@@ -426,6 +514,7 @@ export function drawRink(ctx: CanvasRenderingContext2D, opts: DrawRinkOptions = 
   ctx.fillStyle = ice;
   ctx.fillRect(rx, ry, rw, rh);
 
+  drawZoneTints(ctx);
   drawIceSurfaceDetail(ctx);
 
   // Layered frozen-water texture: subtle resurfacing lanes, skate haze and
@@ -447,6 +536,9 @@ export function drawRink(ctx: CanvasRenderingContext2D, opts: DrawRinkOptions = 
   ctx.fillStyle = bloom;
   ctx.fillRect(rx, ry, rw, rh);
   ctx.restore();
+
+  // Centre-ice crest, painted on the ice beneath the markings.
+  drawCenterIceLogo(ctx);
 
   ctx.lineCap = 'butt';
 
