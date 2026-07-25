@@ -353,7 +353,8 @@ end-to-end suite, and are fixed:
 | `efc22a1` | housekeeping — ignore generated coverage and report output |
 | `f857bdc` | 4–8 — command layer, input model, responsive shell, accessibility, performance |
 | `da9e4e6` | 9 — asset optimization, budgets, unused-code checks, error recovery |
-| *(this commit)* | 10 — end-to-end, visual, axe, performance verification, CI, docs |
+| `8ef802e` | 10 — end-to-end, visual, axe, performance verification, CI, docs |
+| `61a756b` | 10 — harness fix: poll the save status instead of sampling it |
 
 ---
 
