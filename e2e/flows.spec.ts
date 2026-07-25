@@ -38,11 +38,23 @@ async function storedDrills(page: Page) {
   );
 }
 
+/**
+ * Wait until nothing is outstanding.
+ *
+ * Polling the status rather than asserting it once: the auto-save debounce can
+ * make it flicker back to "Unsaved changes" under parallel load, and these
+ * tests care that the work lands, not about a single instant.
+ */
 async function waitForSaved(page: Page): Promise<void> {
-  await expect(page.getByRole('status', { name: /^Save status:/ })).toHaveAccessibleName(
-    'Save status: Saved',
-    { timeout: 15_000 }
-  );
+  await expect
+    .poll(
+      () =>
+        page
+          .getByRole('status', { name: /^Save status:/ })
+          .getAttribute('aria-label'),
+      { timeout: 20_000, message: 'the drill reached storage' }
+    )
+    .toBe('Save status: Saved');
 }
 
 test.beforeEach(async ({ page }) => {
@@ -120,13 +132,23 @@ test('Save As New preserves a backward, coasting route', async ({ page }) => {
   await prompt.getByRole('button', { name: 'Save copy' }).click();
 
   await expect(page.getByRole('button', { name: /^Play name: Coast Copy/ })).toBeVisible();
-  await waitForSaved(page);
+
+  // Wait for the copy to be DURABLE rather than for a status string: under
+  // parallel load the status can flicker back to "Unsaved changes" as the
+  // auto-save debounce catches up, which is not what this test is about.
+  await expect
+    .poll(async () => (await storedDrills(page)).some(drill => drill.name === 'Coast Copy'), {
+      timeout: 20_000,
+      message: 'the copy reached storage',
+    })
+    .toBe(true);
+
   await page.reload();
   await expect(page.getByRole('application', { name: /hockey rink/i })).toBeVisible();
 
   const drills = await storedDrills(page);
   const copy = drills.find(drill => drill.name === 'Coast Copy');
-  expect(copy, 'the copy is in storage').toBeTruthy();
+  expect(copy, 'the copy survived a reload').toBeTruthy();
 
   const routes = (copy!.document as { skatePaths: { mode?: string; finish?: string }[] }).skatePaths;
   expect(routes).toHaveLength(1);
