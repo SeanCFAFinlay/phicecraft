@@ -4,18 +4,23 @@
 // World-coordinate hit tests, shared by the gesture machine and the keyboard
 // paths. Everything reads live state through refs, so the tester identity is
 // stable and never re-creates the gesture machine.
+//
+// Lines are hit-tested against their DRAWN geometry, not their control
+// polygon: for a spline the two differ, and the user is aiming at what they
+// can see.
 // ============================================================================
 
 import { useMemo } from 'react';
-import type { AppState, ID, Point, SkatePath } from '@/core/types';
+import type { AppState, DrillEvent, ID, Point, SkatePath } from '@/core/types';
 import {
   PATH_HIT_DISTANCE,
   PLAYER_HIT_RADIUS,
   ROUTE_HANDLE_OFFSET,
   ROUTE_HANDLE_RADIUS,
 } from '@/core/constants';
-import { closestPointOnPolyline, distance, routeControlPoints, screenToWorld } from '@/utils/geometry';
-import { eventBendPoint } from '@/canvas/PathRenderer';
+import { closestPointOnPolyline, distance, screenToWorld } from '@/utils/geometry';
+import { controlMidpoints, expandCurve } from '@/utils/curves';
+import { flightControls } from '@/sim/flightPath';
 import { getCurrentPuckHolder, canAddEvents } from '@/engine/puck';
 import type { CameraStore } from '@/camera/CameraStore';
 import type { PlaybackStore } from '@/playback/PlaybackStore';
@@ -23,6 +28,8 @@ import type { HitTester } from '@/editor/input/gestureTypes';
 
 /** Screen-pixel radius for grabbing an edit handle. */
 const HANDLE_HIT = 20;
+/** Tighter, so an add-affordance never steals a control point's grab. */
+const ADD_HANDLE_HIT = 14;
 /** How forgiving pass targeting is, in screen pixels. */
 const PASS_TARGET_RADIUS = 68;
 const PASS_ROUTE_RADIUS = 42;
@@ -35,12 +42,28 @@ export interface HitTestingOptions {
 
 export function useHitTesting({ getState, camera, playback }: HitTestingOptions): HitTester {
   return useMemo<HitTester>(() => {
-    const toWorld = (point: Point): Point =>
-      screenToWorld(point.x, point.y, camera.camera);
+    const toWorld = (point: Point): Point => screenToWorld(point.x, point.y, camera.camera);
 
     /** Where a player is drawn right now: interpolated while scrubbing. */
     const drawnPosition = (playerId: ID, fallback: Point): Point =>
       playback.positionFor(playerId) ?? fallback;
+
+    /** The route of the currently selected player, if any, while paused. */
+    const selectedRoute = (): SkatePath | null => {
+      const state = getState();
+      if (state.playback.isPlaying) return null;
+      const ownerId = state.selection.selectedPlayerId;
+      if (!ownerId) return null;
+      return state.drill.skatePaths.find(route => route.ownerId === ownerId) ?? null;
+    };
+
+    const selectedEvent = (): DrillEvent | null => {
+      const state = getState();
+      if (state.playback.isPlaying) return null;
+      const eventId = state.selection.selectedEventId;
+      if (!eventId) return null;
+      return state.drill.events.find(item => item.id === eventId) ?? null;
+    };
 
     return {
       toWorld,
@@ -79,7 +102,8 @@ export function useHitTesting({ getState, camera, playback }: HitTestingOptions)
         const zoom = camera.camera.zoom;
         for (const path of drill.skatePaths) {
           if (!path.points || path.points.length < 2) continue;
-          const hit = closestPointOnPolyline(path.points, world);
+          const line = expandCurve(path.points, path.shape ?? 'spline');
+          const hit = closestPointOnPolyline(line, world);
           if (hit.distance * zoom < PATH_HIT_DISTANCE) {
             return { pathId: path.id, ownerId: path.ownerId, point: hit.point };
           }
@@ -93,54 +117,92 @@ export function useHitTesting({ getState, camera, playback }: HitTestingOptions)
         const zoom = camera.camera.zoom;
         for (let index = drill.events.length - 1; index >= 0; index--) {
           const event = drill.events[index];
-          const hit = closestPointOnPolyline([event.fromPoint, event.toPoint], world);
+          const line = expandCurve(
+            flightControls(event, event.fromPoint, event.toPoint),
+            event.shape ?? 'spline'
+          );
+          const hit = closestPointOnPolyline(line, world);
           if (hit.distance * zoom <= PATH_HIT_DISTANCE) return event.id;
         }
         return null;
       },
 
+      /**
+       * A control point of the selected player's route.
+       *
+       * These are the STORED control points, not resampled proxies, so
+       * dragging one moves exactly the point that was grabbed and leaves the
+       * rest of the route untouched.
+       */
       routeHandleAt(point) {
-        const state = getState();
-        if (state.playback.isPlaying) return null;
-        const ownerId = state.selection.selectedPlayerId;
-        if (!ownerId) return null;
-
-        const path: SkatePath | undefined = state.drill.skatePaths.find(
-          route => route.ownerId === ownerId
-        );
+        const path = selectedRoute();
         if (!path || path.points.length < 2) return null;
 
-        const controls = routeControlPoints(path.points);
         const world = toWorld(point);
         const zoom = camera.camera.zoom;
         // Index 0 is pinned to the player and is not draggable.
-        for (let index = 1; index < controls.length; index++) {
-          if (distance(controls[index], world) * zoom < HANDLE_HIT) {
-            return { pathId: path.id, index, controls };
+        for (let index = 1; index < path.points.length; index++) {
+          if (distance(path.points[index], world) * zoom < HANDLE_HIT) {
+            return { pathId: path.id, index };
+          }
+        }
+        return null;
+      },
+
+      /** The "+" affordance halfway along a route segment. */
+      routeAddHandleAt(point) {
+        const path = selectedRoute();
+        if (!path || path.points.length < 2) return null;
+
+        const world = toWorld(point);
+        const zoom = camera.camera.zoom;
+        for (const midpoint of controlMidpoints(path.points)) {
+          if (distance(midpoint.point, world) * zoom < ADD_HANDLE_HIT) {
+            return { pathId: path.id, index: midpoint.index, point: midpoint.point };
           }
         }
         return null;
       },
 
       eventHandleAt(point) {
-        const state = getState();
-        if (state.playback.isPlaying) return null;
-        const eventId = state.selection.selectedEventId;
-        if (!eventId) return null;
-
-        const event = state.drill.events.find(item => item.id === eventId);
+        const event = selectedEvent();
         if (!event) return null;
 
         const world = toWorld(point);
         const zoom = camera.camera.zoom;
+
+        // Waypoints first: they sit on the line and are what a coach reaches
+        // for when reshaping a pass.
+        const waypoints = event.waypoints ?? [];
+        for (let index = 0; index < waypoints.length; index++) {
+          if (distance(waypoints[index], world) * zoom < HANDLE_HIT) {
+            return { eventId: event.id, part: 'waypoint', index };
+          }
+        }
+
         if (
           (event.type === 'shot' || event.type === 'dump') &&
           distance(event.toPoint, world) * zoom < HANDLE_HIT
         ) {
-          return { eventId: event.id, part: 'end' };
+          return { eventId: event.id, part: 'end', index: -1 };
         }
-        if (distance(eventBendPoint(event), world) * zoom < HANDLE_HIT) {
-          return { eventId: event.id, part: 'bend' };
+        return null;
+      },
+
+      /** The "+" affordance halfway along a puck-line segment. */
+      eventAddHandleAt(point) {
+        const event = selectedEvent();
+        if (!event) return null;
+
+        const world = toWorld(point);
+        const zoom = camera.camera.zoom;
+        const controls = flightControls(event, event.fromPoint, event.toPoint);
+        for (const midpoint of controlMidpoints(controls)) {
+          if (distance(midpoint.point, world) * zoom < ADD_HANDLE_HIT) {
+            // Control index i is waypoint index i - 1, because control 0 is
+            // the release point.
+            return { eventId: event.id, index: midpoint.index - 1, point: midpoint.point };
+          }
         }
         return null;
       },
@@ -181,7 +243,8 @@ export function useHitTesting({ getState, camera, playback }: HitTestingOptions)
         for (const path of drill.skatePaths) {
           if (path.ownerId === excludePlayerId || path.points.length < 2) continue;
           if (!drill.players.some(player => player.id === path.ownerId)) continue;
-          const routeDistance = closestPointOnPolyline(path.points, world).distance * zoom;
+          const line = expandCurve(path.points, path.shape ?? 'spline');
+          const routeDistance = closestPointOnPolyline(line, world).distance * zoom;
           // Prefer a direct token hit, but make a clearly targeted route valid.
           const weighted = routeDistance + 12;
           if (routeDistance <= PASS_ROUTE_RADIUS && (!best || weighted < best.screenDistance)) {

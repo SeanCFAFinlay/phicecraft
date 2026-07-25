@@ -90,17 +90,25 @@ export class GestureStateMachine {
     const target = this.classify(sample.position, hitTester);
 
     if (target.kind === 'route-handle') {
-      this.gesture = {
-        kind: 'drag-route-handle',
-        pathId: target.pathId,
-        index: target.index,
-        controls: target.controls,
-      };
+      this.gesture = { kind: 'drag-route-handle', pathId: target.pathId, index: target.index };
       return;
     }
 
     if (target.kind === 'event-handle') {
-      this.gesture = { kind: 'drag-event-handle', eventId: target.eventId, part: target.part };
+      this.gesture = {
+        kind: 'drag-event-handle',
+        eventId: target.eventId,
+        part: target.part,
+        index: target.index,
+      };
+      return;
+    }
+
+    // An add-affordance is a TAP target, not a drag: pressing it inserts a
+    // control point, and the press stays a press so a stray wobble does not
+    // start dragging something that did not exist a moment ago.
+    if (target.kind === 'route-add' || target.kind === 'event-add') {
+      this.gesture = { kind: 'press', target, startPointer: sample.position, moved: false };
       return;
     }
 
@@ -238,11 +246,19 @@ export class GestureStateMachine {
   // --------------------------------------------------------------------------
 
   private classify(point: Point, hitTester: HitTester): PressTarget {
+    // Control points win over the add-affordances between them, which win
+    // over the lines underneath.
     const routeHandle = hitTester.routeHandleAt(point);
     if (routeHandle) return { kind: 'route-handle', ...routeHandle };
 
     const eventHandle = hitTester.eventHandleAt(point);
     if (eventHandle) return { kind: 'event-handle', ...eventHandle };
+
+    const routeAdd = hitTester.routeAddHandleAt(point);
+    if (routeAdd) return { kind: 'route-add', ...routeAdd };
+
+    const eventAdd = hitTester.eventAddHandleAt(point);
+    if (eventAdd) return { kind: 'event-add', ...eventAdd };
 
     const affordance = hitTester.routeAffordanceAt(point);
     if (affordance) return { kind: 'route-affordance', playerId: affordance };
@@ -451,16 +467,16 @@ export class GestureStateMachine {
         return;
 
       case 'drag-route-handle':
-        handlers.onRouteHandleDrag(
-          gesture.pathId,
-          gesture.index,
-          gesture.controls,
-          hitTester.toWorld(position)
-        );
+        handlers.onRouteHandleDrag(gesture.pathId, gesture.index, hitTester.toWorld(position));
         return;
 
       case 'drag-event-handle':
-        handlers.onEventHandleDrag(gesture.eventId, gesture.part, hitTester.toWorld(position));
+        handlers.onEventHandleDrag(
+          gesture.eventId,
+          gesture.part,
+          gesture.index,
+          hitTester.toWorld(position)
+        );
         return;
 
       default:

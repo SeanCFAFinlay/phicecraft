@@ -382,7 +382,7 @@ function reduce(state: AppState, action: AppAction): AppState {
       };
     }
 
-    case 'UPDATE_EVENT_PATH': {
+    case 'UPDATE_EVENT_GEOMETRY': {
       return {
         ...state,
         drill: {
@@ -391,8 +391,11 @@ function reduce(state: AppState, action: AppAction): AppState {
             if (ev.id !== action.id) return ev;
             const next = { ...ev };
             if (action.toPoint) next.toPoint = action.toPoint;
-            if (action.via === null) delete next.via;
-            else if (action.via) next.via = action.via;
+            if (action.waypoints) next.waypoints = action.waypoints;
+            if (action.shape) next.shape = action.shape;
+            // The command layer re-times the flight from the new arc length,
+            // so a bent pass genuinely takes longer to arrive.
+            if (action.arrivalAt !== undefined) next.arrivalAt = action.arrivalAt;
             return next;
           }),
           updatedAt: Date.now(),

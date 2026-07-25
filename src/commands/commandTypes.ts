@@ -9,8 +9,10 @@
 import type {
   AppAction,
   AppState,
+  CurveShape,
   ID,
   PendingEditorAction,
+  Point,
   ToastType,
 } from '@/core/types';
 import type {
@@ -148,7 +150,7 @@ export interface AuthoringCommands {
   setPendingAction(action: PendingEditorAction): void;
   cancelPendingAction(): void;
 
-  addPlayer(point: { x: number; y: number }, kind: 'home' | 'away' | 'goalie'): CommandResult<ID>;
+  addPlayer(point: Point, kind: 'home' | 'away' | 'goalie'): CommandResult<ID>;
   removePlayer(id: ID): Promise<CommandResult>;
   beginPlayerMove(id: ID): CommandResult;
   movePlayerTo(id: ID, x: number, y: number): CommandResult;
@@ -157,25 +159,39 @@ export interface AuthoringCommands {
   setJersey(team: 'home' | 'away', hex: string): void;
   swapJerseys(): void;
 
-  addCoach(point: { x: number; y: number }): CommandResult<ID>;
+  addCoach(point: Point): CommandResult<ID>;
   moveCoach(id: ID, x: number, y: number): void;
   removeCoach(id: ID): CommandResult;
 
-  commitRoute(ownerId: ID, rawPoints: { x: number; y: number }[]): CommandResult<ID>;
-  updateRoutePoints(pathId: ID, points: { x: number; y: number }[]): void;
+  commitRoute(ownerId: ID, rawPoints: Point[]): CommandResult<ID>;
   updateRouteStyle(pathId: ID, updates: { mode?: 'skate' | 'glide' | 'backward'; finish?: 'coast' | 'stop' }): void;
   removeRoute(pathId: ID): CommandResult;
 
-  requestPass(fromPlayerId: ID, toPlayerId: ID, options?: { fromPoint?: { x: number; y: number } }): CommandResult;
-  requestShot(fromPlayerId: ID, target: { x: number; y: number }): CommandResult;
-  requestDump(fromPlayerId: ID, target: { x: number; y: number }, fromPoint?: { x: number; y: number }): CommandResult;
+  // Reshaping a route after it is drawn. `points` is the stored control
+  // polygon, so these move exactly the point the author grabbed.
+  moveRouteControl(pathId: ID, index: number, to: Point): CommandResult;
+  insertRouteControl(pathId: ID, index: number, at: Point): CommandResult;
+  removeRouteControl(pathId: ID, index: number): CommandResult;
+  setRouteShape(pathId: ID, shape: CurveShape): CommandResult;
+  /** Reduce a legacy dense route to a handful of editable control points. */
+  simplifyRoute(pathId: ID): CommandResult;
+
+  requestPass(fromPlayerId: ID, toPlayerId: ID, options?: { fromPoint?: Point }): CommandResult;
+  requestShot(fromPlayerId: ID, target: Point): CommandResult;
+  requestDump(fromPlayerId: ID, target: Point, fromPoint?: Point): CommandResult;
   requestPickup(playerId: ID): CommandResult;
   retargetPass(eventId: ID, receiverId: ID): CommandResult;
   convertDumpToPass(eventId: ID, receiverId: ID): CommandResult;
   removeEvent(eventId: ID): CommandResult;
   updatePassResult(eventId: ID, result: 'caught' | 'missed' | undefined): void;
   updateShotResult(eventId: ID, result: 'goal' | 'save' | 'rebound' | 'wide' | 'post' | undefined): void;
-  updateEventPath(eventId: ID, toPoint?: { x: number; y: number }, via?: { x: number; y: number } | null): void;
+  // Reshaping a puck line. Every one of these re-times the event's arrival
+  // from the new arc length, because the puck follows the drawn curve.
+  moveEventWaypoint(eventId: ID, index: number, to: Point): CommandResult;
+  insertEventWaypoint(eventId: ID, index: number, at: Point): CommandResult;
+  removeEventWaypoint(eventId: ID, index: number): CommandResult;
+  setEventTarget(eventId: ID, to: Point): CommandResult;
+  setEventShape(eventId: ID, shape: CurveShape): CommandResult;
 
   recoverOffRinkObjects(): CommandResult<number>;
 

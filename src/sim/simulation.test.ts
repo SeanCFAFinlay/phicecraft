@@ -13,7 +13,7 @@ import { nextLifecycle } from '@/engine/drillLifecycle';
 import { validateDrillMechanics } from '@/engine/drillValidation';
 import { getAimedNetTarget } from '@/engine/puck';
 import { distance } from '@/utils/geometry';
-import { smoothRoutePoints } from './routeSmoothing';
+import { expandCurve } from '@/utils/curves';
 import {
   getAuthoredPassInterception,
   getAuthoredPlayerFrame,
@@ -117,12 +117,15 @@ describe('deterministic hockey simulation', () => {
   });
 
   it('rounds route corners without moving the authored start or finish', () => {
+    // Route smoothing moved from Chaikin corner-cutting to an interpolating
+    // spline so a dragged handle lands on the line it shapes. Same intent,
+    // same guarantees about the endpoints.
     const authored = [
       { x: 20 * FT, y: 20 * FT },
       { x: 60 * FT, y: 20 * FT },
       { x: 60 * FT, y: 60 * FT },
     ];
-    const smoothed = smoothRoutePoints(authored);
+    const smoothed = expandCurve(authored, 'spline');
     expect(smoothed.length).toBeGreaterThan(authored.length);
     expect(smoothed[0]).toEqual(authored[0]);
     expect(smoothed[smoothed.length - 1]).toEqual(authored[authored.length - 1]);

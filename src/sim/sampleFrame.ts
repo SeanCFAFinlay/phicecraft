@@ -11,6 +11,7 @@ import { distance } from '@/utils/geometry';
 import { evaluateReception } from './receptionSolver';
 import { sampleSkater } from './skaterMotor';
 import { solveLoosePuck } from './puckSolver';
+import { getFlightPath, puckAlongFlight } from './flightPath';
 import { resolveShotResult, shotVelocity } from './shotSolver';
 import { chooseNearestPursuer } from './pursuitSolver';
 import { canCollectPuck } from './pickupSolver';
@@ -187,6 +188,13 @@ function defendingGoalieAt(
   return candidates.sort((a, b) => a.gap - b.gap)[0]?.frame ?? null;
 }
 
+/**
+ * Walk the puck along the AUTHORED line rather than straight to the target.
+ *
+ * The puck covers the curve's arc length over the event's flight window, so
+ * its speed is constant along a bent path and the drawn line is exactly the
+ * trajectory.
+ */
 function interpolateFlight(
   event: CompiledEvent,
   from: Point,
@@ -195,14 +203,34 @@ function interpolateFlight(
 ): AnimatedPuck {
   const duration = Math.max(0.001, event.arrivalSeconds - event.departureSeconds);
   const t = Math.max(0, Math.min(1, (timeSeconds - event.departureSeconds) / duration));
+
+  const flight = getFlightPath(event.source, from, to);
+  const sampled = puckAlongFlight(flight, t);
+  const speed = flight.length / duration;
+
   return {
-    x: from.x + (to.x - from.x) * t,
-    y: from.y + (to.y - from.y) * t,
+    x: sampled.position.x,
+    y: sampled.position.y,
     visible: true,
     state: event.source.type === 'shot' ? 'shot' : 'in_flight',
     intendedReceiverId: event.source.type === 'pass' ? event.source.toPlayerId : undefined,
-    velocity: { x: (to.x - from.x) / duration, y: (to.y - from.y) / duration },
+    velocity: { x: sampled.tangent.x * speed, y: sampled.tangent.y * speed },
   };
+}
+
+/**
+ * The puck's velocity as it arrives, used for rebounds and missed receptions.
+ *
+ * Taken from the tangent at the end of the flight path: a pass bent around a
+ * defender arrives travelling along the curve, not along the straight line
+ * back to where it was released.
+ */
+function arrivalVelocity(event: CompiledEvent, from: Point, to: Point): Point {
+  const duration = Math.max(0.001, event.arrivalSeconds - event.departureSeconds);
+  const flight = getFlightPath(event.source, from, to);
+  const sampled = puckAlongFlight(flight, 1);
+  const speed = flight.length / duration;
+  return { x: sampled.tangent.x * speed, y: sampled.tangent.y * speed };
 }
 
 function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolution {
@@ -295,8 +323,7 @@ function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolutio
       };
     }
 
-    const duration = Math.max(0.001, event.arrivalSeconds - event.departureSeconds);
-    const flightVelocity = { x: (to.x - from.x) / duration, y: (to.y - from.y) / duration };
+    const flightVelocity = arrivalVelocity(event, from, to);
     execution.status = 'completed';
 
     if (event.source.type === 'pass') {

@@ -170,7 +170,7 @@ function normalizeRoute(value: unknown, index: number, warnings: string[]): Skat
   }
 
   // Preserve any field a newer version of the app may have written.
-  const { id: _id, ownerId: _owner, team: _team, points: _points, mode, finish, ...rest } = value;
+  const { id: _id, ownerId: _owner, team: _team, points: _points, mode, finish, shape, ...rest } = value;
   void _id;
   void _owner;
   void _team;
@@ -182,6 +182,9 @@ function normalizeRoute(value: unknown, index: number, warnings: string[]): Skat
     ownerId,
     team: asTeam(value.team),
     points,
+    // Absent means spline: that is what every route did before the shape was
+    // selectable, so a legacy route keeps the curve it was drawn with.
+    shape: shape === 'polyline' ? 'polyline' : 'spline',
     mode: mode === 'glide' || mode === 'backward' ? mode : 'skate',
     finish: finish === 'coast' ? 'coast' : 'stop',
   } as SkatePath;
@@ -213,6 +216,25 @@ function normalizeEvent(value: unknown, index: number, warnings: string[]): Dril
     return null;
   }
 
+  // Waypoints, with the v1 single `via` bend migrated forward. `via` was one
+  // decorative control point; waypoints are a list, and they are simulated.
+  const legacyVia = asPoint(value.via);
+  const rawWaypoints = Array.isArray(value.waypoints)
+    ? value.waypoints
+    : legacyVia
+      ? [legacyVia]
+      : [];
+  const waypoints = rawWaypoints
+    .slice(0, IMPORT_LIMITS.maxWaypointsPerEvent)
+    .map(asPoint)
+    .filter((point): point is Point => point !== null);
+
+  if (rawWaypoints.length > waypoints.length) {
+    warnings.push(
+      `Event ${index} had ${rawWaypoints.length - waypoints.length} invalid waypoint(s), which were dropped.`
+    );
+  }
+
   const base = {
     id,
     fromPlayerId,
@@ -223,7 +245,8 @@ function normalizeEvent(value: unknown, index: number, warnings: string[]): Dril
     ...(typeof value.arrivalAt === 'number' && Number.isFinite(value.arrivalAt)
       ? { arrivalAt: value.arrivalAt }
       : {}),
-    ...(asPoint(value.via) ? { via: asPoint(value.via)! } : {}),
+    ...(waypoints.length > 0 ? { waypoints } : {}),
+    shape: value.shape === 'polyline' ? ('polyline' as const) : ('spline' as const),
   };
 
   if (type === 'pass') {
@@ -612,7 +635,7 @@ export function remapImportedDrill(
         fromPlayerId: playerIds.get(event.fromPlayerId)!,
         fromPoint: { ...event.fromPoint },
         toPoint: { ...event.toPoint },
-        ...(event.via ? { via: { ...event.via } } : {}),
+        ...(event.waypoints ? { waypoints: event.waypoints.map(point => ({ ...point })) } : {}),
       } as DrillEvent;
 
       if (remapped.type === 'pass' && event.type === 'pass') {

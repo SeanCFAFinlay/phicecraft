@@ -657,17 +657,18 @@ describe('event results and paths', () => {
     expect(harness.getState().drill.events[0]).toMatchObject({ result: 'save' });
   });
 
-  it('bends and re-aims a puck line, clamped to the rink', () => {
+  it('re-aims a shot or dump, clamped to the rink', () => {
     harness.commands.requestDump('h11', { x: 700, y: 300 });
     const eventId = harness.getState().drill.events[0].id;
 
-    harness.commands.updateEventPath(eventId, { x: 99_999, y: 99_999 }, { x: 600, y: 250 });
-    const event = harness.getState().drill.events[0];
-    expect(event.toPoint.x).toBeLessThanOrEqual(RINK.x + RINK.width);
-    expect(event.via).toEqual({ x: 600, y: 250 });
+    harness.commands.setEventTarget(eventId, { x: 99_999, y: 99_999 });
+    expect(harness.getState().drill.events[0].toPoint.x).toBeLessThanOrEqual(RINK.x + RINK.width);
+  });
 
-    harness.commands.updateEventPath(eventId, undefined, null);
-    expect(harness.getState().drill.events[0].via).toBeUndefined();
+  it('refuses to re-aim a pass, which lands on its receiver', () => {
+    harness.commands.requestPass('h11', 'h13');
+    const eventId = harness.getState().drill.events[0].id;
+    expect(harness.commands.setEventTarget(eventId, { x: 500, y: 200 }).status).toBe('rejected');
   });
 });
 

@@ -71,10 +71,28 @@ player it is for, what to do next, and offers **Cancel**. Escape cancels it too.
 | Drag the puck carrier toward a net | A shot, starting from their final route position |
 | Drag the puck carrier onto open ice | A dump; assign a receiver later from the event details |
 | Drag from a point on a route | Releases the puck at that moment in the drill |
-| Drag a route handle | Reshapes the path |
+| Drag a handle on a selected line | Reshapes it, one point at a time |
+| Tap a **+** between two handles | Adds a point there |
+| Tap a handle a second time | Removes that point |
 | Hold a player for 0.7 s | Repositions them (the same as pressing **Move**) |
 | Pinch, or scroll | Zoom |
 | Drag empty ice | Pan the rink, or orbit it in the 3D view |
+
+### Adjusting a line afterwards
+
+Selecting a route or a puck line puts a gold handle on each of its editable
+points, with a **+** between neighbours. Drag a handle to move that one point;
+the rest of the line stays where you put it. Both kinds of line can be
+**Curved** (a spline that bends smoothly through every point) or **Straight**
+(sharp corners), from the shape control in Details.
+
+A drawn route is reduced to around ten editable points rather than the hundreds
+of raw pointer samples, so there is something to grab.
+
+Bending a puck line is not decoration: **the puck flies the line you drew**. A
+longer line therefore takes longer to arrive, and the flight window widens in
+proportion so the authored puck speed is preserved. The event details report how
+far the puck actually travels.
 
 An ordinary pass goes to a **teammate**. Dragging onto an opponent is not a pass
 and is refused with an explanation, on every path — tap, drag, retarget and
@@ -141,7 +159,7 @@ and offers **Replace matching drill**. Replacement only happens when you choose
 it, and a recovery copy of your version is kept either way.
 
 Files are bounded: 10 MiB, 100 drills per import, 200 players, 500 routes and
-1,000 events per drill, 5,000 points per route. Anything that fails is reported
+1,000 events per drill, 5,000 points per route, 50 bend points per puck line. Anything that fails is reported
 per entry and kept for recovery — the rest of the file still imports.
 
 ---

@@ -64,7 +64,9 @@ function buildHitTester(overrides: Partial<HitTester> = {}): HitTester {
     routeAt: () => null,
     eventAt: () => null,
     routeHandleAt: () => null,
+    routeAddHandleAt: () => null,
     eventHandleAt: () => null,
+    eventAddHandleAt: () => null,
     routeAffordanceAt: () => null,
     passReceiverAt: () => null,
     toWorld: (point: Point) => point,
@@ -479,30 +481,94 @@ describe('camera gestures on empty ice', () => {
 
 describe('edit handles', () => {
   it('drags a route control handle', () => {
-    const controls = [{ x: 0, y: 0 }, { x: 10, y: 10 }];
-    const machine = build(
-      buildHitTester({ routeHandleAt: () => ({ pathId: 'r1', index: 1, controls }) })
-    );
+    const machine = build(buildHitTester({ routeHandleAt: () => ({ pathId: 'r1', index: 1 }) }));
 
     machine.pointerDown(touch(1, 100, 100));
     machine.pointerMove(touch(1, 120, 130));
     scheduler.flushFrames();
 
-    expect(handlers.onRouteHandleDrag).toHaveBeenCalledWith('r1', 1, controls, { x: 120, y: 130 });
+    expect(handlers.onRouteHandleDrag).toHaveBeenCalledWith('r1', 1, { x: 120, y: 130 });
     machine.pointerUp(touch(1, 120, 130));
     expect(handlers.onEditGestureEnd).toHaveBeenCalled();
   });
 
-  it('drags an event bend handle', () => {
+  it('drags a puck-line waypoint', () => {
     const machine = build(
-      buildHitTester({ eventHandleAt: () => ({ eventId: 'e1', part: 'bend' }) })
+      buildHitTester({ eventHandleAt: () => ({ eventId: 'e1', part: 'waypoint', index: 0 }) })
     );
 
     machine.pointerDown(touch(1, 100, 100));
     machine.pointerMove(touch(1, 120, 130));
     scheduler.flushFrames();
 
-    expect(handlers.onEventHandleDrag).toHaveBeenCalledWith('e1', 'bend', { x: 120, y: 130 });
+    expect(handlers.onEventHandleDrag).toHaveBeenCalledWith('e1', 'waypoint', 0, { x: 120, y: 130 });
+  });
+
+  it('drags a shot endpoint', () => {
+    const machine = build(
+      buildHitTester({ eventHandleAt: () => ({ eventId: 'e1', part: 'end', index: -1 }) })
+    );
+
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerMove(touch(1, 200, 200));
+    scheduler.flushFrames();
+
+    expect(handlers.onEventHandleDrag).toHaveBeenCalledWith('e1', 'end', -1, { x: 200, y: 200 });
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Adding a control point after the play is set up
+// ----------------------------------------------------------------------------
+
+describe('add-affordances', () => {
+  it('taps a route "+" without starting a drag', () => {
+    const machine = build(
+      buildHitTester({
+        routeAddHandleAt: () => ({ pathId: 'r1', index: 2, point: { x: 50, y: 50 } }),
+      })
+    );
+
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerUp(touch(1, 100, 100));
+
+    expect(handlers.onTap).toHaveBeenCalledTimes(1);
+    expect(handlers.onTap.mock.calls[0][1]).toEqual({
+      kind: 'route-add',
+      pathId: 'r1',
+      index: 2,
+      point: { x: 50, y: 50 },
+    });
+  });
+
+  it('taps a puck-line "+"', () => {
+    const machine = build(
+      buildHitTester({
+        eventAddHandleAt: () => ({ eventId: 'e1', index: 0, point: { x: 60, y: 60 } }),
+      })
+    );
+
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerUp(touch(1, 100, 100));
+
+    expect(handlers.onTap.mock.calls[0][1]).toEqual({
+      kind: 'event-add',
+      eventId: 'e1',
+      index: 0,
+      point: { x: 60, y: 60 },
+    });
+  });
+
+  it('lets a control point win over the "+" between two of them', () => {
+    const machine = build(
+      buildHitTester({
+        routeHandleAt: () => ({ pathId: 'r1', index: 1 }),
+        routeAddHandleAt: () => ({ pathId: 'r1', index: 2, point: { x: 50, y: 50 } }),
+      })
+    );
+
+    machine.pointerDown(touch(1, 100, 100));
+    expect(machine.current).toEqual({ kind: 'drag-route-handle', pathId: 'r1', index: 1 });
   });
 });
 

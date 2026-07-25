@@ -2,9 +2,11 @@
 // PATH RENDERER - Skate paths, passes, shots visualization
 // ============================================================================
 
-import type { Point, SkatePath, DrillEvent, Player, ID } from '@/core/types';
+import type { CurveShape, Point, SkatePath, DrillEvent, Player, ID } from '@/core/types';
 import { COLORS, RINK } from '@/core/constants';
-import { pointAtParameter, eventCurvePoints, routeControlPoints } from '@/utils/geometry';
+import { pointAtParameter } from '@/utils/geometry';
+import { controlMidpoints, expandCurve } from '@/utils/curves';
+import { flightControls } from '@/sim/flightPath';
 
 /**
  * Draw an arrow head at the end of a line
@@ -30,9 +32,15 @@ function drawArrowHead(
 }
 
 /**
- * Draw a curved line with arrow
+ * Stroke an already-expanded line, with an arrow head at the end.
+ *
+ * The points handed in are the final geometry - `expandCurve` has already
+ * applied the line's shape. This deliberately does NOT smooth again: a second
+ * pass of quadratic smoothing would round the corners a polyline exists to
+ * keep sharp, and would put the drawn line somewhere other than where the
+ * simulation puts the skater or puck.
  */
-function drawCurvedLine(
+function drawExpandedLine(
   ctx: CanvasRenderingContext2D,
   points: Point[],
   color: string,
@@ -50,14 +58,9 @@ function drawCurvedLine(
 
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
-
-  for (let i = 1; i < points.length - 1; i++) {
-    const mx = (points[i].x + points[i + 1].x) / 2;
-    const my = (points[i].y + points[i + 1].y) / 2;
-    ctx.quadraticCurveTo(points[i].x, points[i].y, mx, my);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x, points[i].y);
   }
-
-  ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
   ctx.stroke();
   ctx.setLineDash([]);
 
@@ -139,6 +142,10 @@ export function drawSkatePath(
     ? 'rgba(215, 48, 58, 0.82)'
     : 'rgba(48, 128, 255, 0.82)';
 
+  // `path.points` is the control polygon; this is the line the skater
+  // actually follows, expanded exactly as the simulation expands it.
+  const line = expandCurve(path.points, path.shape ?? 'spline');
+
   // Glow effect
   ctx.save();
   ctx.strokeStyle = color.replace('0.82', '0.07');
@@ -146,7 +153,7 @@ export function drawSkatePath(
   ctx.lineCap = 'round';
   ctx.setLineDash([]);
   ctx.beginPath();
-  path.points.forEach((p, i) => {
+  line.forEach((p, i) => {
     if (i === 0) ctx.moveTo(p.x, p.y);
     else ctx.lineTo(p.x, p.y);
   });
@@ -154,11 +161,11 @@ export function drawSkatePath(
   ctx.restore();
 
   // Main line (dashed)
-  drawCurvedLine(ctx, path.points, color, true, 2.6);
+  drawExpandedLine(ctx, line, color, true, 2.6);
 
   // Diamond markers at 25%, 50%, 75%
   [0.25, 0.5, 0.75].forEach(t => {
-    const pt = pointAtParameter(path.points, t);
+    const pt = pointAtParameter(line, t);
     const r = 4;
     ctx.fillStyle = color.replace('0.82', '0.42');
     ctx.beginPath();
@@ -195,7 +202,21 @@ export function drawRawSkate(
     ? 'rgba(215, 48, 58, 0.28)'
     : 'rgba(48, 128, 255, 0.28)';
 
-  drawCurvedLine(ctx, points, color, true, 2);
+  drawExpandedLine(ctx, points, color, true, 2);
+}
+
+/**
+ * The line a puck event travels: release point, authored waypoints,
+ * destination, expanded through the event's shape.
+ *
+ * This is the same expansion the simulation uses, so the drawn line and the
+ * flown line are one geometry rather than two that happen to look similar.
+ */
+export function eventFlightLine(event: DrillEvent): Point[] {
+  return expandCurve(
+    flightControls(event, event.fromPoint, event.toPoint),
+    event.shape ?? 'spline'
+  );
 }
 
 /**
@@ -210,9 +231,9 @@ export function drawPassEvent(
     ? COLORS.pass.home
     : COLORS.pass.away;
 
-  const arcPoints = eventCurvePoints(event.fromPoint, event.toPoint, event.via);
+  const arcPoints = eventFlightLine(event);
 
-  drawCurvedLine(ctx, arcPoints, color, false, 2.8);
+  drawExpandedLine(ctx, arcPoints, color, false, 2.8);
 
   // Puck dots at start and end
   drawPuckDot(ctx, event.fromPoint.x, event.fromPoint.y, color);
@@ -237,9 +258,9 @@ export function drawShotEvent(
 ): void {
   const color = COLORS.shot;
 
-  const arcPoints = eventCurvePoints(event.fromPoint, event.toPoint, event.via);
+  const arcPoints = eventFlightLine(event);
 
-  drawCurvedLine(ctx, arcPoints, color, false, 3);
+  drawExpandedLine(ctx, arcPoints, color, false, 3);
 
   // Target flash ring at net
   ctx.strokeStyle = 'rgba(255, 107, 15, 0.32)';
@@ -375,72 +396,157 @@ export function drawDragPreview(
   ctx.restore();
 }
 
-/**
- * The bend handle position for an event (its `via` point, or the straight
- * midpoint when it has not been bent yet).
- */
-export function eventBendPoint(event: DrillEvent): Point {
-  if (event.via) return event.via;
-  return {
-    x: (event.fromPoint.x + event.toPoint.x) / 2,
-    y: (event.fromPoint.y + event.toPoint.y) / 2,
-  };
+// ============================================================================
+// EDIT HANDLES
+//
+// Every control point of a line is a grabbable handle, and the midpoint of
+// each segment is an "add a point here" affordance. Before this, a route
+// showed five RESAMPLED proxies and dragging one replaced the whole path with
+// a five-point smooth - so adjusting a route destroyed the route.
+// ============================================================================
+
+/** Handle radius in world units. Matches the hit radius in useHitTesting. */
+export const CONTROL_HANDLE_RADIUS = 7;
+export const ADD_HANDLE_RADIUS = 5;
+
+function drawControlHandle(
+  ctx: CanvasRenderingContext2D,
+  point: Point,
+  accent: string,
+  fill: string
+): void {
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, CONTROL_HANDLE_RADIUS, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, CONTROL_HANDLE_RADIUS, 0, Math.PI * 2);
+  ctx.lineWidth = 2.4;
+  ctx.strokeStyle = accent;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, 2.4, 0, Math.PI * 2);
+  ctx.fillStyle = '#eaffff';
+  ctx.fill();
+}
+
+/** A hollow "+" marker: tap it to insert a control point on that segment. */
+function drawAddHandle(ctx: CanvasRenderingContext2D, point: Point, accent: string): void {
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, ADD_HANDLE_RADIUS, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(4, 14, 24, 0.72)';
+  ctx.fill();
+  ctx.lineWidth = 1.6;
+  ctx.strokeStyle = accent;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(point.x - 2.6, point.y);
+  ctx.lineTo(point.x + 2.6, point.y);
+  ctx.moveTo(point.x, point.y - 2.6);
+  ctx.lineTo(point.x, point.y + 2.6);
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
 }
 
 /**
- * Draggable control handles for reshaping the selected player's skate route.
- * The start (index 0) is pinned to the player, so only the rest are shown.
+ * Handles for reshaping a skate route.
+ *
+ * Index 0 is pinned to the player and is not draggable; everything after it
+ * is a real control point of the stored polygon.
  */
-export function drawRouteEditHandles(ctx: CanvasRenderingContext2D, points: Point[]): void {
-  const controls = routeControlPoints(points);
+export function drawRouteEditHandles(
+  ctx: CanvasRenderingContext2D,
+  points: Point[],
+  shape: CurveShape = 'spline'
+): void {
+  if (points.length < 2) return;
+
   ctx.save();
   ctx.setLineDash([]);
-  for (let i = 1; i < controls.length; i++) {
-    const c = controls[i];
+
+  // Faint control polygon, so the relationship between handles and the drawn
+  // line is legible - especially for a spline, which bows away from it.
+  if (shape === 'spline' && points.length > 2) {
     ctx.beginPath();
-    ctx.arc(c.x, c.y, 7, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0, 200, 240, 0.28)';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, 7, 0, Math.PI * 2);
-    ctx.lineWidth = 2.4;
-    ctx.strokeStyle = COLORS.cyan;
+    points.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.strokeStyle = 'rgba(0, 200, 240, 0.16)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
     ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, 2.4, 0, Math.PI * 2);
-    ctx.fillStyle = '#eaffff';
-    ctx.fill();
+    ctx.setLineDash([]);
   }
+
+  for (const { point } of controlMidpoints(points)) {
+    drawAddHandle(ctx, point, 'rgba(0, 200, 240, 0.75)');
+  }
+
+  for (let index = 1; index < points.length; index++) {
+    drawControlHandle(ctx, points[index], COLORS.cyan, 'rgba(0, 200, 240, 0.28)');
+  }
+
   ctx.restore();
 }
 
 /**
- * Draggable handles for editing a puck line: a bend handle at the middle and,
- * for shots/dumps, an endpoint handle to re-aim the target.
+ * Handles for reshaping a puck line: one per waypoint, an endpoint handle for
+ * shots and dumps, and an add-affordance on every segment.
  */
 export function drawEventEditHandles(ctx: CanvasRenderingContext2D, event: DrillEvent): void {
+  const controls = flightControls(event, event.fromPoint, event.toPoint);
+
   ctx.save();
-  const bend = eventBendPoint(event);
-  // Bend handle (gold diamond with a bright centre).
-  ctx.translate(bend.x, bend.y);
-  ctx.fillStyle = 'rgba(255, 214, 10, 0.22)';
-  ctx.strokeStyle = COLORS.gold;
-  ctx.lineWidth = 2.4;
-  const d = 9;
-  ctx.beginPath();
-  ctx.moveTo(0, -d);
-  ctx.lineTo(d, 0);
-  ctx.lineTo(0, d);
-  ctx.lineTo(-d, 0);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(0, 0, 2.4, 0, Math.PI * 2);
-  ctx.fillStyle = '#fff7d6';
-  ctx.fill();
+  ctx.setLineDash([]);
+
+  if ((event.shape ?? 'spline') === 'spline' && controls.length > 2) {
+    ctx.beginPath();
+    controls.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.strokeStyle = 'rgba(255, 214, 10, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  for (const { point } of controlMidpoints(controls)) {
+    drawAddHandle(ctx, point, 'rgba(255, 214, 10, 0.8)');
+  }
+
+  // Waypoints: gold diamonds, so they read as puck-line controls rather than
+  // route controls.
+  for (const waypoint of event.waypoints ?? []) {
+    ctx.save();
+    ctx.translate(waypoint.x, waypoint.y);
+    ctx.fillStyle = 'rgba(255, 214, 10, 0.22)';
+    ctx.strokeStyle = COLORS.gold;
+    ctx.lineWidth = 2.4;
+    const d = 9;
+    ctx.beginPath();
+    ctx.moveTo(0, -d);
+    ctx.lineTo(d, 0);
+    ctx.lineTo(0, d);
+    ctx.lineTo(-d, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff7d6';
+    ctx.fill();
+    ctx.restore();
+  }
+
   ctx.restore();
 
+  // A shot or dump ends on open ice or a net, so its target is re-aimable.
   if (event.type === 'shot' || event.type === 'dump') {
     ctx.save();
     ctx.beginPath();

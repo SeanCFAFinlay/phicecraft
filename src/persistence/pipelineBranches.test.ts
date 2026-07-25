@@ -130,11 +130,50 @@ describe('event normalization', () => {
     team: 'home',
   };
 
-  it('keeps timing and bend fields when they are finite', () => {
+  it('keeps finite timing', () => {
+    const { drill } = normalize({ events: [{ ...base, type: 'pickup', at: 0.3, arrivalAt: 0.4 }] });
+    expect(drill.events[0]).toMatchObject({ at: 0.3, arrivalAt: 0.4 });
+  });
+
+  it('migrates the v1 single `via` bend into a waypoint list', () => {
+    const { drill } = normalize({ events: [{ ...base, type: 'pickup', via: { x: 5, y: 5 } }] });
+    expect(drill.events[0].waypoints).toEqual([{ x: 5, y: 5 }]);
+    expect(drill.events[0]).not.toHaveProperty('via');
+  });
+
+  it('keeps an explicit waypoint list, ignoring any legacy `via` alongside it', () => {
     const { drill } = normalize({
-      events: [{ ...base, type: 'pickup', at: 0.3, arrivalAt: 0.4, via: { x: 5, y: 5 } }],
+      events: [
+        {
+          ...base,
+          type: 'pickup',
+          via: { x: 1, y: 1 },
+          waypoints: [
+            { x: 5, y: 5 },
+            { x: 7, y: 7 },
+          ],
+        },
+      ],
     });
-    expect(drill.events[0]).toMatchObject({ at: 0.3, arrivalAt: 0.4, via: { x: 5, y: 5 } });
+    expect(drill.events[0].waypoints).toEqual([
+      { x: 5, y: 5 },
+      { x: 7, y: 7 },
+    ]);
+  });
+
+  it('drops waypoints with non-finite coordinates and reports it', () => {
+    const { drill, warnings } = normalize({
+      events: [{ ...base, type: 'pickup', waypoints: [{ x: 5, y: 5 }, { x: Number.NaN, y: 2 }, null] }],
+    });
+    expect(drill.events[0].waypoints).toEqual([{ x: 5, y: 5 }]);
+    expect(warnings.some(warning => warning.includes('invalid waypoint'))).toBe(true);
+  });
+
+  it('defaults a line to a spline, and keeps an explicit polyline', () => {
+    expect(normalize({ events: [{ ...base, type: 'pickup' }] }).drill.events[0].shape).toBe('spline');
+    expect(
+      normalize({ events: [{ ...base, type: 'pickup', shape: 'polyline' }] }).drill.events[0].shape
+    ).toBe('polyline');
   });
 
   it('drops non-finite timing rather than storing NaN', () => {
@@ -296,7 +335,7 @@ describe('remapImportedDrill edge cases', () => {
     expect(remapped.settings?.assistance).toBe('standard');
   });
 
-  it('copies a bend point rather than sharing it', () => {
+  it('copies waypoints rather than sharing them', () => {
     const drill = buildDrill({
       events: [
         {
@@ -305,13 +344,13 @@ describe('remapImportedDrill edge cases', () => {
           fromPlayerId: 'p1',
           fromPoint: { x: 0, y: 0 },
           toPoint: { x: 1, y: 1 },
-          via: { x: 5, y: 5 },
+          waypoints: [{ x: 5, y: 5 }],
           team: 'home',
         },
       ],
     });
     const remapped = remapImportedDrill(drill, sequentialIds('x'), FIXED_NOW);
-    expect(remapped.events[0].via).toEqual({ x: 5, y: 5 });
-    expect(remapped.events[0].via).not.toBe(drill.events[0].via);
+    expect(remapped.events[0].waypoints).toEqual([{ x: 5, y: 5 }]);
+    expect(remapped.events[0].waypoints).not.toBe(drill.events[0].waypoints);
   });
 });

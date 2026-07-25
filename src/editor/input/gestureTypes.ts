@@ -21,8 +21,8 @@ export type Gesture =
   | { kind: 'move-coach'; coachId: ID }
   | { kind: 'draw-route'; ownerId: ID }
   | { kind: 'drag-puck'; playerId: ID; from: Point }
-  | { kind: 'drag-route-handle'; pathId: ID; index: number; controls: Point[] }
-  | { kind: 'drag-event-handle'; eventId: ID; part: 'bend' | 'end' };
+  | { kind: 'drag-route-handle'; pathId: ID; index: number }
+  | { kind: 'drag-event-handle'; eventId: ID; part: EventHandlePart; index: number };
 
 /** What was under the pointer when it went down. */
 export type PressTarget =
@@ -31,9 +31,15 @@ export type PressTarget =
   | { kind: 'coach'; coachId: ID }
   | { kind: 'route'; pathId: ID; ownerId: ID; point: Point }
   | { kind: 'event'; eventId: ID }
-  | { kind: 'route-handle'; pathId: ID; index: number; controls: Point[] }
-  | { kind: 'event-handle'; eventId: ID; part: 'bend' | 'end' }
+  | { kind: 'route-handle'; pathId: ID; index: number }
+  | { kind: 'event-handle'; eventId: ID; part: EventHandlePart; index: number }
+  /** The "+" between two controls: tap to insert a point there. */
+  | { kind: 'route-add'; pathId: ID; index: number; point: Point }
+  | { kind: 'event-add'; eventId: ID; index: number; point: Point }
   | { kind: 'route-affordance'; playerId: ID };
+
+/** Which part of a puck line a handle belongs to. */
+export type EventHandlePart = 'waypoint' | 'end';
 
 /** Hit-testing the canvas provides, in screen coordinates. */
 export interface HitTester {
@@ -41,8 +47,10 @@ export interface HitTester {
   coachAt(point: Point): ID | null;
   routeAt(point: Point): { pathId: ID; ownerId: ID; point: Point } | null;
   eventAt(point: Point): ID | null;
-  routeHandleAt(point: Point): { pathId: ID; index: number; controls: Point[] } | null;
-  eventHandleAt(point: Point): { eventId: ID; part: 'bend' | 'end' } | null;
+  routeHandleAt(point: Point): { pathId: ID; index: number } | null;
+  routeAddHandleAt(point: Point): { pathId: ID; index: number; point: Point } | null;
+  eventHandleAt(point: Point): { eventId: ID; part: EventHandlePart; index: number } | null;
+  eventAddHandleAt(point: Point): { eventId: ID; index: number; point: Point } | null;
   routeAffordanceAt(point: Point): ID | null;
   passReceiverAt(point: Point, excludePlayerId?: ID): ID | null;
   toWorld(point: Point): Point;
@@ -68,8 +76,8 @@ export interface GestureHandlers {
   onPuckDragPreview(playerId: ID, from: Point, to: Point, receiverId: ID | null): void;
   onPuckDragRelease(playerId: ID, from: Point, releaseScreen: Point, receiverId: ID | null): void;
 
-  onRouteHandleDrag(pathId: ID, index: number, controls: Point[], world: Point): void;
-  onEventHandleDrag(eventId: ID, part: 'bend' | 'end', world: Point): void;
+  onRouteHandleDrag(pathId: ID, index: number, world: Point): void;
+  onEventHandleDrag(eventId: ID, part: EventHandlePart, index: number, world: Point): void;
   onEditGestureEnd(): void;
 
   onPanOrOrbit(camera: Camera): void;

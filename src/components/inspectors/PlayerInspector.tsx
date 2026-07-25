@@ -13,6 +13,7 @@ import { useAppState, useCommands } from '@/hooks/useAppState';
 import { ROLE_NAMES } from '@/core/constants';
 import { distance } from '@/utils/geometry';
 import { getCurrentPuckHolder } from '@/engine/puck';
+import { MAX_COMFORTABLE_CONTROLS, ROUTE_CONTROL_TARGET } from '@/utils/curves';
 
 export function PlayerInspector() {
   const { state } = useAppState();
@@ -82,7 +83,52 @@ export function PlayerInspector() {
 
           {route && (
             <>
-              <div className="mt-2 grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Skating style">
+              {/* Spline vs polyline: how the line runs between its points. */}
+              <div className="mt-3 grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Route shape">
+                {(
+                  [
+                    { shape: 'spline' as const, label: 'Curved', hint: 'Carves through each point' },
+                    { shape: 'polyline' as const, label: 'Straight', hint: 'Sharp corners at each point' },
+                  ]
+                ).map(option => (
+                  <button
+                    key={option.shape}
+                    type="button"
+                    role="radio"
+                    aria-checked={(route.shape ?? 'spline') === option.shape}
+                    onClick={() => commands.setRouteShape(route.id, option.shape)}
+                    className={`touch-target rounded-xl border px-2 py-2 text-left ${
+                      (route.shape ?? 'spline') === option.shape
+                        ? 'border-app-cyan bg-app-cyan/15 text-app-cyan'
+                        : 'border-app-border bg-white/5 text-white/55'
+                    }`}
+                  >
+                    <span className="block text-[13px] font-bold">{option.label}</span>
+                    <span className="block text-[11px] leading-snug opacity-70">{option.hint}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-2 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2.5 text-[13px]">
+                <span className="text-white/50">Editable points</span>
+                <span className="font-bold text-app-text">{route.points.length}</span>
+              </div>
+              <p className="mt-1.5 text-[12px] leading-snug text-white/45">
+                Drag any handle on the rink to reshape the route. Tap a “+” between two handles to
+                add a point, or tap a handle twice to remove it.
+              </p>
+
+              {route.points.length > MAX_COMFORTABLE_CONTROLS && (
+                <button
+                  type="button"
+                  onClick={() => commands.simplifyRoute(route.id)}
+                  className="touch-target mt-2 w-full rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-3 text-[13px] font-bold text-amber-200"
+                >
+                  Simplify to {ROUTE_CONTROL_TARGET} editable points
+                </button>
+              )}
+
+              <div className="mt-3 grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Skating style">
                 {(['skate', 'glide', 'backward'] as const).map(mode => (
                   <button
                     key={mode}

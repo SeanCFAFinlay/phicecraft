@@ -23,6 +23,8 @@ export const IMPORT_LIMITS = {
   maxRoutesPerDrill: 500,
   maxEventsPerDrill: 1000,
   maxPointsPerRoute: 5000,
+  /** A puck line bent through more than this is not a drill, it is a scribble. */
+  maxWaypointsPerEvent: 50,
   maxCoachesPerDrill: 100,
   maxNameLength: 200,
 } as const;
@@ -69,11 +71,14 @@ export const CoachSchema = z.object({
 
 // Routes and events use loose objects so a document written by a newer version
 // of the app keeps its extra fields instead of being silently trimmed.
+const shapeSchema = z.enum(['spline', 'polyline']);
+
 export const SkatePathSchema = z.looseObject({
   id: idSchema,
   ownerId: idSchema,
   team: teamSchema,
   points: z.array(PointSchema).min(1).max(IMPORT_LIMITS.maxPointsPerRoute),
+  shape: shapeSchema.optional(),
   mode: z.enum(['skate', 'glide', 'backward']).optional(),
   finish: z.enum(['coast', 'stop']).optional(),
 });
@@ -86,7 +91,8 @@ const baseEventFields = {
   team: teamSchema,
   at: finiteNumber.optional(),
   arrivalAt: finiteNumber.optional(),
-  via: PointSchema.optional(),
+  waypoints: z.array(PointSchema).max(IMPORT_LIMITS.maxWaypointsPerEvent).optional(),
+  shape: shapeSchema.optional(),
 };
 
 export const PassEventSchema = z.looseObject({

@@ -358,7 +358,60 @@ end-to-end suite, and are fixed:
 
 ---
 
-## 14. Remaining limitations
+## 14. Addendum — adjustable line shapes
+
+Added after the ten repair phases, on the same branch lineage: spline and
+polyline shapes for both skating routes and puck lines, with control points that
+stay adjustable once the play is set up.
+
+**Model.** `SkatePath.points` and `DrillEvent.waypoints` are *control points*,
+not samples. `src/utils/curves.ts` expands them at render and simulation time
+via `expandCurve(controls, shape)`, where `shape` is `'spline'` (centripetal
+Catmull-Rom, alpha = 0.5) or `'polyline'` (straight segments, sharp corners).
+Catmull-Rom was chosen over the previous Chaikin corner-cutting because it is
+*interpolating*: the curve passes through every control point, so a dragged
+handle sits on the line the coach sees. Chaikin only approximated, which left
+handles floating beside their own curve.
+
+**The line is now the trajectory.** Previously `DrillEvent.via` bent only the
+drawing while `solvePassInterception` flew the puck straight to the receiver's
+blade — the inspector described that line as "the exact puck trajectory", which
+was false. `via` is gone, replaced by `waypoints: Point[]`, and
+`src/sim/flightPath.ts` gives the simulation an arc-length parameterisation of
+the drawn curve. Legacy `via` is migrated to a single waypoint on import.
+
+**Re-timing.** Bending a line makes it longer. Rather than recompute from a
+nominal puck speed (which would discard the authored pace), the flight window is
+scaled proportionally in `applyEventGeometry`:
+`arrivalAt = at + (arrivalAt - at) * (newLength / oldLength)`. The authored puck
+speed is preserved and only the extra distance is charged for.
+
+**Route capture.** A drawn route is reduced to about ten control points
+(`simplifyToControls`, `ROUTE_CONTROL_TARGET = 10`) rather than the hundreds of
+raw pointer samples, so there is something to grab. Dragging a handle moves that
+one point; its neighbours are untouched. This replaced `processRawPath`, which
+rebuilt the whole route as a five-point smooth on every edit.
+
+**Editing.** `PathRenderer` draws a handle per control point and a `+` between
+neighbours; `useHitTesting` hit-tests the *expanded* line, not the control
+polygon. Tapping a `+` inserts a point; tapping a handle a second time removes
+it. Both inspectors carry a Curved/Straight radiogroup, and the event inspector
+reports how far the puck actually travels.
+
+**Tests.** 89 new unit tests (`curves.test.ts` 37, `flightPath.test.ts` 20,
+`lineShapeCommands.test.ts` 32) and 9 new E2E tests in the `line-shapes`
+project. Suite total 739 unit tests across 28 files and 122 E2E tests, all
+passing; the 36 visual baselines were re-run and did not need regenerating.
+`src/sim/routeSmoothing.ts` was deleted.
+
+One test premise was wrong on the first pass and is worth recording: it asserted
+that a spline through a set of points is *shorter* than the polyline through
+them. It is not — an interpolating spline bows outside the control polygon, so
+it is longer (308.9 vs 300 in the fixture). The assertion now tests the property
+that actually distinguishes them, maximum turn angle: pi/2 for the polyline
+corner, under 0.5 rad for the spline.
+
+## 15. Remaining limitations
 
 Each is evidence-backed. None is a guess.
 

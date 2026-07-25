@@ -7,7 +7,17 @@
 // tells the user what happened.
 // ============================================================================
 
-import type { CoachMarker, ID, PassEvent, Player, Point, SkatePath, Team } from '@/core/types';
+import type {
+  CoachMarker,
+  CurveShape,
+  DrillEvent,
+  ID,
+  PassEvent,
+  Player,
+  Point,
+  SkatePath,
+  Team,
+} from '@/core/types';
 import {
   createCoach,
   createPlayer,
@@ -23,7 +33,18 @@ import {
   validatePass,
   validateShot,
 } from '@/engine/puck';
-import { constrainToRink, distance, isInsideRink, processRawPath } from '@/utils/geometry';
+import { constrainToRink, distance, isInsideRink } from '@/utils/geometry';
+import {
+  MAX_COMFORTABLE_CONTROLS,
+  MIN_CONTROLS,
+  ROUTE_CONTROL_TARGET,
+  insertControl,
+  moveControl,
+  removeControl,
+  simplifyToControls,
+} from '@/utils/curves';
+import { measureFlight } from '@/sim/flightPath';
+import { IMPORT_LIMITS } from '@/persistence/schema';
 import { generateId } from '@/utils/id';
 import { DEFAULT_DRILL_DURATION, PLAYER_RADIUS, RINK_CENTER_X } from '@/core/constants';
 import { compileDrill } from '@/sim/compileDrill';
@@ -35,6 +56,9 @@ import {
 } from '@/sim/authoring';
 import { CONFIRMATIONS } from './confirmations';
 import { done, failed, rejected, type AuthoringCommands, type CommandHost, type CommandResult } from './commandTypes';
+
+/** A puck line bent through more than this is a scribble, not a drill. */
+const MAX_EVENT_WAYPOINTS = IMPORT_LIMITS.maxWaypointsPerEvent;
 
 /** Keep authored objects this far off the boards so they stay grabbable. */
 export const RINK_MARGIN = PLAYER_RADIUS;
@@ -49,6 +73,57 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
 
   const findPlayer = (id: ID): Player | undefined =>
     getState().drill.players.find(player => player.id === id);
+
+  const findRoute = (id: ID): SkatePath | undefined =>
+    getState().drill.skatePaths.find(route => route.id === id);
+
+  const findEvent = (id: ID): DrillEvent | undefined =>
+    getState().drill.events.find(event => event.id === id);
+
+  /**
+   * Apply a geometry change to a puck line, re-timing its arrival so the puck
+   * keeps the speed it was authored at.
+   *
+   * Scaling the existing flight window by the length ratio - rather than
+   * recomputing from a nominal puck speed - preserves whatever pace the author
+   * or the interception solver originally chose, and only charges for the
+   * extra distance the new shape adds.
+   */
+  function applyEventGeometry(
+    event: DrillEvent,
+    changes: { toPoint?: Point; waypoints?: Point[]; shape?: CurveShape }
+  ): void {
+    const shape = changes.shape ?? event.shape ?? 'spline';
+    const waypoints = changes.waypoints ?? event.waypoints ?? [];
+    const toPoint = changes.toPoint ?? event.toPoint;
+
+    const before = measureFlight(
+      event.fromPoint,
+      event.waypoints ?? [],
+      event.toPoint,
+      event.shape ?? 'spline'
+    );
+    const after = measureFlight(event.fromPoint, waypoints, toPoint, shape);
+
+    let arrivalAt: number | undefined;
+    if (
+      event.at !== undefined &&
+      event.arrivalAt !== undefined &&
+      before > 1e-6 &&
+      event.arrivalAt > event.at
+    ) {
+      const window = event.arrivalAt - event.at;
+      arrivalAt = Math.min(1, Math.max(event.at + 0.005, event.at + window * (after / before)));
+    }
+
+    dispatch({
+      type: 'UPDATE_EVENT_GEOMETRY',
+      id: event.id,
+      ...changes,
+      waypoints: changes.waypoints,
+      arrivalAt,
+    });
+  }
 
   // --------------------------------------------------------------------------
   // Event authoring helpers
@@ -277,7 +352,12 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       if (!owner) return rejected('That player is no longer on the ice.');
       if (rawPoints.length < 2) return rejected('That route was too short to keep.');
 
-      const points = processRawPath(rawPoints).map(point => constrainToRink(point, RINK_MARGIN));
+      // Hundreds of raw pointer samples become a handful of CONTROL POINTS,
+      // every one of which is a grabbable handle. The route is stored as that
+      // control polygon; its shape decides how it is drawn and skated.
+      const points = simplifyToControls(rawPoints, ROUTE_CONTROL_TARGET).map(point =>
+        constrainToRink(point, RINK_MARGIN)
+      );
       const path: SkatePath = createSkatePath(ownerId, owner.team, points);
 
       dispatch({ type: 'ADD_SKATE_PATH', path });
@@ -291,16 +371,95 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       return done(path.id);
     },
 
-    updateRoutePoints(pathId, points) {
+    // ------------------------------------------------------------------------
+    // Reshaping a route after it is drawn
+    //
+    // `points` is the stored control polygon, so these move exactly the point
+    // the author grabbed. The previous implementation resampled five proxy
+    // handles and, on drag, replaced the whole route with a five-point smooth -
+    // adjusting a route destroyed it.
+    // ------------------------------------------------------------------------
+
+    moveRouteControl(pathId, index, to) {
+      const path = findRoute(pathId);
+      if (!path) return rejected('That route is no longer on the ice.');
+      if (index <= 0 || index >= path.points.length) {
+        // Index 0 is pinned to the player: a route has to start where they do.
+        return rejected('That point cannot be moved.');
+      }
+
       dispatch({
         type: 'UPDATE_SKATE_POINTS',
         id: pathId,
-        points: points.map(point => constrainToRink(point, RINK_MARGIN)),
+        points: moveControl(path.points, index, constrainToRink(to, RINK_MARGIN)),
       });
+      return done();
+    },
+
+    insertRouteControl(pathId, index, at) {
+      const path = findRoute(pathId);
+      if (!path) return rejected('That route is no longer on the ice.');
+
+      dispatch({ type: 'PUSH_UNDO' });
+      dispatch({
+        type: 'UPDATE_SKATE_POINTS',
+        id: pathId,
+        points: insertControl(path.points, index, constrainToRink(at, RINK_MARGIN)),
+      });
+      return done();
+    },
+
+    removeRouteControl(pathId, index) {
+      const path = findRoute(pathId);
+      if (!path) return rejected('That route is no longer on the ice.');
+      if (path.points.length <= MIN_CONTROLS) {
+        return reject('A route needs at least two points.');
+      }
+      if (index <= 0) return rejected('The starting point cannot be removed.');
+
+      dispatch({ type: 'PUSH_UNDO' });
+      dispatch({ type: 'UPDATE_SKATE_POINTS', id: pathId, points: removeControl(path.points, index) });
+      return done();
+    },
+
+    setRouteShape(pathId, shape) {
+      const path = findRoute(pathId);
+      if (!path) return rejected('That route is no longer on the ice.');
+      if ((path.shape ?? 'spline') === shape) return done();
+
+      dispatch({ type: 'UPDATE_SKATE_PATH', id: pathId, updates: { shape } });
+      notify.toast({
+        message: shape === 'spline' ? 'Route curves through its points' : 'Route runs straight between its points',
+        type: 'info',
+        duration: 2200,
+        dedupeKey: `route-shape:${shape}`,
+      });
+      return done();
+    },
+
+    simplifyRoute(pathId) {
+      const path = findRoute(pathId);
+      if (!path) return rejected('That route is no longer on the ice.');
+      if (path.points.length <= MAX_COMFORTABLE_CONTROLS) {
+        return reject('That route already has a handful of editable points.');
+      }
+
+      const before = path.points.length;
+      dispatch({ type: 'PUSH_UNDO' });
+      dispatch({
+        type: 'UPDATE_SKATE_POINTS',
+        id: pathId,
+        points: simplifyToControls(path.points),
+      });
+      notify.toast({
+        message: `Route reduced from ${before} points to ${ROUTE_CONTROL_TARGET} editable ones`,
+        type: 'success',
+      });
+      return done();
     },
 
     updateRouteStyle(pathId, updates) {
-      const path = getState().drill.skatePaths.find(route => route.id === pathId);
+      const path = findRoute(pathId);
       if (!path) return;
       dispatch({
         type: 'UPDATE_SKATE_PATH',
@@ -556,13 +715,84 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       dispatch({ type: 'UPDATE_SHOT_RESULT', id: eventId, result });
     },
 
-    updateEventPath(eventId, toPoint, via) {
-      dispatch({
-        type: 'UPDATE_EVENT_PATH',
-        id: eventId,
-        toPoint: toPoint ? constrainToRink(toPoint, RINK_MARGIN) : undefined,
-        via: via === null ? null : via ? constrainToRink(via, RINK_MARGIN) : undefined,
+    // ------------------------------------------------------------------------
+    // Reshaping a puck line after it is authored
+    //
+    // Waypoints are simulated, not decorative: the puck walks the arc length
+    // of the drawn curve, so every one of these re-times the event's arrival
+    // to keep the puck travelling at the speed it was authored with.
+    // ------------------------------------------------------------------------
+
+    moveEventWaypoint(eventId, index, to) {
+      const event = findEvent(eventId);
+      if (!event) return rejected('That puck action is already gone.');
+
+      const waypoints = event.waypoints ?? [];
+      if (index < 0 || index >= waypoints.length) return rejected('That point cannot be moved.');
+
+      const next = moveControl(waypoints, index, constrainToRink(to, RINK_MARGIN));
+      applyEventGeometry(event, { waypoints: next });
+      return done();
+    },
+
+    setEventTarget(eventId, to) {
+      const event = findEvent(eventId);
+      if (!event) return rejected('That puck action is already gone.');
+      if (event.type === 'pass') {
+        // A pass ends on its receiver's blade; re-aim it by changing receiver.
+        return rejected('A pass lands on its receiver — choose a different one instead.');
+      }
+
+      applyEventGeometry(event, { toPoint: constrainToRink(to, RINK_MARGIN) });
+      return done();
+    },
+
+    insertEventWaypoint(eventId, index, at) {
+      const event = findEvent(eventId);
+      if (!event) return rejected('That puck action is already gone.');
+
+      const waypoints = event.waypoints ?? [];
+      if (waypoints.length >= MAX_EVENT_WAYPOINTS) {
+        return reject(`A puck line can bend through at most ${MAX_EVENT_WAYPOINTS} points.`);
+      }
+
+      const clamped = Math.max(0, Math.min(waypoints.length, index));
+      const next = [...waypoints];
+      next.splice(clamped, 0, constrainToRink(at, RINK_MARGIN));
+
+      dispatch({ type: 'PUSH_UNDO' });
+      applyEventGeometry(event, { waypoints: next });
+      return done();
+    },
+
+    removeEventWaypoint(eventId, index) {
+      const event = findEvent(eventId);
+      if (!event) return rejected('That puck action is already gone.');
+
+      const waypoints = event.waypoints ?? [];
+      if (index < 0 || index >= waypoints.length) return rejected('There is no such point.');
+
+      dispatch({ type: 'PUSH_UNDO' });
+      applyEventGeometry(event, { waypoints: waypoints.filter((_, current) => current !== index) });
+      return done();
+    },
+
+    setEventShape(eventId, shape) {
+      const event = findEvent(eventId);
+      if (!event) return rejected('That puck action is already gone.');
+      if ((event.shape ?? 'spline') === shape) return done();
+
+      applyEventGeometry(event, { shape });
+      notify.toast({
+        message:
+          shape === 'spline'
+            ? 'Puck line curves through its points'
+            : 'Puck line runs straight between its points',
+        type: 'info',
+        duration: 2200,
+        dedupeKey: `event-shape:${shape}`,
       });
+      return done();
     },
 
     // ------------------------------------------------------------------------
@@ -598,11 +828,27 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       }
 
       for (const event of drill.events) {
+        // A bent line can have waypoints outside the boards even when both of
+        // its endpoints are fine.
+        const waypoints = event.waypoints ?? [];
+        if (waypoints.length > 0 && waypoints.some(point => !isInsideRink(point, RINK_MARGIN))) {
+          dispatch({
+            type: 'UPDATE_EVENT_GEOMETRY',
+            id: event.id,
+            waypoints: waypoints.map(point => constrainToRink(point, RINK_MARGIN)),
+          });
+          recovered += 1;
+        }
+
         // A shot legitimately ends inside the net, so only dumps and passes
         // are pulled back onto the sheet.
         if (event.type === 'shot') continue;
         if (isInsideRink(event.toPoint, RINK_MARGIN)) continue;
-        dispatch({ type: 'UPDATE_EVENT_PATH', id: event.id, toPoint: constrainToRink(event.toPoint, RINK_MARGIN) });
+        dispatch({
+          type: 'UPDATE_EVENT_GEOMETRY',
+          id: event.id,
+          toPoint: constrainToRink(event.toPoint, RINK_MARGIN),
+        });
         recovered += 1;
       }
 

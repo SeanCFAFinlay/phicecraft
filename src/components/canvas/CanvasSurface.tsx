@@ -22,7 +22,7 @@ import { GestureStateMachine } from '@/editor/input/GestureStateMachine';
 import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input/gestureTypes';
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { RINK, TABLETOP_MIN_TILT, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
-import { distance, routeFromControls, screenToWorld } from '@/utils/geometry';
+import { distance, screenToWorld } from '@/utils/geometry';
 import { getAimedNetTarget } from '@/engine/puck';
 import type { ID, Point } from '@/core/types';
 
@@ -160,6 +160,25 @@ export function CanvasSurface() {
       }
 
       switch (target.kind) {
+        // Tapping a "+" between two controls inserts a point there, which is
+        // how a line gains detail after the play is set up.
+        case 'route-add':
+          commands.insertRouteControl(target.pathId, target.index, target.point);
+          return;
+        case 'event-add':
+          commands.insertEventWaypoint(target.eventId, target.index, target.point);
+          return;
+
+        // Tapping a control point a second time removes it.
+        case 'route-handle':
+          if (second) commands.removeRouteControl(target.pathId, target.index);
+          return;
+        case 'event-handle':
+          if (second && target.part === 'waypoint') {
+            commands.removeEventWaypoint(target.eventId, target.index);
+          }
+          return;
+
         case 'player':
           if (second) commands.openPlayerInspector(target.playerId);
           else handlePlayerTap(target.playerId);
@@ -307,18 +326,15 @@ export function CanvasSurface() {
         else commands.requestDump(playerId, release, from);
       },
 
-      onRouteHandleDrag: (pathId, index, controls, world) => {
+      onRouteHandleDrag: (pathId, index, world) => {
         commands.setPendingAction({ kind: 'edit-route', pathId });
-        commands.updateRoutePoints(
-          pathId,
-          routeFromControls(controls.map((control, i) => (i === index ? world : control)))
-        );
+        commands.moveRouteControl(pathId, index, world);
       },
 
-      onEventHandleDrag: (eventId, part, world) => {
+      onEventHandleDrag: (eventId, part, index, world) => {
         commands.setPendingAction({ kind: 'edit-event', eventId });
-        if (part === 'end') commands.updateEventPath(eventId, world);
-        else commands.updateEventPath(eventId, undefined, world);
+        if (part === 'end') commands.setEventTarget(eventId, world);
+        else commands.moveEventWaypoint(eventId, index, world);
       },
 
       onEditGestureEnd: () => {

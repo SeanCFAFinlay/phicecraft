@@ -60,6 +60,12 @@ export default defineConfig({
       testMatch: /flows\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
     },
+    // Adjusting a route or puck line after the play is set up.
+    {
+      name: 'line-shapes',
+      testMatch: /lineShapes\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
+    },
     // Mobile flows exercise the phone-specific disclosure model.
     {
       name: 'mobile-flows',

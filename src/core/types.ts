@@ -88,11 +88,29 @@ export interface CoachMarker {
 // SKATE PATH
 // ============================================================================
 
+/**
+ * How an authored line is drawn between its control points.
+ *
+ * `spline`   a curve that passes through every control point
+ * `polyline` straight segments with sharp corners
+ *
+ * Absent means `spline`, which is what every route did before the shape was
+ * selectable.
+ */
+export type CurveShape = 'spline' | 'polyline';
+
 export interface SkatePath {
   id: ID;
   ownerId: ID; // Player who owns this path
   team: Team;
+  /**
+   * The CONTROL POLYGON, not the drawn line. The renderer and the simulation
+   * both expand it through `shape`, so what is drawn and what is skated are
+   * the same geometry. Each point is a handle the author can drag, insert or
+   * delete after the play is set up.
+   */
   points: Point[];
+  shape?: CurveShape;
   /** Optional authored route behaviour. Legacy paths default to a forward skate. */
   mode?: 'skate' | 'glide' | 'backward';
   finish?: 'coast' | 'stop';
@@ -115,10 +133,15 @@ interface BaseEvent {
   /** Normalized drill time when the puck reaches its destination. */
   arrivalAt?: number;
   /**
-   * Optional control point the puck curves through. Set when the author drags
-   * a puck line's midpoint handle to bend its path; absent = straight line.
+   * Control points the puck travels through, between `fromPoint` and
+   * `toPoint`. Absent or empty is a straight line.
+   *
+   * These are simulated, not decorative: flight time is measured along the
+   * resulting curve, so bending a pass around a defender genuinely makes it
+   * take longer to arrive.
    */
-  via?: Point;
+  waypoints?: Point[];
+  shape?: CurveShape;
 }
 
 // Pass event - puck goes from one player to another
@@ -526,9 +549,18 @@ export type AppAction =
   // Path actions
   | { type: 'ADD_SKATE_PATH'; path: SkatePath }
   | { type: 'REMOVE_SKATE_PATH'; id: ID }
-  | { type: 'UPDATE_SKATE_PATH'; id: ID; updates: Pick<SkatePath, 'mode' | 'finish'> }
+  | { type: 'UPDATE_SKATE_PATH'; id: ID; updates: Partial<Pick<SkatePath, 'mode' | 'finish' | 'shape'>> }
   | { type: 'UPDATE_SKATE_POINTS'; id: ID; points: Point[] }
-  | { type: 'UPDATE_EVENT_PATH'; id: ID; toPoint?: Point; via?: Point | null }
+  /** Re-aim a puck line's end, reshape its waypoints, or change its shape. */
+  | {
+      type: 'UPDATE_EVENT_GEOMETRY';
+      id: ID;
+      toPoint?: Point;
+      waypoints?: Point[];
+      shape?: CurveShape;
+      /** Re-timed from the new arc length by the command layer. */
+      arrivalAt?: number;
+    }
 
   // Event actions
   | { type: 'ADD_PASS'; event: PassEvent }

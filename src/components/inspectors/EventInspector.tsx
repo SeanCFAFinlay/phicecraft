@@ -16,6 +16,7 @@ import { useEventOutcomes } from '@/editor/useDrillValidation';
 import { getEventArrivalTime, getEventDepartureTime } from '@/engine/playback';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { usePlaybackSnapshot } from '@/playback/usePlaybackSnapshot';
+import { measureFlight } from '@/sim/flightPath';
 
 const SHOT_RESULTS = ['goal', 'save', 'rebound', 'wide', 'post'] as const;
 
@@ -47,6 +48,10 @@ export function EventInspector() {
           : 'Dump / area pass';
 
   const duration = snapshot.durationSeconds || 1;
+  const waypoints = event.waypoints ?? [];
+  // One foot of real ice is 5 world units.
+  const flightFeet =
+    measureFlight(event.fromPoint, waypoints, event.toPoint, event.shape ?? 'spline') / 5;
   const departure = getEventDepartureTime(event, index, state.drill.events.length);
   const arrival = getEventArrivalTime(event, index, state.drill.events.length);
   const engineOutcome = outcomes.get(event.id);
@@ -62,9 +67,68 @@ export function EventInspector() {
       title={`Puck action ${index + 1} — ${title}`}
       description={`Released at ${(departure * duration).toFixed(1)}s, arrives at ${(
         arrival * duration
-      ).toFixed(1)}s. The drawn line is the exact puck trajectory.`}
+      ).toFixed(1)}s. The puck follows the drawn line exactly.`}
       onClose={commands.closeInspector}
     >
+      {event.type !== 'pickup' && (
+        <SheetSection title="Line shape">
+          <div className="px-3 pb-2">
+            <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Puck line shape">
+              {(
+                [
+                  { shape: 'spline' as const, label: 'Curved', hint: 'Bends through each point' },
+                  { shape: 'polyline' as const, label: 'Straight', hint: 'Sharp corners at each point' },
+                ]
+              ).map(option => (
+                <button
+                  key={option.shape}
+                  type="button"
+                  role="radio"
+                  aria-checked={(event.shape ?? 'spline') === option.shape}
+                  onClick={() => commands.setEventShape(event.id, option.shape)}
+                  className={`touch-target rounded-xl border px-2 py-2 text-left ${
+                    (event.shape ?? 'spline') === option.shape
+                      ? 'border-app-gold bg-app-gold/15 text-app-gold'
+                      : 'border-app-border bg-white/5 text-white/55'
+                  }`}
+                >
+                  <span className="block text-[13px] font-bold">{option.label}</span>
+                  <span className="block text-[11px] leading-snug opacity-70">{option.hint}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-2 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2.5 text-[13px]">
+              <span className="text-white/50">Bend points</span>
+              <span className="font-bold text-app-text">{waypoints.length}</span>
+            </div>
+
+            {/* The puck flies the line, so the length of that line is a real
+                number the coach may want, not decoration. */}
+            <div className="mt-1.5 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2.5 text-[13px]">
+              <span className="text-white/50">Puck travels</span>
+              <span className="font-bold text-app-text">{Math.round(flightFeet)} ft</span>
+            </div>
+
+            <p className="mt-1.5 text-[12px] leading-snug text-white/45">
+              Drag a gold handle on the rink to bend the line. Tap a “+” to add a bend point, or tap
+              a bend point twice to remove it. Bending a line makes the puck travel further, so it
+              takes longer to arrive.
+            </p>
+
+            {waypoints.length > 0 && (
+              <button
+                type="button"
+                onClick={() => commands.removeEventWaypoint(event.id, waypoints.length - 1)}
+                className="touch-target mt-2 w-full rounded-xl border border-app-border bg-white/5 px-3 py-3 text-[13px] font-bold text-white/65"
+              >
+                Remove the last bend point
+              </button>
+            )}
+          </div>
+        </SheetSection>
+      )}
+
       {event.type === 'pass' && (
         <>
           <SheetSection title="Outcome">
