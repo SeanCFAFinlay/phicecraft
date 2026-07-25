@@ -32,3 +32,8 @@ npm-debug.log*
 # Local browser verification artifacts
 .playwright-cli/
 output/playwright/
+
+# Test and coverage output
+coverage/
+playwright-report/
+test-results/
