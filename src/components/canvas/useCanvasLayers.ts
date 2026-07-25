@@ -6,7 +6,7 @@
 // ResizeObserver live here so the surface component does not.
 // ============================================================================
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { effectiveDevicePixelRatio } from '@/camera/cameraMath';
 
 export type RenderQuality = 'high' | 'medium' | 'low';
@@ -96,14 +96,20 @@ export function useCanvasLayers(onResize?: (width: number, height: number) => vo
     }
   }, []);
 
-  return {
-    containerRef,
-    staticCanvasRef,
-    dynamicCanvasRef,
-    width: size.width,
-    height: size.height,
-    dpr,
-    quality,
-    reportFrameTime,
-  };
+  // Memoized: this object is a dependency of the draw callbacks, which are in
+  // turn dependencies of subscriptions. A fresh object every render would
+  // re-subscribe the canvas to the camera and frame stores continuously.
+  return useMemo(
+    () => ({
+      containerRef,
+      staticCanvasRef,
+      dynamicCanvasRef,
+      width: size.width,
+      height: size.height,
+      dpr,
+      quality,
+      reportFrameTime,
+    }),
+    [size.width, size.height, dpr, quality, reportFrameTime]
+  );
 }

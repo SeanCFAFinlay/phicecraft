@@ -61,7 +61,7 @@ export function TopStrip() {
       <button
         type="button"
         onClick={() => void commands.requestRename()}
-        className="min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-center text-[14px] font-semibold text-app-text hover:bg-app-cyan/5"
+        className="touch-target min-w-0 flex-1 truncate rounded-lg px-2 text-center text-[14px] font-semibold text-app-text hover:bg-app-cyan/5"
         aria-label={`Play name: ${state.drill.name}. Activate to rename.`}
       >
         {state.drill.name}

@@ -64,7 +64,7 @@ const DiagnosticsOverlay = lazy(() =>
 export function AppShell() {
   const { state, dispatch } = useAppState();
   const { importPreviews } = useAppServices();
-  const { isDesktop } = useResponsive();
+  const { isDesktop, isCompactLandscape } = useResponsive();
 
   // The command layer parses the file and publishes the preview here; this
   // component only renders it.
@@ -93,7 +93,9 @@ export function AppShell() {
         <Suspense fallback={null}>{state.ui.showDiagnostics && <DiagnosticsOverlay />}</Suspense>
       </main>
 
-      <Transport />
+      {/* On a landscape phone the transport lives inside the dock instead of
+          taking a second row of its own. */}
+      {!isCompactLandscape && <Transport />}
       <ToolDock />
 
       {/* Sheets and inspectors. Conditionally mounted, so nothing focusable

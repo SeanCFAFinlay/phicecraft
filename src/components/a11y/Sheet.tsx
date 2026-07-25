@@ -118,7 +118,17 @@ export function Sheet({ open, title, description, onClose, side = 'right', child
           </p>
         )}
 
-        <div className="sheet-scroll sheet-content min-h-0 flex-1 overflow-y-auto px-1 py-2">{children}</div>
+        {/*
+          tabIndex on the scroll container: a region that scrolls but cannot be
+          focused is unreachable for a keyboard user who has no other way to
+          scroll it (axe: scrollable-region-focusable).
+        */}
+        <div
+          tabIndex={0}
+          className="sheet-scroll sheet-content min-h-0 flex-1 overflow-y-auto px-1 py-2 focus-visible:outline-none"
+        >
+          {children}
+        </div>
 
         {footer && <div className="border-t border-app-border px-4 py-3">{footer}</div>}
       </div>

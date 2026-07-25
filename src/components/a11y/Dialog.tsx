@@ -106,7 +106,9 @@ export function DialogPrimaryButton({
       onClick={onClick}
       className={`${BASE_BUTTON} ${
         destructive
-          ? 'bg-red-500 text-white hover:bg-red-400'
+          ? // red-500 on white is 3.95:1, below the 4.5:1 AA threshold at this
+            // text size; red-700 clears it comfortably.
+            'bg-red-700 text-white hover:bg-red-600'
           : 'bg-app-cyan text-[#03121c] hover:bg-cyan-300'
       }`}
     >

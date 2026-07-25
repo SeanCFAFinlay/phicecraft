@@ -19,7 +19,12 @@ function formatClock(progress: number, duration: number): string {
   return `${seconds.toFixed(1)}s / ${duration.toFixed(1)}s`;
 }
 
-export function Transport() {
+/**
+ * `inline` folds the transport into the tool dock. On a landscape phone a
+ * separate 44px row is the difference between a usable rink and a strip, and
+ * Play is already in the dock - so the two rows become one.
+ */
+export function Transport({ inline = false }: { inline?: boolean }) {
   const { state, dispatch } = useAppState();
   const commands = useCommands();
   const { playback } = useEditorRuntime();
@@ -31,8 +36,12 @@ export function Transport() {
 
   return (
     <div
-      className="app-chrome safe-x flex flex-shrink-0 items-center gap-2 border-t border-app-border bg-[#0c1825] px-2 py-1.5"
-      style={{ minHeight: 'var(--transport-height)' }}
+      className={
+        inline
+          ? 'flex min-w-0 flex-[2] items-center gap-1.5'
+          : 'app-chrome safe-x flex flex-shrink-0 items-center gap-2 border-t border-app-border bg-[#0c1825] px-2 py-1.5'
+      }
+      style={inline ? undefined : { minHeight: 'var(--transport-height)' }}
     >
       <button
         type="button"
@@ -43,18 +52,20 @@ export function Transport() {
         ⏮
       </button>
 
-      <button
-        type="button"
-        onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
-        aria-label={isPlaying ? 'Pause playback' : 'Start playback'}
-        className={`touch-target flex items-center justify-center rounded-full border-2 text-[17px] ${
-          isPlaying
-            ? 'border-red-500 bg-red-500 text-white'
-            : 'border-cyan-500 bg-cyan-500 text-[#03121c]'
-        }`}
-      >
-        {isPlaying ? '❚❚' : '▶'}
-      </button>
+      {!inline && (
+        <button
+          type="button"
+          onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
+          aria-label={isPlaying ? 'Pause playback' : 'Start playback'}
+          className={`touch-target flex items-center justify-center rounded-full border-2 text-[17px] ${
+            isPlaying
+              ? 'border-red-500 bg-red-500 text-white'
+              : 'border-cyan-500 bg-cyan-500 text-[#03121c]'
+          }`}
+        >
+          {isPlaying ? '❚❚' : '▶'}
+        </button>
+      )}
 
       {/* Progress: a labelled bar, plus the clock in text for screen readers. */}
       <div

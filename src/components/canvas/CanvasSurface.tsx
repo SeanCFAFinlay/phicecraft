@@ -335,22 +335,36 @@ export function CanvasSurface() {
     };
   }, [camera, commands, drawDynamic, holdProgress]);
 
-  const machine = useMemo(
-    () =>
-      new GestureStateMachine({
-        hitTester,
-        handlers,
-        getContext: () => ({
-          camera: camera.camera,
-          isPlaying: stateRef.current.playback.isPlaying,
-          isTabletop: (camera.camera.tilt ?? 0) > TABLETOP_MIN_TILT,
-          holdToMoveEnabled: true,
-          selectedId:
-            stateRef.current.selection.selectedPlayerId ?? stateRef.current.selection.selectedEventId,
-        }),
+  // The machine MUST outlive renders. It holds the in-flight gesture, and a
+  // gesture spans many renders: the first sample of a route dispatches a
+  // pending action, which re-renders, and a machine rebuilt at that moment
+  // would forget the pointer and silently drop the rest of the drag.
+  //
+  // So it is built once, and reads its handlers and hit tester through refs.
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
+  const hitTesterRef = useRef(hitTester);
+  hitTesterRef.current = hitTester;
+
+  const machine = useMemo(() => {
+    const forward = <T extends object>(get: () => T): T =>
+      new Proxy({} as T, {
+        get: (_target, property) => Reflect.get(get() as object, property),
+      });
+
+    return new GestureStateMachine({
+      hitTester: forward(() => hitTesterRef.current),
+      handlers: forward(() => handlersRef.current),
+      getContext: () => ({
+        camera: camera.camera,
+        isPlaying: stateRef.current.playback.isPlaying,
+        isTabletop: (camera.camera.tilt ?? 0) > TABLETOP_MIN_TILT,
+        holdToMoveEnabled: true,
+        selectedId:
+          stateRef.current.selection.selectedPlayerId ?? stateRef.current.selection.selectedEventId,
       }),
-    [hitTester, handlers, camera]
-  );
+    });
+  }, [camera]);
 
   // A tool change or a modal opening abandons any half-finished gesture.
   useEffect(() => {

@@ -1,170 +1,250 @@
-# PhiceCraft - Hockey Drill Designer
+# PhiceCraft — Hockey Drill Designer
 
-The mechanics runtime compiles authored routes and puck actions into deterministic skater, possession, pass/reception, loose-puck, and shooting frames. See [docs/MECHANICS_BASELINE.md](docs/MECHANICS_BASELINE.md) for the runtime contract and diagnostics workflow.
+Design, animate and review hockey drills on a full-size NHL rink. Local-first:
+no account, no server, and it keeps working offline.
 
-A hockey drill design platform built with React, TypeScript, and Canvas rendering.
+The mechanics runtime compiles authored routes and puck actions into
+deterministic skater, possession, pass/reception, loose-puck and shooting
+frames. See [docs/MECHANICS_BASELINE.md](docs/MECHANICS_BASELINE.md) for the
+runtime contract and diagnostics workflow.
 
-## Features
+---
 
-- **Visual Rink Editor**: Full hockey rink with zones, lines, nets, and creases
-- **Player Management**: Add/remove home, away, and goalie players
-- **Puck Possession Logic**: Deterministic puck chain tracking
-- **Pass System**: Two-tap or drag-to-pass with validation
-- **Shot System**: Drag-to-shoot toward either net
-- **Skate Paths**: Draw smooth skating routes for any player
-- **Timeline Playback**: Animated drill playback with scrubbing and speed control
-- **Drill Persistence**: Auto-save to localStorage, plus JSON export/import
-- **Pan & Zoom**: Mouse wheel, pinch, and drag-to-pan
-- **Undo/Redo**: Full history for every edit
-
-## Quick Start
+## Quick start
 
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Run tests
-npm test
-
-# Lint
-npm run lint
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+npm ci            # install
+npm run dev       # development server on :3000
+npm run build     # production build
+npm run preview   # serve the production build
 ```
+
+### Checks
+
+```bash
+npm run typecheck        # tsc --noEmit
+npm run lint             # eslint, zero warnings allowed
+npm run test             # unit and component tests
+npm run test:watch       # the same, in watch mode
+npm run test:coverage    # with the coverage gates
+npm run test:e2e         # Playwright: flows, mobile, viewports, axe, performance
+npm run test:visual      # Playwright screenshot comparison (see note below)
+npm run check:budgets    # asset and bundle budgets (run after a build)
+npm run assets:optimize  # regenerate runtime images from assets-src/
+```
+
+`npm run test:e2e` needs a browser once: `npx playwright install --with-deps chromium`.
+
+---
+
+## Using it
+
+### On a phone
+
+The shell is mobile-first. Five controls are always one tap away:
+
+| Control | What it does |
+| --- | --- |
+| **Select** | Tap to select, drag to author. This is the tool you want most of the time. |
+| **Add** | Opens Home / Away / Goalie / Coach, then tap empty ice to place. |
+| **Action** | Opens Route / Pass / Shoot for the selected player or the puck carrier. |
+| **Erase** | Tap a player, coach, route or puck line to remove it. |
+| **Play** | Runs the drill. |
+
+Everything else lives in a sheet: the menu (top-left), More (top-right), the
+expanded playback controls (the ⤢ on the transport), and the details of whatever
+is selected.
+
+Tapping a player **selects** it and shows a compact chip with **Move**,
+**Details** and **Delete**. It does not throw a panel over the rink — Details
+does that, and so does tapping the same player a second time.
+
+Whenever an action is waiting for you, a chip at the top of the rink says which
+player it is for, what to do next, and offers **Cancel**. Escape cancels it too.
+
+### Authoring
+
+| Gesture | Result |
+| --- | --- |
+| Drag any player | Draws their skating route |
+| Drag the puck carrier onto a teammate | A pass |
+| Drag the puck carrier toward a net | A shot, starting from their final route position |
+| Drag the puck carrier onto open ice | A dump; assign a receiver later from the event details |
+| Drag from a point on a route | Releases the puck at that moment in the drill |
+| Drag a route handle | Reshapes the path |
+| Hold a player for 0.7 s | Repositions them (the same as pressing **Move**) |
+| Pinch, or scroll | Zoom |
+| Drag empty ice | Pan the rink, or orbit it in the 3D view |
+
+An ordinary pass goes to a **teammate**. Dragging onto an opponent is not a pass
+and is refused with an explanation, on every path — tap, drag, retarget and
+dump conversion alike.
+
+### Keyboard
+
+| Key | Action |
+| --- | --- |
+| `Escape` | Cancel the pending action, or close the topmost panel |
+| `Space` | Play / pause, unless you are typing |
+| `Ctrl`/`⌘` + `Z` | Undo (add `Shift`, or use `Ctrl`+`Y`, to redo) |
+| `Ctrl`/`⌘` + `S` | Save |
+| `Enter` | Open the details of the current selection |
+| `Tab` | Move through the controls; focus is trapped inside an open sheet or dialog |
+
+---
+
+## Saving and recovery
+
+Your drills live in IndexedDB on this device. The top strip always states which
+of these is true:
+
+| Status | Meaning |
+| --- | --- |
+| **Saved** | Everything on screen is durable. |
+| **Unsaved changes** | An edit is pending; auto-save writes it after a second of quiet. |
+| **Saving…** | A write is in flight. |
+| **Save failed** | It did **not** save. Stays on screen with **Retry** and **Export** until you resolve it. |
+
+Nothing is reported as saved until the database has confirmed it, and no visible
+document is replaced until its replacement is durable — so a failed *Save as a
+new play* leaves you editing the original, and a failed delete leaves the play
+exactly where it was.
+
+**If something cannot be read** — a corrupt record, a broken import, a play you
+deliberately replaced — the original value is kept verbatim. Menu → **Download
+recovery data** writes all of it to a JSON file.
+
+**If the app crashes**, the error screen offers to export the drill you were
+working on before anything else, because that copy may only exist in the tab.
+*Reset interface state* clears interface preferences only and never touches your
+saved plays.
+
+Drills from an older version of PhiceCraft are migrated automatically on first
+run, in one transaction, and read back before the migration is marked complete.
+The old `localStorage` data is left in place as a backup.
+
+---
+
+## Importing and exporting
+
+**Export all plays (JSON)** flushes your current work first. If that flush
+fails, you are asked explicitly whether to export the unsaved revision anyway;
+choosing to do so labels the file, and its name, as containing unsaved work.
+
+**Import from a file** shows a preview before writing anything. Every entry
+defaults to **Import as a copy**: a drill from a file gets a fresh identity, and
+its players, coaches, routes and events are all re-identified so it can never
+collide with your library.
+
+If a file shares an ID with one of your plays, the preview names your local play
+and offers **Replace matching drill**. Replacement only happens when you choose
+it, and a recovery copy of your version is kept either way.
+
+Files are bounded: 10 MiB, 100 drills per import, 200 players, 500 routes and
+1,000 events per drill, 5,000 points per route. Anything that fails is reported
+per entry and kept for recovery — the rest of the file still imports.
+
+---
 
 ## Architecture
 
-### Core Data Model (`src/core/types.ts`)
+```
+src/
+├── camera/       CameraStore and the fit/zoom maths
+├── canvas/       Canvas rendering (rink, players, paths, coaches)
+├── commands/     THE single authoring path every view calls
+├── components/   React UI: shell, sheets, inspectors, a11y primitives
+├── core/         Types, constants, the state reducer
+├── editor/       Input state machine, generated instructions, validation cache
+├── engine/       Hockey rules: puck, playback, drill, validation
+├── fixtures/     Example drills
+├── persistence/  IndexedDB repository, import/export, migration, recovery
+├── playback/     Frame store and the requestAnimationFrame clock
+├── sim/          The deterministic simulation
+├── ui/           Dialog controller, announcer, responsive, download
+└── utils/        Geometry and IDs
+```
 
-- **Player**: Hockey player with position, team, number, role
-- **SkatePath**: Smooth path of points for player movement
-- **DrillEvent**: Pass, shot, or dump events
-- **PuckChain**: Derived sequence of puck possession
+**Who owns what.** The reducer owns the persisted drill and the low-frequency
+editor session. The camera and the playback frame live in external stores read
+through `useSyncExternalStore`, because they change on every pointer move and
+every animation frame respectively. Pointer state lives outside React entirely.
+Nothing that changes 60 times a second is allowed to republish application
+state.
 
-### Engine Logic (`src/engine/`)
+**One command path.** Views never implement hockey rules or persistence
+transitions. They call `src/commands`, which owns validation, undo boundaries,
+persistence status, cancellation, feedback and the exact wording of every
+destructive confirmation.
 
-- **puck.ts**: Puck possession, pass validation, shot validation
-- **playback.ts**: Timeline animation, player interpolation, puck flight
-- **drill.ts**: Drill creation, validation, export/import
+**Two canvas layers.** A static rink that repaints only when the camera,
+viewport or quality changes, and a dynamic game layer for everything that moves.
+The rink is not repainted during camera-stable playback.
 
-Everything in the engine is a pure function, and everything in it is covered by
-tests. If you're adding drill rules, they belong here rather than in a component.
+**Playback is a pure function of `(drill, progress)`.** The clock advances one
+number; positions, the puck and fired events are re-derived. Nothing in playback
+writes to the drill, which is what makes scrubbing backwards work and stops an
+interrupted playback from persisting an animation frame as real state.
 
-### Canvas Rendering (`src/canvas/`)
-
-- **RinkRenderer.ts**: Hockey rink with all markings
-- **PlayerRenderer.ts**: Player circles with team colors
-- **PathRenderer.ts**: Skate paths, pass lines, shot lines
-
-### State Management (`src/core/state.ts`)
-
-- Reducer-based state management
-- Deterministic state transitions
-- Undo/redo, recorded automatically for drill-mutating actions
-
-### Storage (`src/storage/`)
-
-- localStorage persistence
-- Auto-save 1s after the drill stops changing
-- Export/import as JSON
-
-## How It Works
-
-### Puck Chain Logic
-
-1. One player starts with `hasPuck: true`
-2. Pass events transfer possession to the receiver
-3. Shot and dump events terminate the chain
-4. The current holder is derived by walking the event list
-
-### Pass Validation
-
-- Only the current puck holder can pass
-- Cannot pass to self
-- Cannot add passes after a shot
-
-### Playback Engine
-
-Playback is a **pure function of `(drill, progress)`**. The animation loop only
-advances a single `progress` number; player positions, the puck, and which
-events have fired are all re-derived from it.
-
-Nothing in playback ever writes to the drill. That's what makes scrubbing
-backwards work, and it means an interrupted playback can't persist an animation
-frame as the drill's real state. If you're adding to playback, keep it derived —
-don't be tempted to store animated positions on the players.
-
-Events are spaced evenly across the timeline: with `n` events, event `i` fires at
-`(i + 0.5) / n`. The puck then flies to its target over `PUCK_FLIGHT_FRACTION` of
-that slot and rests on the receiver until the next event.
-
-## Tools
-
-| Tool | Description |
-|------|-------------|
-| Select | Tap player for actions, drag for skate path |
-| Skate | Draw skating routes |
-| Pass | Tap passer then receiver, or drag |
-| Shoot | Drag toward net, or tap to shoot at your own target net |
-| Home | Place home team player |
-| Away | Place away team player |
-| Goalie | Place goalie (team is chosen by which end you place them in) |
-| Erase | Remove players or paths |
-
-## Navigation
-
-- **Zoom**: mouse wheel, or pinch with two fingers
-- **Pan**: drag on empty ice
-- **Hold player (0.7s)**: reposition them
-- **Menu → View**: jump to full rink, offensive zone, or defensive zone
-
-The camera fits the rink on first load and is left alone after that, so resizing
-the window won't throw away your zoom.
+---
 
 ## Testing
 
 ```bash
-npm test              # run once
-npm run test:watch    # watch mode
-npm run test:coverage # coverage for engine, state, and utils
+npm run test:coverage   # 641 unit and component tests, with gates
+npm run test:e2e        # 113 end-to-end tests across 7 viewports
+npm run test:visual     # 36 screenshot comparisons
 ```
 
-Tests cover the puck engine, playback engine, geometry helpers, and the state
-reducer — the pure logic where correctness bugs actually hide. The canvas
-renderers are verified by eye.
+Coverage gates: 90 % lines and branches for `src/persistence`, 90 / 85 for
+`src/commands`, 80 % lines overall for the included modules.
 
-## Project Structure
+The end-to-end suite covers the required flows — persistence across a reload,
+route semantics through a copy, ID-less and colliding imports, cross-team pass
+rejection, pinch-release safety, every Play surface, the separate clears,
+keyboard navigation with focus restoration, review completion — plus a viewport
+matrix, axe on every dialog surface, and the performance assertions.
 
-```
-src/
-├── components/     # React UI components
-├── canvas/         # Canvas rendering functions
-├── core/           # Types, constants, state reducer
-├── engine/         # Game logic (puck, playback, drill)
-├── hooks/          # React hooks
-├── storage/        # Persistence layer
-├── styles/         # Global CSS
-├── utils/          # Utility functions
-├── App.tsx         # Main app component
-└── main.tsx        # Entry point
-```
+> **Visual tests are not run by CI.** Playwright screenshot baselines are
+> per-platform bitmaps, and this repository carries the ones generated on
+> Windows. Run `npm run test:visual` on that platform; after an intentional
+> design change, `npm run test:visual:update`.
 
-## Tech Stack
+---
 
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Vite** - Build tool
-- **Vitest** - Testing
-- **Tailwind CSS** - Styling
-- **Canvas 2D** - Rendering
-- **localStorage** - Persistence
+## Assets
+
+Source artwork lives in `assets-src/`, outside `public/`, so it is never copied
+into a production build. `npm run assets:optimize` regenerates the committed
+runtime images with `sharp`; the outputs are committed, so a normal build does
+not need it.
+
+`npm run check:budgets` fails the build if runtime images exceed 1 MiB, the logo
+exceeds 50 KiB, source-only artwork appears under `public/`, source maps are
+present in `dist/`, or the bundle grows more than 15 % past the recorded
+baseline.
+
+Production source maps are off by default. Build with
+`PHICECRAFT_SOURCEMAP=true npm run build` when you need them.
+
+---
+
+## Supported browsers
+
+Chrome, Edge, Firefox and Safari, current and previous major versions, on
+desktop, iOS and Android. The app needs IndexedDB, Canvas 2D, `ResizeObserver`,
+`structuredClone` and WebP; if IndexedDB is unavailable it says so and keeps
+export working rather than pretending to save.
+
+Browser zoom is enabled. Safe-area insets are respected on notched devices.
+`prefers-reduced-motion` is honoured throughout.
+
+---
+
+## Tech stack
+
+React 18 · TypeScript · Vite · Tailwind CSS · Canvas 2D · IndexedDB (`idb`) ·
+`zod` · Vitest · Playwright
 
 ## License
 

@@ -10,6 +10,7 @@
 
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
+import { Transport } from './Transport';
 
 interface DockButtonProps {
   icon: string;
@@ -41,7 +42,7 @@ function DockButton({ icon, label, active, accent, onClick, ariaHasPopup, ariaEx
       <span className="text-[17px] leading-none" aria-hidden="true">
         {icon}
       </span>
-      <span className="text-[11px] font-bold tracking-tight">{label}</span>
+      <span className="text-[12px] font-bold tracking-tight">{label}</span>
     </button>
   );
 }
@@ -97,6 +98,11 @@ export function ToolDock() {
         onClick={() => commands.setTool('erase')}
       />
 
+      {/* Landscape phone: the transport folds in here rather than costing a
+          second 44px row, which is the difference between a usable rink and
+          a strip. Play is immediately to its right either way. */}
+      {isCompactLandscape && <Transport inline />}
+
       <button
         type="button"
         onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
@@ -110,7 +116,9 @@ export function ToolDock() {
         <span className="text-[17px] leading-none" aria-hidden="true">
           {isPlaying ? '■' : '▶'}
         </span>
-        {!isCompactLandscape && <span className="text-[11px] tracking-tight">{isPlaying ? 'Stop' : 'Play'}</span>}
+        {!isCompactLandscape && (
+          <span className="text-[12px] tracking-tight">{isPlaying ? 'Stop' : 'Play'}</span>
+        )}
       </button>
     </nav>
   );

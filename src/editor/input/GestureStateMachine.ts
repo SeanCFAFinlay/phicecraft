@@ -110,15 +110,10 @@ export class GestureStateMachine {
       return;
     }
 
-    if (target.kind === 'empty') {
-      this.gesture = {
-        kind: context.isTabletop ? 'orbit' : 'pan',
-        startPointer: sample.position,
-        startCamera: { ...context.camera },
-      };
-      return;
-    }
-
+    // Empty ice stays a PRESS until the pointer actually moves. Committing to
+    // a pan on pointer-down meant a tap on empty ice was swallowed by the
+    // camera - so "tap empty ice to place a player" and "tap to deselect"
+    // never fired at all.
     this.gesture = { kind: 'press', target, startPointer: sample.position, moved: false };
 
     // Hold-to-move is an optional expert shortcut, not the only way to move a
@@ -274,9 +269,20 @@ export class GestureStateMachine {
    * leaves from where the carrier is, not from wherever the finger has got to.
    */
   private promotePress(target: PressTarget, origin: Point, position: Point): void {
-    const { hitTester, handlers } = this.options;
+    const { hitTester, handlers, getContext } = this.options;
+    const context = getContext();
 
     switch (target.kind) {
+      case 'empty':
+        // Only now is this a camera gesture: flat ice pans, a tilted
+        // tabletop orbits.
+        this.gesture = {
+          kind: context.isTabletop ? 'orbit' : 'pan',
+          startPointer: origin,
+          startCamera: { ...context.camera },
+        };
+        break;
+
       case 'player':
         if (target.isCarrier) {
           this.gesture = {

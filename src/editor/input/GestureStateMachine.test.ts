@@ -418,6 +418,40 @@ describe('puck drags', () => {
 // ----------------------------------------------------------------------------
 
 describe('camera gestures on empty ice', () => {
+  it('a tap on empty ice is a TAP, not a swallowed pan', () => {
+    // Committing to a pan on pointer-down meant "tap empty ice to place a
+    // player" and "tap to deselect" never fired at all.
+    const machine = build();
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerUp(touch(1, 100, 100));
+
+    expect(handlers.onTap).toHaveBeenCalledTimes(1);
+    expect(handlers.onTap.mock.calls[0][1]).toEqual({ kind: 'empty' });
+    expect(handlers.onPanOrOrbit).not.toHaveBeenCalled();
+  });
+
+  it('a small wobble under the drag threshold is still a tap', () => {
+    const machine = build();
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerMove(touch(1, 100 + MOVE_THRESHOLD - 2, 100));
+    scheduler.flushFrames();
+    machine.pointerUp(touch(1, 100 + MOVE_THRESHOLD - 2, 100));
+
+    expect(handlers.onTap).toHaveBeenCalledTimes(1);
+    expect(handlers.onPanOrOrbit).not.toHaveBeenCalled();
+  });
+
+  it('does not fire a tap once the drag threshold is crossed', () => {
+    const machine = build();
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerMove(touch(1, 200, 100));
+    scheduler.flushFrames();
+    machine.pointerUp(touch(1, 200, 100));
+
+    expect(handlers.onTap).not.toHaveBeenCalled();
+    expect(handlers.onPanOrOrbit).toHaveBeenCalled();
+  });
+
   it('pans when flat', () => {
     const machine = build();
     machine.pointerDown(touch(1, 100, 100));

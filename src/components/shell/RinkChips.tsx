@@ -21,6 +21,12 @@ const STEP_NAMES = { setup: 'Setup', movement: 'Movement', puck: 'Puck actions',
 const STEP_ORDER = ['setup', 'movement', 'puck', 'review'] as const;
 
 /**
+ * The lane chips live in: across the top of the rink, below the toast strip.
+ * ActionChip and SelectionChip are mutually exclusive, so they share it.
+ */
+const CHIP_LANE = 'pointer-events-none absolute inset-x-0 top-11 z-30 flex px-2';
+
+/**
  * The visible pending action. Route, Pass and Shoot can no longer become
  * invisible modes: whenever one is armed, this chip states which player it is
  * for, what to do next, and offers Cancel.
@@ -49,7 +55,9 @@ export function ActionChip() {
   });
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-2 pt-2">
+    // Pinned under the toast strip at the TOP of the rink: the centre and the
+    // lower middle are where the play happens and must stay clear.
+    <div className={`${CHIP_LANE} justify-center`}>
       <div
         role="status"
         aria-live="polite"
@@ -85,8 +93,10 @@ export function SelectionChip() {
   const eventId = state.selection.selectedEventId;
 
   if (state.pendingAction.kind !== 'none') return null;
-  if (state.ui.inspector.kind !== 'none') return null;
   if (!playerId && !eventId) return null;
+  // The chip deliberately stays mounted while the inspector is open. Removing
+  // it meant the Details button that opened the inspector no longer existed
+  // when the inspector closed, so focus had nowhere to return to.
 
   const player = playerId ? state.drill.players.find(item => item.id === playerId) : null;
   const eventIndex = eventId ? state.drill.events.findIndex(item => item.id === eventId) : -1;
@@ -95,7 +105,7 @@ export function SelectionChip() {
   if (!player && !event) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-2 z-30 flex justify-center px-2">
+    <div className={`${CHIP_LANE} justify-center`}>
       <div className="rink-chip pointer-events-auto flex max-w-[min(560px,94vw)] items-center gap-2 rounded-2xl px-2.5 py-2">
         <span className="truncate text-[13px] font-black text-app-text">
           {player ? `#${player.number} · ${player.role}` : `${event!.type} ${eventIndex + 1}`}
@@ -154,13 +164,16 @@ export function ContextChips() {
   const { isPhone, isCompactLandscape } = useResponsive();
 
   if (isCompactLandscape) return null;
+  // While an action is pending, its chip is the only thing that matters.
+  if (state.pendingAction.kind !== 'none') return null;
 
   const carrier = getCurrentPuckHolder(state.drill.players, state.drill.events);
   const stepIndex = STEP_ORDER.indexOf(state.ui.editorStep);
   const reviewed = isReviewComplete(state);
 
   return (
-    <div className="pointer-events-none absolute left-2 top-2 z-20 flex flex-col items-start gap-1.5">
+    // A single row above the chip lane, so the two never overlap.
+    <div className="pointer-events-none absolute left-2 right-2 top-1.5 z-20 flex flex-wrap items-start gap-1.5">
       <button
         type="button"
         onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'possession' })}
