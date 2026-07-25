@@ -13,6 +13,10 @@ import { vi } from 'vitest';
  * repository calls this so stores never leak between cases.
  */
 export async function resetFakeIndexedDb(): Promise<void> {
+  // `/auto` installs every IDB* constructor as a global. The `idb` wrapper
+  // instanceof-checks IDBRequest and IDBTransaction, so setting only
+  // `indexedDB` is not enough.
+  await import('fake-indexeddb/auto');
   const { IDBFactory } = await import('fake-indexeddb');
   globalThis.indexedDB = new IDBFactory();
 }
