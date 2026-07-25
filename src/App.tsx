@@ -1,85 +1,26 @@
 // ============================================================================
-// APP - Main application component
+// APP
+//
+// Composition root: the error boundary, the application-state provider, and
+// the editor runtime (camera store, frame store, playback clock) wrapped
+// around the shell. The shell itself lives in AppShell.tsx so tests can mount
+// it with injected services.
 // ============================================================================
 
-import { useEffect } from 'react';
-import { AppProvider, useAppState } from '@/hooks/useAppState';
-import {
-  CanvasSurface,
-  TopBar,
-  PuckChainBar,
-  Toolbar,
-  Playbar,
-  SideMenu,
-  ContextMenu,
-  PlayerInfoPanel,
-  EventInfoPanel,
-  WorkflowBar,
-  ViewControls,
-  DiagnosticsOverlay,
-  ValidationPanel,
-  ToastContainer,
-  ModeBanner,
-  PlayBanner,
-  RenameModal,
-  PassOverlay,
-} from '@/components';
-
-function AppContent() {
-  const { actions } = useAppState();
-
-  useEffect(() => {
-    // Welcome toast, once the first paint is out of the way
-    const timer = window.setTimeout(() => {
-      actions.showToast('Welcome to PhiceCraft! Tap a player to start.', 'info', 4000);
-    }, 100);
-    return () => window.clearTimeout(timer);
-  }, [actions]);
-
-  return (
-    <div className="flex flex-col w-screen h-screen h-dvh overflow-hidden bg-app-bg text-app-text font-sans select-none">
-      {/* Fixed Header */}
-      <TopBar />
-
-      {/* Puck Chain Bar */}
-      <PuckChainBar />
-      <WorkflowBar />
-
-      {/* Canvas Area - takes remaining space */}
-      <div className="flex-1 relative overflow-hidden bg-[#0a1520] min-h-0">
-        <CanvasSurface />
-
-        {/* Floating overlays only */}
-        <ViewControls />
-        <ToastContainer />
-        <ModeBanner />
-        <PlayBanner />
-        <DiagnosticsOverlay />
-        <ValidationPanel />
-        <ContextMenu />
-      </div>
-
-      {/* Fixed Toolbar */}
-      <Toolbar />
-
-      {/* Fixed Playbar */}
-      <Playbar />
-
-      {/* Modals (fullscreen overlays) */}
-      <SideMenu />
-      <RenameModal />
-      <PassOverlay />
-      <PlayerInfoPanel />
-      <EventInfoPanel />
-    </div>
-  );
-}
+import { AppProvider } from '@/hooks/useAppState';
+import { EditorRuntimeProvider } from '@/hooks/useEditorRuntime';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AppShell } from './AppShell';
 
 export function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <EditorRuntimeProvider>
+          <AppShell />
+        </EditorRuntimeProvider>
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
 

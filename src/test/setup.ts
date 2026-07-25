@@ -45,11 +45,11 @@ if (isDom) {
       clearTimeout(handle as unknown as ReturnType<typeof setTimeout>)) as typeof cancelAnimationFrame;
   }
 
-  // Canvas is not implemented in jsdom. Component tests assert on DOM, never
-  // on pixels, so a no-op 2D context keeps the renderer from throwing.
-  if (!HTMLCanvasElement.prototype.getContext) {
-    HTMLCanvasElement.prototype.getContext = (() => null) as never;
-  }
+  // Canvas is not implemented in jsdom; its stub logs "Not implemented" on
+  // every call. Component tests assert on the DOM, never on pixels, and the
+  // renderers already bail out on a null context, so this replaces it outright
+  // rather than letting every render spam the output.
+  HTMLCanvasElement.prototype.getContext = (() => null) as never;
 }
 
 afterEach(() => {

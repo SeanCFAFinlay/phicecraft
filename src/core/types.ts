@@ -232,12 +232,16 @@ export interface Camera {
 // PLAYBACK STATE
 // ============================================================================
 
+/**
+ * The COARSE playback state React is allowed to see.
+ *
+ * Progress, sampled positions, the puck and ghost trails are deliberately
+ * absent: they change 60 times a second and live in
+ * `src/playback/PlaybackStore`, which the canvas subscribes to directly.
+ */
 export interface PlaybackState {
   isPlaying: boolean;
-  progress: number;     // 0 to 1
-  speed: number;        // Multiplier (0.5, 1, 2)
-  duration: number;     // Total duration in seconds
-  firedEvents: number[]; // Indices of events that have fired
+  speed: number; // Multiplier (0.5, 1, 2)
   lifecycle: DrillLifecycleState;
 }
 
@@ -303,62 +307,87 @@ export interface SelectionState {
 }
 
 // ============================================================================
-// INTERACTION STATE
+// INTERACTION
+//
+// Active pointers, drag discrimination, the pinch lifecycle, the hold timer,
+// and in-progress route samples are NOT application state. They live in
+// `src/editor/input`, outside React, because they change on every pointer
+// event and nothing in the DOM renders them directly.
 // ============================================================================
-
-export type DragType = 'none' | 'pass' | 'shoot' | 'move' | 'skate' | 'node';
-
-export interface InteractionState {
-  isPointerDown: boolean;
-  pointerMoved: boolean;
-  pointerDownPosition: Point | null;
-  dragType: DragType;
-  dragFromPlayer: Player | null;
-  dragCurrentPosition: Point | null;
-  holdActive: boolean;
-  holdTarget: Player | null;
-  movingPlayer: Player | null;
-  drawingSkate: boolean;
-  skateOwner: Player | null;
-  skateRawPoints: Point[];
-  // Node drag (tap on path to create pass)
-  nodeActive: boolean;
-  nodePath: SkatePath | null;
-  nodeWorldPoint: Point | null;
-  nodeDragPosition: Point | null;
-  // Pinch zoom
-  pinchState: PinchState | null;
-}
-
-export interface PinchState {
-  initialDistance: number;
-  initialMidpoint: Point;
-  initialCameraX: number;
-  initialCameraY: number;
-  initialCameraZoom: number;
-}
 
 // ============================================================================
 // UI STATE
 // ============================================================================
 
+export type ToastType = 'info' | 'success' | 'warning' | 'error';
+
 export interface Toast {
   id: ID;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: ToastType;
   duration: number;
+  /**
+   * `status` is announced politely by screen readers; `alert` interrupts.
+   * Blocking failures use `alert`, everything else uses `status`.
+   */
+  role: 'status' | 'alert';
+  /**
+   * Higher priority may replace a lower-priority toast that is on screen. A
+   * routine success can never displace a failure.
+   */
+  priority: number;
+  /** Identical keys are collapsed while queued, so repeated hints don't stack. */
+  dedupeKey: string;
 }
+
+/**
+ * A hockey action the editor has started and is waiting for input to finish.
+ *
+ * This replaces the old invisible tool modes: every non-`none` value has a
+ * visible chip, a "what to do next" line, and a Cancel control.
+ */
+export type PendingEditorAction =
+  | { kind: 'none' }
+  | { kind: 'move-player'; playerId: ID }
+  | { kind: 'draw-route'; playerId: ID }
+  | { kind: 'pass'; playerId: ID }
+  | { kind: 'shoot'; playerId: ID }
+  | { kind: 'move-coach'; coachId: ID }
+  | { kind: 'edit-route'; pathId: ID }
+  | { kind: 'edit-event'; eventId: ID };
+
+/** Which inspector, if any, is open. Selection alone never opens one. */
+export type InspectorTarget =
+  | { kind: 'none' }
+  | { kind: 'player'; playerId: ID }
+  | { kind: 'event'; eventId: ID };
+
+/** A disclosure sheet on the responsive shell. */
+export type SheetKind =
+  | 'none'
+  | 'menu'
+  | 'more'
+  | 'add'
+  | 'action'
+  | 'possession'
+  | 'workflow'
+  | 'playback'
+  | 'help'
+  | 'diagnostics'
+  | 'import-preview';
 
 export interface UIState {
   editorStep: 'setup' | 'movement' | 'puck' | 'review';
   currentTool: Tool;
   showMenu: boolean;
-  showContextMenu: boolean;
-  contextMenuPosition: Point | null;
-  contextMenuPlayerId: ID | null;
   showRenameModal: boolean;
-  showPlayerInfo: boolean;
-  toasts: Toast[];
+  /** The open inspector. Never set implicitly by selecting something. */
+  inspector: InspectorTarget;
+  openSheet: SheetKind;
+  /** The toast currently on screen. Stays until dismissed or timed out. */
+  activeToast: Toast | null;
+  /** Toasts waiting their turn, in order. */
+  toastQueue: Toast[];
   modeBanner: string | null;
   playBanner: string | null;
   showDiagnostics: boolean;
@@ -368,11 +397,19 @@ export interface UIState {
 // UNDO STATE
 // ============================================================================
 
+/**
+ * A deep copy of every mutable drill field that is meant to be undoable.
+ *
+ * `settings` is in here because jerseys live inside it: without it, "set home
+ * jersey" and "swap jerseys" pushed an undo entry that restored everything
+ * except the colours the user had just changed.
+ */
 export interface UndoSnapshot {
   players: Player[];
   skatePaths: SkatePath[];
   events: DrillEvent[];
   coaches: CoachMarker[];
+  settings: DrillSettings | undefined;
 }
 
 // ============================================================================
@@ -393,32 +430,32 @@ export interface AppState {
   // Drill data - the only thing that gets persisted
   drill: Drill;
 
-  // Camera
-  camera: Camera;
-  // Set once the user pans/zooms by hand. Until then the camera re-fits on
-  // every resize (the first layout pass reports a stale size, so fitting only
-  // once leaves the rink cropped). After it, resizes leave the camera alone
-  // rather than throwing away the user's view.
-  cameraUserAdjusted: boolean;
+  /**
+   * Increments on every change to `drill`. Validation, event-outcome caches,
+   * and review completion are keyed to this, so none of them recompute on a
+   * playback tick or a camera move.
+   */
+  documentRevision: number;
 
-  // Canvas dimensions
-  canvasWidth: number;
-  canvasHeight: number;
+  /**
+   * The document revision the user has actually reviewed. Review is complete
+   * only when this equals `documentRevision` - so any edit reopens it.
+   */
+  reviewedRevision: number | null;
+
+  /** The hockey action awaiting input, if any. Always visible when set. */
+  pendingAction: PendingEditorAction;
 
   // Selection
   selection: SelectionState;
 
-  // Interaction
-  interaction: InteractionState;
-
-  // Playback - all ephemeral, derived from `drill` + `playback.progress`.
-  // Player positions during playback live here rather than in `drill`, so an
-  // interrupted playback can never persist animation frames as the real drill.
+  /**
+   * Coarse playback lifecycle only. The frame itself - progress, interpolated
+   * positions, the puck, ghost trails - is owned by
+   * `src/playback/PlaybackStore`, and the drill is never mutated by playback,
+   * so an interrupted play can't persist animation frames as the real drill.
+   */
   playback: PlaybackState;
-  playbackPositions: Record<ID, Point>;
-  playbackPlayerFrames: Record<ID, PlaybackPlayerFrame>;
-  animatedPuck: AnimatedPuck | null;
-  ghostTrails: Map<ID, Point[]>;
 
   // UI
   ui: UIState;
@@ -503,51 +540,49 @@ export type AppAction =
   | { type: 'UPDATE_SHOT_RESULT'; id: ID; result: 'goal' | 'save' | 'rebound' | 'wide' | 'post' | undefined }
   | { type: 'CONVERT_DUMP_TO_PASS'; event: PassEvent }
   | { type: 'RETARGET_PASS'; event: PassEvent }
-  | { type: 'CLEAR_ALL_EVENTS' }
 
-  // Camera
-  | { type: 'SET_CAMERA'; camera: Camera }
-  | { type: 'FIT_CAMERA' }
-  | { type: 'ZOOM_TO_ZONE'; zone: 'full' | 'offensive' | 'defensive' }
-  // Zoom about a fixed screen point (wheel / pinch), keeping it anchored
-  | { type: 'ZOOM_AT'; factor: number; screenPoint: Point }
-
-  // Canvas
-  | { type: 'SET_CANVAS_SIZE'; width: number; height: number }
+  // Destructive clears. Three separate commands with exact, non-overlapping
+  // semantics - the single "Clear all events" used to remove routes too.
+  /** Removes puck events only. Routes, players, coaches and settings remain. */
+  | { type: 'CLEAR_PUCK_ACTIONS' }
+  /** Removes skating routes only. Puck events and everything else remain. */
+  | { type: 'CLEAR_MOVEMENT_ROUTES' }
+  /** Restores the default lineup. Keeps the drill's ID, name and settings. */
+  | { type: 'RESET_BOARD' }
 
   // Selection
   | { type: 'SELECT_PLAYER'; id: ID | null }
   | { type: 'SET_PASS_FROM'; id: ID | null }
   | { type: 'SELECT_EVENT'; id: ID | null }
 
-  // Interaction
-  | { type: 'SET_INTERACTION'; interaction: Partial<InteractionState> }
-  | { type: 'RESET_INTERACTION' }
-
-  // Playback. SET_PLAYBACK_PROGRESS is the single tick action: it re-derives
-  // player positions, fired events and the puck from `progress`, so animating
-  // and scrubbing take exactly the same path.
+  // Playback lifecycle. Per-frame progress is NOT an action - it is written
+  // straight into the frame store by the requestAnimationFrame clock.
   | { type: 'START_PLAYBACK' }
   | { type: 'STOP_PLAYBACK' }
-  | { type: 'SET_PLAYBACK_PROGRESS'; progress: number }
   | { type: 'SET_PLAYBACK_SPEED'; speed: number }
   | { type: 'RESET_PLAYBACK' }
-  | { type: 'CLEAR_GHOST_TRAILS' }
   | { type: 'SET_PLAYBACK_LIFECYCLE'; lifecycle: DrillLifecycleState }
+  /** The user has reviewed the current document revision. */
+  | { type: 'MARK_REVIEWED' }
+
+  // Pending action
+  | { type: 'SET_PENDING_ACTION'; action: PendingEditorAction }
+  | { type: 'CANCEL_PENDING_ACTION' }
 
   // UI
   | { type: 'SET_TOOL'; tool: Tool }
   | { type: 'SET_EDITOR_STEP'; step: UIState['editorStep'] }
   | { type: 'TOGGLE_MENU' }
   | { type: 'CLOSE_MENU' }
-  | { type: 'SHOW_CONTEXT_MENU'; position: Point; playerId: ID }
-  | { type: 'HIDE_CONTEXT_MENU' }
   | { type: 'SHOW_RENAME_MODAL' }
   | { type: 'HIDE_RENAME_MODAL' }
-  | { type: 'SHOW_PLAYER_INFO' }
-  | { type: 'HIDE_PLAYER_INFO' }
-  | { type: 'ADD_TOAST'; toast: Toast }
-  | { type: 'REMOVE_TOAST'; id: ID }
+  | { type: 'OPEN_INSPECTOR'; target: InspectorTarget }
+  | { type: 'CLOSE_INSPECTOR' }
+  | { type: 'OPEN_SHEET'; sheet: SheetKind }
+  | { type: 'CLOSE_SHEET' }
+  | { type: 'ENQUEUE_TOAST'; toast: Toast }
+  | { type: 'DISMISS_TOAST'; id: ID }
+  | { type: 'CLEAR_TOASTS' }
   | { type: 'SET_MODE_BANNER'; message: string | null }
   | { type: 'SET_PLAY_BANNER'; message: string | null }
   | { type: 'CLEAR_BANNERS' }

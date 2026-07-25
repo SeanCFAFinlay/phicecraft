@@ -1,13 +1,70 @@
 /* ============================================================================
- * GLOBAL STYLES - Tailwind base + custom styles
- * ============================================================================ */
+ * GLOBAL STYLES
+ *
+ * Mobile-first. The rules that matter most here are the ones that were
+ * previously applied globally and broke the phone experience:
+ *
+ *   - `touch-action: none` on <body> disabled scrolling in every sheet and
+ *     menu. It is now scoped to the rink surface alone.
+ *   - `user-select: none` on <body> made text in help, dialogs and inspectors
+ *     unselectable. It is now scoped to chrome, and re-enabled for content.
+ *   - `position: fixed` on <html> with no safe-area handling put controls
+ *     under the notch and the home indicator.
+ * ========================================================================= */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Base styles */
 @layer base {
+  :root {
+    /* Safe areas, so nothing essential sits under a notch or home bar. */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+
+    /* The minimum comfortable touch target. */
+    --touch-target: 44px;
+
+    /* Chrome heights, overridden per breakpoint below. */
+    --top-strip-height: 52px;
+    --tool-dock-height: 64px;
+    --transport-height: 56px;
+
+    /* Responsive spacing scale. */
+    --gap-xs: 4px;
+    --gap-sm: 8px;
+    --gap-md: 12px;
+    --gap-lg: 16px;
+
+    /* Sheets never grow past this share of the viewport. */
+    --sheet-max-height: 72dvh;
+
+    --app-bg: #06101a;
+    --app-surface: #0c1d2d;
+    --app-border: rgba(0, 185, 230, 0.16);
+    --app-text: #daf0f8;
+  }
+
+  /* Compact landscape: every pixel of chrome is a pixel off the rink. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    :root {
+      --top-strip-height: 40px;
+      --tool-dock-height: 50px;
+      --transport-height: 44px;
+      --sheet-max-height: 86dvh;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    :root {
+      --top-strip-height: 56px;
+      --tool-dock-height: 68px;
+      --transport-height: 64px;
+    }
+  }
+
   * {
     box-sizing: border-box;
     margin: 0;
@@ -15,47 +72,96 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  html, body {
+  html,
+  body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #06101a;
-    color: #daf0f8;
-    font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif;
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
+    background: var(--app-bg);
+    color: var(--app-text);
+    font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   #root {
     width: 100%;
     height: 100%;
   }
+
+  /*
+   * Chrome is not selectable, because dragging a toolbar label should not
+   * start a text selection. Content is, because a coach copying a drill name
+   * or an error message is a legitimate thing to do.
+   */
+  .app-chrome {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .selectable,
+  input,
+  textarea,
+  [role='dialog'] p,
+  [role='alertdialog'] p,
+  .sheet-content {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  /* Visible focus everywhere, including over the rink. */
+  :focus-visible {
+    outline: 2px solid #6fe3ff;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
 }
 
-/* Custom utilities */
-@layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-
-  .h-dvh {
-    height: 100dvh;
-  }
-}
-
-/* Custom component styles */
 @layer components {
+  /*
+   * Only the rink swallows browser gestures. Everything else keeps its native
+   * scrolling and its pinch-to-zoom.
+   */
+  .rink-surface {
+    touch-action: none;
+  }
+
+  /* Vertical sheets scroll with the finger; horizontal rails pan sideways. */
+  .sheet-scroll {
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rail-scroll {
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+  }
+
+  .safe-top {
+    padding-top: var(--safe-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: var(--safe-bottom);
+  }
+
+  .safe-x {
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+
+  /* Every primary control is at least a comfortable finger target. */
+  .touch-target {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+
   .arena-stage {
     background-color: #03080e;
     background-image:
       radial-gradient(ellipse at center, rgba(3, 12, 20, 0.08) 25%, rgba(2, 7, 13, 0.64) 78%),
-      url('/assets/arena-overhead.png');
+      image-set(url('/assets/arena-overhead.webp') type('image/webp'));
     background-position: center;
     background-size: cover;
     box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.8);
@@ -70,48 +176,85 @@
     mix-blend-mode: screen;
   }
 
-  /* Smooth transitions for interactive elements */
-  .tool-button {
-    @apply transition-all duration-100;
+  /* A chip that must stay readable over the animated rink. */
+  .rink-chip {
+    background: rgba(4, 14, 24, 0.92);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--app-border);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   }
 
-  .tool-button:active {
-    @apply scale-[0.88];
-  }
-
-  /* Loading animation */
-  @keyframes ldpk {
-    0% { left: 10%; }
-    45% { left: 46%; }
-    55% { left: 46%; }
-    100% { left: 75%; }
-  }
-
-  @keyframes ldbar {
-    to { width: 100%; }
-  }
-
-  /* Puck pulse animation */
   @keyframes puck-pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
   }
 
   .puck-pulse {
     animation: puck-pulse 1s ease-in-out infinite;
   }
+
+  @keyframes sheet-in {
+    from {
+      transform: translateY(12px);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .sheet-enter {
+    animation: sheet-in 180ms ease-out;
+  }
 }
 
-/* Font smoothing */
-body {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Visually hidden, still announced. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
 }
 
-/* Prevent iOS rubber banding */
-html {
-  overflow: hidden;
-  position: fixed;
-  width: 100%;
-  height: 100%;
+/*
+ * Reduced motion. Essential state changes stay visible; only the decoration
+ * stops. Combined at runtime with the per-drill "reduced effects" setting.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .puck-pulse {
+    animation: none;
+  }
 }

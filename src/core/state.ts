@@ -1,30 +1,35 @@
 // ============================================================================
 // APPLICATION STATE - Reducer and initial state
+//
+// This reducer owns the PERSISTED DOCUMENT and the LOW-FREQUENCY EDITOR
+// SESSION, and nothing else.
+//
+// Deliberately not here any more:
+//   - camera        -> src/camera/CameraStore (changes on every pointer move)
+//   - playback frame-> src/playback/PlaybackStore (changes 60x a second)
+//   - pointer/drag  -> src/editor/input (transient, never rendered by React)
+//
+// Those all used to live in this object, which meant a pan, a pinch, or a
+// single playback frame republished the whole application state and re-rendered
+// every panel, toolbar and toast in the app.
 // ============================================================================
 
 import type {
   AppState,
   AppAction,
   Drill,
-  Camera,
+  Player,
   UndoSnapshot,
-  Point,
 } from './types';
 import {
-  DEFAULT_CAMERA,
   DEFAULT_PLAYBACK,
-  DEFAULT_INTERACTION,
   DEFAULT_SELECTION,
   DEFAULT_UI,
-  RINK,
   MAX_UNDO_STACK,
-  MIN_ZOOM,
-  MAX_ZOOM,
-  FIT_PADDING,
-  TABLETOP_MAX_TILT,
 } from './constants';
 import { DEFAULT_JERSEYS } from '@/core/types';
-import { createNewDrill } from '@/engine/drill';
+import { createDefaultPlayers, createNewDrill } from '@/engine/drill';
+import { removePlayerFromEvents } from '@/engine/puck';
 
 const FALLBACK_SETTINGS = {
   assistance: 'standard' as const,
@@ -32,13 +37,6 @@ const FALLBACK_SETTINGS = {
   timeLimitSeconds: 8,
   reducedEffects: false,
 };
-import { removePlayerFromEvents } from '@/engine/puck';
-import {
-  updateGhostTrail,
-} from '@/engine/playback';
-import { compileDrill } from '@/sim/compileDrill';
-import { sampleFrame } from '@/sim/sampleFrame';
-import { clamp } from '@/utils/geometry';
 
 /**
  * Create initial application state
@@ -48,17 +46,11 @@ export function createInitialState(): AppState {
 
   return {
     drill,
-    camera: { ...DEFAULT_CAMERA },
-    cameraUserAdjusted: false,
-    canvasWidth: 0,
-    canvasHeight: 0,
+    documentRevision: 0,
+    reviewedRevision: null,
+    pendingAction: { kind: 'none' },
     selection: { ...DEFAULT_SELECTION },
-    interaction: { ...DEFAULT_INTERACTION },
     playback: { ...DEFAULT_PLAYBACK },
-    playbackPositions: {},
-    playbackPlayerFrames: {},
-    animatedPuck: null,
-    ghostTrails: new Map(),
     ui: { ...DEFAULT_UI },
     undoStack: [],
     redoStack: [],
@@ -68,82 +60,21 @@ export function createInitialState(): AppState {
 }
 
 /**
- * Calculate camera to fit the whole rink in the viewport
+ * Guarantee exactly one initial puck carrier, preferring whoever already had
+ * it. Used by the clear commands, which must never leave a drill with no puck.
  */
-function calculateFitCamera(canvasWidth: number, canvasHeight: number, base?: Camera): Camera {
-  // The tabletop lean/spin is a view preference that survives a re-fit.
-  const rotation = base?.rotation ?? 0;
-  const tilt = base?.tilt ?? 0;
-
-  if (canvasWidth <= 0 || canvasHeight <= 0) {
-    return { ...DEFAULT_CAMERA, rotation, tilt };
-  }
-
-  const zoom = Math.min(
-    (canvasWidth - FIT_PADDING * 2) / RINK.width,
-    (canvasHeight - FIT_PADDING * 2) / RINK.height
-  );
-
-  return {
-    zoom,
-    x: (canvasWidth - RINK.width * zoom) / 2 - RINK.x * zoom,
-    y: (canvasHeight - RINK.height * zoom) / 2 - RINK.y * zoom,
-    rotation,
-    tilt,
-  };
+function ensureSingleCarrier(players: Player[]): Player[] {
+  if (players.length === 0) return players;
+  const existing = players.findIndex(player => player.hasPuck);
+  const carrierIndex = existing >= 0 ? existing : 0;
+  return players.map((player, index) => ({ ...player, hasPuck: index === carrierIndex }));
 }
 
 /**
- * Reset playback-derived state back to a clean slate
- */
-const CLEARED_PLAYBACK = {
-  playbackPositions: {} as Record<string, Point>,
-  playbackPlayerFrames: {},
-  animatedPuck: null,
-  ghostTrails: new Map<string, Point[]>(),
-};
-
-/**
- * Re-derive everything that depends on playback progress. Pure: given the same
- * drill and progress it always produces the same positions, puck and events.
- */
-function derivePlayback(state: AppState, progress: number): AppState {
-  const { players, skatePaths } = state.drill;
-  const compiled = compileDrill(state.drill);
-  const frame = sampleFrame(compiled, progress * compiled.durationSeconds);
-  const positions = Object.fromEntries(
-    Object.entries(frame.players).map(([id, playerFrame]) => [id, playerFrame.position])
-  );
-
-  // Trails only accumulate while actually playing - scrubbing shouldn't smear.
-  let ghostTrails = state.ghostTrails;
-  if (state.playback.isPlaying) {
-    for (const player of players) {
-      const hasPath = skatePaths.some(sp => sp.ownerId === player.id);
-      if (hasPath) {
-        ghostTrails = updateGhostTrail(ghostTrails, player.id, positions[player.id]);
-      }
-    }
-  }
-
-  return {
-    ...state,
-    playback: {
-      ...state.playback,
-      progress,
-      duration: frame.durationSeconds,
-      firedEvents: frame.firedEventIndices,
-      lifecycle: state.playback.isPlaying && frame.lifecycle === 'ready' ? 'active' : frame.lifecycle,
-    },
-    playbackPositions: positions,
-    playbackPlayerFrames: frame.players,
-    animatedPuck: frame.puck,
-    ghostTrails,
-  };
-}
-
-/**
- * Create an undo snapshot of the drill's mutable content
+ * Create an undo snapshot of the drill's mutable content.
+ *
+ * structuredClone is a deep copy, so two snapshots never share a settings
+ * object and a later edit cannot reach back and rewrite history.
  */
 function createUndoSnapshot(drill: Drill): UndoSnapshot {
   return structuredClone({
@@ -151,6 +82,7 @@ function createUndoSnapshot(drill: Drill): UndoSnapshot {
     skatePaths: drill.skatePaths,
     events: drill.events,
     coaches: drill.coaches ?? [],
+    settings: drill.settings,
   });
 }
 
@@ -161,6 +93,7 @@ function applySnapshot(state: AppState, snapshot: UndoSnapshot): Drill {
     skatePaths: snapshot.skatePaths,
     events: snapshot.events,
     coaches: snapshot.coaches ?? [],
+    settings: snapshot.settings,
     updatedAt: Date.now(),
   };
 }
@@ -169,7 +102,7 @@ function applySnapshot(state: AppState, snapshot: UndoSnapshot): Drill {
  * Actions that change drill content and should each be a single undo step.
  *
  * MOVE_PLAYER is deliberately absent: it fires continuously while dragging, so
- * the caller dispatches PUSH_UNDO once when the gesture starts instead.
+ * the command layer dispatches PUSH_UNDO once when the gesture starts instead.
  */
 const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'ADD_PLAYER',
@@ -192,14 +125,23 @@ const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'UPDATE_SHOT_RESULT',
   'CONVERT_DUMP_TO_PASS',
   'RETARGET_PASS',
-  'CLEAR_ALL_EVENTS',
+  'CLEAR_PUCK_ACTIONS',
+  'CLEAR_MOVEMENT_ROUTES',
+  'RESET_BOARD',
 ]);
+
+/** Actions that begin a fresh document; their history is dropped, not extended. */
+const DOCUMENT_SWITCH_ACTIONS: ReadonlySet<AppAction['type']> = new Set(['NEW_DRILL', 'LOAD_DRILL']);
 
 /**
  * Main application reducer.
  *
- * Wraps the core reducer to record undo history for drill-mutating actions, so
- * individual call sites can't forget to.
+ * Wraps the core reducer to:
+ *   - record undo history for drill-mutating actions, so individual call sites
+ *     can't forget to,
+ *   - bump `documentRevision` whenever the drill actually changes, which is
+ *     what validation caches and review completion key off,
+ *   - cancel any pending hockey action whose subject just disappeared.
  */
 export function appReducer(state: AppState, action: AppAction): AppState {
   const next = reduce(state, action);
@@ -207,13 +149,57 @@ export function appReducer(state: AppState, action: AppAction): AppState {
   // Nothing changed (e.g. a rejected SET_PUCK_CARRIER) - don't record history.
   if (next === state) return state;
 
+  let result = next;
+
+  if (next.drill !== state.drill) {
+    result = { ...result, documentRevision: state.documentRevision + 1 };
+    // An edit invalidates any prior review of this drill.
+    if (!DOCUMENT_SWITCH_ACTIONS.has(action.type)) {
+      result = { ...result, reviewedRevision: null };
+    }
+  }
+
+  if (DOCUMENT_SWITCH_ACTIONS.has(action.type)) {
+    result = { ...result, documentRevision: 0, reviewedRevision: null };
+  }
+
+  result = cancelOrphanedPendingAction(result);
+
   if (UNDOABLE_ACTIONS.has(action.type) || action.type === 'PUSH_UNDO') {
     const undoStack = [...state.undoStack, createUndoSnapshot(state.drill)];
     if (undoStack.length > MAX_UNDO_STACK) undoStack.shift();
-    return { ...next, undoStack, redoStack: [] };
+    return { ...result, undoStack, redoStack: [] };
   }
 
-  return next;
+  return result;
+}
+
+/**
+ * Automatic cancellation: if the player, coach, route, or event a pending
+ * action refers to has been removed, the action is dropped rather than left
+ * pointing at nothing.
+ */
+function cancelOrphanedPendingAction(state: AppState): AppState {
+  const pending = state.pendingAction;
+  if (pending.kind === 'none') return state;
+
+  const exists = (() => {
+    switch (pending.kind) {
+      case 'move-player':
+      case 'draw-route':
+      case 'pass':
+      case 'shoot':
+        return state.drill.players.some(player => player.id === pending.playerId);
+      case 'move-coach':
+        return (state.drill.coaches ?? []).some(coach => coach.id === pending.coachId);
+      case 'edit-route':
+        return state.drill.skatePaths.some(path => path.id === pending.pathId);
+      case 'edit-event':
+        return state.drill.events.some(event => event.id === pending.eventId);
+    }
+  })();
+
+  return exists ? state : { ...state, pendingAction: { kind: 'none' } };
 }
 
 function reduce(state: AppState, action: AppAction): AppState {
@@ -226,10 +212,9 @@ function reduce(state: AppState, action: AppAction): AppState {
       const drill = createNewDrill();
       return {
         ...state,
-        ...CLEARED_PLAYBACK,
         drill,
         selection: { ...DEFAULT_SELECTION },
-        interaction: { ...DEFAULT_INTERACTION },
+        pendingAction: { kind: 'none' },
         playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
         undoStack: [],
         redoStack: [],
@@ -240,10 +225,9 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'LOAD_DRILL': {
       return {
         ...state,
-        ...CLEARED_PLAYBACK,
         drill: action.drill,
         selection: { ...DEFAULT_SELECTION },
-        interaction: { ...DEFAULT_INTERACTION },
+        pendingAction: { kind: 'none' },
         playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
         undoStack: [],
         redoStack: [],
@@ -565,118 +549,75 @@ function reduce(state: AppState, action: AppAction): AppState {
       };
     }
 
-    case 'CLEAR_ALL_EVENTS': {
-      const players = state.drill.players.map((p, i) => ({ ...p, hasPuck: i === 0 }));
+    // ========================================================================
+    // DESTRUCTIVE CLEARS
+    //
+    // Three commands, three exact meanings. Each one says in its name what it
+    // removes, and each leaves everything else alone. The single
+    // "Clear all events" this replaced removed routes too.
+    // ========================================================================
+
+    case 'CLEAR_PUCK_ACTIONS': {
       return {
         ...state,
-        ...CLEARED_PLAYBACK,
-        drill: { ...state.drill, skatePaths: [], events: [], players, updatedAt: Date.now() },
+        drill: {
+          ...state.drill,
+          events: [],
+          players: ensureSingleCarrier(state.drill.players),
+          updatedAt: Date.now(),
+        },
         selection: { ...DEFAULT_SELECTION },
+        pendingAction: { kind: 'none' },
+        playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
+      };
+    }
+
+    case 'CLEAR_MOVEMENT_ROUTES': {
+      return {
+        ...state,
+        drill: { ...state.drill, skatePaths: [], updatedAt: Date.now() },
+        selection: { ...DEFAULT_SELECTION },
+        pendingAction: { kind: 'none' },
+        playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
+      };
+    }
+
+    case 'RESET_BOARD': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          players: createDefaultPlayers(),
+          skatePaths: [],
+          events: [],
+          coaches: [],
+          updatedAt: Date.now(),
+        },
+        selection: { ...DEFAULT_SELECTION },
+        pendingAction: { kind: 'none' },
         playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
       };
     }
 
     // ========================================================================
-    // CAMERA
-    // ========================================================================
-
-    case 'SET_CAMERA': {
-      return {
-        ...state,
-        camera: {
-          ...action.camera,
-          zoom: clamp(action.camera.zoom, MIN_ZOOM, MAX_ZOOM),
-          tilt: clamp(action.camera.tilt ?? 0, 0, TABLETOP_MAX_TILT),
-        },
-        cameraUserAdjusted: true,
-      };
-    }
-
-    case 'FIT_CAMERA': {
-      // An explicit "show me the whole rink" also hands control back to
-      // auto-fit, so resizing keeps the rink framed. The tabletop lean/spin is
-      // a view preference, so it rides along rather than snapping back to flat.
-      return {
-        ...state,
-        camera: calculateFitCamera(state.canvasWidth, state.canvasHeight, state.camera),
-        cameraUserAdjusted: false,
-      };
-    }
-
-    case 'ZOOM_AT': {
-      const { camera } = state;
-      const zoom = clamp(camera.zoom * action.factor, MIN_ZOOM, MAX_ZOOM);
-      // Keep the world point under the cursor pinned to the same screen point.
-      const scale = zoom / camera.zoom;
-
-      return {
-        ...state,
-        camera: {
-          ...camera,
-          zoom,
-          x: action.screenPoint.x - (action.screenPoint.x - camera.x) * scale,
-          y: action.screenPoint.y - (action.screenPoint.y - camera.y) * scale,
-        },
-        cameraUserAdjusted: true,
-      };
-    }
-
-    case 'ZOOM_TO_ZONE': {
-      const cw = state.canvasWidth;
-      const ch = state.canvasHeight;
-
-      const rotation = state.camera.rotation ?? 0;
-      const tilt = state.camera.tilt ?? 0;
-
-      if (action.zone === 'full') {
-        return {
-          ...state,
-          camera: calculateFitCamera(cw, ch, state.camera),
-          cameraUserAdjusted: false,
-        };
-      }
-
-      const zoom = clamp(2, MIN_ZOOM, MAX_ZOOM);
-      const cx = action.zone === 'offensive'
-        ? RINK.x + RINK.width * 0.62
-        : RINK.x + RINK.width * 0.38;
-      const cy = RINK.centerY;
-
-      return {
-        ...state,
-        camera: { x: -cx * zoom + cw / 2, y: -cy * zoom + ch / 2, zoom, rotation, tilt },
-        cameraUserAdjusted: true,
-      };
-    }
-
-    // ========================================================================
-    // CANVAS
-    // ========================================================================
-
-    case 'SET_CANVAS_SIZE': {
-      // Keep re-fitting on resize until the user takes the camera over. The
-      // first layout pass reports a stale height, so fitting only once would
-      // leave the rink cropped.
-      const shouldFit = !state.cameraUserAdjusted && action.width > 0 && action.height > 0;
-
-      return {
-        ...state,
-        canvasWidth: action.width,
-        canvasHeight: action.height,
-        camera: shouldFit
-          ? calculateFitCamera(action.width, action.height, state.camera)
-          : state.camera,
-      };
-    }
-
-    // ========================================================================
     // SELECTION
+    //
+    // Selecting highlights and shows a compact chip. It never opens a full
+    // inspector - that takes a second, explicit gesture.
     // ========================================================================
 
     case 'SELECT_PLAYER': {
       return {
         ...state,
         selection: { ...state.selection, selectedPlayerId: action.id, selectedEventId: null },
+        ui: {
+          ...state.ui,
+          inspector:
+            state.ui.inspector.kind === 'event' ||
+            (state.ui.inspector.kind === 'player' && state.ui.inspector.playerId !== action.id)
+              ? { kind: 'none' }
+              : state.ui.inspector,
+        },
       };
     }
 
@@ -691,46 +632,32 @@ function reduce(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         selection: { ...state.selection, selectedEventId: action.id, selectedPlayerId: null },
-        ui: { ...state.ui, showPlayerInfo: false },
+        ui: {
+          ...state.ui,
+          inspector:
+            state.ui.inspector.kind === 'player' ||
+            (state.ui.inspector.kind === 'event' && state.ui.inspector.eventId !== action.id)
+              ? { kind: 'none' }
+              : state.ui.inspector,
+        },
       };
     }
 
     // ========================================================================
-    // INTERACTION
-    // ========================================================================
-
-    case 'SET_INTERACTION': {
-      return {
-        ...state,
-        interaction: { ...state.interaction, ...action.interaction },
-      };
-    }
-
-    case 'RESET_INTERACTION': {
-      return { ...state, interaction: { ...DEFAULT_INTERACTION } };
-    }
-
-    // ========================================================================
-    // PLAYBACK
+    // PLAYBACK LIFECYCLE
+    //
+    // Only the coarse lifecycle lives here. Progress, sampled positions, the
+    // puck and ghost trails are owned by src/playback/PlaybackStore, which the
+    // canvas subscribes to directly.
     // ========================================================================
 
     case 'START_PLAYBACK': {
-      return derivePlayback(
-        {
-          ...state,
-          ...CLEARED_PLAYBACK,
-          playback: { ...state.playback, isPlaying: true, progress: 0, firedEvents: [] },
-        },
-        0
-      );
+      return { ...state, playback: { ...state.playback, isPlaying: true, lifecycle: 'active' } };
     }
 
     case 'STOP_PLAYBACK': {
+      if (!state.playback.isPlaying) return state;
       return { ...state, playback: { ...state.playback, isPlaying: false } };
-    }
-
-    case 'SET_PLAYBACK_PROGRESS': {
-      return derivePlayback(state, clamp(action.progress, 0, 1));
     }
 
     case 'SET_PLAYBACK_SPEED': {
@@ -738,19 +665,36 @@ function reduce(state: AppState, action: AppAction): AppState {
     }
 
     case 'RESET_PLAYBACK': {
-      return {
-        ...state,
-        ...CLEARED_PLAYBACK,
-        playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
-      };
-    }
-
-    case 'CLEAR_GHOST_TRAILS': {
-      return { ...state, ghostTrails: new Map() };
+      return { ...state, playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed } };
     }
 
     case 'SET_PLAYBACK_LIFECYCLE': {
+      if (state.playback.lifecycle === action.lifecycle) return state;
       return { ...state, playback: { ...state.playback, lifecycle: action.lifecycle } };
+    }
+
+    case 'MARK_REVIEWED': {
+      return { ...state, reviewedRevision: state.documentRevision };
+    }
+
+    // ========================================================================
+    // PENDING ACTION
+    // ========================================================================
+
+    case 'SET_PENDING_ACTION': {
+      return { ...state, pendingAction: action.action };
+    }
+
+    case 'CANCEL_PENDING_ACTION': {
+      if (state.pendingAction.kind === 'none' && state.selection.passFromPlayerId === null) {
+        return state;
+      }
+      return {
+        ...state,
+        pendingAction: { kind: 'none' },
+        selection: { ...state.selection, passFromPlayerId: null },
+        ui: { ...state.ui, modeBanner: null },
+      };
     }
 
     // ========================================================================
@@ -764,7 +708,6 @@ function reduce(state: AppState, action: AppAction): AppState {
         selection: action.tool !== 'pass'
           ? { ...state.selection, passFromPlayerId: null }
           : state.selection,
-        interaction: { ...DEFAULT_INTERACTION },
       };
     }
 
@@ -773,7 +716,6 @@ function reduce(state: AppState, action: AppAction): AppState {
         ...state,
         ui: { ...state.ui, editorStep: action.step },
         selection: { ...state.selection, passFromPlayerId: null },
-        interaction: { ...DEFAULT_INTERACTION },
       };
     }
 
@@ -782,58 +724,91 @@ function reduce(state: AppState, action: AppAction): AppState {
     }
 
     case 'CLOSE_MENU': {
+      if (!state.ui.showMenu) return state;
       return { ...state, ui: { ...state.ui, showMenu: false } };
     }
 
-    case 'SHOW_CONTEXT_MENU': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          showContextMenu: true,
-          contextMenuPosition: action.position,
-          contextMenuPlayerId: action.playerId,
-        },
-      };
-    }
-
-    case 'HIDE_CONTEXT_MENU': {
-      return {
-        ...state,
-        ui: {
-          ...state.ui,
-          showContextMenu: false,
-          contextMenuPosition: null,
-          contextMenuPlayerId: null,
-        },
-      };
-    }
-
     case 'SHOW_RENAME_MODAL': {
-      return { ...state, ui: { ...state.ui, showRenameModal: true } };
+      // A blocking dialog cancels any half-finished hockey action.
+      return {
+        ...state,
+        ui: { ...state.ui, showRenameModal: true },
+        pendingAction: { kind: 'none' },
+      };
     }
 
     case 'HIDE_RENAME_MODAL': {
       return { ...state, ui: { ...state.ui, showRenameModal: false } };
     }
 
-    case 'SHOW_PLAYER_INFO': {
-      return { ...state, ui: { ...state.ui, showPlayerInfo: true } };
+    case 'OPEN_INSPECTOR': {
+      return { ...state, ui: { ...state.ui, inspector: action.target } };
     }
 
-    case 'HIDE_PLAYER_INFO': {
-      return { ...state, ui: { ...state.ui, showPlayerInfo: false } };
+    case 'CLOSE_INSPECTOR': {
+      if (state.ui.inspector.kind === 'none') return state;
+      return { ...state, ui: { ...state.ui, inspector: { kind: 'none' } } };
     }
 
-    case 'ADD_TOAST': {
-      return { ...state, ui: { ...state.ui, toasts: [...state.ui.toasts, action.toast] } };
-    }
-
-    case 'REMOVE_TOAST': {
+    case 'OPEN_SHEET': {
+      // A sheet covering the rink cancels a pending hockey action, which can
+      // no longer be completed by tapping the ice.
       return {
         ...state,
-        ui: { ...state.ui, toasts: state.ui.toasts.filter(t => t.id !== action.id) },
+        ui: { ...state.ui, openSheet: action.sheet },
+        pendingAction: action.sheet === 'none' ? state.pendingAction : { kind: 'none' },
       };
+    }
+
+    case 'CLOSE_SHEET': {
+      if (state.ui.openSheet === 'none') return state;
+      return { ...state, ui: { ...state.ui, openSheet: 'none' } };
+    }
+
+    // ========================================================================
+    // TOASTS
+    //
+    // A deliberate queue. The toast on screen stays until it is dismissed or
+    // times out; the next one follows. A higher-priority message (a failure)
+    // may take over from a routine one, but never the other way round.
+    // ========================================================================
+
+    case 'ENQUEUE_TOAST': {
+      const { activeToast, toastQueue } = state.ui;
+      const incoming = action.toast;
+
+      const duplicate =
+        activeToast?.dedupeKey === incoming.dedupeKey ||
+        toastQueue.some(queued => queued.dedupeKey === incoming.dedupeKey);
+      if (duplicate) return state;
+
+      if (!activeToast) {
+        return { ...state, ui: { ...state.ui, activeToast: incoming } };
+      }
+
+      if (incoming.priority > activeToast.priority) {
+        return { ...state, ui: { ...state.ui, activeToast: incoming } };
+      }
+
+      return { ...state, ui: { ...state.ui, toastQueue: [...toastQueue, incoming] } };
+    }
+
+    case 'DISMISS_TOAST': {
+      const { activeToast, toastQueue } = state.ui;
+
+      if (activeToast?.id === action.id) {
+        const [next, ...rest] = toastQueue;
+        return { ...state, ui: { ...state.ui, activeToast: next ?? null, toastQueue: rest } };
+      }
+
+      const filtered = toastQueue.filter(toast => toast.id !== action.id);
+      if (filtered.length === toastQueue.length) return state;
+      return { ...state, ui: { ...state.ui, toastQueue: filtered } };
+    }
+
+    case 'CLEAR_TOASTS': {
+      if (!state.ui.activeToast && state.ui.toastQueue.length === 0) return state;
+      return { ...state, ui: { ...state.ui, activeToast: null, toastQueue: [] } };
     }
 
     case 'SET_MODE_BANNER': {
@@ -845,6 +820,7 @@ function reduce(state: AppState, action: AppAction): AppState {
     }
 
     case 'CLEAR_BANNERS': {
+      if (!state.ui.modeBanner && !state.ui.playBanner) return state;
       return { ...state, ui: { ...state.ui, modeBanner: null, playBanner: null } };
     }
 
@@ -867,12 +843,12 @@ function reduce(state: AppState, action: AppAction): AppState {
       const snapshot = state.undoStack[state.undoStack.length - 1];
       return {
         ...state,
-        ...CLEARED_PLAYBACK,
         drill: applySnapshot(state, snapshot),
         undoStack: state.undoStack.slice(0, -1),
         redoStack: [...state.redoStack, createUndoSnapshot(state.drill)],
         playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
         selection: { ...DEFAULT_SELECTION },
+        pendingAction: { kind: 'none' },
       };
     }
 
@@ -882,12 +858,12 @@ function reduce(state: AppState, action: AppAction): AppState {
       const snapshot = state.redoStack[state.redoStack.length - 1];
       return {
         ...state,
-        ...CLEARED_PLAYBACK,
         drill: applySnapshot(state, snapshot),
         redoStack: state.redoStack.slice(0, -1),
         undoStack: [...state.undoStack, createUndoSnapshot(state.drill)],
         playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
         selection: { ...DEFAULT_SELECTION },
+        pendingAction: { kind: 'none' },
       };
     }
 

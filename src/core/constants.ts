@@ -2,7 +2,7 @@
 // CONSTANTS - Fixed values for the hockey drill designer
 // ============================================================================
 
-import type { RinkDimensions, Camera, PlaybackState, InteractionState, UIState, SelectionState } from './types';
+import type { RinkDimensions, Camera, PlaybackState, UIState, SelectionState } from './types';
 
 // ============================================================================
 // RINK DIMENSIONS
@@ -292,31 +292,8 @@ export const DEFAULT_CAMERA: Camera = {
 
 export const DEFAULT_PLAYBACK: PlaybackState = {
   isPlaying: false,
-  progress: 0,
   speed: 1,
-  duration: DEFAULT_DRILL_DURATION,
-  firedEvents: [],
   lifecycle: 'ready',
-};
-
-export const DEFAULT_INTERACTION: InteractionState = {
-  isPointerDown: false,
-  pointerMoved: false,
-  pointerDownPosition: null,
-  dragType: 'none',
-  dragFromPlayer: null,
-  dragCurrentPosition: null,
-  holdActive: false,
-  holdTarget: null,
-  movingPlayer: null,
-  drawingSkate: false,
-  skateOwner: null,
-  skateRawPoints: [],
-  nodeActive: false,
-  nodePath: null,
-  nodeWorldPoint: null,
-  nodeDragPosition: null,
-  pinchState: null,
 };
 
 export const DEFAULT_SELECTION: SelectionState = {
@@ -329,16 +306,30 @@ export const DEFAULT_UI: UIState = {
   editorStep: 'setup',
   currentTool: 'select',
   showMenu: false,
-  showContextMenu: false,
-  contextMenuPosition: null,
-  contextMenuPlayerId: null,
   showRenameModal: false,
-  showPlayerInfo: false,
-  toasts: [],
+  inspector: { kind: 'none' },
+  openSheet: 'none',
+  activeToast: null,
+  toastQueue: [],
   modeBanner: null,
   playBanner: null,
   showDiagnostics: false,
 };
+
+// ============================================================================
+// TOAST PRIORITIES
+//
+// A higher-priority message may take over the screen from a lower-priority
+// one. A routine success can never displace a failure.
+// ============================================================================
+
+export const TOAST_PRIORITY = {
+  hint: 0,
+  info: 1,
+  success: 2,
+  warning: 3,
+  error: 4,
+} as const;
 
 // ============================================================================
 // PLAYER ROLES

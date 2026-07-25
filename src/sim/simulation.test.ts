@@ -8,7 +8,7 @@ import { compileDrill } from './compileDrill';
 import { sampleFrame, getCompiledEventEndpoints } from './sampleFrame';
 import { solveLoosePuck } from './puckSolver';
 import { isInsideRink } from './collision/rinkGeometry';
-import { migrateDrill } from '@/storage/migrations';
+import { migrateDrillCandidate } from '@/persistence/drillPipeline';
 import { nextLifecycle } from '@/engine/drillLifecycle';
 import { validateDrillMechanics } from '@/engine/drillValidation';
 import { getAimedNetTarget } from '@/engine/puck';
@@ -167,7 +167,9 @@ describe('schema, lifecycle, and validation', () => {
     delete legacy.schemaVersion;
     delete legacy.settings;
     legacy.players = legacy.players.map(player => ({ ...player, visual: undefined }));
-    const migrated = migrateDrill(legacy);
+    // The migration now lives in the persistence pipeline, where it is
+    // total for arbitrary input; the expectations are unchanged.
+    const { drill: migrated } = migrateDrillCandidate(legacy);
     expect(migrated.schemaVersion).toBe(2);
     expect(migrated.players.map(player => player.id)).toEqual(['p11', 'p13', 'g1']);
     expect(migrated.players.filter(player => player.hasPuck)).toHaveLength(1);

@@ -7,10 +7,11 @@ import type {
   DrillEvent,
   PuckChainNode,
   ID,
+  NetSide,
   Team,
   Point,
 } from '@/core/types';
-import { FT, NET_LEFT, NET_RIGHT, RINK_MARKS } from '@/core/constants';
+import { FT, NET_LEFT, NET_RIGHT, RINK, RINK_MARKS } from '@/core/constants';
 
 /**
  * Get the complete puck chain - sequence of who has/had the puck
@@ -146,6 +147,17 @@ export function validatePass(
     };
   }
 
+  // An ordinary pass goes to a teammate. Handing the puck to an opponent is a
+  // turnover, which is a different event type and not something the author can
+  // create by dragging. This check is here - in the domain - so every UI path
+  // (two-tap, drag, retarget, dump conversion, inspector) inherits it.
+  if (fromPlayer.team !== toPlayer.team) {
+    return {
+      valid: false,
+      error: `#${toPlayer.number} is on the other team — a pass goes to a teammate.`,
+    };
+  }
+
   return { valid: true, error: null };
 }
 
@@ -185,12 +197,40 @@ export function validateShot(
   return { valid: true, error: null };
 }
 
+// ============================================================================
+// END / TEAM CONVENTION
+//
+// One rule, stated once: HOME defends the LEFT net, AWAY defends the RIGHT.
+// Default lineups, manual goalie placement, attack direction, validation, and
+// the goalie simulation all read it from here so they cannot drift apart.
+// ============================================================================
+
+/** The net this team defends - where their goalie stands. */
+export function teamDefendingNet(team: Team): NetSide {
+  return team === 'home' ? 'L' : 'R';
+}
+
+/** The team that defends this net. Inverse of `teamDefendingNet`. */
+export function teamForDefendedNet(net: NetSide): Team {
+  return net === 'L' ? 'home' : 'away';
+}
+
+/** The net this team attacks - the one they shoot at. */
+export function teamAttackingNet(team: Team): NetSide {
+  return teamDefendingNet(team) === 'L' ? 'R' : 'L';
+}
+
+/** Which half of the rink a world x-coordinate falls in. */
+export function netSideForPoint(point: Point): NetSide {
+  return point.x < RINK.centerX ? 'L' : 'R';
+}
+
 /**
- * Get the target net for a team
- * Home team attacks right net, away attacks left
+ * Get the target net for a team.
+ * Home defends left and therefore attacks the right net, and vice versa.
  */
 export function getTargetNet(team: Team): Point {
-  return team === 'home' ? NET_RIGHT : NET_LEFT;
+  return teamAttackingNet(team) === 'R' ? NET_RIGHT : NET_LEFT;
 }
 
 /**

@@ -13,6 +13,7 @@ import type {
 } from '@/core/types';
 import { generateId } from '@/utils/id';
 import { RINK, FT } from '@/core/constants';
+import { teamDefendingNet } from './puck';
 
 /**
  * Create a new player
@@ -41,17 +42,42 @@ export function createPlayer(
 }
 
 /**
- * Generate a random player number
+ * Pick a jersey number that no one on `team` is already wearing.
+ *
+ * Player identity is the immutable `id`, never the number, so a duplicate is
+ * not a correctness problem - but two #17s on the same bench is confusing for
+ * the coach, so the default we generate avoids it. A user is still free to
+ * type a duplicate deliberately.
  */
-export function randomPlayerNumber(): string {
-  return String(10 + Math.floor(Math.random() * 80));
+export function nextPlayerNumber(
+  players: Player[],
+  team: Team,
+  preferred: number[] = SKATER_NUMBER_POOL
+): string {
+  const taken = new Set(players.filter(player => player.team === team).map(player => player.number));
+  for (const candidate of preferred) {
+    if (!taken.has(String(candidate))) return String(candidate);
+  }
+  // Every preferred number is taken; walk upward until something is free.
+  for (let candidate = 1; candidate <= 99; candidate++) {
+    if (!taken.has(String(candidate))) return String(candidate);
+  }
+  return String(players.length + 1);
 }
 
-/**
- * Generate a random goalie number (1-39)
- */
-export function randomGoalieNumber(): string {
-  return String(Math.floor(Math.random() * 39) + 1);
+/** Skater numbers, in the order a coach would hand them out. */
+const SKATER_NUMBER_POOL = [
+  9, 10, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 33, 34,
+  36, 37, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 52, 53, 55, 56, 57, 58,
+  59, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 72, 73, 74, 75, 76, 77, 78, 79, 81,
+  82, 83, 84, 85, 86, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99,
+];
+
+/** Goalies traditionally wear 1, 30-39. */
+const GOALIE_NUMBER_POOL = [1, 30, 31, 32, 33, 34, 35, 29, 39, 60];
+
+export function nextGoalieNumber(players: Player[], team: Team): string {
+  return nextPlayerNumber(players, team, GOALIE_NUMBER_POOL);
 }
 
 /**
@@ -73,25 +99,34 @@ export function createDefaultPlayers(): Player[] {
   const away = (aheadFt: number, acrossFt: number, number: string, role: PlayerRole) =>
     createPlayer(centerX + aheadFt * FT, centerY + acrossFt * FT, 'away', number, role);
 
-  // Goalies stand in their crease, a few feet off the goal line.
+  // Goalies stand in their crease, a few feet off the goal line, at the end
+  // their team defends. `teamDefendingNet` is the single source of that rule.
   const goalieOffsetFt = 3;
+  const homeGoalX =
+    teamDefendingNet('home') === 'L'
+      ? goalLineLeftX + goalieOffsetFt * FT
+      : goalLineRightX - goalieOffsetFt * FT;
+  const awayGoalX =
+    teamDefendingNet('away') === 'L'
+      ? goalLineLeftX + goalieOffsetFt * FT
+      : goalLineRightX - goalieOffsetFt * FT;
 
   return [
-    // Home team, attacking right, breaking out of their own end
+    // Home team, defending left, breaking out of their own end
     home(28, 0, '11', 'C', true),
     home(44, -18, '13', 'LW'),
     home(44, 18, '44', 'RW'),
     home(62, -11, '5', 'D'),
     home(62, 11, '7', 'D'),
-    createPlayer(goalLineLeftX + goalieOffsetFt * FT, centerY, 'home', '31', 'G'),
+    createPlayer(homeGoalX, centerY, 'home', '31', 'G'),
 
-    // Away team, attacking left
+    // Away team, defending right
     away(28, 0, '87', 'C'),
     away(44, -18, '19', 'LW'),
     away(44, 18, '71', 'RW'),
     away(62, -11, '6', 'D'),
     away(62, 11, '8', 'D'),
-    createPlayer(goalLineRightX - goalieOffsetFt * FT, centerY, 'away', '1', 'G'),
+    createPlayer(awayGoalX, centerY, 'away', '1', 'G'),
   ];
 }
 
@@ -151,53 +186,51 @@ export function createCoach(x: number, y: number, name = 'Coach'): CoachMarker {
 export function duplicateDrill(drill: Drill, newName?: string): Drill {
   const now = Date.now();
 
-  // Deep clone the drill
-  const clone: Drill = {
+  // Deep clone first, THEN replace identity and reference fields. Rebuilding
+  // each route from a hand-picked subset of fields is how `mode` and `finish`
+  // used to be silently dropped from every copy - and any field added later
+  // would have been dropped the same way.
+  const source = structuredClone(drill);
+
+  const playerIdMap = new Map<ID, ID>();
+  const players = source.players.map(player => {
+    const id = generateId();
+    playerIdMap.set(player.id, id);
+    return { ...player, id };
+  });
+
+  const coaches = (source.coaches ?? []).map(coach => ({ ...coach, id: generateId() }));
+
+  const skatePaths = source.skatePaths.map(path => ({
+    ...path,
+    id: generateId(),
+    ownerId: playerIdMap.get(path.ownerId) ?? path.ownerId,
+  }));
+
+  const events = source.events.map(event => {
+    const cloned = {
+      ...event,
+      id: generateId(),
+      fromPlayerId: playerIdMap.get(event.fromPlayerId) ?? event.fromPlayerId,
+    };
+    if (cloned.type === 'pass' && event.type === 'pass') {
+      cloned.toPlayerId = playerIdMap.get(event.toPlayerId) ?? event.toPlayerId;
+    }
+    return cloned;
+  });
+
+  return {
+    ...source,
     schemaVersion: 2,
     id: generateId(),
     name: newName ?? `${drill.name} (Copy)`,
     createdAt: now,
     updatedAt: now,
-    players: drill.players.map(p => ({ ...p, id: generateId() })),
-    skatePaths: [],
-    events: [],
-    coaches: (drill.coaches ?? []).map(c => ({ ...c, id: generateId() })),
-    settings: drill.settings ? { ...drill.settings } : undefined,
+    players,
+    coaches,
+    skatePaths,
+    events,
   };
-
-  // Rebuild ID mappings
-  const playerIdMap = new Map<ID, ID>();
-  drill.players.forEach((oldPlayer, index) => {
-    playerIdMap.set(oldPlayer.id, clone.players[index].id);
-  });
-
-  // Clone skate paths with new IDs
-  clone.skatePaths = drill.skatePaths.map(path => ({
-    id: generateId(),
-    ownerId: playerIdMap.get(path.ownerId) ?? path.ownerId,
-    team: path.team,
-    points: path.points.map(p => ({ ...p })),
-  }));
-
-  // Clone events with new IDs
-  clone.events = drill.events.map(event => {
-    const newEvent = {
-      ...event,
-      id: generateId(),
-      fromPlayerId: playerIdMap.get(event.fromPlayerId) ?? event.fromPlayerId,
-      fromPoint: { ...event.fromPoint },
-      toPoint: { ...event.toPoint },
-    };
-
-    if (event.type === 'pass') {
-      (newEvent as typeof event).toPlayerId =
-        playerIdMap.get(event.toPlayerId) ?? event.toPlayerId;
-    }
-
-    return newEvent;
-  });
-
-  return clone;
 }
 
 /**
@@ -208,39 +241,50 @@ export interface DrillValidation {
   errors: string[];
 }
 
+/**
+ * Validate drill data integrity.
+ *
+ * Total for any input: a malformed or missing collection is reported, never
+ * iterated. Validation crashing on bad data is what used to make a single
+ * corrupt record take the whole editor down.
+ */
 export function validateDrill(drill: Drill): DrillValidation {
   const errors: string[] = [];
 
   // Check for required fields
-  if (!drill.id) errors.push('Drill missing ID');
-  if (!drill.name) errors.push('Drill missing name');
-  if (!Array.isArray(drill.players)) errors.push('Drill missing players array');
-  if (!Array.isArray(drill.skatePaths)) errors.push('Drill missing skatePaths array');
-  if (!Array.isArray(drill.events)) errors.push('Drill missing events array');
+  if (!drill?.id) errors.push('Drill missing ID');
+  if (!drill?.name) errors.push('Drill missing name');
+  if (!Array.isArray(drill?.players)) errors.push('Drill missing players array');
+  if (!Array.isArray(drill?.skatePaths)) errors.push('Drill missing skatePaths array');
+  if (!Array.isArray(drill?.events)) errors.push('Drill missing events array');
 
-  // Check for exactly one initial puck carrier
-  const puckCarriers = drill.players.filter(p => p.hasPuck);
-  if (puckCarriers.length === 0) {
+  const players = Array.isArray(drill?.players) ? drill.players : [];
+  const events = Array.isArray(drill?.events) ? drill.events : [];
+  const skatePaths = Array.isArray(drill?.skatePaths) ? drill.skatePaths : [];
+
+  // Exactly one initial puck carrier, once anyone is on the ice.
+  const puckCarriers = players.filter(p => p?.hasPuck);
+  if (players.length > 0 && puckCarriers.length === 0) {
     errors.push('No initial puck carrier');
   } else if (puckCarriers.length > 1) {
     errors.push('Multiple initial puck carriers');
   }
 
   // Check event references
-  const playerIds = new Set(drill.players.map(p => p.id));
+  const playerIds = new Set(players.map(p => p?.id));
 
-  drill.events.forEach((event, index) => {
-    if (!playerIds.has(event.fromPlayerId)) {
+  events.forEach((event, index) => {
+    if (!playerIds.has(event?.fromPlayerId)) {
       errors.push(`Event ${index}: fromPlayerId references non-existent player`);
     }
-    if (event.type === 'pass' && !playerIds.has(event.toPlayerId)) {
+    if (event?.type === 'pass' && !playerIds.has(event.toPlayerId)) {
       errors.push(`Event ${index}: toPlayerId references non-existent player`);
     }
   });
 
   // Check skate path references
-  drill.skatePaths.forEach((path, index) => {
-    if (!playerIds.has(path.ownerId)) {
+  skatePaths.forEach((path, index) => {
+    if (!playerIds.has(path?.ownerId)) {
       errors.push(`SkatePath ${index}: ownerId references non-existent player`);
     }
   });

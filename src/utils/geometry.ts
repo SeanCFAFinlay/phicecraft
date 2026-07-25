@@ -411,3 +411,58 @@ export function lerp(a: number, b: number, t: number): number {
 export function easeInOutQuad(t: number): number {
   return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 }
+
+// ============================================================================
+// RINK CONTAINMENT
+// ============================================================================
+
+/** True when the point is inside the rounded rink outline, with `margin` inset. */
+export function isInsideRink(point: Point, margin = 0): boolean {
+  const clamped = constrainToRink(point, margin);
+  return Math.abs(clamped.x - point.x) < 1e-6 && Math.abs(clamped.y - point.y) < 1e-6;
+}
+
+/**
+ * Move a point to the nearest position inside the rink outline.
+ *
+ * The rink is a rounded rectangle, so clamping to the bounding box alone would
+ * leave objects floating in the corner cut-outs. Inside the corner squares the
+ * point is projected onto the corner arc instead.
+ *
+ * `margin` keeps authored objects a comfortable distance off the boards so they
+ * remain grabbable; pass 0 for a strict containment test.
+ */
+export function constrainToRink(point: Point, margin = 0): Point {
+  const left = RINK.x + margin;
+  const right = RINK.x + RINK.width - margin;
+  const top = RINK.y + margin;
+  const bottom = RINK.y + RINK.height - margin;
+
+  // A margin wider than the rink collapses it to the centre line.
+  if (left >= right || top >= bottom) {
+    return { x: RINK.centerX, y: RINK.centerY };
+  }
+
+  const radius = Math.max(0, RINK.cornerRadius - margin);
+  let x = clamp(Number.isFinite(point.x) ? point.x : RINK.centerX, left, right);
+  let y = clamp(Number.isFinite(point.y) ? point.y : RINK.centerY, top, bottom);
+
+  if (radius <= 0) return { x, y };
+
+  // Each corner arc is centred `radius` in from both edges.
+  const cornerX = x < left + radius ? left + radius : x > right - radius ? right - radius : null;
+  const cornerY = y < top + radius ? top + radius : y > bottom - radius ? bottom - radius : null;
+
+  if (cornerX !== null && cornerY !== null) {
+    const dx = x - cornerX;
+    const dy = y - cornerY;
+    const dist = Math.hypot(dx, dy);
+    if (dist > radius) {
+      const scale = radius / dist;
+      x = cornerX + dx * scale;
+      y = cornerY + dy * scale;
+    }
+  }
+
+  return { x, y };
+}

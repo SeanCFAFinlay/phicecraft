@@ -28,7 +28,18 @@ module.exports = {
     // the conventional pattern and not worth splitting to satisfy fast refresh.
     'react-refresh/only-export-components': [
       'warn',
-      { allowConstantExport: true, allowExportNames: ['useAppState'] },
+      {
+        allowConstantExport: true,
+        // These modules are a provider plus the hooks that read it: the
+        // conventional React context pattern, not worth splitting.
+        allowExportNames: [
+          'useAppState',
+          'useCommands',
+          'useAppServices',
+          'useEditorRuntime',
+          'useHoldProgress',
+        ],
+      },
     ],
 
     // The exhaustive-deps rule is what would have caught the playback loop
