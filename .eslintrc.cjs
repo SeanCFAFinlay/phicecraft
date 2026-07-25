@@ -6,7 +6,17 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react-hooks/recommended',
   ],
-  ignorePatterns: ['dist', 'coverage', '.eslintrc.cjs'],
+  ignorePatterns: [
+    'dist',
+    'coverage',
+    'node_modules',
+    'playwright-report',
+    'test-results',
+    'output',
+    '.playwright-cli',
+    'docs/repair',
+    '.eslintrc.cjs',
+  ],
   parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 'latest',

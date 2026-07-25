@@ -831,7 +831,6 @@ export function CanvasSurface() {
       getPointerPosition,
       beginPinch,
       findPlayerAt,
-      findPathAt,
       findCoachAt,
       findRouteControlAt,
       findEventHandleAt,
