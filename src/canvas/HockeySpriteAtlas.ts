@@ -5,7 +5,7 @@ export function getHockeySpriteAtlas(): HTMLImageElement | null {
   if (!atlas) {
     atlas = new Image();
     atlas.decoding = 'async';
-    atlas.src = '/assets/hockey-sprite-atlas.png';
+    atlas.src = '/assets/hockey-sprite-atlas.webp';
   }
   return atlas.complete && atlas.naturalWidth > 0 ? atlas : null;
 }
@@ -15,7 +15,7 @@ export function subscribeToHockeySpriteAtlas(onReady: () => void): () => void {
   if (!atlas) {
     atlas = new Image();
     atlas.decoding = 'async';
-    atlas.src = '/assets/hockey-sprite-atlas.png';
+    atlas.src = '/assets/hockey-sprite-atlas.webp';
   }
   if (atlas.complete && atlas.naturalWidth > 0) {
     onReady();
