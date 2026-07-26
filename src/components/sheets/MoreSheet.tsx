@@ -12,6 +12,21 @@
 import { Sheet } from '../a11y/Sheet';
 import { SheetItem, SheetSection } from './QuickSheets';
 import { useAppState, useCommands } from '@/hooks/useAppState';
+import type { FinishPolicy } from '@/core/types';
+
+/**
+ * How a drill can end. Only the shot option makes the app derive a puck
+ * action; the rest simply record what the coach intends, which is what lets a
+ * possession game or a passing warm-up stop being described as a missing shot.
+ */
+const FINISHES: { policy: FinishPolicy; label: string; detail: string }[] = [
+  { policy: 'none', label: 'No set finish', detail: 'The drill ends when the sequence does' },
+  { policy: 'finish-with-shot', label: 'Finish with a shot', detail: 'The last carrier shoots, worked out for you' },
+  { policy: 'finish-with-zone-entry', label: 'Finish on zone entry', detail: 'Breakouts and rushes that end at the line' },
+  { policy: 'finish-with-possession', label: 'Finish on possession', detail: 'Battles and small-area games' },
+  { policy: 'loop', label: 'Loop', detail: 'Continuous patterns that run back to the start' },
+  { policy: 'stop-after-sequence', label: 'Stop after the sequence', detail: 'Races and timed stations' },
+];
 
 export function MoreSheet() {
   const { state, dispatch } = useAppState();
@@ -42,6 +57,19 @@ export function MoreSheet() {
           disabled={state.redoStack.length === 0}
           onClick={run(commands.redo)}
         />
+      </SheetSection>
+
+      <SheetSection title="How this drill ends">
+        {FINISHES.map(option => (
+          <SheetItem
+            key={option.policy}
+            icon={(state.drill.settings?.finishPolicy ?? 'none') === option.policy ? '●' : '○'}
+            label={option.label}
+            detail={option.detail}
+            selected={(state.drill.settings?.finishPolicy ?? 'none') === option.policy}
+            onClick={() => commands.setFinishPolicy(option.policy)}
+          />
+        ))}
       </SheetSection>
 
       <SheetSection title="Clear">

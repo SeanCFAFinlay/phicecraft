@@ -12,7 +12,7 @@
 
 import { useEffect } from 'react';
 import { useAppState, useAppServices, useCommands } from '@/hooks/useAppState';
-import { attackingNetFor, canAddEvents, countPasses, getCurrentPuckHolder, MAX_PASSES_PER_DRILL } from '@/engine/puck';
+import { attackingNetFor, canAddEvents, getCurrentPuckHolder } from '@/engine/puck';
 
 function isTextEntry(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null;
@@ -101,10 +101,6 @@ export function useKeyboardShortcuts(): void {
 
         if (key === 's') {
           void commands.requestShot(carrier.id, attackingNetFor(carrier.team));
-          return;
-        }
-        if (countPasses(events) >= MAX_PASSES_PER_DRILL) {
-          announcer.announce(`A drill holds ${MAX_PASSES_PER_DRILL} passes.`);
           return;
         }
         commands.setPendingAction({ kind: 'pass', playerId: carrier.id });

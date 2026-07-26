@@ -28,9 +28,7 @@ import {
 import {
   authoredEvents,
   canAddEvents,
-  countPasses,
   getCurrentPuckHolder,
-  MAX_PASSES_PER_DRILL,
   teamForDefendedNet,
   netSideForPoint,
   validatePass,
@@ -326,6 +324,10 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       dispatch({ type: 'SET_JERSEY', team, hex });
     },
 
+    setFinishPolicy(policy) {
+      dispatch({ type: 'SET_FINISH_POLICY', policy });
+    },
+
     swapJerseys() {
       dispatch({ type: 'SWAP_JERSEYS' });
       notify.toast({ message: 'Team colours swapped', type: 'success', dedupeKey: 'swap-jerseys' });
@@ -502,13 +504,8 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       // sheet to find the carrier again.
       dispatch({ type: 'SELECT_PLAYER', id: toPlayerId });
 
-      const used = countPasses(state.drill.events) + 1;
-      const left = MAX_PASSES_PER_DRILL - used;
       notify.toast({
-        message:
-          left > 0
-            ? `Pass to #${toPlayer.number} · ${left} more available`
-            : `Pass to #${toPlayer.number} · that is the last one, finish with a shot`,
+        message: `Pass to #${toPlayer.number}`,
         type: 'success',
         dedupeKey: `pass:${fromPlayerId}:${toPlayerId}`,
       });

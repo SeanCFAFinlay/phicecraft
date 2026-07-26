@@ -1,9 +1,13 @@
 // ============================================================================
 // THE AUTOMATIC FINISHING SHOT
 //
-// A play ends with a shot, so the last event is derived rather than authored.
-// That makes it a piece of machinery with three hard requirements, and most of
-// this file is about those rather than about hockey:
+// A drill whose finish policy is `finish-with-shot` has its last event derived
+// rather than authored. Every other policy derives nothing - a passing warm-up,
+// a possession game, a race or a breakout that ends at the blue line must be
+// able to end the way it actually ends.
+//
+// Where a shot IS wanted, it is machinery with three hard requirements, and
+// most of this file is about those rather than about hockey:
 //
 //   IDEMPOTENT   deriving twice must not produce two shots
 //   STABLE       when nothing needs to change, the SAME object comes back, or
@@ -47,8 +51,9 @@ function pass(id: string, from: string, to: string, at = 0.2, arrivalAt = 0.4): 
   };
 }
 
+/** A drill that asks for a finishing shot. */
 function drill(overrides: Partial<Drill> = {}): Drill {
-  return buildDrill({
+  const base = buildDrill({
     players: [
       buildPlayer({ id: 'h11', number: '11', hasPuck: true, x: 300, y: 200 }),
       buildPlayer({ id: 'h13', number: '13', x: 600, y: 200 }),
@@ -56,6 +61,16 @@ function drill(overrides: Partial<Drill> = {}): Drill {
     ],
     ...overrides,
   });
+  return {
+    ...base,
+    settings: { ...base.settings!, finishPolicy: 'finish-with-shot', ...overrides.settings },
+  };
+}
+
+/** The same drill, ending some other way. */
+function noShotDrill(overrides: Partial<Drill> = {}): Drill {
+  const base = drill(overrides);
+  return { ...base, settings: { ...base.settings!, finishPolicy: 'none' } };
 }
 
 const finish = (d: Drill): ShotEvent | undefined =>
@@ -64,6 +79,57 @@ const finish = (d: Drill): ShotEvent | undefined =>
 // ----------------------------------------------------------------------------
 // When it appears at all
 // ----------------------------------------------------------------------------
+
+describe('the finish policy decides', () => {
+  it('derives nothing when the drill does not ask for a shot', () => {
+    const warmUp = withFinishingShot(noShotDrill({ events: [pass('p1', 'h11', 'h13')] }));
+
+    // A passing warm-up is a complete drill. This used to grow a shot the
+    // moment the puck moved, which made the drill a lie.
+    expect(warmUp.events.some(isAutoShot)).toBe(false);
+    expect(warmUp.events).toHaveLength(1);
+  });
+
+  it('derives nothing for any policy other than finish-with-shot', () => {
+    for (const policy of ['none', 'stop-after-sequence', 'loop', 'finish-with-zone-entry', 'finish-with-possession'] as const) {
+      const base = drill({ events: [pass('p1', 'h11', 'h13')] });
+      const result = withFinishingShot({
+        ...base,
+        settings: { ...base.settings!, finishPolicy: policy },
+      });
+      expect(result.events.some(isAutoShot), policy).toBe(false);
+    }
+  });
+
+  it('strips a shot left behind when the policy is taken away', () => {
+    const withShot = withFinishingShot(drill({ events: [pass('p1', 'h11', 'h13')] }));
+    expect(withShot.events.some(isAutoShot)).toBe(true);
+
+    const stripped = withFinishingShot({
+      ...withShot,
+      settings: { ...withShot.settings!, finishPolicy: 'none' },
+    });
+    expect(stripped.events.some(isAutoShot)).toBe(false);
+    expect(stripped.events).toHaveLength(1);
+  });
+
+  it('leaves a shot the coach authored alone whatever the policy', () => {
+    const authoredShot: ShotEvent = {
+      id: 'manual',
+      type: 'shot',
+      fromPlayerId: 'h11',
+      fromPoint: { x: 300, y: 200 },
+      toPoint: { x: 900, y: 212 },
+      targetNet: 'R',
+      team: 'home',
+      at: 0.3,
+      arrivalAt: 0.5,
+    };
+    const board = noShotDrill({ events: [authoredShot] });
+
+    expect(withFinishingShot(board)).toBe(board);
+  });
+});
 
 describe('when a play gets a finishing shot', () => {
   it('leaves an untouched board alone - a lineup is not a play', () => {

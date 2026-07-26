@@ -6,19 +6,13 @@
 // ============================================================================
 
 import { useAppState } from '@/hooks/useAppState';
-import {
-  canAddEvents,
-  countPasses,
-  getCurrentPuckHolder,
-  MAX_PASSES_PER_DRILL,
-} from '@/engine/puck';
+import { canAddEvents, countPasses, getCurrentPuckHolder } from '@/engine/puck';
 import type { Player } from '@/core/types';
 
 export interface PuckActionsState {
   carrier: Player | null;
-  /** Passes already in the drill, and how many are left. */
+  /** Passes already in the drill. A readout only - there is no maximum. */
   passesUsed: number;
-  passesLeft: number;
   canPass: boolean;
   canShoot: boolean;
   /** Why Pass is unavailable, for the button's title and screen readers. */
@@ -31,22 +25,18 @@ export function usePuckActions(): PuckActionsState {
 
   const carrier = getCurrentPuckHolder(players, events);
   const passesUsed = countPasses(events);
-  const passesLeft = Math.max(0, MAX_PASSES_PER_DRILL - passesUsed);
   const open = canAddEvents(events);
 
   const passBlockedReason = !carrier
     ? 'No one has the puck yet'
     : !open
       ? 'The drill has already ended'
-      : passesLeft === 0
-        ? `A drill holds ${MAX_PASSES_PER_DRILL} passes`
-        : null;
+      : null;
 
   return {
     carrier,
     passesUsed,
-    passesLeft,
-    canPass: !!carrier && open && passesLeft > 0,
+    canPass: !!carrier && open,
     canShoot: !!carrier && open,
     passBlockedReason,
   };

@@ -1,10 +1,16 @@
 // ============================================================================
-// THE SHOT AT THE END OF THE PLAY
+// THE SHOT AT THE END OF THE PLAY, WHEN THE PLAY ASKS FOR ONE
 //
-// A play finishes with a shot. Rather than make that a fourth verb the coach
-// has to remember, the last event is derived: whoever ends up with the puck
-// shoots at the net their team is attacking, and the shot follows the puck as
-// passes are added, retargeted or removed.
+// A drill whose finish policy is `finish-with-shot` gets its last event
+// derived: whoever ends up with the puck shoots at the net their team is
+// attacking, and the shot follows the puck as passes are added, retargeted or
+// removed. The coach never authors it.
+//
+// Every other policy derives NOTHING. This file used to assert that "a play
+// finishes with a shot" unconditionally, which is false for possession games,
+// passing warm-ups, races, stickhandling stations, breakouts that end at a zone
+// exit, drills meant to loop, and small-area games with no goalie - and it made
+// those drills impossible to represent honestly.
 //
 // This runs from `appReducer`, which is the one place every drill mutation
 // passes through - commands, undo, redo, import and load alike. Two properties
@@ -38,6 +44,11 @@ const EARLIEST_RELEASE = 0.12;
 /** Breathing room between the previous event arriving and the shot leaving. */
 const RELEASE_GAP = 0.04;
 const LATEST_RELEASE = 0.94;
+
+/** Whether the coach has asked for a derived finishing shot. */
+export function wantsFinishingShot(drill: Drill): boolean {
+  return drill.settings?.finishPolicy === 'finish-with-shot';
+}
 
 /**
  * Whether this drill represents a play at all.
@@ -112,6 +123,13 @@ function matches(existing: ShotEvent, desired: ShotEvent): boolean {
  */
 export function withFinishingShot(drill: Drill): Drill {
   const authored = authoredEvents(drill.events);
+
+  // Not this drill's ending. Strip any derived shot left over from a policy
+  // change, and never add one.
+  if (!wantsFinishingShot(drill)) {
+    return authored === drill.events ? drill : { ...drill, events: authored };
+  }
+
   const lastAuthored = authored[authored.length - 1];
 
   // A shot the coach authored, or an imported one, ends the drill on its own

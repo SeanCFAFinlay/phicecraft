@@ -1,12 +1,13 @@
 // ============================================================================
-// PASSING, CHAINING, AND THE FOUR-PASS CAP
+// PASSING AND CHAINING, WITH NO CAP
 //
-// A drill is built by passing the puck along a chain and finishing with a
-// shot. Two things this locks down:
+// A drill is built by passing the puck along a chain. Two things this locks
+// down:
 //
-//   - the cap lives in the DOMAIN, so every authoring path inherits it. It is
-//     not enough to grey out a button; drag, tap, retarget and dump conversion
-//     all have to refuse the fifth pass with the same reason.
+//   - there is NO maximum number of passes. A cap of four used to live in the
+//     domain, which made one-touch warm-ups, continuous passing patterns,
+//     regroups, station circuits and anything that loops impossible to author
+//     honestly. These tests exist to stop it coming back.
 //   - committing a pass selects the RECEIVER. That is what makes a chain
 //     cheap: the chip's Pass button is immediately pointed at the next link,
 //     instead of the coach having to find the new carrier again.
@@ -20,7 +21,6 @@ import {
   authoredEvents,
   countPasses,
   isAutoShot,
-  MAX_PASSES_PER_DRILL,
   validatePass,
 } from '@/engine/puck';
 import { RINK } from '@/core/constants';
@@ -48,7 +48,6 @@ function lineup() {
 const state = () => harness.getState();
 /** The chain the coach authored, without the automatic finishing shot. */
 const events = () => authoredEvents(state().drill.events);
-const allEvents = () => state().drill.events;
 const passes = () => countPasses(events());
 
 /** Pass along the chain `count` times, 11 → 13 → 87 → 5 → 44. */
@@ -69,79 +68,120 @@ beforeEach(() => {
 // The cap
 // ----------------------------------------------------------------------------
 
-describe('the four-pass cap', () => {
-  it('is four', () => {
-    expect(MAX_PASSES_PER_DRILL).toBe(4);
-  });
-
-  it('allows a full four-pass chain', () => {
-    const results = chain(4);
+describe('there is no pass cap', () => {
+  it('allows a chain longer than the old limit of four', () => {
+    const results = chain(5);
 
     expect(results.every(result => result.status === 'done')).toBe(true);
-    expect(passes()).toBe(4);
+    expect(passes()).toBe(5);
   });
 
-  it('refuses the fifth pass, and says why', () => {
+  it('does not refuse the fifth pass', () => {
     chain(4);
     const fifth = harness.commands.requestPass('h44', 'h7');
 
-    expect(fifth.status).toBe('rejected');
-    expect(passes()).toBe(4);
-    expect(toasted(harness, /holds 4 passes/)).toBe(true);
+    // The regression: this used to be rejected with "A drill holds 4 passes",
+    // a UI concern that had been written into the domain layer.
+    expect(fifth.status).toBe('done');
+    expect(passes()).toBe(5);
   });
 
-  it('is enforced in the domain, not just in the command', () => {
-    chain(4);
+  it('is unrestricted in the domain, not merely in the command layer', () => {
+    chain(5);
     const players = state().drill.players;
     const validation = validatePass(
-      players.find(player => player.id === 'h44')!,
       players.find(player => player.id === 'h7')!,
+      players.find(player => player.id === 'h11')!,
       players,
       events()
     );
 
-    expect(validation.valid).toBe(false);
-    expect(validation.error).toMatch(/holds 4 passes/);
+    expect(validation.valid).toBe(true);
+    expect(validation.error).toBeNull();
   });
 
-  it('still allows a shot once the passes are used up', () => {
-    chain(4);
-    const carrier = state().drill.players.find(player => player.id === 'h44')!;
-    const result = harness.commands.requestShot('h44', attackingNetFor(carrier.team));
+  it('says nothing about a remaining allowance when a pass commits', () => {
+    harness.commands.requestPass('h11', 'h13');
+
+    expect(toasted(harness, /more available/)).toBe(false);
+    expect(toasted(harness, /last one/)).toBe(false);
+    expect(toasted(harness, 'Pass to #13')).toBe(true);
+  });
+
+  it('still refuses a pass that breaks a real hockey rule', () => {
+    // Removing the cap must not remove the rules that are actually about
+    // hockey rather than about diagram tidiness.
+    const away = harness.commands.requestPass('h11', 'h11');
+    expect(away.status).toBe('rejected');
+  });
+
+  it('allows a shot at any point in the chain', () => {
+    chain(5);
+    const carrier = state().drill.players.find(player => player.id === 'h7')!;
+    const result = harness.commands.requestShot('h7', attackingNetFor(carrier.team));
 
     expect(result.status).toBe('done');
     expect(events().at(-1)!.type).toBe('shot');
   });
 
-  it('ends the play with an automatic shot from the last receiver', () => {
-    chain(2);
-    const finish = allEvents().at(-1)!;
-
-    expect(isAutoShot(finish)).toBe(true);
-    expect(finish.fromPlayerId).toBe('h87');
-  });
-
-  it('does not block retargeting the LAST pass, which adds nothing', () => {
+  it('does not block retargeting the last pass', () => {
     chain(4);
     const fourth = events().at(-1)!;
     expect(fourth.type).toBe('pass');
 
-    // The count is already at the cap, so a naive check here would refuse to
-    // let a coach fix the receiver of a pass they already drew.
     const result = harness.commands.retargetPass(fourth.id, 'h7');
 
     expect(result.status).toBe('done');
     expect(passes()).toBe(4);
     const retargeted = events().at(-1)!;
-    expect(retargeted.type).toBe('pass');
     expect(retargeted.type === 'pass' && retargeted.toPlayerId).toBe('h7');
   });
 
   it('counts only passes, not shots or recoveries', () => {
     chain(2);
     expect(passes()).toBe(2);
-    expect(events().length).toBeGreaterThanOrEqual(2);
     expect(countPasses([])).toBe(0);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// A drill is not required to end with a shot
+// ----------------------------------------------------------------------------
+
+describe('the finish policy decides whether a shot is derived', () => {
+  it('derives nothing by default, so a passing warm-up stays a passing warm-up', () => {
+    chain(3);
+
+    // The regression: every play used to grow a shot the moment the puck
+    // moved, which misrepresents possession games, warm-ups, races and any
+    // drill that ends at a zone exit or simply loops.
+    expect(state().drill.events.some(isAutoShot)).toBe(false);
+    expect(state().drill.events.every(event => event.type === 'pass')).toBe(true);
+  });
+
+  it('derives a finishing shot when the drill asks for one', () => {
+    harness.loadDrill({
+      ...lineup(),
+      settings: { ...lineup().settings!, finishPolicy: 'finish-with-shot' },
+    });
+    chain(2);
+
+    const finish = state().drill.events.at(-1)!;
+    expect(isAutoShot(finish)).toBe(true);
+    expect(finish.fromPlayerId).toBe('h87');
+  });
+
+  it('strips the derived shot when the policy is taken away again', () => {
+    harness.loadDrill({
+      ...lineup(),
+      settings: { ...lineup().settings!, finishPolicy: 'finish-with-shot' },
+    });
+    chain(2);
+    expect(state().drill.events.some(isAutoShot)).toBe(true);
+
+    harness.commands.setFinishPolicy('none');
+    expect(state().drill.events.some(isAutoShot)).toBe(false);
+    expect(passes()).toBe(2);
   });
 });
 
@@ -164,16 +204,6 @@ describe('chaining', () => {
     const holder = state().drill.players.find(player => player.id === 'h5');
     expect(holder).toBeDefined();
     expect(state().selection.selectedPlayerId).toBe('h5');
-  });
-
-  it('says how many passes are left', () => {
-    harness.commands.requestPass('h11', 'h13');
-    expect(toasted(harness, /3 more available/)).toBe(true);
-  });
-
-  it('warns that the fourth is the last one', () => {
-    chain(4);
-    expect(toasted(harness, /last one, finish with a shot/)).toBe(true);
   });
 
   it('clears the pending action so the next tap is not swallowed', () => {

@@ -354,3 +354,78 @@ describe('remapImportedDrill edge cases', () => {
     expect(remapped.events[0].waypoints).not.toBe(drill.events[0].waypoints);
   });
 });
+
+
+// ----------------------------------------------------------------------------
+// Finish policy migration
+//
+// A drill is no longer forced to end with a shot. Files written while it was
+// forced already contain a derived shot, and that intent has to survive the
+// change rather than being silently discarded.
+// ----------------------------------------------------------------------------
+
+describe('finish policy migration', () => {
+  const shot = (auto: boolean) => ({
+    id: 'shot-1',
+    type: 'shot',
+    fromPlayerId: 'p1',
+    fromPoint: { x: 100, y: 100 },
+    toPoint: { x: 900, y: 212 },
+    targetNet: 'R',
+    team: 'home',
+    at: 0.4,
+    arrivalAt: 0.6,
+    ...(auto ? { auto: true } : {}),
+  });
+
+  const withEvents = (events: unknown[], settings?: unknown) => ({
+    id: 'd1',
+    name: 'Drill',
+    players: [{ id: 'p1', x: 100, y: 100, team: 'home', number: '11', role: 'C', hasPuck: true }],
+    skatePaths: [],
+    events,
+    settings,
+  });
+
+  it('defaults a drill with no shot to no set finish', () => {
+    const { drill } = normalizeDrillCandidate(withEvents([]), {});
+    expect(drill.settings?.finishPolicy).toBe('none');
+  });
+
+  it('reads a derived shot as an intent to finish with a shot', () => {
+    const { drill } = normalizeDrillCandidate(withEvents([shot(true)]), {});
+    expect(drill.settings?.finishPolicy).toBe('finish-with-shot');
+  });
+
+  it('does NOT infer the policy from a shot the coach authored', () => {
+    // An authored shot ends that drill on its own terms. It is not evidence
+    // that every future edit should regrow one.
+    const { drill } = normalizeDrillCandidate(withEvents([shot(false)]), {});
+    expect(drill.settings?.finishPolicy).toBe('none');
+  });
+
+  it('lets a stored policy win over the inference', () => {
+    const { drill } = normalizeDrillCandidate(
+      withEvents([shot(true)], { assistance: 'standard', recovery: 'nearest-teammate', timeLimitSeconds: 8, reducedEffects: false, finishPolicy: 'loop' }),
+      {}
+    );
+    expect(drill.settings?.finishPolicy).toBe('loop');
+  });
+
+  it('rejects a policy it does not recognise, falling back to inference', () => {
+    const { drill } = normalizeDrillCandidate(
+      withEvents([], { assistance: 'standard', recovery: 'nearest-teammate', timeLimitSeconds: 8, reducedEffects: false, finishPolicy: 'finish-with-fireworks' }),
+      {}
+    );
+    expect(drill.settings?.finishPolicy).toBe('none');
+  });
+
+  it('is idempotent', () => {
+    const first = normalizeDrillCandidate(withEvents([shot(true)]), {}).drill;
+    const second = normalizeDrillCandidate(
+      first as unknown as Record<string, unknown>,
+      {}
+    ).drill;
+    expect(second.settings?.finishPolicy).toBe(first.settings?.finishPolicy);
+  });
+});

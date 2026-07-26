@@ -150,17 +150,16 @@ export function attackingNetFor(team: Team): Point {
 }
 
 /**
- * How many passes one drill may contain.
+ * How many passes the drill already has.
  *
- * A practice drill that needs a fifth pass is really two drills; past four the
- * diagram stops being something a coach can hold in their head at the whiteboard
- * and the timeline gets too crowded to edit on a phone. The cap lives here, in
- * the domain, so every authoring path inherits it - drag, tap, the Pass button,
- * retarget and dump conversion alike.
+ * There is deliberately NO maximum. A cap of four used to live here, justified
+ * as keeping the diagram readable - but that is a UI concern wearing a domain
+ * rule's clothes, and it made whole categories of real drill impossible to
+ * author: one-touch warm-ups, continuous passing patterns, regroups, breakouts,
+ * multi-player timing drills, station circuits and anything that loops. Visual
+ * complexity is controlled by phases, grouping and collapsed repetitions, not
+ * by refusing hockey.
  */
-export const MAX_PASSES_PER_DRILL = 4;
-
-/** How many passes the drill already has. */
 export function countPasses(events: DrillEvent[]): number {
   return events.filter(event => event.type === 'pass').length;
 }
@@ -184,13 +183,6 @@ export function validatePass(
     return {
       valid: false,
       error: 'Drill already ended with a shot',
-    };
-  }
-
-  if (countPasses(events) >= MAX_PASSES_PER_DRILL) {
-    return {
-      valid: false,
-      error: `A drill holds ${MAX_PASSES_PER_DRILL} passes. Finish with a shot, or split this into two drills.`,
     };
   }
 

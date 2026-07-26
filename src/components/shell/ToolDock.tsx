@@ -73,7 +73,7 @@ export function ToolDock() {
   const { state, dispatch } = useAppState();
   const commands = useCommands();
   const { isCompactLandscape } = useResponsive();
-  const { carrier, canPass, passesLeft, passBlockedReason } = usePuckActions();
+  const { carrier, canPass, passBlockedReason } = usePuckActions();
 
   const tool = state.ui.currentTool;
   const pending = state.pendingAction;
@@ -110,7 +110,7 @@ export function ToolDock() {
         active={pending.kind === 'pass'}
         accent="#ffd60a"
         disabled={!canPass}
-        title={passBlockedReason ?? `Pass from #${carrier?.number} — ${passesLeft} left`}
+        title={passBlockedReason ?? `Pass from #${carrier?.number}`}
         onClick={() => {
           if (!carrier) return;
           commands.setTool('move');

@@ -219,11 +219,37 @@ export interface Drill {
   settings?: DrillSettings;
 }
 
+/**
+ * How a play is meant to end.
+ *
+ * A drill is NOT required to finish with a shot. Possession games, passing
+ * warm-ups, races, stickhandling stations, neutral-zone timing drills, breakouts
+ * that end at a zone exit and small-area games with no goalie all end some other
+ * way, and forcing a shot onto them misrepresents the drill.
+ *
+ * Only `finish-with-shot` derives a shot. The remaining policies record the
+ * coach's intent for the timeline and for phase behaviour; they never
+ * manufacture a puck action.
+ */
+export type FinishPolicy =
+  | 'none'
+  | 'stop-after-sequence'
+  | 'loop'
+  | 'finish-with-shot'
+  | 'finish-with-zone-entry'
+  | 'finish-with-possession';
+
 export interface DrillSettings {
   assistance: 'off' | 'standard' | 'high';
   recovery: 'authored' | 'nearest-teammate';
   timeLimitSeconds: number;
   reducedEffects: boolean;
+  /**
+   * Absent means `none`: no shot is invented for a drill that did not ask for
+   * one. A v2 drill that already contained a derived shot migrates to
+   * `finish-with-shot`, so no existing play changes shape on load.
+   */
+  finishPolicy?: FinishPolicy;
   /** Base jersey colours per team (hex). Absent = the classic red/blue. */
   jerseys?: { home: string; away: string };
 }
@@ -557,6 +583,7 @@ export type AppAction =
   | { type: 'UPDATE_PLAYER_VISUAL'; id: ID; visual: Partial<PlayerVisualProfile> }
   | { type: 'SET_PUCK_CARRIER'; id: ID }
   | { type: 'SET_JERSEY'; team: Team; hex: string }
+  | { type: 'SET_FINISH_POLICY'; policy: FinishPolicy }
   | { type: 'SWAP_JERSEYS' }
 
   // Coach actions

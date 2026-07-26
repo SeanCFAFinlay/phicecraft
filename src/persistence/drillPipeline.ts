@@ -311,7 +311,16 @@ function normalizeCoach(value: unknown, index: number, warnings: string[]): Coac
   };
 }
 
-function normalizeSettings(value: unknown): DrillSettings {
+const FINISH_POLICIES: ReadonlySet<string> = new Set([
+  'none',
+  'stop-after-sequence',
+  'loop',
+  'finish-with-shot',
+  'finish-with-zone-entry',
+  'finish-with-possession',
+]);
+
+function normalizeSettings(value: unknown, events: DrillEvent[]): DrillSettings {
   const source = isPlainObject(value) ? value : {};
   const assistance = source.assistance;
   const recovery = source.recovery;
@@ -329,6 +338,18 @@ function normalizeSettings(value: unknown): DrillSettings {
       home: asNonEmptyString(jerseys.home, DEFAULT_JERSEYS.home).slice(0, 32),
       away: asNonEmptyString(jerseys.away, DEFAULT_JERSEYS.away).slice(0, 32),
     };
+  }
+
+  // A stored policy wins. Otherwise the drill is read for its own answer: a
+  // file written while every play was force-ended with a shot already contains
+  // a derived one, and that intent is preserved rather than silently dropped
+  // now that the shot is opt-in. Everything else defaults to no derived shot.
+  if (typeof source.finishPolicy === 'string' && FINISH_POLICIES.has(source.finishPolicy)) {
+    settings.finishPolicy = source.finishPolicy as DrillSettings['finishPolicy'];
+  } else if (events.some(event => event.type === 'shot' && event.auto === true)) {
+    settings.finishPolicy = 'finish-with-shot';
+  } else {
+    settings.finishPolicy = 'none';
   }
 
   return settings;
@@ -407,7 +428,7 @@ export function normalizeDrillCandidate(
     skatePaths,
     events,
     coaches,
-    settings: normalizeSettings(candidate.settings),
+    settings: normalizeSettings(candidate.settings, events),
   };
 
   return { drill, warnings };
@@ -658,6 +679,6 @@ export function remapImportedDrill(
     coaches,
     skatePaths,
     events,
-    settings: structuredClone(drill.settings ?? normalizeSettings(undefined)),
+    settings: structuredClone(drill.settings ?? normalizeSettings(undefined, drill.events)),
   };
 }

@@ -30,7 +30,7 @@ interface PuckActionButtonsProps {
 
 export function PuckActionButtons({ onlyFor, compact }: PuckActionButtonsProps) {
   const commands = useCommands();
-  const { carrier, canPass, canShoot, passesLeft, passBlockedReason } = usePuckActions();
+  const { carrier, canPass, canShoot, passBlockedReason } = usePuckActions();
 
   if (!carrier) return null;
   if (onlyFor && carrier.id !== onlyFor) return null;
@@ -52,14 +52,12 @@ export function PuckActionButtons({ onlyFor, compact }: PuckActionButtonsProps) 
         type="button"
         onClick={startPass}
         disabled={!canPass}
-        title={passBlockedReason ?? `Pass from #${carrier.number} — ${passesLeft} left`}
+        title={passBlockedReason ?? `Pass from #${carrier.number}`}
         aria-label={`Pass from #${carrier.number}`}
         className="touch-target shrink-0 rounded-xl border border-app-gold/45 bg-app-gold/12 px-3 text-[12px] font-bold text-app-gold disabled:opacity-35"
       >
         <span aria-hidden="true">⟶</span>
         {!compact && <span className="ml-1.5">Pass</span>}
-        {/* How many are left is part of the label, not a surprise at tap four. */}
-        {!compact && canPass && <span className="ml-1 opacity-60">{passesLeft}</span>}
       </button>
 
       <button

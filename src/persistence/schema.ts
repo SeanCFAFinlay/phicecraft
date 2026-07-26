@@ -143,6 +143,17 @@ export const DrillSettingsSchema = z.looseObject({
       away: z.string().min(1).max(32),
     })
     .optional(),
+  // How the drill is meant to end. Absent means no derived shot.
+  finishPolicy: z
+    .enum([
+      'none',
+      'stop-after-sequence',
+      'loop',
+      'finish-with-shot',
+      'finish-with-zone-entry',
+      'finish-with-possession',
+    ])
+    .optional(),
 });
 
 /**

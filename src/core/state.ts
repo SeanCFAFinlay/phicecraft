@@ -111,6 +111,7 @@ const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'SET_PUCK_CARRIER',
   'UPDATE_PLAYER_VISUAL',
   'SET_JERSEY',
+  'SET_FINISH_POLICY',
   'SWAP_JERSEYS',
   'ADD_COACH',
   'REMOVE_COACH',
@@ -324,6 +325,21 @@ function reduce(state: AppState, action: AppAction): AppState {
         drill: {
           ...state.drill,
           settings: { ...(state.drill.settings ?? FALLBACK_SETTINGS), jerseys },
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'SET_FINISH_POLICY': {
+      if ((state.drill.settings?.finishPolicy ?? 'none') === action.policy) return state;
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          settings: {
+            ...(state.drill.settings ?? FALLBACK_SETTINGS),
+            finishPolicy: action.policy,
+          },
           updatedAt: Date.now(),
         },
       };

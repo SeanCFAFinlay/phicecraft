@@ -10,6 +10,7 @@ import type {
   AppAction,
   AppState,
   CurveShape,
+  FinishPolicy,
   ID,
   PendingEditorAction,
   Point,
@@ -158,6 +159,8 @@ export interface AuthoringCommands {
   updatePlayerVisual(id: ID, visual: { handedness?: 'left' | 'right'; visor?: boolean }): void;
   setJersey(team: 'home' | 'away', hex: string): void;
   swapJerseys(): void;
+  /** How this drill is meant to end. Only `finish-with-shot` derives a shot. */
+  setFinishPolicy(policy: FinishPolicy): void;
 
   addCoach(point: Point): CommandResult<ID>;
   moveCoach(id: ID, x: number, y: number): void;
