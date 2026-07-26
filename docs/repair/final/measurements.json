@@ -1,12 +1,12 @@
 {
   "recordedAt": "perf",
   "rinkHeights": {
-    "phone-320-portrait": 393,
-    "phone-360-portrait": 625,
-    "phone-390-portrait": 669,
-    "phone-667-landscape": 264,
-    "phone-844-landscape": 279,
-    "tablet-768": 849,
-    "desktop-1366": 580
+    "phone-320-portrait": 390,
+    "phone-360-portrait": 622,
+    "phone-390-portrait": 666,
+    "phone-667-landscape": 261,
+    "phone-844-landscape": 276,
+    "tablet-768": 846,
+    "desktop-1366": 579
   }
 }

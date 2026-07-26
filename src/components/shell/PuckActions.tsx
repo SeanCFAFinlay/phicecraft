@@ -16,6 +16,7 @@
 import { useCommands } from '@/hooks/useAppState';
 import { usePuckActions } from '@/hooks/usePuckActions';
 import { attackingNetFor } from '@/engine/puck';
+import { PassIcon, ShootIcon } from '@/ui/icons';
 
 interface PuckActionButtonsProps {
   /**
@@ -56,7 +57,9 @@ export function PuckActionButtons({ onlyFor, compact }: PuckActionButtonsProps) 
         aria-label={`Pass from #${carrier.number}`}
         className="touch-target shrink-0 rounded-xl border border-app-gold/45 bg-app-gold/12 px-3 text-[12px] font-bold text-app-gold disabled:opacity-35"
       >
-        <span aria-hidden="true">⟶</span>
+        <span className="inline-flex items-center align-middle">
+          <PassIcon size={16} />
+        </span>
         {!compact && <span className="ml-1.5">Pass</span>}
       </button>
 
@@ -68,7 +71,9 @@ export function PuckActionButtons({ onlyFor, compact }: PuckActionButtonsProps) 
         aria-label={`Shoot from #${carrier.number}`}
         className="touch-target shrink-0 rounded-xl border border-app-orange/45 bg-app-orange/12 px-3 text-[12px] font-bold text-app-orange disabled:opacity-35"
       >
-        <span aria-hidden="true">🥅</span>
+        <span className="inline-flex items-center align-middle">
+          <ShootIcon size={16} />
+        </span>
         {!compact && <span className="ml-1.5">Shoot</span>}
       </button>
     </>

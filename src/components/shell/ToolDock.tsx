@@ -15,13 +15,15 @@
 // what you are about to remove before you remove it.
 // ============================================================================
 
+import type { ReactNode } from 'react';
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
 import { usePuckActions } from '@/hooks/usePuckActions';
+import { AddIcon, MoveIcon, PassIcon, PlayIcon, SkateIcon, StopIcon } from '@/ui/icons';
 import { Transport } from './Transport';
 
 interface DockButtonProps {
-  icon: string;
+  icon: ReactNode;
   label: string;
   active?: boolean;
   accent?: string;
@@ -61,9 +63,7 @@ function DockButton({
             : 'border-transparent bg-white/5 text-white/60 hover:bg-white/10 disabled:hover:bg-white/5'
       }`}
     >
-      <span className="text-[17px] leading-none" aria-hidden="true">
-        {icon}
-      </span>
+      <span className="flex h-5 items-center justify-center leading-none">{icon}</span>
       <span className="text-[12px] font-bold tracking-tight">{label}</span>
     </button>
   );
@@ -95,7 +95,7 @@ export function ToolDock() {
       style={{ minHeight: 'calc(var(--tool-dock-height) + var(--safe-bottom))' }}
     >
       <DockButton
-        icon="✋"
+        icon={<MoveIcon />}
         label="Move"
         active={tool === 'move' && pending.kind === 'none'}
         onClick={() => {
@@ -105,7 +105,7 @@ export function ToolDock() {
       />
 
       <DockButton
-        icon="⟶"
+        icon={<PassIcon />}
         label="Pass"
         active={pending.kind === 'pass'}
         accent="#ffd60a"
@@ -119,7 +119,7 @@ export function ToolDock() {
       />
 
       <DockButton
-        icon="〰"
+        icon={<SkateIcon />}
         label="Skate"
         active={pending.kind === 'draw-route'}
         accent="#22d3ee"
@@ -133,7 +133,7 @@ export function ToolDock() {
       />
 
       <DockButton
-        icon="➕"
+        icon={<AddIcon />}
         label="Add"
         active={isPlacing}
         accent="#34d399"
@@ -157,8 +157,8 @@ export function ToolDock() {
             : 'border-cyan-500 bg-cyan-500 text-[#03121c]'
         }`}
       >
-        <span className="text-[17px] leading-none" aria-hidden="true">
-          {isPlaying ? '■' : '▶'}
+        <span className="flex h-5 items-center justify-center leading-none">
+          {isPlaying ? <StopIcon /> : <PlayIcon />}
         </span>
         {!isCompactLandscape && (
           <span className="text-[12px] tracking-tight">{isPlaying ? 'Stop' : 'Play'}</span>

@@ -157,6 +157,24 @@
     min-height: var(--touch-target);
   }
 
+  /*
+   * The coaching board: the surface a drill is DRAWN on.
+   *
+   * The editor used to sit on a full-screen photograph of an arena, with
+   * gradients, an inset shadow and a scan-line overlay. On a phone that made
+   * the rink read as a miniature object inside a picture rather than as the
+   * work surface, and it competed with the ice for attention. The rink is the
+   * tool; the atmosphere belongs to presentation.
+   */
+  .board-stage {
+    background-color: #071522;
+    background-image: radial-gradient(
+      ellipse at 50% 42%,
+      rgba(18, 44, 68, 0.55) 0%,
+      rgba(6, 17, 28, 0.9) 70%
+    );
+  }
+
   .arena-stage {
     background-color: #03080e;
     background-image:

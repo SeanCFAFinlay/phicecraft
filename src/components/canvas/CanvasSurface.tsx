@@ -524,8 +524,17 @@ export function CanvasSurface() {
     return () => canvas.removeEventListener('wheel', onWheel);
   }, [camera, layers.dynamicCanvasRef]);
 
+  // The arena photograph is presentation dressing, not an editing surface.
+  const isTabletopView = (camera.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
+
   return (
-    <div ref={layers.containerRef} className="arena-stage absolute inset-0 overflow-hidden">
+    // The arena photograph is presentation dressing, not an editing surface:
+    // behind a flat board it makes the rink look like a miniature inside a
+    // picture. It stays for the tabletop, which IS the presentation view.
+    <div
+      ref={layers.containerRef}
+      className={`${isTabletopView ? 'arena-stage' : 'board-stage'} absolute inset-0 overflow-hidden`}
+    >
       <canvas ref={layers.staticCanvasRef} className="absolute inset-0 block" aria-hidden="true" />
       <canvas
         ref={layers.dynamicCanvasRef}

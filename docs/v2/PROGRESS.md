@@ -165,10 +165,34 @@ reachable for a FULL-rink drill by rotation alone; it needs the half/zone view,
 which is still to do. A 768x1024 tablet deliberately stays flat, because
 turning buys only 11% there.
 
+### Done — zone views
+
+`cameraForZone` hard-coded a zoom of 2 and centred on 38%/62% of the rink's
+length, numbers unrelated to where the blue lines are, so the "zone" it framed
+was not one. The camera now fits an arbitrary world rectangle and the named
+views are real regions — end boards to the blue line plus a little neutral ice,
+because the entry is most of the coaching. Orientation is chosen **per region**:
+a full sheet turns on a phone, an end zone (435x425) does not. A cycling
+Full / D zone / O zone control sits with the view controls; on a 390px phone
+the zone view draws players at roughly 2.3x the size the original fit gave.
+
+### Done — the visual system (§8.2, §8.3)
+
+- **The arena photograph is out of the editor.** A full-screen arena photo with
+  gradients, an inset shadow and a scan-line overlay made the rink read as a
+  miniature inside a picture rather than as the work surface. The flat board is
+  now a clean navy field; the photo is kept for the tabletop, which *is* the
+  presentation view.
+- **A first-party SVG icon set** (`src/ui/icons.tsx`) replaces every emoji
+  control. Emoji are not an icon system: each operating system draws them
+  differently, so optical weight and baseline changed per device, and none of
+  them could inherit the interface's colour. The set is one 24x24 grid, one
+  stroke weight, `currentColor` throughout — so active, disabled and hover
+  states now apply to the icon as well as the label.
+
 ### Not started
 
-PixiJS renderer, half/zone views, removal of the decorative arena background,
-and a real SVG icon set to replace the emoji.
+PixiJS renderer.
 
 ---
 

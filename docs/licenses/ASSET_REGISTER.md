@@ -14,7 +14,7 @@ The gaps are listed at the end and are release blockers, not paperwork.
 
 | Asset | Origin | Licence | Status |
 |---|---|---|---|
-| `arena-overhead.webp` | Unverified — inherited from an earlier commit | **Unknown** | ⛔ **Blocker.** Provenance must be established or the file replaced. The review (§8.2) also recommends removing it from the editor entirely, which would make the question moot. |
+| `arena-overhead.webp` | Unverified — inherited from an earlier commit | **Unknown** | ⛔ **Blocker, reduced.** No longer used behind the editor (§8.2) — only behind the tabletop presentation view. Provenance must still be established or the file replaced before release. |
 | `hockey-sprites` atlas source images | Unverified — inherited | **Unknown** | ⛔ **Blocker.** These are photographic-looking skater/goalie crops. Phase 3 replaces them with a first-party token system, which resolves this by deletion. |
 | PH logo | First-party (PhiceCraft) | Owned | ✅ Clear |
 
@@ -29,7 +29,7 @@ The gaps are listed at the end and are release blockers, not paperwork.
 
 | Asset | Origin | Licence | Status |
 |---|---|---|---|
-| Toolbar and sheet icons | Unicode emoji | N/A (font-dependent) | ⚠️ Not a licensing problem, but a product one: emoji render differently per OS and have no consistent optical weight. Phase 3 replaces them with a first-party SVG set. |
+| Toolbar and sheet icons | First-party SVG (`src/ui/icons.tsx`) | Owned | ✅ Clear. Previously Unicode emoji, which render differently per operating system, carry no consistent optical weight and cannot inherit the interface's own colour. |
 | Typography | System font stack | N/A | ✅ Clear |
 
 ## Drill content
@@ -49,8 +49,9 @@ and each item recorded here with its licence before it ships.
 
 ## Open blockers
 
-1. **`arena-overhead.webp` provenance is unknown.** Establish it or remove the
-   file. Removing it from the editor is independently recommended.
+1. **`arena-overhead.webp` provenance is unknown.** It is now confined to the
+   tabletop presentation view rather than sitting behind every edit, but it
+   still ships. Establish provenance or replace it.
 2. **Sprite-atlas source images have unknown provenance.** Phase 3's renderer
    replacement should delete them; until then they ship.
 3. **No 3D asset licences**, because there are no 3D assets yet.

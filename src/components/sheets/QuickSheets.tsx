@@ -15,6 +15,7 @@ import { useAppState, useCommands } from '@/hooks/useAppState';
 import { getPuckChain } from '@/engine/puck';
 import { isReviewComplete } from '@/commands';
 import type { Tool } from '@/core/types';
+import { CoachIcon, GoalieIcon, PuckIcon, ShootIcon, SkaterIcon } from '@/ui/icons';
 
 export function SheetItem({
   icon,
@@ -25,7 +26,7 @@ export function SheetItem({
   tone = 'default',
   disabled,
 }: {
-  icon: string;
+  icon: ReactNode;
   label: string;
   detail?: string;
   onClick: () => void;
@@ -48,9 +49,7 @@ export function SheetItem({
       }`}
       style={{ minHeight: 'var(--touch-target)' }}
     >
-      <span className="w-6 text-center text-[17px]" aria-hidden="true">
-        {icon}
-      </span>
+      <span className="flex w-6 shrink-0 items-center justify-center">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[14px] font-semibold">{label}</span>
         {detail && <span className="block text-[12px] leading-snug text-white/50">{detail}</span>}
@@ -92,28 +91,28 @@ export function AddSheet() {
       onClose={close}
     >
       <SheetItem
-        icon="🔴"
+        icon={<SkaterIcon className="text-red-400" />}
         label="Home player"
         detail="Defends the left net"
         selected={state.ui.currentTool === 'home'}
         onClick={() => choose('home')}
       />
       <SheetItem
-        icon="🔵"
+        icon={<SkaterIcon className="text-blue-400" />}
         label="Away player"
         detail="Defends the right net"
         selected={state.ui.currentTool === 'away'}
         onClick={() => choose('away')}
       />
       <SheetItem
-        icon="🥅"
+        icon={<GoalieIcon />}
         label="Goalie"
         detail="Joins whichever team defends the end you tap"
         selected={state.ui.currentTool === 'goalie'}
         onClick={() => choose('goalie')}
       />
       <SheetItem
-        icon="🧔"
+        icon={<CoachIcon />}
         label="Coach"
         detail="A marker on the ice; never handles the puck"
         selected={state.ui.currentTool === 'coach'}
@@ -157,7 +156,9 @@ export function PossessionSheet() {
             return (
               <li key={`${node.eventIndex ?? 'start'}-${index}`}>
                 <SheetItem
-                  icon={node.player ? '🏒' : node.action === 'shot' ? '🥅' : '💨'}
+                  icon={
+                    node.player ? <PuckIcon /> : node.action === 'shot' ? <ShootIcon /> : <PuckIcon className="opacity-40" />
+                  }
                   label={label}
                   detail={
                     node.action ? `Step ${index + 1} · ${node.action}` : `Step ${index + 1} · starts with the puck`

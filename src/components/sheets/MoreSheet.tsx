@@ -13,6 +13,15 @@ import { Sheet } from '../a11y/Sheet';
 import { SheetItem, SheetSection } from './QuickSheets';
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import type { FinishPolicy } from '@/core/types';
+import {
+  ChartIcon,
+  MagnetIcon,
+  PuckIcon,
+  RedoIcon,
+  ResetIcon,
+  SkateIcon,
+  UndoIcon,
+} from '@/ui/icons';
 
 /**
  * How a drill can end. Only the shot option makes the app derive a puck
@@ -44,14 +53,14 @@ export function MoreSheet() {
     <Sheet open={open} title="More" onClose={close}>
       <SheetSection title="History">
         <SheetItem
-          icon="↩"
+          icon={<UndoIcon />}
           label="Undo"
           detail={state.undoStack.length === 0 ? 'Nothing to undo' : `${state.undoStack.length} step(s)`}
           disabled={state.undoStack.length === 0}
           onClick={run(commands.undo)}
         />
         <SheetItem
-          icon="↪"
+          icon={<RedoIcon />}
           label="Redo"
           detail={state.redoStack.length === 0 ? 'Nothing to redo' : `${state.redoStack.length} step(s)`}
           disabled={state.redoStack.length === 0}
@@ -74,7 +83,7 @@ export function MoreSheet() {
 
       <SheetSection title="Clear">
         <SheetItem
-          icon="🏒"
+          icon={<PuckIcon />}
           label="Clear puck actions"
           detail="Removes passes, dumps, pickups and shots. Routes are kept."
           tone="danger"
@@ -82,7 +91,7 @@ export function MoreSheet() {
           onClick={run(commands.clearPuckActions)}
         />
         <SheetItem
-          icon="〰"
+          icon={<SkateIcon />}
           label="Clear skating routes"
           detail="Removes routes only. Puck actions are kept."
           tone="danger"
@@ -90,7 +99,7 @@ export function MoreSheet() {
           onClick={run(commands.clearMovementRoutes)}
         />
         <SheetItem
-          icon="♻️"
+          icon={<ResetIcon />}
           label="Reset the board"
           detail="Back to the default lineup. Keeps the name, jerseys and settings."
           tone="danger"
@@ -100,7 +109,7 @@ export function MoreSheet() {
 
       <SheetSection title="Repair">
         <SheetItem
-          icon="🧲"
+          icon={<MagnetIcon />}
           label="Recover off-rink objects"
           detail="Pulls anything outside the boards back onto the ice"
           onClick={run(commands.recoverOffRinkObjects)}
@@ -109,7 +118,7 @@ export function MoreSheet() {
 
       <SheetSection title="Diagnostics">
         <SheetItem
-          icon="📊"
+          icon={<ChartIcon />}
           label="Mechanics overlay"
           detail="Draws velocities, blade positions and puck state on the rink"
           selected={state.ui.showDiagnostics}

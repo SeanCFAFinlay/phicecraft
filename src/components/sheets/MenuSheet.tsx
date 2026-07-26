@@ -6,6 +6,21 @@
 // ============================================================================
 
 import { useRef, type ChangeEvent } from 'react';
+import {
+  CopyIcon,
+  DrillIcon,
+  ExportIcon,
+  FitIcon,
+  HelpIcon,
+  ImportIcon,
+  NewDrillIcon,
+  RecoveryIcon,
+  RenameIcon,
+  SaveIcon,
+  SwapIcon,
+  ZoneLeftIcon,
+  ZoneRightIcon,
+} from '@/ui/icons';
 import { Sheet } from '../a11y/Sheet';
 import { SheetItem, SheetSection } from './QuickSheets';
 import { useAppState, useCommands } from '@/hooks/useAppState';
@@ -62,21 +77,21 @@ export function MenuSheet() {
   return (
     <Sheet open={state.ui.showMenu} title="PhiceCraft" side="left" onClose={close}>
       <SheetSection title="This play">
-        <SheetItem icon="💾" label="Save play" onClick={() => void commands.saveDrill()} />
+        <SheetItem icon={<SaveIcon />} label="Save play" onClick={() => void commands.saveDrill()} />
         <SheetItem
-          icon="📋"
+          icon={<CopyIcon />}
           label="Save as a new play…"
           detail="Keeps the original untouched"
           onClick={() => void commands.saveAsNewPlay()}
         />
-        <SheetItem icon="✏️" label="Rename play" onClick={() => void commands.requestRename()} />
-        <SheetItem icon="🏒" label="New drill" onClick={() => void commands.newDrill()} />
+        <SheetItem icon={<RenameIcon />} label="Rename play" onClick={() => void commands.requestRename()} />
+        <SheetItem icon={<NewDrillIcon />} label="New drill" onClick={() => void commands.newDrill()} />
       </SheetSection>
 
       <SheetSection title="Jerseys">
         <JerseyRow team="home" />
         <JerseyRow team="away" />
-        <SheetItem icon="🔁" label="Swap team colours" onClick={commands.swapJerseys} />
+        <SheetItem icon={<SwapIcon />} label="Swap team colours" onClick={commands.swapJerseys} />
       </SheetSection>
 
       <SheetSection title={`Saved plays (${state.drillList.length})`}>
@@ -89,7 +104,7 @@ export function MenuSheet() {
             <div key={drill.id} className="flex items-center gap-1 px-1">
               <div className="min-w-0 flex-1">
                 <SheetItem
-                  icon="🏒"
+                  icon={<DrillIcon />}
                   label={drill.name}
                   selected={drill.id === state.drill.id}
                   onClick={() => void commands.loadDrill(drill.id)}
@@ -109,28 +124,28 @@ export function MenuSheet() {
       </SheetSection>
 
       <SheetSection title="Examples">
-        <SheetItem icon="🧪" label="Give and go" onClick={() => void commands.loadFixture('give-and-go')} />
+        <SheetItem icon={<DrillIcon />} label="Give and go" onClick={() => void commands.loadFixture('give-and-go')} />
         <SheetItem
-          icon="🏒"
+          icon={<DrillIcon />}
           label="5-man corner retrieval"
           onClick={() => void commands.loadFixture('corner-retrieval')}
         />
         <SheetItem
-          icon="↔️"
+          icon={<DrillIcon />}
           label="5-man cross-corner attack"
           onClick={() => void commands.loadFixture('cross-corner')}
         />
         <SheetItem
-          icon="🔺"
+          icon={<DrillIcon />}
           label="Full-ice criss-cross point shot"
           onClick={() => void commands.loadFixture('low-high')}
         />
       </SheetSection>
 
       <SheetSection title="Library">
-        <SheetItem icon="⬇" label="Export all plays (JSON)" onClick={() => void commands.exportDrills()} />
+        <SheetItem icon={<ExportIcon />} label="Export all plays (JSON)" onClick={() => void commands.exportDrills()} />
         <SheetItem
-          icon="⬆"
+          icon={<ImportIcon />}
           label="Import from a file"
           detail="Imported as copies unless you confirm a replacement"
           onClick={() => fileInputRef.current?.click()}
@@ -143,7 +158,7 @@ export function MenuSheet() {
           className="hidden"
         />
         <SheetItem
-          icon="🛟"
+          icon={<RecoveryIcon />}
           label="Download recovery data"
           detail="Anything that could not be read is kept here"
           onClick={() => void commands.downloadRecoveryBundle()}
@@ -152,7 +167,7 @@ export function MenuSheet() {
 
       <SheetSection title="View">
         <SheetItem
-          icon="⛸"
+          icon={<FitIcon />}
           label="Fit the whole rink"
           onClick={() => {
             camera.fit();
@@ -160,7 +175,7 @@ export function MenuSheet() {
           }}
         />
         <SheetItem
-          icon="▶"
+          icon={<ZoneRightIcon />}
           label="Offensive zone"
           onClick={() => {
             camera.zoomToZone('offensive');
@@ -168,7 +183,7 @@ export function MenuSheet() {
           }}
         />
         <SheetItem
-          icon="◀"
+          icon={<ZoneLeftIcon />}
           label="Defensive zone"
           onClick={() => {
             camera.zoomToZone('defensive');
@@ -179,7 +194,7 @@ export function MenuSheet() {
 
       <SheetSection title="Help">
         <SheetItem
-          icon="❓"
+          icon={<HelpIcon />}
           label="How to use PhiceCraft"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'help' })}
         />
