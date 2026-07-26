@@ -26,6 +26,7 @@ import { LiveRegion } from '@/components/a11y/LiveRegion';
 import { ViewControls } from '@/components/ViewControls';
 import { ValidationPanel } from '@/components/ValidationPanel';
 import { AddSheet, PossessionSheet, WorkflowSheet } from '@/components/sheets/QuickSheets';
+import { UpdateBanner } from '@/pwa/UpdateBanner';
 import { useResponsive } from '@/ui/useResponsive';
 
 // Secondary surfaces: none of these are needed to draw the rink, select a
@@ -91,6 +92,7 @@ export function AppShell() {
         <ContextChips />
         <ActionChip />
         <SelectionChip />
+        <UpdateBanner />
         <ToastHost />
         <ViewControls />
         {isDesktop && <ValidationPanel />}

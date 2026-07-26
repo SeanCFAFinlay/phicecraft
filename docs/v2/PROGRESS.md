@@ -292,16 +292,46 @@ and cone drills show their players and passes but not their gear.
 Equipment in thumbnails, an animated preview in the details view, practice
 plans, share links and PDF/print export.
 
-## Phase 6 — PWA, packaging, commercialisation ⏳ not started
+## Phase 6 — PWA 🔶 offline done, packaging not started
 
-Manifest, service worker and offline cold start are codeable and testable here.
+### Done — the offline claim is now true
 
-**Commercial cleanup is not blocked and should be pulled forward**: real brand
-names (Toshiba, Coca-Cola, Bauer, Škoda, Nike, Tissot, Omega) are hard-coded in
-`src/core/constants.ts`, and `94ghad4f.jpg` at the repo root contains
-third-party marks. Both ship today.
+`index.html` advertised "Works offline" with no manifest and no service
+worker. IndexedDB kept a coach's DRILLS on the device, but a cold reload with
+no network could not fetch the application, so the claim failed in exactly the
+situation it was for: an arena with no signal.
 
----
+- A web manifest, so a browser will offer to install it.
+- A hand-written service worker that precaches from **Vite's build manifest**,
+  including the lazy chunks, and serves hashed assets cache-first.
+- An update prompt that never applies itself.
+
+Four e2e tests, the important one being a genuine `setOffline(true)` cold
+reload asserting the app AND the saved drills come back, plus one that opens
+the drill library offline — half a product appearing is worse than an honest
+failure.
+
+Three bugs this shook out, all invisible until the network was actually pulled:
+
+1. **A worker cannot intercept the requests that loaded the page which
+   registered it.** Relying on runtime caching alone left the entry bundle
+   uncached after a first visit. Fixed by precaching the real build manifest.
+2. **`caches.match(request)` missed where `caches.match(url)` hit.** A dynamic
+   `import()` carries different headers from the `fetch()` that filled the
+   cache. The symptom was baffling: the app booted offline while every lazily
+   loaded screen died, with `fetch()` returning 200 for the same URL.
+3. **The first install fires `controllerchange`**, so the reload-on-update
+   handler reloaded the page on every first visit.
+
+And one caught by the suite rather than by reasoning: the "saved on this
+device" banner sat on top of the tool dock, covering Move, Pass, Skate, Add and
+Play on a coach's first visit. It is now announced to assistive tech only, and
+the update prompt lives in the chip lane clear of every control.
+
+### Not done
+
+Capacitor packaging, install prompts beyond the browser's own, optional cloud
+sync and backup, privacy/terms/support copy, and release monitoring.
 
 ## Things this environment cannot verify
 

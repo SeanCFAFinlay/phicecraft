@@ -1,0 +1,27 @@
+{
+  "name": "PhiceCraft Hockey Practice",
+  "short_name": "PhiceCraft",
+  "description": "Design, animate and review hockey drills on a full-size rink. Works offline on phone, tablet and desktop.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#071522",
+  "theme_color": "#071522",
+  "categories": ["sports", "education", "productivity"],
+  "icons": [
+    {
+      "src": "/hockey-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/hockey-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

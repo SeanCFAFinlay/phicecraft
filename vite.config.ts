@@ -21,6 +21,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: wantsSourcemap,
+    // The service worker precaches from this. A worker cannot intercept the
+    // requests that loaded the page which registered it, so without a real
+    // list from the build the first visit leaves the JS uncached and the next
+    // offline start has nothing to boot from.
+    manifest: true,
   },
   test: {
     // Pure logic suites stay in `node`; anything that renders React or touches
