@@ -195,6 +195,9 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
       home: jerseyColor('home', drill.settings),
       away: jerseyColor('away', drill.settings),
     },
+    // The board turns to fit an upright phone; the numbers must not turn with
+    // it. In the tabletop the pieces are drawn in screen space anyway.
+    screenRotation: tabletop ? 0 : camera.rotation ?? 0,
   };
 
   // Dim before the players are drawn, light after, so the ring sits on top of

@@ -23,6 +23,7 @@ export function ViewControls() {
 
   const rafRef = useRef<number | null>(null);
   const is3D = (snapshot.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
+  const isVerticalBoard = Math.abs(snapshot.camera.rotation ?? 0) > Math.PI / 4;
 
   useEffect(
     () => () => {
@@ -112,6 +113,26 @@ export function ViewControls() {
       >
         ↻
       </button>
+
+      {/* Turning the board is what makes a full sheet usable on an upright
+          phone. It is chosen automatically on a resize, and this is how a
+          coach overrules that - so it is hidden in the tabletop, where
+          rotation means the orbit angle instead. */}
+      {!is3D && (
+        <button
+          type="button"
+          onClick={() =>
+            camera.setBoardOrientation(isVerticalBoard ? 'horizontal' : 'vertical')
+          }
+          aria-pressed={isVerticalBoard}
+          aria-label={
+            isVerticalBoard ? 'Lay the rink across the screen' : 'Turn the rink up the screen'
+          }
+          className={`${button} px-2 text-[12px] font-black`}
+        >
+          {isVerticalBoard ? '↔' : '↕'}
+        </button>
+      )}
 
       <button
         type="button"

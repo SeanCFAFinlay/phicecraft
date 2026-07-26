@@ -13,7 +13,9 @@ import {
   expectNothingClipped,
   openEditor,
   openSheet,
+  rinkBox,
   usableRinkHeight,
+  worldToScreen,
 } from './support';
 
 /** Minimum usable rink height, per the repair targets. */
@@ -51,6 +53,53 @@ test('the rink keeps a usable height', async ({ page }, testInfo) => {
     body: String(height),
     contentType: 'text/plain',
   });
+});
+
+test('the board is laid out the way that shows the most ice', async ({ page }, testInfo) => {
+  const box = await rinkBox(page);
+  const topLeft = await worldToScreen(page, 0, 0);
+  const bottomRight = await worldToScreen(page, 1000, 425);
+
+  const drawnWidth = Math.abs(bottomRight.x - topLeft.x);
+  const drawnHeight = Math.abs(bottomRight.y - topLeft.y);
+  const coverage = (drawnWidth * drawnHeight) / (box.width * box.height);
+
+  // What the OTHER orientation would have given, from the same fit rule. This
+  // is the comparison that matters: a full sheet is 2.35:1 and a phone is not,
+  // so no orientation fills an upright screen - one is simply much better.
+  const padding = 16;
+  const zoomFor = (rinkW: number, rinkH: number) =>
+    Math.min((box.width - padding * 2) / rinkW, (box.height - padding * 2) / rinkH);
+  const flat = zoomFor(1000, 425);
+  const turned = zoomFor(425, 1000);
+  const best = Math.max(flat, turned);
+  const worst = Math.min(flat, turned);
+
+  await testInfo.attach('rink-coverage', {
+    body: JSON.stringify({
+      canvas: `${Math.round(box.width)}x${Math.round(box.height)}`,
+      drawn: `${Math.round(drawnWidth)}x${Math.round(drawnHeight)}`,
+      areaCoverage: Number(coverage.toFixed(3)),
+      chosenZoom: Number((drawnWidth / (drawnHeight > drawnWidth ? 425 : 1000)).toFixed(4)),
+      flatZoom: Number(flat.toFixed(4)),
+      turnedZoom: Number(turned.toFixed(4)),
+      areaGainOverAlternative: Number(((best / worst) ** 2).toFixed(2)),
+    }),
+    contentType: 'application/json',
+  });
+
+  const chosenZoom = Math.max(drawnWidth, drawnHeight) / 1000;
+
+  // Never strictly worse than the alternative.
+  expect(chosenZoom, 'chosen zoom vs the worse orientation').toBeGreaterThanOrEqual(worst - 1e-6);
+
+  // And it takes the better one whenever the gain is worth the disorientation.
+  // Below that margin - a 768x1024 tablet, where turning buys about 11% - the
+  // board is left alone on purpose rather than spinning for a rounding error.
+  const WORTH_TURNING = 1.15;
+  if (best / worst > WORTH_TURNING) {
+    expect(chosenZoom, 'chosen zoom vs the best available').toBeCloseTo(best, 3);
+  }
 });
 
 test('every primary control is a comfortable touch target', async ({ page }) => {
@@ -168,3 +217,4 @@ test('the rink centre stays clear while editing', async ({ page }) => {
 
   expect(topmost).toBe('CANVAS');
 });
+

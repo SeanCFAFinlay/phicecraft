@@ -10,7 +10,9 @@ export function drawDetailedGoalie(
   frame: PlaybackPlayerFrame,
   isPuckHolder: boolean,
   puck?: AnimatedPuck | null,
-  jersey?: string
+  jersey?: string,
+  /** How far the board is turned on screen; keeps the number upright. */
+  screenRotation = 0
 ): void {
   const palette = getSkaterPalette(player.team, jersey);
   const trackedHeading = puck?.visible
@@ -54,7 +56,7 @@ export function drawDetailedGoalie(
     ctx.restore();
 
     ctx.save();
-    ctx.rotate(-trackedHeading);
+    ctx.rotate(-trackedHeading - screenRotation);
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = 'rgba(0, 0, 0, .8)';
     ctx.lineWidth = 2.8;
@@ -208,7 +210,7 @@ export function drawDetailedGoalie(
 
   // Large readable jersey number on the chest protector.
   ctx.save();
-  ctx.rotate(-trackedHeading);
+  ctx.rotate(-trackedHeading - screenRotation);
   ctx.fillStyle = '#ffffff';
   ctx.strokeStyle = 'rgba(0,0,0,.62)';
   ctx.lineWidth = 2.2;

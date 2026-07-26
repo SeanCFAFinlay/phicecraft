@@ -74,16 +74,54 @@ const RINK_WIDTH = 1000;
 const RINK_HEIGHT = 425;
 const FIT_PADDING = 16;
 
-export async function worldToScreen(page: Page, wx: number, wy: number) {
-  const box = await rinkBox(page);
-  const zoom = Math.min(
+/**
+ * Whether the board is turned a quarter turn for this viewport.
+ *
+ * This mirrors `fitsBetterRotated` in `src/camera/cameraMath.ts`. The helper
+ * deliberately reproduces the app's fit rather than importing it, so that a
+ * change to the real maths shows up as a FAILING test here rather than as two
+ * copies quietly agreeing with each other. If these ever disagree, the specs
+ * that address the rink by world coordinate stop landing where they aim.
+ */
+function boardIsVertical(box: { width: number; height: number }): boolean {
+  const flat = Math.min(
     (box.width - FIT_PADDING * 2) / RINK_WIDTH,
     (box.height - FIT_PADDING * 2) / RINK_HEIGHT
   );
-  return {
-    x: box.x + (box.width - RINK_WIDTH * zoom) / 2 + wx * zoom,
-    y: box.y + (box.height - RINK_HEIGHT * zoom) / 2 + wy * zoom,
-  };
+  const turned = Math.min(
+    (box.width - FIT_PADDING * 2) / RINK_HEIGHT,
+    (box.height - FIT_PADDING * 2) / RINK_WIDTH
+  );
+  return turned > flat * 1.15;
+}
+
+export async function worldToScreen(page: Page, wx: number, wy: number) {
+  const box = await rinkBox(page);
+  const vertical = boardIsVertical(box);
+
+  // Turned, the rink's long axis runs DOWN the screen, so its footprint is
+  // 425 wide by 1000 tall and the rotation has to be applied about the rink
+  // centre exactly as `cameraMatrix` does.
+  const zoom = vertical
+    ? Math.min(
+        (box.width - FIT_PADDING * 2) / RINK_HEIGHT,
+        (box.height - FIT_PADDING * 2) / RINK_WIDTH
+      )
+    : Math.min(
+        (box.width - FIT_PADDING * 2) / RINK_WIDTH,
+        (box.height - FIT_PADDING * 2) / RINK_HEIGHT
+      );
+
+  const centreX = box.x + box.width / 2;
+  const centreY = box.y + box.height / 2;
+  const dx = wx - RINK_WIDTH / 2;
+  const dy = wy - RINK_HEIGHT / 2;
+
+  // rotation = -90deg: (dx, dy) -> (dy, -dx)
+  const rx = vertical ? dy : dx;
+  const ry = vertical ? -dx : dy;
+
+  return { x: centreX + rx * zoom, y: centreY + ry * zoom };
 }
 
 /**

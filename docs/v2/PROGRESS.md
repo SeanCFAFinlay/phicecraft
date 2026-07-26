@@ -137,11 +137,38 @@ than blocked on a schema rewrite.
 
 ---
 
-## Phase 3 — PixiJS 2D editor ⏳ not started
+## Phase 3 — 2D editor 🔶 portrait fixed, renderer not started
 
-Also carries the portrait fix (§8.1: the camera always fits the full rink
-horizontally, so a portrait phone gets a strip), removal of the decorative
-arena background, and a real SVG icon set to replace the emoji.
+### Done — the portrait board (§8.1)
+
+`calculateFitCamera` always fitted the sheet horizontally, so an upright phone
+showed a strip in a large decorative stage. The board now **turns a quarter
+turn** when that shows more ice, chosen by measuring both orientations rather
+than guessing from an aspect-ratio threshold, with a 15% margin so a
+near-square viewport does not flap.
+
+- Fit is rotation-aware. At rotation 0 the new arithmetic is identical to what
+  it replaced, which the untouched existing camera tests confirm.
+- Auto-applied on resize, overridable by a new toolbar control, and **not**
+  applied to the tabletop, where rotation is the orbit angle rather than a fit.
+- The jersey numbers counter-rotate, so the body turns with the board but the
+  digits stay screen-upright. Without this the fix made the board unreadable.
+- `e2e/support.ts` learned the same rotation, so specs that address the rink by
+  world coordinate still land where they aim.
+
+Measured, per viewport: the app takes the better orientation whenever the gain
+is worth it. **A full sheet is 2.35:1 and a phone is not**, so no orientation
+fills an upright screen - on a 320x568 phone the ice goes from roughly a
+quarter of the canvas to a little under half, and the long axis fills ~90% of
+the screen. The spec's "70% of available editor area in portrait" is not
+reachable for a FULL-rink drill by rotation alone; it needs the half/zone view,
+which is still to do. A 768x1024 tablet deliberately stays flat, because
+turning buys only 11% there.
+
+### Not started
+
+PixiJS renderer, half/zone views, removal of the decorative arena background,
+and a real SVG icon set to replace the emoji.
 
 ---
 

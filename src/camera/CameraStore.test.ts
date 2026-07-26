@@ -50,10 +50,90 @@ describe('viewport fitting', () => {
     ]) {
       const fresh = new CameraStore();
       fresh.setViewport(width, height);
-      const { zoom } = fresh.camera;
-      expect(RINK.width * zoom).toBeLessThanOrEqual(width);
-      expect(RINK.height * zoom).toBeLessThanOrEqual(height);
+      const { zoom, rotation } = fresh.camera;
+
+      // The footprint depends on which way the board is laid out: turned, the
+      // rink is 425 wide and 1000 tall on screen rather than the reverse.
+      const cos = Math.abs(Math.cos(rotation ?? 0));
+      const sin = Math.abs(Math.sin(rotation ?? 0));
+      const onScreenWidth = (RINK.width * cos + RINK.height * sin) * zoom;
+      const onScreenHeight = (RINK.width * sin + RINK.height * cos) * zoom;
+
+      expect(onScreenWidth, `${width}x${height} width`).toBeLessThanOrEqual(width);
+      expect(onScreenHeight, `${width}x${height} height`).toBeLessThanOrEqual(height);
     }
+  });
+
+  // --------------------------------------------------------------------------
+  // Portrait
+  //
+  // Fitting a 1000x425 sheet horizontally into an upright phone leaves a strip
+  // about a quarter of the screen high in a large decorative stage. This is the
+  // §8.1 finding, and these tests are what stop it coming back.
+  // --------------------------------------------------------------------------
+
+  it('turns the board upright on a portrait phone', () => {
+    const fresh = new CameraStore();
+    fresh.setViewport(390, 640);
+
+    expect(fresh.boardOrientation).toBe('vertical');
+  });
+
+  it('leaves the board flat in landscape', () => {
+    const fresh = new CameraStore();
+    fresh.setViewport(844, 390);
+
+    expect(fresh.boardOrientation).toBe('horizontal');
+  });
+
+  it('leaves the board flat on a desktop', () => {
+    const fresh = new CameraStore();
+    fresh.setViewport(1366, 768);
+
+    expect(fresh.boardOrientation).toBe('horizontal');
+  });
+
+  it('gives a portrait phone most of its height, rather than a quarter of it', () => {
+    const fresh = new CameraStore();
+    fresh.setViewport(390, 640);
+    const { zoom } = fresh.camera;
+
+    // Turned, the long axis of the rink runs down the screen.
+    const usedHeight = (RINK.width * zoom) / 640;
+    expect(usedHeight).toBeGreaterThan(0.9);
+  });
+
+  it('shows far more ice turned than flat on the same phone', () => {
+    const turned = new CameraStore();
+    turned.setViewport(390, 640);
+
+    const flat = new CameraStore();
+    flat.setViewport(390, 640);
+    flat.setBoardOrientation('horizontal');
+
+    expect(turned.camera.zoom).toBeGreaterThan(flat.camera.zoom * 1.5);
+  });
+
+  it('can be turned by hand, and keeps auto-fit alive', () => {
+    const fresh = new CameraStore();
+    fresh.setViewport(1366, 768);
+    fresh.setBoardOrientation('vertical');
+
+    expect(fresh.boardOrientation).toBe('vertical');
+    // Choosing an orientation says something about the BOARD, not about where
+    // the camera is pointed, so a later resize still refits.
+    fresh.setViewport(390, 640);
+    expect(fresh.camera.zoom).toBeGreaterThan(0);
+  });
+
+  it('does not touch the tabletop, whose rotation is an orbit angle', () => {
+    const fresh = new CameraStore();
+    fresh.setViewport(1366, 768);
+    fresh.setCamera({ ...fresh.camera, tilt: 0.7, rotation: 0.4 });
+    fresh.fit();
+
+    expect(fresh.camera.rotation).toBeCloseTo(0.4, 6);
+    expect(fresh.camera.tilt).toBeCloseTo(0.7, 6);
   });
 
   it('leaves the camera alone on resize once the user has panned or zoomed', () => {

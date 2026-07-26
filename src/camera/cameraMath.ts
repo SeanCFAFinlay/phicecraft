@@ -32,6 +32,49 @@ export function normalizeCamera(camera: Camera): Camera {
 }
 
 /**
+ * The board turned a quarter turn, so a TALL screen shows a LONG rink.
+ *
+ * A phone held upright is roughly 390x600 of usable editor area. Fitting a
+ * 1000x425 sheet into that horizontally gives a strip about a quarter of the
+ * screen high, surrounded by empty stage - which is what the market review
+ * measured and scored the mobile portrait experience 4/10 for. Turned, the
+ * same sheet fills nearly the whole height.
+ */
+export const BOARD_ROTATION_VERTICAL = -Math.PI / 2;
+export const BOARD_ROTATION_HORIZONTAL = 0;
+
+/** How much of the rink one screen pixel covers, at a given board rotation. */
+function fitZoom(viewport: Viewport, rotation: number): number {
+  // The rink's axis-aligned footprint once turned.
+  const cos = Math.abs(Math.cos(rotation));
+  const sin = Math.abs(Math.sin(rotation));
+  const width = RINK.width * cos + RINK.height * sin;
+  const height = RINK.width * sin + RINK.height * cos;
+
+  return Math.min(
+    (viewport.width - FIT_PADDING * 2) / width,
+    (viewport.height - FIT_PADDING * 2) / height
+  );
+}
+
+/**
+ * Whether turning the board would genuinely show more ice.
+ *
+ * Measured rather than guessed from an aspect-ratio threshold: the two
+ * candidate zooms are compared directly. The margin stops a near-square
+ * viewport flapping between orientations as the keyboard opens and closes.
+ */
+export function fitsBetterRotated(viewport: Viewport): boolean {
+  if (viewport.width <= 0 || viewport.height <= 0) return false;
+  return fitZoom(viewport, BOARD_ROTATION_VERTICAL) > fitZoom(viewport, BOARD_ROTATION_HORIZONTAL) * 1.15;
+}
+
+/** The board rotation that shows the most ice in `viewport`. */
+export function autoBoardRotation(viewport: Viewport): number {
+  return fitsBetterRotated(viewport) ? BOARD_ROTATION_VERTICAL : BOARD_ROTATION_HORIZONTAL;
+}
+
+/**
  * The camera that shows the whole rink inside `viewport`.
  * The tabletop lean/spin is a view preference, so it survives a re-fit.
  */
@@ -43,15 +86,16 @@ export function calculateFitCamera(viewport: Viewport, base?: Camera): Camera {
     return { ...DEFAULT_CAMERA, rotation, tilt };
   }
 
-  const zoom = Math.min(
-    (viewport.width - FIT_PADDING * 2) / RINK.width,
-    (viewport.height - FIT_PADDING * 2) / RINK.height
-  );
+  const zoom = fitZoom(viewport, rotation);
 
+  // The rink CENTRE lands at (x + zoom*centreX, y + zoom*centreY) whatever the
+  // rotation - that falls out of how `cameraMatrix` anchors its origin - so
+  // centring is the same arithmetic at any orientation. At rotation 0 this is
+  // arithmetically identical to the half-the-leftover-space form it replaces.
   return {
     zoom,
-    x: (viewport.width - RINK.width * zoom) / 2 - RINK.x * zoom,
-    y: (viewport.height - RINK.height * zoom) / 2 - RINK.y * zoom,
+    x: viewport.width / 2 - zoom * RINK.centerX,
+    y: viewport.height / 2 - zoom * RINK.centerY,
     rotation,
     tilt,
   };

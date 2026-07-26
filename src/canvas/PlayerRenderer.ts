@@ -27,6 +27,8 @@ interface PlayerRenderOptions {
   reducedEffects?: boolean;
   trackedPuck?: AnimatedPuck | null;
   jersey?: string;
+  /** How far the board is turned on screen. Keeps numbers readable. */
+  screenRotation?: number;
 }
 
 function createDesignFrame(player: Player, heading: number): PlaybackPlayerFrame {
@@ -53,7 +55,7 @@ export function drawPlayer(
   player: Player,
   options: PlayerRenderOptions
 ): void {
-  const { isSelected, isDragging, isMoving, isPassFrom, isNodeActive, isPuckHolder, showInitialPuck, heading = 0, showRouteHandle = false, isPreparingReceive = false, playbackFrame, reducedEffects = false, trackedPuck, jersey } = options;
+  const { isSelected, isDragging, isMoving, isPassFrom, isNodeActive, isPuckHolder, showInitialPuck, heading = 0, showRouteHandle = false, isPreparingReceive = false, playbackFrame, reducedEffects = false, trackedPuck, jersey, screenRotation = 0 } = options;
   const pr = PLAYER_RADIUS;
   const isHighlighted = isDragging || isNodeActive || isPassFrom;
 
@@ -94,7 +96,7 @@ export function drawPlayer(
 
   const frame = playbackFrame ?? createDesignFrame(player, heading);
   if (player.role === 'G') {
-    drawDetailedGoalie(ctx, player, frame, isPuckHolder || showInitialPuck, trackedPuck, jersey);
+    drawDetailedGoalie(ctx, player, frame, isPuckHolder || showInitialPuck, trackedPuck, jersey, screenRotation);
 
     ctx.strokeStyle = 'rgba(255, 202, 0, 0.78)';
     ctx.lineWidth = 2.2;
@@ -109,6 +111,7 @@ export function drawPlayer(
       isPreparingReceive,
       reducedEffects,
       jersey,
+      screenRotation,
     });
   }
 
@@ -156,6 +159,8 @@ export interface DrawPlayersOptions {
   reducedEffects?: boolean;
   trackedPuck?: AnimatedPuck | null;
   jerseys?: { home: string; away: string };
+  /** How far the board is turned on screen. */
+  screenRotation?: number;
 }
 
 /**
@@ -181,6 +186,7 @@ export function drawPlayers(
     reducedEffects = false,
     trackedPuck = null,
     jerseys,
+    screenRotation = 0,
   } = options;
 
   const currentHolder = getCurrentPuckHolder(players, events);
@@ -209,6 +215,7 @@ export function drawPlayers(
       reducedEffects,
       trackedPuck,
       jersey: jerseys ? (player.team === 'home' ? jerseys.home : jerseys.away) : undefined,
+      screenRotation,
     });
   });
 }

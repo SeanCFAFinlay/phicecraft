@@ -7,6 +7,15 @@ import { getHockeySpriteAtlas, HOCKEY_SPRITES } from '../HockeySpriteAtlas';
 import { drawCarrierRing, drawPuckMarker } from '../puckMarker';
 
 interface DetailedSkaterOptions {
+  /**
+   * How far the BOARD is turned on screen, in radians.
+   *
+   * The rink rotates so a full sheet fits an upright phone. The skater's body
+   * must turn with it - a player skating up-ice should point up-ice - but the
+   * jersey number must not, or a coach reading the board on a phone gets a
+   * column of sideways digits.
+   */
+  screenRotation?: number;
   isSelected: boolean;
   isHighlighted: boolean;
   isPuckHolder: boolean;
@@ -92,7 +101,7 @@ export function drawDetailedSkater(
 
     // Assignment number stays screen-upright over the jersey.
     ctx.save();
-    ctx.rotate(-pose.heading);
+    ctx.rotate(-pose.heading - (options.screenRotation ?? 0));
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = 'rgba(0, 0, 0, .78)';
     ctx.lineWidth = 2.8;
@@ -268,7 +277,7 @@ export function drawDetailedSkater(
 
   // Jersey number remains large enough to identify the drill assignment.
   ctx.save();
-  ctx.rotate(-pose.heading - pose.lean);
+  ctx.rotate(-pose.heading - pose.lean - (options.screenRotation ?? 0));
   ctx.fillStyle = '#ffffff';
   ctx.strokeStyle = 'rgba(0,0,0,.62)';
   ctx.lineWidth = 2.4;
