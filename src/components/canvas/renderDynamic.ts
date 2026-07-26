@@ -34,6 +34,7 @@ import {
   drawRouteEditHandles,
   drawSkatePaths,
 } from '@/canvas/PathRenderer';
+import { drawDimmedPlayers, drawPassCandidates, type PassCandidateView } from '@/canvas/PassOverlay';
 import { cameraMatrix } from '@/utils/geometry';
 import { compileDrill } from '@/sim/compileDrill';
 import { getCompiledEventEndpoints } from '@/sim/sampleFrame';
@@ -65,6 +66,12 @@ export interface DynamicLayerInput {
   /** The route being drawn right now, straight from the gesture machine. */
   transientRoute: { ownerId: ID; points: Point[] } | null;
   dragPreview: DragPreview | null;
+  /**
+   * While a pass is armed: who can receive it, and how well. Computed once
+   * when the pass is armed rather than per frame, because scoring a receiver
+   * means solving an interception against a compiled drill.
+   */
+  passCandidates: { passerId: ID; candidates: PassCandidateView[] } | null;
   showDiagnostics: boolean;
   reducedEffects: boolean;
 }
@@ -173,8 +180,29 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
     },
   };
 
+  // Dim before the players are drawn, light after, so the ring sits on top of
+  // the token rather than under the fade.
+  const passCandidates = input.passCandidates;
+  if (!tabletop && passCandidates) {
+    drawDimmedPlayers(
+      ctx,
+      players,
+      new Set(passCandidates.candidates.map(candidate => candidate.actorId)),
+      passCandidates.passerId
+    );
+  }
+
   if (!tabletop) {
     drawPlayers(ctx, players, drill.events, playerOptions);
+  }
+
+  if (!tabletop && passCandidates) {
+    drawPassCandidates(
+      ctx,
+      passCandidates.candidates,
+      id => players.find(player => player.id === id) ?? { x: 0, y: 0 },
+      drill.skatePaths
+    );
   }
 
   // Edit handles: reshape the selected player's route or bend/re-aim the

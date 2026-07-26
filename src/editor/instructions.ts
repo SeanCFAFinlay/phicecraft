@@ -50,7 +50,7 @@ export function instructionFor(context: InstructionContext): Instruction {
     case 'pass':
       return {
         label: `Pass from ${who}`,
-        next: `${verb(pointer)} a teammate, or ${dragVerb(pointer).toLowerCase()} to open ice for a dump.`,
+        next: `${verb(pointer)} a highlighted teammate. Green means they can take it cleanly.`,
         cancellable: true,
       };
 
@@ -136,7 +136,7 @@ export interface HelpEntry {
 
 export function helpEntries(pointer: PointerCapability, holdToMoveEnabled: boolean): HelpEntry[] {
   const entries: HelpEntry[] = [
-    { icon: '🏒', text: `${dragVerb(pointer)} from the puck carrier to a teammate to pass, or to open ice to dump.` },
+    { icon: '🏒', text: `Tap Pass, then ${verb(pointer).toLowerCase()} a highlighted teammate. Opponents dim; they are never a pass target.` },
     { icon: '🥅', text: 'Drag from the carrier toward a net to shoot. The shot starts at their final route position.' },
     { icon: '〰', text: `${dragVerb(pointer)} any other player to draw their skating route.` },
     { icon: '⟶', text: 'Drag from a point on a route to release the puck at that moment.' },

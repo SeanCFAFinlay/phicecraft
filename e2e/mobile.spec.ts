@@ -68,7 +68,7 @@ test('a pending action is visible, explains the next input, and can be cancelled
   // The chip names the player and the next input, and offers Cancel.
   const chip = page.getByRole('status').filter({ hasText: 'Pass from #11' });
   await expect(chip).toBeVisible();
-  await expect(chip).toContainText(/tap a teammate/i);
+  await expect(chip).toContainText(/highlighted teammate/i);
 
   await chip.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByText('Pass from #11')).toBeHidden();

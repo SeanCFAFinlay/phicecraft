@@ -73,10 +73,18 @@ player it is for, what to do next, and offers **Cancel**. Escape cancels it too.
 
 ### Passing and shooting
 
-**Pass** is in the dock and always acts on whoever is carrying. Tap it, then
-tap the receiver — either their token **or any point on the line they are
-skating**, which is how you pass to where a player is going to be rather than
-where they are standing now.
+**Pass** is in the dock and always acts on whoever is carrying. Tap it, and
+every teammate who could take the pass is ringed, with the line they are
+skating lit up beside them — a point on that line is a target too, which is how
+you pass to where a player is going to be rather than where they are standing.
+Opponents dim, and are never a pass target.
+
+The ring colour is the app's prediction of the catch: **green** they are there
+for it, **amber** they have to keep skating to meet it or it only just arrives
+in time, **red** they cannot get there at all.
+
+If you tap and miss, nothing is cancelled — Pass stays armed and tells you what
+to do. There is no limit on how many passes a drill can hold.
 
 **Shoot** is on the selection chip when the selected player has the puck. It
 takes effect immediately: a team attacks exactly one net, so there is nothing
@@ -86,22 +94,28 @@ Whoever has the puck wears a **gold ring**. The puck itself is a small dark
 disc at their blade — it looks like a puck, so the ring is what answers "who
 has it" from across the rink.
 
-### The finishing shot
+### How a drill ends
 
-**A play ends with a shot, and that shot is not something you draw.** Once a
-play exists — the puck has moved, or the carrier has a route — the last event
-is worked out for you: whoever ends up with the puck shoots at the net their
-team is attacking. Add a pass and the shot moves to the new receiver; delete
-one and it moves back.
+**A drill is not required to end with a shot.** Possession games, passing
+warm-ups, races, stickhandling stations, breakouts that finish at the blue line
+and small-area games with no goalie all end some other way.
 
-It is derived, not authored, so it never gets in your way: the drill is still
-open to more passes, and the puck still belongs to the carrier. A shot you make
-yourself, or one that comes in from an imported file, is left alone.
+Choose from **More → How this drill ends**:
 
-A drill holds **four passes**. The Pass button shows how many are left and goes
-dead at the cap; finish with a shot, or split the drill in two. Each pass hands
-the selection to the receiver, so a four-pass chain is four taps of Pass and a
-tap on each target rather than a hunt for the new carrier every time.
+| Finish | What it means |
+| --- | --- |
+| **No set finish** | The drill ends when the sequence does. This is the default. |
+| **Finish with a shot** | Whoever ends up with the puck shoots, worked out for you. Add a pass and the shot follows the new receiver; delete one and it moves back. |
+| **Finish on zone entry** | Breakouts and rushes that end at the line. |
+| **Finish on possession** | Battles and small-area games. |
+| **Loop** | Continuous patterns that run back to the start. |
+| **Stop after the sequence** | Races and timed stations. |
+
+Only *Finish with a shot* creates a puck action. The rest record what you
+intend. A shot you make yourself is always left alone.
+
+Each pass hands the selection to the receiver, so a chain is a tap of Pass and
+a tap on each target rather than a hunt for the new carrier every time.
 
 ### Authoring
 
@@ -110,7 +124,6 @@ tap on each target rather than a hunt for the new carrier every time.
 | Drag any player | Draws their skating route |
 | Drag the puck carrier onto a teammate | A pass |
 | Drag the puck carrier toward a net | A shot, starting from their final route position |
-| Drag the puck carrier onto open ice | A dump; assign a receiver later from the event details |
 | Drag from a point on a route | Releases the puck at that moment in the drill |
 | Tap **Move**, then tap the ice | Puts that player where you tapped |
 | Tap **Move**, then drag the player | Repositions with no hold first |

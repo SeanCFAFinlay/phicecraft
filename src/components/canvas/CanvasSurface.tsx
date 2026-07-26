@@ -24,7 +24,12 @@ import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { RINK, TABLETOP_MIN_TILT, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
 import { distance, screenToWorld } from '@/utils/geometry';
 import { authoredEvents, getAimedNetTarget } from '@/engine/puck';
-import { resolvePassTarget, type PassTargetContext } from '@/editor/passing/passTargetService';
+import {
+  eligibleReceivers,
+  resolvePassTarget,
+  type PassTargetContext,
+} from '@/editor/passing/passTargetService';
+import type { PassCandidateView } from '@/canvas/PassOverlay';
 import type { ID, Point } from '@/core/types';
 
 /** Distance from a net (world units) at which a carrier drag becomes a shot. */
@@ -50,6 +55,12 @@ export function CanvasSurface() {
   const dragPreviewRef = useRef<DragPreview | null>(null);
   const transientRouteRef = useRef<{ ownerId: ID; points: Point[] } | null>(null);
   const movingPlayerRef = useRef<ID | null>(null);
+  /**
+   * Who the armed pass can go to. Recomputed when the pass is armed or the
+   * drill changes - never per frame, because scoring a receiver solves an
+   * interception against a compiled drill.
+   */
+  const passCandidatesRef = useRef<{ passerId: ID; candidates: PassCandidateView[] } | null>(null);
   const lastStaticKey = useRef<string>('');
 
   // --------------------------------------------------------------------------
@@ -83,6 +94,7 @@ export function CanvasSurface() {
       movingPlayerId: movingPlayerRef.current,
       transientRoute: transientRouteRef.current,
       dragPreview: dragPreviewRef.current,
+      passCandidates: current.playback.isPlaying ? null : passCandidatesRef.current,
       showDiagnostics: current.ui.showDiagnostics,
       reducedEffects: current.drill.settings?.reducedEffects ?? false,
     });
@@ -129,6 +141,53 @@ export function CanvasSurface() {
   // Gestures
   // --------------------------------------------------------------------------
 
+  /**
+   * The context every pass path shares, so tap, drag and keyboard cannot
+   * disagree about who is a legal receiver.
+   */
+  const passContext = useCallback((passerId: ID, from?: Point): PassTargetContext => {
+    const current = stateRef.current;
+    const passer = current.drill.players.find(player => player.id === passerId);
+    const authored = authoredEvents(current.drill.events);
+    const previousArrival = authored.length ? authored[authored.length - 1].arrivalAt ?? 0 : 0;
+
+    return {
+      drill: current.drill,
+      passerId,
+      // The DRAWN position, not the authored one. Using the authored start
+      // coordinates meant that after scrubbing, the visible player and the
+      // pass target were in different places.
+      positionOf: id =>
+        playback.positionFor(id) ??
+        current.drill.players.find(player => player.id === id) ?? { x: 0, y: 0 },
+      zoom: camera.camera.zoom,
+      departureAt: Math.min(0.94, Math.max(0.12, previousArrival + 0.04)),
+      from: from ?? (passer ? { x: passer.x, y: passer.y } : { x: 0, y: 0 }),
+    };
+  }, [camera, playback]);
+
+  // Recompute the candidate set whenever the armed pass or the drill changes.
+  // Doing this per frame would compile the drill sixty times a second.
+  const pending = state.pendingAction;
+  const armedPasserId = pending.kind === 'pass' ? pending.playerId : null;
+  useEffect(() => {
+    if (!armedPasserId) {
+      passCandidatesRef.current = null;
+      drawDynamic();
+      return;
+    }
+    const context = passContext(armedPasserId);
+    passCandidatesRef.current = {
+      passerId: armedPasserId,
+      candidates: eligibleReceivers(context).map(candidate => ({
+        actorId: candidate.actorId,
+        predictedCatchQuality: candidate.predictedCatchQuality,
+        targetPoint: candidate.targetPoint,
+      })),
+    };
+    drawDynamic();
+  }, [armedPasserId, state.documentRevision, passContext, drawDynamic]);
+
   const handlers = useMemo<GestureHandlers>(() => {
     const worldOf = (screen: Point) => screenToWorld(screen.x, screen.y, camera.camera);
 
@@ -136,31 +195,6 @@ export function CanvasSurface() {
       dragPreviewRef.current = null;
       transientRouteRef.current = null;
       movingPlayerRef.current = null;
-    };
-
-    /**
-     * The context every pass path shares, so tap, drag and keyboard cannot
-     * disagree about who is a legal receiver.
-     */
-    const passContext = (passerId: ID, from?: Point): PassTargetContext => {
-      const current = stateRef.current;
-      const passer = current.drill.players.find(player => player.id === passerId);
-      const authored = authoredEvents(current.drill.events);
-      const previousArrival = authored.length ? authored[authored.length - 1].arrivalAt ?? 0 : 0;
-
-      return {
-        drill: current.drill,
-        passerId,
-        // The DRAWN position, not the authored one. Using the authored start
-        // coordinates meant that after scrubbing, the visible player and the
-        // pass target were in different places.
-        positionOf: id =>
-          playback.positionFor(id) ??
-          current.drill.players.find(player => player.id === id) ?? { x: 0, y: 0 },
-        zoom: camera.camera.zoom,
-        departureAt: Math.min(0.94, Math.max(0.12, previousArrival + 0.04)),
-        from: from ?? (passer ? { x: passer.x, y: passer.y } : { x: 0, y: 0 }),
-      };
     };
 
     /**
@@ -396,7 +430,7 @@ export function CanvasSurface() {
         drawDynamic();
       },
     };
-  }, [camera, commands, drawDynamic, holdProgress, playback]);
+  }, [camera, commands, drawDynamic, holdProgress, passContext]);
 
   // The machine MUST outlive renders. It holds the in-flight gesture, and a
   // gesture spans many renders: the first sample of a route dispatches a
