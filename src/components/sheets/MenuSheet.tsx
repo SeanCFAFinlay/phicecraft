@@ -123,22 +123,18 @@ export function MenuSheet() {
         )}
       </SheetSection>
 
-      <SheetSection title="Examples">
-        <SheetItem icon={<DrillIcon />} label="Give and go" onClick={() => void commands.loadFixture('give-and-go')} />
+      {/* The four bundled examples used to be the entire library. They are
+          still here as a quick way to load a known drill, but the catalogue
+          proper is its own surface. */}
+      <SheetSection title="Library">
         <SheetItem
           icon={<DrillIcon />}
-          label="5-man corner retrieval"
-          onClick={() => void commands.loadFixture('corner-retrieval')}
-        />
-        <SheetItem
-          icon={<DrillIcon />}
-          label="5-man cross-corner attack"
-          onClick={() => void commands.loadFixture('cross-corner')}
-        />
-        <SheetItem
-          icon={<DrillIcon />}
-          label="Full-ice criss-cross point shot"
-          onClick={() => void commands.loadFixture('low-high')}
+          label="Browse the drill library"
+          detail="Search by age group, rink area and how long you have"
+          onClick={() => {
+            dispatch({ type: 'CLOSE_MENU' });
+            dispatch({ type: 'OPEN_SHEET', sheet: 'library' });
+          }}
         />
       </SheetSection>
 

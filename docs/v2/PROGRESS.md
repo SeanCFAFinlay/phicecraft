@@ -210,46 +210,63 @@ procurement as a parallel track with its own budget.
 
 ---
 
-## Phase 5 — Library and templates 🔶 catalogue started
+## Phase 5 — Library and templates 🔶 catalogue and library done
 
-### Done — the authoring machinery
+### Done — 24 original templates
 
-`src/data/templates/builder.ts`. A template written longhand is a couple of
-hundred lines of ids, phase references and timing arithmetic, which is how a
-catalogue ends up with four drills in it. The builder derives all of that so a
-template reads as the drill it describes: who is on the ice, where they skate,
-what the puck does.
+`src/data/templates/`. Eight passing/warm-up, eight small-area games, eight
+transition/rush. All first-party, each with setup notes, coaching points,
+progressions and variations.
 
-It places drills against **real rink landmarks** (goal lines at x=55/945, blue
-lines at 375/625, faceoff dots at 155/845 and y=102.5/322.5), and a test
-asserts those constants still match `RINK`.
+`builder.ts` is why the catalogue could grow past four: a template written
+longhand is a couple of hundred lines of ids, phase wiring and timing
+arithmetic. Drills are placed against real rink landmarks (goal lines 55/945,
+blue lines 375/625, faceoff dots 155/845 and y 102.5/322.5), and a test asserts
+those constants still match `RINK`. A pass targets where the receiver will BE
+at the end of their route, not where they started.
 
-One detail worth naming: a pass targets where the receiver will BE at the end
-of their route, not the spot they started from. Without that, every pass in a
-drill with movement points at a patch of ice the receiver left seconds ago.
+Every template is checked rather than trusted: it validates as a coherent v3
+document, keeps every actor, route point and puck action on the ice, records
+its provenance, and **plays through the engine** without a non-finite position
+at eleven samples across its run.
 
-### Done — the first 8 templates
+The catalogue demonstrates two review findings in content rather than only in
+unit tests: it contains drills that do **not** end with a shot, and one with
+more passes than the removed four-pass cap allowed.
 
-Passing and warm-up, all first-party content with setup notes, coaching points,
-progressions and variations. Each is checked in the test suite, not trusted:
+### Done — the library
 
-- it validates as a coherent v3 document
-- every actor, route point and puck action is **on the ice**
-- it **plays through the engine** without a non-finite position at any of 11
-  samples across its run
-- it records its provenance, so it is cleared to ship
+A full-screen surface with search, sort (featured / newest / shortest / A–Z),
+and filters for age band, rink area, no-goalie, no-equipment, duration and
+starred. One column on a phone, two on a tablet, three on a desktop.
 
-The catalogue also asserts two things the old model could not do: it contains
-drills that do **not** end with a shot, and one with more passes than the
-removed four-pass cap allowed.
+Filters compose the way people expect: **AND across filters, OR within one**, so
+adding a second age band widens and adding a rink area narrows. Getting that
+backwards makes a library feel broken in a way that is hard to articulate, and
+there is a test for each direction.
+
+Featured order is deliberate rather than arbitrary: easiest-to-run first
+(beginner, less equipment, shorter), so a coach opening the library for the
+first time is not met with an elite full-ice system drill.
+
+Templates are immutable. **Use drill** projects to the runtime shape, re-issues
+every id, and opens a copy — so editing a drill cannot reach the catalogue.
+Two e2e tests cover that, one of which reads IndexedDB to confirm the copy has
+fresh ids throughout.
+
+Favourites persist in `localStorage`, and a browser with storage disabled gets
+a library that forgets its stars rather than one that refuses to open.
+
+The library and the catalogue are **lazy chunks** (11 KiB and 33 KiB). Splitting
+them took the startup bundle from 521 KiB back to 455 KiB, so a coach who never
+opens the library does not pay for it. The budget baseline was raised
+deliberately, with the reason recorded in the file — the check sums every
+chunk, so the total still rose even though startup did not.
 
 ### Not done
 
-16 more templates (small-area games, transition and rush), the Library route
-itself, search/filter/sort, favourites, generated thumbnails, the details view,
-use-as-template copying, and practice plans.
-
----
+Generated rink thumbnails on the cards, an animated preview in the details
+view, practice plans, share links and PDF/print export.
 
 ## Phase 6 — PWA, packaging, commercialisation ⏳ not started
 

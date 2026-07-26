@@ -234,6 +234,14 @@ export interface DocumentCommands {
   newDrill(): Promise<CommandResult>;
   loadDrill(id: ID): Promise<CommandResult>;
   loadFixture(name: 'give-and-go' | 'corner-retrieval' | 'cross-corner' | 'low-high'): Promise<CommandResult>;
+  /**
+   * Open a library template as a NEW drill of the coach's own.
+   *
+   * Templates are immutable: this takes a copy with fresh ids for every player,
+   * route and puck action, so editing "Gates Passing Game" cannot change what
+   * the next coach finds in the library.
+   */
+  useTemplate(templateId: string): Promise<CommandResult>;
   renameDrill(name: string): void;
   requestRename(): Promise<CommandResult>;
   saveDrill(): Promise<CommandResult>;

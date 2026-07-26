@@ -21,6 +21,13 @@ export interface SheetProps {
   onClose: () => void;
   /** Left-hand side sheet, for the main menu. Default is right. */
   side?: 'left' | 'right';
+  /**
+   * `panel` is the narrow side sheet most surfaces want. `full` takes the
+   * whole screen, for a surface that is a task in its own right rather than a
+   * detail of the rink behind it - the drill library, where cards need room to
+   * lay out in columns and squeezing them into 360px makes every title wrap.
+   */
+  size?: 'panel' | 'full';
   children: ReactNode;
   /** Rendered pinned at the bottom, outside the scrolling area. */
   footer?: ReactNode;
@@ -29,7 +36,16 @@ export interface SheetProps {
 /** Vertical drag past this many pixels dismisses a bottom sheet. */
 const DISMISS_DISTANCE = 80;
 
-export function Sheet({ open, title, description, onClose, side = 'right', children, footer }: SheetProps) {
+export function Sheet({
+  open,
+  title,
+  description,
+  onClose,
+  side = 'right',
+  size = 'panel',
+  children,
+  footer,
+}: SheetProps) {
   const titleId = useId();
   const descriptionId = useId();
   const { isPhone, isLandscape } = useResponsive();
@@ -46,15 +62,18 @@ export function Sheet({ open, title, description, onClose, side = 'right', child
 
   // A portrait phone gets a bottom sheet; anything wider gets a side sheet, so
   // the rink keeps its full height.
-  const asBottomSheet = isPhone && !isLandscape;
+  // A full-screen surface never becomes a bottom sheet: it IS the screen.
+  const asBottomSheet = isPhone && !isLandscape && size === 'panel';
 
   if (!open) return null;
 
   const panelClass = asBottomSheet
     ? 'sheet-enter safe-bottom absolute inset-x-0 bottom-0 max-h-[var(--sheet-max-height)] rounded-t-2xl border-t'
-    : `sheet-enter safe-top safe-bottom absolute inset-y-0 ${
-        side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
-      } w-[min(360px,88vw)] max-h-full`;
+    : size === 'full'
+      ? 'sheet-enter safe-top safe-bottom absolute inset-0 max-h-full'
+      : `sheet-enter safe-top safe-bottom absolute inset-y-0 ${
+          side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
+        } w-[min(360px,88vw)] max-h-full`;
 
   return (
     <div className="fixed inset-0 z-[120]">

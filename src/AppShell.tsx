@@ -30,6 +30,11 @@ import { useResponsive } from '@/ui/useResponsive';
 
 // Secondary surfaces: none of these are needed to draw the rink, select a
 // player, or recover from an error, so they are not in the initial bundle.
+// The library carries the whole drill catalogue with it. A coach who never
+// opens it should not pay for 24 drill documents on the way to first paint.
+const LibraryPage = lazy(() =>
+  import('@/features/library/LibraryPage').then(module => ({ default: module.LibraryPage }))
+);
 const MenuSheet = lazy(() =>
   import('@/components/sheets/MenuSheet').then(module => ({ default: module.MenuSheet }))
 );
@@ -105,6 +110,7 @@ export function AppShell() {
       <WorkflowSheet />
 
       <Suspense fallback={null}>
+        {state.ui.openSheet === 'library' && <LibraryPage />}
         {state.ui.showMenu && <MenuSheet />}
         {state.ui.openSheet === 'more' && <MoreSheet />}
         {state.ui.openSheet === 'playback' && <PlaybackSheet />}

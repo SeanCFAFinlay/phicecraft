@@ -18,8 +18,14 @@
 
 import type { DrillTemplate } from './builder';
 import { PASSING_TEMPLATES } from './passing';
+import { SMALL_AREA_TEMPLATES } from './smallArea';
+import { TRANSITION_TEMPLATES } from './transition';
 
-export const DRILL_TEMPLATES: DrillTemplate[] = [...PASSING_TEMPLATES];
+export const DRILL_TEMPLATES: DrillTemplate[] = [
+  ...PASSING_TEMPLATES,
+  ...SMALL_AREA_TEMPLATES,
+  ...TRANSITION_TEMPLATES,
+];
 
 const BY_ID = new Map(DRILL_TEMPLATES.map(item => [item.id, item]));
 

@@ -12,7 +12,7 @@
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test --project=flows --project=puck-actions --project=line-shapes --project=mobile-flows --project=a11y --project=perf --project=viewport-phone-320-portrait --project=viewport-phone-360-portrait --project=viewport-phone-390-portrait --project=viewport-phone-667-landscape --project=viewport-phone-844-landscape --project=viewport-tablet-768 --project=viewport-desktop-1366",
+    "test:e2e": "playwright test --project=flows --project=library --project=puck-actions --project=line-shapes --project=mobile-flows --project=a11y --project=perf --project=viewport-phone-320-portrait --project=viewport-phone-360-portrait --project=viewport-phone-390-portrait --project=viewport-phone-667-landscape --project=viewport-phone-844-landscape --project=viewport-tablet-768 --project=viewport-desktop-1366",
     "test:visual": "playwright test --project=visual-shell --project=visual-phone-portrait --project=visual-phone-landscape",
     "test:visual:update": "npm run test:visual -- --update-snapshots",
     "test:e2e:update": "playwright test --update-snapshots",

@@ -24,6 +24,7 @@ import { fiveManCornerRetrievalDrill } from '@/fixtures/fiveManCornerRetrieval.v
 import { fiveManCrossCornerDrill } from '@/fixtures/fiveManCrossCorner.v1';
 import { fiveManLowHighDrill } from '@/fixtures/fiveManLowHigh.v1';
 import { CONFIRMATIONS, deleteDrillConfirmation } from './confirmations';
+import { remapImportedDrill } from '@/persistence/drillPipeline';
 import {
   cancelled,
   done,
@@ -183,6 +184,51 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
       dispatch({ type: 'STOP_PLAYBACK' });
       openDrill(drill.value);
       dispatch({ type: 'CLOSE_MENU' });
+      return done();
+    },
+
+    async useTemplate(templateId) {
+      // Imported on demand: the catalogue is large, and a coach who never uses
+      // a template should not carry it in the startup bundle.
+      const [{ findTemplate }, { projectToV2 }] = await Promise.all([
+        import('@/data/templates/registry'),
+        import('@/domain/v3/projectToV2'),
+      ]);
+
+      const template = findTemplate(templateId);
+      if (!template) return rejected('That drill is no longer in the library.');
+
+      const now = host.now();
+      // Project to the shape the engine runs, then re-identify everything. The
+      // template document itself is never handed to the editor, so nothing a
+      // coach does can reach back into the catalogue.
+      const { drill: projected, losses } = projectToV2(template.document);
+      const copy: Drill = {
+        ...remapImportedDrill(projected, generateId, now),
+        id: generateId(),
+        name: template.document.metadata.title,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      dispatch({ type: 'STOP_PLAYBACK' });
+      dispatch({ type: 'LOAD_DRILL', drill: copy });
+      dispatch({ type: 'CLOSE_MENU' });
+      dispatch({ type: 'CLOSE_SHEET' });
+      coordinator.reset();
+
+      const saved = await coordinator.save(copy);
+      if (!saved.ok) return reportFailure('That drill could not be saved', saved.error);
+
+      await repository.setCurrentDrillId(copy.id);
+      await refreshDrillList();
+
+      notify.toast({ message: `Opened “${copy.name}” as a new drill`, type: 'success' });
+      // Say what the current engine cannot yet play, rather than letting a
+      // coach find the cones missing at the rink.
+      if (losses.length > 0) {
+        host.announce(losses.map(loss => loss.detail).join(' '));
+      }
       return done();
     },
 

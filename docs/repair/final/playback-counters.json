@@ -1,7 +1,7 @@
 {
   "note": "One full 8-second playback run, headless Chromium. reactCommits counts batched MutationObserver callbacks inside the shell, excluding canvases - approximately one per React commit.",
-  "reactCommits": 95,
+  "reactCommits": 90,
   "staticRinkRepaints": 0,
-  "dynamicFramesDrawn": 99,
-  "animationFramesOffered": 121
+  "dynamicFramesDrawn": 94,
+  "animationFramesOffered": 127
 }

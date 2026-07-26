@@ -435,7 +435,7 @@ export type SheetKind =
   | 'menu'
   | 'more'
   | 'add'
-  | 'action'
+  | 'library'
   | 'possession'
   | 'workflow'
   | 'playback'

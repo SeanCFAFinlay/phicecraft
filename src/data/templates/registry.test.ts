@@ -98,6 +98,34 @@ describe('every template', () => {
 });
 
 describe('the catalogue', () => {
+  it('holds the catalogue the market review asks for', () => {
+    // 24 originals across passing/warm-up, small-area games and
+    // transition/rush. Four examples in a menu sheet is what scored 2/10.
+    expect(DRILL_TEMPLATES.length).toBeGreaterThanOrEqual(24);
+  });
+
+  it('spans all three families of drill', () => {
+    const areas = new Set(DRILL_TEMPLATES.map(item => item.document.metadata.rinkArea));
+    const categories = new Set(DRILL_TEMPLATES.flatMap(item => item.document.metadata.categories));
+
+    expect(categories.has('passing')).toBe(true);
+    expect(categories.has('small-area-game')).toBe(true);
+    expect(categories.has('transition')).toBe(true);
+    expect(areas.size).toBeGreaterThan(2);
+  });
+
+  it('covers the youth age bands a coach filters by', () => {
+    const bands = new Set(DRILL_TEMPLATES.flatMap(item => item.document.metadata.ageBands));
+    expect(bands.has('u9')).toBe(true);
+    expect(bands.has('u13')).toBe(true);
+    expect(bands.has('u18')).toBe(true);
+  });
+
+  it('includes drills that use equipment, which v2 could not represent', () => {
+    const withGear = DRILL_TEMPLATES.filter(item => item.document.equipment.length > 0);
+    expect(withGear.length).toBeGreaterThan(3);
+  });
+
   it('has no duplicate ids', () => {
     const ids = DRILL_TEMPLATES.map(item => item.id);
     expect(new Set(ids).size).toBe(ids.length);

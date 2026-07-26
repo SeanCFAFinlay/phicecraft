@@ -60,6 +60,12 @@ export default defineConfig({
       testMatch: /flows\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
     },
+    // Finding a drill: search, filters, favourites and use-as-template.
+    {
+      name: 'library',
+      testMatch: /library\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
+    },
     // Pass, Shoot and Move: reachability, chaining and the four-pass cap.
     {
       name: 'puck-actions',
