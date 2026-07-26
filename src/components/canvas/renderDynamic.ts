@@ -65,6 +65,16 @@ export interface DynamicLayerInput {
   movingPlayerId: ID | null;
   /** The route being drawn right now, straight from the gesture machine. */
   transientRoute: { ownerId: ID; points: Point[] } | null;
+  /**
+   * Where a player being dragged currently is.
+   *
+   * This is TRANSIENT: it is not in the document and never reaches the
+   * reducer. Moving a player used to dispatch `MOVE_PLAYER` on every pointer
+   * frame, which rewrote `updatedAt`, allocated a new drill, bumped the
+   * document revision, invalidated the review and woke the save coordinator -
+   * sixty times a second, for a gesture that should be one edit.
+   */
+  draggedPlayer: { id: ID; point: Point } | null;
   dragPreview: DragPreview | null;
   /**
    * While a pass is armed: who can receive it, and how well. Computed once
@@ -114,12 +124,19 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   // While playing or scrubbing, players render at their interpolated
   // positions. The drill itself is never touched.
   const scrubbing = Object.keys(input.positions).length > 0;
-  const players = scrubbing
+  const scrubbed = scrubbing
     ? drill.players.map(player => {
         const position = input.positions[player.id];
         return position ? { ...player, x: position.x, y: position.y } : player;
       })
     : drill.players;
+
+  const dragged = input.draggedPlayer;
+  const players = dragged
+    ? scrubbed.map(player =>
+        player.id === dragged.id ? { ...player, x: dragged.point.x, y: dragged.point.y } : player
+      )
+    : scrubbed;
 
   if (input.isPlaying && input.ghostTrails.length > 0) {
     drawGhostTrails(ctx, new Map(input.ghostTrails), players);

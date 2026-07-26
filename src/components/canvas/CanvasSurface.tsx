@@ -54,7 +54,12 @@ export function CanvasSurface() {
   // Transient render inputs that must not become React state.
   const dragPreviewRef = useRef<DragPreview | null>(null);
   const transientRouteRef = useRef<{ ownerId: ID; points: Point[] } | null>(null);
-  const movingPlayerRef = useRef<ID | null>(null);
+  /**
+   * The player being dragged, and where the pointer has taken it. Transient:
+   * it never reaches the reducer, and one MOVE_PLAYER is dispatched on
+   * release.
+   */
+  const draggedPlayerRef = useRef<{ id: ID; point: Point } | null>(null);
   /**
    * Who the armed pass can go to. Recomputed when the pass is armed or the
    * drill changes - never per frame, because scoring a receiver solves an
@@ -91,7 +96,8 @@ export function CanvasSurface() {
       selectedPlayerId: current.selection.selectedPlayerId,
       selectedEventId: current.selection.selectedEventId,
       passFromPlayerId: current.selection.passFromPlayerId,
-      movingPlayerId: movingPlayerRef.current,
+      movingPlayerId: draggedPlayerRef.current?.id ?? null,
+      draggedPlayer: draggedPlayerRef.current,
       transientRoute: transientRouteRef.current,
       dragPreview: dragPreviewRef.current,
       passCandidates: current.playback.isPlaying ? null : passCandidatesRef.current,
@@ -194,7 +200,7 @@ export function CanvasSurface() {
     const clearTransients = () => {
       dragPreviewRef.current = null;
       transientRouteRef.current = null;
-      movingPlayerRef.current = null;
+      draggedPlayerRef.current = null;
     };
 
     /**
@@ -336,18 +342,25 @@ export function CanvasSurface() {
           const playerId = holdProgress.playerId;
           if (playerId) {
             commands.beginPlayerMove(playerId);
-            movingPlayerRef.current = playerId;
+            const player = stateRef.current.drill.players.find(item => item.id === playerId);
+            if (player) draggedPlayerRef.current = { id: playerId, point: { x: player.x, y: player.y } };
           }
         }
       },
       onHoldCancel: () => holdProgress.cancel(),
 
+      // The drag itself is a preview. Nothing is written to the document until
+      // the finger comes up, so one gesture is one edit and one undo entry.
       onPlayerMove: (playerId, world) => {
-        movingPlayerRef.current = playerId;
-        commands.movePlayerTo(playerId, world.x, world.y);
+        draggedPlayerRef.current = { id: playerId, point: world };
+        drawDynamic();
       },
-      onPlayerMoveEnd: () => {
-        movingPlayerRef.current = null;
+      onPlayerMoveEnd: playerId => {
+        const landed = draggedPlayerRef.current;
+        draggedPlayerRef.current = null;
+        if (landed && landed.id === playerId) {
+          commands.movePlayerTo(playerId, landed.point.x, landed.point.y);
+        }
         commands.cancelPendingAction();
         drawDynamic();
       },

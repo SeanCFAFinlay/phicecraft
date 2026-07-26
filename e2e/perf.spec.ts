@@ -15,7 +15,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { LINEUP, dragWorld, openEditor, usableRinkHeight } from './support';
+import { LINEUP, clickWorld, dragWorld, openEditor, usableRinkHeight, worldToScreen } from './support';
 
 const OUTPUT_DIR = path.resolve('docs/repair/final');
 
@@ -101,6 +101,54 @@ test('a route drag does not put a React render on every pointer sample', async (
   expect(counters.staticPaints, 'static rink repaints during a drag').toBe(0);
   // The dynamic layer did repaint, because that is where the preview lives.
   expect(counters.dynamicPaints).toBeGreaterThan(0);
+});
+
+test('a player drag writes the document once, not once per pointer sample', async ({ page }) => {
+  await openEditor(page);
+
+  // Arm the move explicitly, then drag. Moving used to dispatch MOVE_PLAYER on
+  // every frame, so `updatedAt` was rewritten, a new drill object allocated,
+  // the revision bumped and the review invalidated sixty times a second.
+  await clickWorld(page, LINEUP.home13);
+  await page.getByRole('button', { name: /^Move #/ }).click();
+
+  const readUpdatedAt = () =>
+    page.evaluate(
+      () =>
+        new Promise<number>((resolve, reject) => {
+          const request = indexedDB.open('phicecraft');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            const db = request.result;
+            const all = db.transaction('drills', 'readonly').objectStore('drills').getAll();
+            all.onsuccess = () => {
+              const drills = all.result as { document: { updatedAt: number } }[];
+              resolve(drills[0].document.updatedAt);
+              db.close();
+            };
+          };
+        })
+    );
+
+  await instrument(page);
+  await resetCounters(page);
+
+  const start = await worldToScreen(page, LINEUP.home13.x, LINEUP.home13.y);
+  const end = await worldToScreen(page, 520, 330);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 60 });
+
+  // Mid-gesture: the preview is on screen but nothing is committed yet.
+  const duringCounters = await readCounters(page);
+  expect(duringCounters.dynamicPaints, 'the drag previews').toBeGreaterThan(0);
+  expect(duringCounters.react, 'React mutations during a 60-sample player drag').toBeLessThan(20);
+
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+
+  const after = await readUpdatedAt();
+  expect(typeof after).toBe('number');
 });
 
 test('a full playback run does not render React per frame', async ({ page }) => {
