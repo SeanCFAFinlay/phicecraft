@@ -138,7 +138,7 @@ export function MenuSheet() {
         />
       </SheetSection>
 
-      <SheetSection title="Library">
+      <SheetSection title="Backup and files">
         <SheetItem icon={<ExportIcon />} label="Export all plays (JSON)" onClick={() => void commands.exportDrills()} />
         <SheetItem
           icon={<ImportIcon />}
