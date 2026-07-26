@@ -411,7 +411,64 @@ it is longer (308.9 vs 300 in the fixture). The assertion now tests the property
 that actually distinguishes them, maximum turn angle: pi/2 for the polyline
 corner, under 0.5 rad for the spline.
 
-## 15. Remaining limitations
+## 15. Addendum — reaching the puck actions, and two dead controls
+
+**Pass and Shoot were two taps deep.** Both lived behind the Action sheet:
+open Action, read four rows, choose one. For the two verbs a coach uses most
+while drawing a drill that is the wrong depth. They now sit on the rink beside
+the puck chip, acting on whoever is carrying, and on the selection chip when
+the selected player has the puck. One component (`PuckActionButtons`) renders
+both places so they cannot disagree about what is available.
+
+Shoot no longer arms a mode at all. A team attacks exactly one net, so
+`attackingNetFor(team)` moved into the domain and the button fires the shot
+directly — one tap, no second input. Pass still arms, because the receiver is a
+real choice. `P`, `S` and `R` do the same three things from the keyboard.
+
+**The four-pass cap.** `MAX_PASSES_PER_DRILL = 4` lives in `validatePass`, so
+drag, tap, the Pass button, retarget and dump conversion all inherit it. A
+drill needing a fifth pass is really two drills. `retargetPass` and
+`convertDumpToPass` already excluded the event under edit from the list they
+validate against, so the cap does not falsely block fixing the receiver of the
+fourth pass — a case worth stating because a naive count would have.
+
+Committing a pass now selects the RECEIVER. That is what makes chaining cheap:
+the chip's Pass button is already pointed at the next link. The toast counts
+down, and names the last pass as the last one.
+
+**Two controls did nothing, and now do.**
+
+1. *Move was decorative.* `beginPlayerMove` set `pendingAction: 'move-player'`,
+   but `GestureContext` never carried it, so `GestureStateMachine` could not
+   see a move was armed. The only way into the `move-player` gesture was the
+   0.7s hold — meaning the button changed a chip caption and nothing else. The
+   context now carries `armedMovePlayerId`: pressing the armed player drags it
+   at once, and a tap anywhere else drops it there.
+
+2. *Players had no screen-space hit floor.* `PLAYER_HIT_RADIUS` is a world
+   constant. The edit handles have always been measured in screen pixels
+   (`HANDLE_HIT`), but players were not, so zoomed out to fit a full sheet on a
+   phone their tap target shrank to a few pixels. `playerReach()` now takes the
+   larger of the world radius and `PLAYER_HIT_FLOOR / zoom`.
+
+**The puck marker.** The carrier's puck was a 5.5x3.7 ellipse with a gold
+stroke and a 7px gold glow — wider than the stick blade and the brightest thing
+on the ice, so it read as a selection marker rather than as a puck. It is now a
+small matte-black disc with no glow, defined once in `canvas/puckMarker.ts` and
+shared by the skater, the goalie and the tabletop piece, which had three
+separate copies of it. Who has the puck is still stated by the "Puck #11" chip.
+
+**Tests.** 19 new unit tests (`puckActionCommands.test.ts` 14, plus 5 gesture
+tests for the armed move) and 8 new E2E tests in a `puck-actions` project.
+Suite total 758 unit tests across 29 files and 130 E2E tests. One visual
+baseline was regenerated — the selection chip, which legitimately gained two
+buttons; it still fits a 844x390 landscape phone.
+
+Note for whoever runs these next: the E2E `webServer` is `npm run preview`,
+which serves `dist/`. A UI change needs `npm run build` before the E2E suite
+will see it, or every new assertion fails against the previous bundle.
+
+## 16. Remaining limitations
 
 Each is evidence-backed. None is a guess.
 

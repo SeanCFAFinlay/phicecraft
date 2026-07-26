@@ -106,6 +106,35 @@ export function canAddEvents(events: DrillEvent[]): boolean {
 }
 
 /**
+ * The net a team shoots at.
+ *
+ * A shot needs no aiming input - there is exactly one net a given team is
+ * attacking - so this lives in the domain and any UI can fire a shot in a
+ * single tap instead of arming a mode and waiting for a second one.
+ */
+export function attackingNetFor(team: Team): Point {
+  return team === 'home'
+    ? { x: RINK.netRightX, y: RINK.netRightY }
+    : { x: RINK.netLeftX, y: RINK.netLeftY };
+}
+
+/**
+ * How many passes one drill may contain.
+ *
+ * A practice drill that needs a fifth pass is really two drills; past four the
+ * diagram stops being something a coach can hold in their head at the whiteboard
+ * and the timeline gets too crowded to edit on a phone. The cap lives here, in
+ * the domain, so every authoring path inherits it - drag, tap, the Pass button,
+ * retarget and dump conversion alike.
+ */
+export const MAX_PASSES_PER_DRILL = 4;
+
+/** How many passes the drill already has. */
+export function countPasses(events: DrillEvent[]): number {
+  return events.filter(event => event.type === 'pass').length;
+}
+
+/**
  * Validate if a pass can be made
  */
 export interface PassValidation {
@@ -124,6 +153,13 @@ export function validatePass(
     return {
       valid: false,
       error: 'Drill already ended with a shot',
+    };
+  }
+
+  if (countPasses(events) >= MAX_PASSES_PER_DRILL) {
+    return {
+      valid: false,
+      error: `A drill holds ${MAX_PASSES_PER_DRILL} passes. Finish with a shot, or split this into two drills.`,
     };
   }
 

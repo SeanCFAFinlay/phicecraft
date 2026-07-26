@@ -60,6 +60,12 @@ export default defineConfig({
       testMatch: /flows\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
     },
+    // Pass, Shoot and Move: reachability, chaining and the four-pass cap.
+    {
+      name: 'puck-actions',
+      testMatch: /puckActions\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
+    },
     // Adjusting a route or puck line after the play is set up.
     {
       name: 'line-shapes',

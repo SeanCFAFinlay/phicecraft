@@ -118,6 +118,14 @@ export class GestureStateMachine {
       return;
     }
 
+    // The Move button arms a player. Pressing that player then drags it
+    // straight away, with no 0.7s hold to sit through - and a tap anywhere
+    // else drops it there, which `onTap` handles.
+    if (target.kind === 'player' && target.playerId === context.armedMovePlayerId) {
+      this.gesture = { kind: 'move-player', playerId: target.playerId };
+      return;
+    }
+
     // Empty ice stays a PRESS until the pointer actually moves. Committing to
     // a pan on pointer-down meant a tap on empty ice was swallowed by the
     // camera - so "tap empty ice to place a player" and "tap to deselect"

@@ -71,7 +71,7 @@ export function instructionFor(context: InstructionContext): Instruction {
     case 'move-player':
       return {
         label: `Moving ${who}`,
-        next: 'Drag to the new position, then release to drop.',
+        next: 'Tap where they should stand, or drag them there.',
         cancellable: true,
       };
 

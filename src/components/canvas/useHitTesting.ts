@@ -33,6 +33,16 @@ const ADD_HANDLE_HIT = 14;
 /** How forgiving pass targeting is, in screen pixels. */
 const PASS_TARGET_RADIUS = 68;
 const PASS_ROUTE_RADIUS = 42;
+/**
+ * The smallest a player's tap target is ever allowed to get, in SCREEN pixels.
+ *
+ * `PLAYER_HIT_RADIUS` is a world-space constant, so zoomed out to fit a full
+ * sheet on a phone a player's target shrank to a few pixels and selecting one
+ * became a matter of luck. The handles have always been measured in screen
+ * space; players now get the same treatment, with a floor a little over half
+ * the 44px touch minimum on each side.
+ */
+const PLAYER_HIT_FLOOR = 22;
 
 export interface HitTestingOptions {
   getState: () => AppState;
@@ -47,6 +57,14 @@ export function useHitTesting({ getState, camera, playback }: HitTestingOptions)
     /** Where a player is drawn right now: interpolated while scrubbing. */
     const drawnPosition = (playerId: ID, fallback: Point): Point =>
       playback.positionFor(playerId) ?? fallback;
+
+    /**
+     * How far a tap may land from a player and still count, in WORLD units.
+     * Never smaller on screen than `PLAYER_HIT_FLOOR`, however far out the
+     * camera is pulled.
+     */
+    const playerReach = (): number =>
+      Math.max(PLAYER_HIT_RADIUS, PLAYER_HIT_FLOOR / Math.max(camera.camera.zoom, 0.01));
 
     /** The route of the currently selected player, if any, while paused. */
     const selectedRoute = (): SkatePath | null => {
@@ -71,11 +89,12 @@ export function useHitTesting({ getState, camera, playback }: HitTestingOptions)
       playerAt(point) {
         const { drill } = getState();
         const world = toWorld(point);
+        const reach = playerReach();
         // Topmost first, matching draw order.
         for (let index = drill.players.length - 1; index >= 0; index--) {
           const player = drill.players[index];
           const at = drawnPosition(player.id, player);
-          if (distance(at, world) < PLAYER_HIT_RADIUS) {
+          if (distance(at, world) < reach) {
             const holder = getCurrentPuckHolder(drill.players, drill.events);
             return {
               id: player.id,
@@ -89,9 +108,10 @@ export function useHitTesting({ getState, camera, playback }: HitTestingOptions)
       coachAt(point) {
         const { drill } = getState();
         const world = toWorld(point);
+        const reach = playerReach() * 1.2;
         const coaches = drill.coaches ?? [];
         for (let index = coaches.length - 1; index >= 0; index--) {
-          if (distance(coaches[index], world) < PLAYER_HIT_RADIUS * 1.2) return coaches[index].id;
+          if (distance(coaches[index], world) < reach) return coaches[index].id;
         }
         return null;
       },

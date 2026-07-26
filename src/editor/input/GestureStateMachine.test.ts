@@ -132,6 +132,7 @@ beforeEach(() => {
     isTabletop: false,
     holdToMoveEnabled: true,
     selectedId: null,
+    armedMovePlayerId: null,
   };
 });
 
@@ -321,6 +322,59 @@ describe('hold to move', () => {
 
     machine.pointerUp(touch(1, 160, 180));
     expect(handlers.onPlayerMoveEnd).toHaveBeenCalledWith('p1');
+  });
+});
+
+// ----------------------------------------------------------------------------
+// The explicit Move button
+// ----------------------------------------------------------------------------
+
+describe('a move armed by the Move button', () => {
+  it('drags the armed player immediately, with no hold to sit through', () => {
+    // The regression: `beginPlayerMove` set a pending action nothing in here
+    // could see, so the button did nothing and moving still meant a 0.7s hold.
+    context.armedMovePlayerId = 'p1';
+    const machine = build(playerHitTester());
+    machine.pointerDown(touch(1, 100, 100));
+
+    expect(machine.current).toEqual({ kind: 'move-player', playerId: 'p1' });
+  });
+
+  it('does not start a hold countdown, because it is already moving', () => {
+    context.armedMovePlayerId = 'p1';
+    const machine = build(playerHitTester());
+    machine.pointerDown(touch(1, 100, 100));
+
+    expect(handlers.onHoldStart).not.toHaveBeenCalled();
+  });
+
+  it('follows the pointer from the first move, not from the threshold', () => {
+    context.armedMovePlayerId = 'p1';
+    const machine = build(playerHitTester());
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerMove(touch(1, 104, 103));
+    scheduler.flushFrames();
+
+    expect(handlers.onPlayerMove).toHaveBeenCalledWith('p1', { x: 104, y: 103 });
+  });
+
+  it('arms only the named player, leaving the others tappable', () => {
+    context.armedMovePlayerId = 'someone-else';
+    const machine = build(playerHitTester('p1'));
+    machine.pointerDown(touch(1, 100, 100));
+
+    expect(machine.current.kind).toBe('press');
+  });
+
+  it('leaves a tap on empty ice as a tap, so it can place the player', () => {
+    // Tap-to-place is handled by onTap; the machine's job is only to not eat
+    // the tap by committing to a pan on pointer-down.
+    context.armedMovePlayerId = 'p1';
+    const machine = build(buildHitTester({ playerAt: () => null }));
+    machine.pointerDown(touch(1, 300, 300));
+    machine.pointerUp(touch(1, 300, 300));
+
+    expect(handlers.onTap).toHaveBeenCalled();
   });
 });
 

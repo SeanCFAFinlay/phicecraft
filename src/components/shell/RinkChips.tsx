@@ -16,6 +16,8 @@ import { useResponsive } from '@/ui/useResponsive';
 import { instructionFor } from '@/editor/instructions';
 import { isReviewComplete } from '@/commands';
 import { getCurrentPuckHolder } from '@/engine/puck';
+import { PuckActionButtons } from './PuckActions';
+import { usePuckActions } from '@/hooks/usePuckActions';
 
 const STEP_NAMES = { setup: 'Setup', movement: 'Movement', puck: 'Puck actions', review: 'Review' } as const;
 const STEP_ORDER = ['setup', 'movement', 'puck', 'review'] as const;
@@ -88,6 +90,7 @@ export function SelectionChip() {
   const { state } = useAppState();
   const commands = useCommands();
   const hold = useHoldProgress();
+  const { isPhone } = useResponsive();
 
   const playerId = state.selection.selectedPlayerId;
   const eventId = state.selection.selectedEventId;
@@ -129,6 +132,11 @@ export function SelectionChip() {
           </button>
         )}
 
+        {/* The player holding the puck can pass or shoot from here, which is
+            what makes a four-pass chain four taps: each pass selects the
+            receiver, so the next Pass button is already under the thumb. */}
+        {player && <PuckActionButtons onlyFor={player.id} compact={isPhone} />}
+
         <button
           type="button"
           onClick={() =>
@@ -162,18 +170,22 @@ export function SelectionChip() {
 export function ContextChips() {
   const { state, dispatch } = useAppState();
   const { isPhone, isCompactLandscape } = useResponsive();
+  const puckActions = usePuckActions();
 
   if (isCompactLandscape) return null;
   // While an action is pending, its chip is the only thing that matters.
   if (state.pendingAction.kind !== 'none') return null;
 
   const carrier = getCurrentPuckHolder(state.drill.players, state.drill.events);
+  const { passesUsed } = puckActions;
   const stepIndex = STEP_ORDER.indexOf(state.ui.editorStep);
   const reviewed = isReviewComplete(state);
 
   return (
-    // A single row above the chip lane, so the two never overlap.
-    <div className="pointer-events-none absolute left-2 right-2 top-1.5 z-20 flex flex-wrap items-start gap-1.5">
+    // A single row above the chip lane, so the two never overlap. Centred,
+    // not top-aligned: Pass and Shoot carry the full 44px touch target and the
+    // readout chips do not, so aligning to the top left the row ragged.
+    <div className="pointer-events-none absolute left-2 right-2 top-1.5 z-20 flex flex-wrap items-center gap-1.5">
       <button
         type="button"
         onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'possession' })}
@@ -184,10 +196,16 @@ export function ContextChips() {
         <span className={carrier ? 'text-app-gold' : 'text-white/40'}>
           {carrier ? `#${carrier.number}` : 'loose'}
         </span>
-        {state.drill.events.length > 0 && (
-          <span className="text-white/35">· {state.drill.events.length}</span>
+        {passesUsed > 0 && (
+          <span className="text-white/35">· {passesUsed} pass{passesUsed === 1 ? '' : 'es'}</span>
         )}
       </button>
+
+      {/* Pass and Shoot live here too, so they are reachable without first
+          selecting anybody - the carrier is already known. */}
+      <div className="pointer-events-auto flex items-center gap-1.5">
+        <PuckActionButtons compact={isPhone} />
+      </div>
 
       <button
         type="button"

@@ -10,6 +10,7 @@ import { drawDetailedSkater } from './skater/SkaterRenderer';
 import { drawDetailedGoalie } from './skater/GoalieRenderer';
 import { getBladePosition } from '@/sim/skaterMotor';
 import { cameraMatrix, applyAffine } from '@/utils/geometry';
+import { drawPuckMarker } from './puckMarker';
 
 interface PlayerRenderOptions {
   isSelected: boolean;
@@ -409,14 +410,11 @@ function drawStandingPlayer(
     ctx.fill();
   }
 
-  // Puck at the stick blade.
+  // Puck at the stick blade, the same object the flat view draws. `z` is the
+  // depth scale the whole piece is already drawn at, so the puck shrinks with
+  // distance along with everything else.
   if (flags.hasPuck) {
-    ctx.fillStyle = '#0b0b0b';
-    ellipse(ctx, bladeX + bodyR * 0.35, g.y + baseRy * 0.05, bodyR * 0.24, Math.max(1.4, baseRy * 0.4));
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    drawPuckMarker(ctx, bladeX + bodyR * 0.35, g.y + baseRy * 0.05, 0, z);
   }
 
   ctx.restore();

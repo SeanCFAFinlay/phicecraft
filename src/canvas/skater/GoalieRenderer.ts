@@ -1,6 +1,7 @@
 import type { AnimatedPuck, PlaybackPlayerFrame, Player } from '@/core/types';
 import { getSkaterPalette } from './skaterPalette';
 import { getHockeySpriteAtlas, HOCKEY_SPRITES } from '../HockeySpriteAtlas';
+import { drawPuckMarker } from '../puckMarker';
 
 export function drawDetailedGoalie(
   ctx: CanvasRenderingContext2D,
@@ -220,16 +221,6 @@ export function drawDetailedGoalie(
   }
 
   if (isPuckHolder) {
-    ctx.save();
-    ctx.shadowColor = '#ffd60a';
-    ctx.shadowBlur = 7;
-    ctx.fillStyle = '#0b1117';
-    ctx.strokeStyle = '#ffd60a';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(frame.bladePosition.x, frame.bladePosition.y, 5.5, 3.7, trackedHeading, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    drawPuckMarker(ctx, frame.bladePosition.x, frame.bladePosition.y, trackedHeading);
   }
 }

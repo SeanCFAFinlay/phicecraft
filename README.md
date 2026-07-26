@@ -47,7 +47,7 @@ The shell is mobile-first. Five controls are always one tap away:
 | --- | --- |
 | **Select** | Tap to select, drag to author. This is the tool you want most of the time. |
 | **Add** | Opens Home / Away / Goalie / Coach, then tap empty ice to place. |
-| **Action** | Opens Route / Pass / Shoot for the selected player or the puck carrier. |
+| **Action** | Opens Route / Pass / Shoot for the selected player or the puck carrier. Pass and Shoot are also on the rink itself — see below. |
 | **Erase** | Tap a player, coach, route or puck line to remove it. |
 | **Play** | Runs the drill. |
 
@@ -62,6 +62,20 @@ does that, and so does tapping the same player a second time.
 Whenever an action is waiting for you, a chip at the top of the rink says which
 player it is for, what to do next, and offers **Cancel**. Escape cancels it too.
 
+### Passing and shooting
+
+**Pass** and **Shoot** sit on the rink next to the puck chip, so they are one
+tap away whether or not anything is selected — they act on whoever is carrying.
+They also appear on the selection chip when the selected player has the puck.
+
+**Shoot** takes effect immediately: a team attacks exactly one net, so there is
+nothing to aim. **Pass** arms the pass, and you tap the receiver.
+
+A drill holds **four passes**. The Pass button shows how many are left and goes
+dead at the cap; finish with a shot, or split the drill in two. Each pass hands
+the selection to the receiver, so a four-pass chain is four taps of Pass and a
+tap on each target rather than a hunt for the new carrier every time.
+
 ### Authoring
 
 | Gesture | Result |
@@ -71,6 +85,8 @@ player it is for, what to do next, and offers **Cancel**. Escape cancels it too.
 | Drag the puck carrier toward a net | A shot, starting from their final route position |
 | Drag the puck carrier onto open ice | A dump; assign a receiver later from the event details |
 | Drag from a point on a route | Releases the puck at that moment in the drill |
+| Tap **Move**, then tap the ice | Puts that player where you tapped |
+| Tap **Move**, then drag the player | Repositions with no hold first |
 | Drag a handle on a selected line | Reshapes it, one point at a time |
 | Tap a **+** between two handles | Adds a point there |
 | Tap a handle a second time | Removes that point |
@@ -106,6 +122,9 @@ dump conversion alike.
 | `Space` | Play / pause, unless you are typing |
 | `Ctrl`/`⌘` + `Z` | Undo (add `Shift`, or use `Ctrl`+`Y`, to redo) |
 | `Ctrl`/`⌘` + `S` | Save |
+| `P` | Pass from whoever has the puck |
+| `S` | Shoot from whoever has the puck |
+| `R` | Draw a route for the selected player |
 | `Enter` | Open the details of the current selection |
 | `Tab` | Move through the controls; focus is trapped inside an open sheet or dialog |
 

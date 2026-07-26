@@ -96,4 +96,12 @@ export interface GestureContext {
   holdToMoveEnabled: boolean;
   /** The id currently selected, for second-tap detection. */
   selectedId: ID | null;
+  /**
+   * The player the Move button has armed, if any.
+   *
+   * Without this the button was decorative: it set a pending action nothing in
+   * here could see, so moving a player still meant holding it for 0.7s and the
+   * button appeared to do nothing at all.
+   */
+  armedMovePlayerId: ID | null;
 }

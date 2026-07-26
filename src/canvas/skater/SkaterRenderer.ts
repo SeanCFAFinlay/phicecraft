@@ -4,6 +4,7 @@ import { drawSkaterEffects } from './SkaterEffects';
 import { deriveSkaterPose } from './SkaterPose';
 import { getSkaterPalette } from './skaterPalette';
 import { getHockeySpriteAtlas, HOCKEY_SPRITES } from '../HockeySpriteAtlas';
+import { drawPuckMarker } from '../puckMarker';
 
 interface DetailedSkaterOptions {
   isSelected: boolean;
@@ -295,16 +296,6 @@ export function drawDetailedSkater(
   }
 
   if (options.isPuckHolder) {
-    ctx.save();
-    ctx.shadowColor = 'rgba(255, 214, 10, .85)';
-    ctx.shadowBlur = 7;
-    ctx.fillStyle = '#0b1117';
-    ctx.strokeStyle = '#ffd60a';
-    ctx.lineWidth = 1.7;
-    ctx.beginPath();
-    ctx.ellipse(frame.bladePosition.x, frame.bladePosition.y, 5.5, 3.7, frame.heading, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    drawPuckMarker(ctx, frame.bladePosition.x, frame.bladePosition.y, frame.heading);
   }
 }

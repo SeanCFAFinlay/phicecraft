@@ -27,7 +27,9 @@ import {
 } from '@/engine/drill';
 import {
   canAddEvents,
+  countPasses,
   getCurrentPuckHolder,
+  MAX_PASSES_PER_DRILL,
   teamForDefendedNet,
   netSideForPoint,
   validatePass,
@@ -489,8 +491,19 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
 
       dispatch({ type: 'ADD_PASS', event: buildPassEvent(fromPlayer, toPlayer, options?.fromPoint) });
       dispatch({ type: 'CANCEL_PENDING_ACTION' });
+      // The receiver now has the puck, so selecting them leaves the chip's
+      // Pass and Shoot buttons pointed at the next link in the chain. Building
+      // a four-pass drill is then four taps of Pass, not four trips through a
+      // sheet to find the carrier again.
+      dispatch({ type: 'SELECT_PLAYER', id: toPlayerId });
+
+      const used = countPasses(state.drill.events) + 1;
+      const left = MAX_PASSES_PER_DRILL - used;
       notify.toast({
-        message: `Pass to #${toPlayer.number}`,
+        message:
+          left > 0
+            ? `Pass to #${toPlayer.number} · ${left} more available`
+            : `Pass to #${toPlayer.number} · that is the last one, finish with a shot`,
         type: 'success',
         dedupeKey: `pass:${fromPlayerId}:${toPlayerId}`,
       });

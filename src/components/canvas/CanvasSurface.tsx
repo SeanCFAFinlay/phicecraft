@@ -23,7 +23,7 @@ import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { RINK, TABLETOP_MIN_TILT, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
 import { distance, screenToWorld } from '@/utils/geometry';
-import { getAimedNetTarget } from '@/engine/puck';
+import { attackingNetFor, getAimedNetTarget } from '@/engine/puck';
 import type { ID, Point } from '@/core/types';
 
 /** Distance from a net (world units) at which a carrier drag becomes a shot. */
@@ -142,6 +142,15 @@ export function CanvasSurface() {
       const tool = current.ui.currentTool;
       const world = worldOf(screen);
 
+      // A move armed by the Move button is finished by tapping where the
+      // player should stand. Pressing the player itself drags it instead, so
+      // that case never reaches here.
+      if (current.pendingAction.kind === 'move-player') {
+        commands.movePlayerTo(current.pendingAction.playerId, world.x, world.y);
+        commands.cancelPendingAction();
+        return;
+      }
+
       if (tool === 'erase') {
         eraseAt(target);
         return;
@@ -212,7 +221,7 @@ export function CanvasSurface() {
       }
       if (pending.kind === 'shoot') {
         const shooter = current.drill.players.find(player => player.id === pending.playerId);
-        if (shooter) commands.requestShot(pending.playerId, netTargetFor(shooter.team));
+        if (shooter) commands.requestShot(pending.playerId, attackingNetFor(shooter.team));
         return;
       }
 
@@ -378,6 +387,10 @@ export function CanvasSurface() {
         holdToMoveEnabled: true,
         selectedId:
           stateRef.current.selection.selectedPlayerId ?? stateRef.current.selection.selectedEventId,
+        armedMovePlayerId:
+          stateRef.current.pendingAction.kind === 'move-player'
+            ? stateRef.current.pendingAction.playerId
+            : null,
       }),
     });
   }, [camera]);
@@ -448,8 +461,3 @@ export function CanvasSurface() {
 
 // ----------------------------------------------------------------------------
 
-function netTargetFor(team: 'home' | 'away'): Point {
-  return team === 'home'
-    ? { x: RINK.netRightX, y: RINK.netRightY }
-    : { x: RINK.netLeftX, y: RINK.netLeftY };
-}
