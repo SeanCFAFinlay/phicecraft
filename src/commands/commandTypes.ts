@@ -162,6 +162,16 @@ export interface AuthoringCommands {
   /** How this drill is meant to end. Only `finish-with-shot` derives a shot. */
   setFinishPolicy(policy: FinishPolicy): void;
 
+  /**
+   * Tell the coach what to do next, without changing the drill.
+   *
+   * Used when an authoring gesture did not land: a pass that missed every
+   * eligible teammate, or one aimed at an opponent. The action stays armed, so
+   * this is guidance rather than a failure - and it is a command rather than a
+   * direct toast so that views keep out of the notification plumbing.
+   */
+  guide(message: string): void;
+
   addCoach(point: Point): CommandResult<ID>;
   moveCoach(id: ID, x: number, y: number): void;
   removeCoach(id: ID): CommandResult;

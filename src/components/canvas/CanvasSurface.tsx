@@ -23,7 +23,8 @@ import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { RINK, TABLETOP_MIN_TILT, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
 import { distance, screenToWorld } from '@/utils/geometry';
-import { getAimedNetTarget } from '@/engine/puck';
+import { authoredEvents, getAimedNetTarget } from '@/engine/puck';
+import { resolvePassTarget, type PassTargetContext } from '@/editor/passing/passTargetService';
 import type { ID, Point } from '@/core/types';
 
 /** Distance from a net (world units) at which a carrier drag becomes a shot. */
@@ -137,6 +138,70 @@ export function CanvasSurface() {
       movingPlayerRef.current = null;
     };
 
+    /**
+     * The context every pass path shares, so tap, drag and keyboard cannot
+     * disagree about who is a legal receiver.
+     */
+    const passContext = (passerId: ID, from?: Point): PassTargetContext => {
+      const current = stateRef.current;
+      const passer = current.drill.players.find(player => player.id === passerId);
+      const authored = authoredEvents(current.drill.events);
+      const previousArrival = authored.length ? authored[authored.length - 1].arrivalAt ?? 0 : 0;
+
+      return {
+        drill: current.drill,
+        passerId,
+        // The DRAWN position, not the authored one. Using the authored start
+        // coordinates meant that after scrubbing, the visible player and the
+        // pass target were in different places.
+        positionOf: id =>
+          playback.positionFor(id) ??
+          current.drill.players.find(player => player.id === id) ?? { x: 0, y: 0 },
+        zoom: camera.camera.zoom,
+        departureAt: Math.min(0.94, Math.max(0.12, previousArrival + 0.04)),
+        from: from ?? (passer ? { x: passer.x, y: passer.y } : { x: 0, y: 0 }),
+      };
+    };
+
+    /**
+     * Act on a resolved pass target.
+     *
+     * Two rules from the rebuild spec live here: a miss never cancels Pass, and
+     * an invalid target never becomes some other hockey action. Both used to be
+     * violated - a near-miss called `cancelPendingAction()` with no message, so
+     * on a phone the control simply appeared not to work.
+     */
+    const applyPassResolution = (
+      passerId: ID,
+      world: Point,
+      options: { from?: Point; allowSpace?: boolean } = {}
+    ): 'committed' | 'armed' => {
+      const resolution = resolvePassTarget(passContext(passerId, options.from), world, {
+        allowSpace: options.allowSpace,
+      });
+
+      switch (resolution.kind) {
+        case 'receiver':
+          void commands.requestPass(passerId, resolution.candidate.actorId, {
+            fromPoint: options.from,
+          });
+          return 'committed';
+
+        case 'opponent':
+          commands.guide(resolution.reason);
+          return 'armed';
+
+        case 'space':
+        case 'miss':
+          commands.guide(
+            resolution.kind === 'miss'
+              ? resolution.reason
+              : 'Passing to open ice is not available yet — choose a teammate.'
+          );
+          return 'armed';
+      }
+    };
+
     const handleTap = (screen: Point, target: PressTarget, second: boolean) => {
       const current = stateRef.current;
       const tool = current.ui.currentTool;
@@ -171,12 +236,9 @@ export function CanvasSurface() {
       // The tap used to require a direct hit on the token, so tapping a
       // receiver's route selected that player and silently dropped the pass.
       if (current.pendingAction.kind === 'pass') {
-        const receiverId = hitTester.passReceiverAt(screen, current.pendingAction.playerId);
-        if (receiverId) {
-          void commands.requestPass(current.pendingAction.playerId, receiverId);
-        } else {
-          commands.cancelPendingAction();
-        }
+        // A tap never authors a pass to open ice: a stray touch would create a
+        // puck action nobody asked for. Dragging is the deliberate gesture.
+        applyPassResolution(current.pendingAction.playerId, world);
         return;
       }
 
@@ -289,30 +351,26 @@ export function CanvasSurface() {
         drawDynamic();
       },
 
-      onPuckDragRelease: (playerId, from, releaseScreen, receiverId) => {
+      onPuckDragRelease: (playerId, from, releaseScreen) => {
         dragPreviewRef.current = null;
-        const current = stateRef.current;
         const release = worldOf(releaseScreen);
-        const passer = current.drill.players.find(player => player.id === playerId);
-        const receiver = receiverId
-          ? current.drill.players.find(player => player.id === receiverId)
-          : undefined;
 
-        // A pass only lands on a teammate. Dragging onto an opponent is not a
-        // pass, so the net check below can still turn it into a shot.
-        if (receiver && passer && receiver.team === passer.team && receiver.id !== passer.id) {
-          commands.requestPass(playerId, receiver.id, { fromPoint: from });
-          return;
-        }
-
+        // Aiming at a net is a deliberate shot, and stays one.
         const nearNet =
           Math.min(
             distance(release, { x: RINK.netLeftX, y: RINK.netLeftY }),
             distance(release, { x: RINK.netRightX, y: RINK.netRightY })
           ) < SHOT_SNAP_DISTANCE;
+        if (nearNet) {
+          void commands.requestShot(playerId, getAimedNetTarget(release));
+          return;
+        }
 
-        if (nearNet) commands.requestShot(playerId, getAimedNetTarget(release));
-        else commands.requestDump(playerId, release, from);
+        // Everything else goes through the same resolution as a tap. A drag
+        // that misses used to become a DUMP - a destructive reading of an
+        // imprecise finger release, which put a puck action on the ice that
+        // the coach never intended and which ends the drill.
+        applyPassResolution(playerId, release, { from });
       },
 
       onRouteHandleDrag: (pathId, index, world) => {
@@ -338,7 +396,7 @@ export function CanvasSurface() {
         drawDynamic();
       },
     };
-  }, [camera, commands, drawDynamic, hitTester, holdProgress]);
+  }, [camera, commands, drawDynamic, holdProgress, playback]);
 
   // The machine MUST outlive renders. It holds the in-flight gesture, and a
   // gesture spans many renders: the first sample of a route dispatches a

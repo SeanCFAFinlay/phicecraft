@@ -328,6 +328,11 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       dispatch({ type: 'SET_FINISH_POLICY', policy });
     },
 
+    guide(message) {
+      notify.toast({ message, type: 'info', dedupeKey: `guide:${message}` });
+      host.announce(message);
+    },
+
     swapJerseys() {
       dispatch({ type: 'SWAP_JERSEYS' });
       notify.toast({ message: 'Team colours swapped', type: 'success', dedupeKey: 'swap-jerseys' });

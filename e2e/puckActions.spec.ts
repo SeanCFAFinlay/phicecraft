@@ -143,24 +143,53 @@ test('four passes chain without hunting for the new carrier', async ({ page }) =
   expect(events.filter(event => event.type === 'pass')).toHaveLength(4);
 });
 
-test('the fifth pass is refused, and Pass goes dead', async ({ page }) => {
+test('a fifth pass is allowed, because there is no cap', async ({ page }) => {
   await passTo(page, LINEUP.home13);
   await passTo(page, LINEUP.home44);
   await passTo(page, LINEUP.home5);
   await passTo(page, LINEUP.home7);
+  await passTo(page, LINEUP.home11);
   await waitForSaved(page);
 
-  // The cap is stated on the control itself rather than only on rejection.
+  // A cap of four used to live in the domain and made continuous passing
+  // patterns, regroups and station circuits impossible to author.
+  const { events } = await storedDrill(page);
+  expect(events.filter(event => event.type === 'pass')).toHaveLength(5);
+
   await expect(
     page.getByRole('navigation', { name: 'Editing tools' }).getByRole('button', { name: 'Pass' })
-  ).toBeDisabled();
+  ).toBeEnabled();
+});
+
+test('a pass that misses everything keeps Pass armed and says what to do', async ({ page }) => {
+  await page
+    .getByRole('navigation', { name: 'Editing tools' })
+    .getByRole('button', { name: 'Pass' })
+    .click();
+  await expect(page.getByText(/^Pass from #11/)).toBeVisible();
+
+  // Empty ice, far from every player. This used to call cancelPendingAction()
+  // with no message, so on a phone the control simply appeared not to work.
+  await clickWorld(page, LINEUP.emptyIce);
+
+  await expect(page.getByText(/^Pass from #11/)).toBeVisible();
+  await expect(
+    page.getByRole('status').filter({ hasText: /highlighted teammate/i }).first()
+  ).toBeVisible();
 
   const { events } = await storedDrill(page);
-  expect(events.filter(event => event.type === 'pass')).toHaveLength(4);
+  expect(events).toHaveLength(0);
+});
 
-  // Shooting is still open - a drill ends with a shot, not with a fifth pass.
-  await clickWorld(page, LINEUP.home7);
-  await expect(shootButton(page)).toBeEnabled();
+test('dragging the puck to open ice no longer creates a dump', async ({ page }) => {
+  const { dragWorld } = await import('./support');
+  await dragWorld(page, LINEUP.home11, LINEUP.emptyIce);
+  await page.waitForTimeout(400);
+
+  // An imprecise finger release used to be read as a dump, which puts a puck
+  // action on the ice the coach never intended and ends the drill.
+  const { events } = await storedDrill(page);
+  expect(events.filter(event => event.type === 'dump')).toHaveLength(0);
 });
 
 test('the puck chip counts the passes so far', async ({ page }) => {

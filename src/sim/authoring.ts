@@ -81,6 +81,54 @@ export function getAuthoredPassInterception(
   };
 }
 
+/**
+ * How a pass to each of several receivers would land, solved against ONE
+ * compile of the drill.
+ *
+ * `getAuthoredPassInterception` compiles the drill per call, which is fine for
+ * committing a single pass but not for scoring every eligible teammate while
+ * the coach is choosing one. Same solver, same answers, one compile.
+ */
+export function predictPassInterceptions(
+  drill: Drill,
+  from: Point,
+  departureProgress: number,
+  receiverIds: ID[]
+): Map<ID, { toPoint: Point; arrivalAt: number; leadDistance: number }> {
+  const compiled = compileDrill(drill);
+  const results = new Map<ID, { toPoint: Point; arrivalAt: number; leadDistance: number }>();
+  const departureSeconds = departureProgress * compiled.durationSeconds;
+
+  for (const receiverId of receiverIds) {
+    const receiver = compiled.players.get(receiverId);
+    const route = compiled.routes.get(receiverId);
+    if (!receiver || !route) continue;
+
+    const atDeparture = sampleSkater(receiver, route, departureSeconds, compiled.events);
+    const solved = solvePassInterception(
+      from,
+      departureSeconds,
+      compiled.config.passSpeed,
+      timeSeconds => sampleSkater(receiver, route, timeSeconds, compiled.events),
+      compiled.durationSeconds * 0.98
+    );
+
+    results.set(receiverId, {
+      toPoint: solved.point,
+      arrivalAt: solved.arrivalSeconds / compiled.durationSeconds,
+      // How far the receiver has to travel between the puck leaving and the
+      // puck arriving. A big lead is a pass that only works if they keep
+      // skating, which is worth telling the coach before they commit.
+      leadDistance: Math.hypot(
+        solved.point.x - atDeparture.bladePosition.x,
+        solved.point.y - atDeparture.bladePosition.y
+      ),
+    });
+  }
+
+  return results;
+}
+
 export function getAuthoredPuck(drill: Drill, progress: number) {
   const compiled = compileDrill(drill);
   return sampleFrame(compiled, progress * compiled.durationSeconds).puck;
