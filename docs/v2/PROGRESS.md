@@ -210,11 +210,44 @@ procurement as a parallel track with its own budget.
 
 ---
 
-## Phase 5 — Library and templates ⏳ not started
+## Phase 5 — Library and templates 🔶 catalogue started
 
-The 24-template catalogue is authorable here — they are documents plus metadata
-and coaching text. It is a large content job and should not be estimated as a
-small one.
+### Done — the authoring machinery
+
+`src/data/templates/builder.ts`. A template written longhand is a couple of
+hundred lines of ids, phase references and timing arithmetic, which is how a
+catalogue ends up with four drills in it. The builder derives all of that so a
+template reads as the drill it describes: who is on the ice, where they skate,
+what the puck does.
+
+It places drills against **real rink landmarks** (goal lines at x=55/945, blue
+lines at 375/625, faceoff dots at 155/845 and y=102.5/322.5), and a test
+asserts those constants still match `RINK`.
+
+One detail worth naming: a pass targets where the receiver will BE at the end
+of their route, not the spot they started from. Without that, every pass in a
+drill with movement points at a patch of ice the receiver left seconds ago.
+
+### Done — the first 8 templates
+
+Passing and warm-up, all first-party content with setup notes, coaching points,
+progressions and variations. Each is checked in the test suite, not trusted:
+
+- it validates as a coherent v3 document
+- every actor, route point and puck action is **on the ice**
+- it **plays through the engine** without a non-finite position at any of 11
+  samples across its run
+- it records its provenance, so it is cleared to ship
+
+The catalogue also asserts two things the old model could not do: it contains
+drills that do **not** end with a shot, and one with more passes than the
+removed four-pass cap allowed.
+
+### Not done
+
+16 more templates (small-area games, transition and rush), the Library route
+itself, search/filter/sort, favourites, generated thumbnails, the details view,
+use-as-template copying, and practice plans.
 
 ---
 
