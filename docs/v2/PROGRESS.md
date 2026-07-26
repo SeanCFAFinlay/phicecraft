@@ -263,10 +263,34 @@ opens the library does not pay for it. The budget baseline was raised
 deliberately, with the reason recorded in the file — the check sums every
 chunk, so the total still rose even though startup did not.
 
+### Done — generated thumbnails
+
+Each card carries a diagram drawn from the drill itself: routes in cyan,
+passes dashed gold, shots orange, players as numbered tokens.
+
+The interesting part is the framing, which is separated from the drawing so it
+can be tested without a canvas. A quarter-ice battle drawn on a full sheet is
+four specks in a white rectangle and every card looks identical, so the view is
+the drill's own bounding box, padded, grown to a minimum extent so two players
+do not become a close-up, widened to the card's shape, and clamped back inside
+the boards. 72 tests assert that every drill in the catalogue is fully
+contained, stays inside the boards, and matches the card aspect.
+
+The markings are deliberately simplified - at card size the full renderer's
+hash marks and faceoff detail are noise - and players are numbered tokens
+rather than sprite crops, which are a smudge at 20px.
+
+Drawing degrades to `null` without a 2D context rather than throwing, so a
+headless environment gets a card with no picture instead of a crash. Results
+are cached per drill and size.
+
+Equipment is not drawn yet: it is dropped by the v2 projection, so the tire
+and cone drills show their players and passes but not their gear.
+
 ### Not done
 
-Generated rink thumbnails on the cards, an animated preview in the details
-view, practice plans, share links and PDF/print export.
+Equipment in thumbnails, an animated preview in the details view, practice
+plans, share links and PDF/print export.
 
 ## Phase 6 — PWA, packaging, commercialisation ⏳ not started
 

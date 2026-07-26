@@ -167,3 +167,19 @@ test('the copy has its own identity, so editing it cannot reach the template', a
   }
 });
 
+
+test('every card carries a diagram of the drill', async ({ page }) => {
+  await openLibrary(page);
+
+  // A coach scanning twenty-four drills decides from the shape of the thing
+  // far faster than from a sentence.
+  const images = page.getByRole('article').locator('img');
+  expect(await images.count()).toBe(24);
+
+  // Really rendered, not a broken source.
+  const rendered = await images.first().evaluate(
+    node => (node as HTMLImageElement).naturalWidth
+  );
+  expect(rendered).toBeGreaterThan(100);
+});
+

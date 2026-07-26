@@ -7,7 +7,14 @@
 // ambiguous tap on the card.
 // ============================================================================
 
+import { useMemo } from 'react';
 import type { LibraryEntry } from './libraryStore';
+import { cachedThumbnail } from './thumbnailRenderer';
+import { findTemplate } from '@/data/templates/registry';
+import { projectToV2 } from '@/domain/v3/projectToV2';
+
+/** Card image size. Wider than tall, because a rink is. */
+const THUMB = { width: 400, height: 170 };
 
 const AREA_LABELS: Record<string, string> = {
   full: 'Full ice',
@@ -43,6 +50,14 @@ export interface DrillCardProps {
 }
 
 export function DrillCard({ entry, onOpen, onToggleFavourite, onUse }: DrillCardProps) {
+  // Drawn once per drill and cached. Null in an environment with no canvas, in
+  // which case the card falls back to its words.
+  const thumbnail = useMemo(() => {
+    const template = findTemplate(entry.id);
+    if (!template) return null;
+    return cachedThumbnail(entry.id, projectToV2(template.document).drill, THUMB);
+  }, [entry.id]);
+
   const needs = [
     `${entry.skaterCount} skater${entry.skaterCount === 1 ? '' : 's'}`,
     entry.goalieCount > 0 ? `${entry.goalieCount} goalie` : 'no goalie',
@@ -68,7 +83,20 @@ export function DrillCard({ entry, onOpen, onToggleFavourite, onUse }: DrillCard
         </button>
       </div>
 
-      <p className="mt-1 line-clamp-3 text-[13px] leading-snug text-white/60">{entry.summary}</p>
+      {thumbnail && (
+        <img
+          src={thumbnail}
+          // Decorative: the title, summary and tags below already say what the
+          // drill is, so describing the diagram again is noise to a screen
+          // reader rather than information.
+          alt=""
+          width={THUMB.width}
+          height={THUMB.height}
+          className="mt-2 w-full rounded-xl border border-app-border bg-white"
+        />
+      )}
+
+      <p className="mt-2 line-clamp-3 text-[13px] leading-snug text-white/60">{entry.summary}</p>
 
       <div className="mt-2 flex flex-wrap gap-1">
         <span className="rounded-full bg-app-cyan/12 px-2 py-0.5 text-[11px] font-bold text-app-cyan">
