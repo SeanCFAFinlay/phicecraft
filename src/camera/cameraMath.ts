@@ -43,13 +43,49 @@ export function normalizeCamera(camera: Camera): Camera {
 export const BOARD_ROTATION_VERTICAL = -Math.PI / 2;
 export const BOARD_ROTATION_HORIZONTAL = 0;
 
-/** How much of the rink one screen pixel covers, at a given board rotation. */
-function fitZoom(viewport: Viewport, rotation: number): number {
-  // The rink's axis-aligned footprint once turned.
+/** The named views a coach can jump between. */
+export type Zone = 'full' | 'offensive' | 'defensive';
+
+/** A rectangle of ice, in world units. */
+export interface WorldRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * How far past the blue line a zone view reaches.
+ *
+ * A zone drill is not only what happens below the blue line - the entry into
+ * it is most of the coaching - so the view carries a little neutral ice.
+ */
+const ZONE_NEUTRAL_MARGIN = 12 * 5;
+
+/** The patch of ice a named view covers. */
+export function rinkRegion(zone: Zone): WorldRect {
+  if (zone === 'full') {
+    return { x: RINK.x, y: RINK.y, width: RINK.width, height: RINK.height };
+  }
+
+  // Home defends the LEFT net, so the defensive end is the left one.
+  const isLeft = zone === 'defensive';
+  const inner = isLeft
+    ? RINK.blueLineLeftX + ZONE_NEUTRAL_MARGIN
+    : RINK.blueLineRightX - ZONE_NEUTRAL_MARGIN;
+
+  return isLeft
+    ? { x: RINK.x, y: RINK.y, width: inner - RINK.x, height: RINK.height }
+    : { x: inner, y: RINK.y, width: RINK.x + RINK.width - inner, height: RINK.height };
+}
+
+/** How much of `region` one screen pixel covers, at a given board rotation. */
+function fitZoomForRegion(region: WorldRect, viewport: Viewport, rotation: number): number {
+  // The region's axis-aligned footprint once turned.
   const cos = Math.abs(Math.cos(rotation));
   const sin = Math.abs(Math.sin(rotation));
-  const width = RINK.width * cos + RINK.height * sin;
-  const height = RINK.width * sin + RINK.height * cos;
+  const width = region.width * cos + region.height * sin;
+  const height = region.width * sin + region.height * cos;
 
   return Math.min(
     (viewport.width - FIT_PADDING * 2) / width,
@@ -58,27 +94,45 @@ function fitZoom(viewport: Viewport, rotation: number): number {
 }
 
 /**
- * Whether turning the board would genuinely show more ice.
+ * Whether turning the board would genuinely show more of `region`.
  *
  * Measured rather than guessed from an aspect-ratio threshold: the two
  * candidate zooms are compared directly. The margin stops a near-square
  * viewport flapping between orientations as the keyboard opens and closes.
+ *
+ * Per REGION, not merely per viewport, because the answer differs. A full
+ * sheet is 2.35:1 and wants turning on a phone; a single zone is nearly square
+ * and does not.
  */
-export function fitsBetterRotated(viewport: Viewport): boolean {
+export function fitsBetterRotated(
+  viewport: Viewport,
+  region: WorldRect = rinkRegion('full')
+): boolean {
   if (viewport.width <= 0 || viewport.height <= 0) return false;
-  return fitZoom(viewport, BOARD_ROTATION_VERTICAL) > fitZoom(viewport, BOARD_ROTATION_HORIZONTAL) * 1.15;
+  return (
+    fitZoomForRegion(region, viewport, BOARD_ROTATION_VERTICAL) >
+    fitZoomForRegion(region, viewport, BOARD_ROTATION_HORIZONTAL) * 1.15
+  );
 }
 
-/** The board rotation that shows the most ice in `viewport`. */
-export function autoBoardRotation(viewport: Viewport): number {
-  return fitsBetterRotated(viewport) ? BOARD_ROTATION_VERTICAL : BOARD_ROTATION_HORIZONTAL;
+/** The board rotation that shows the most of `region` in `viewport`. */
+export function autoBoardRotation(
+  viewport: Viewport,
+  region: WorldRect = rinkRegion('full')
+): number {
+  return fitsBetterRotated(viewport, region) ? BOARD_ROTATION_VERTICAL : BOARD_ROTATION_HORIZONTAL;
 }
 
 /**
- * The camera that shows the whole rink inside `viewport`.
- * The tabletop lean/spin is a view preference, so it survives a re-fit.
+ * The camera that frames `region` inside `viewport`.
+ *
+ * `cameraMatrix` maps a world point to
+ *   R(world - rinkCentre) * zoom + (camera.x + zoom*centreX, camera.y + zoom*centreY)
+ * so putting a region's centre in the middle of the viewport is a matter of
+ * solving that for camera.x and camera.y. That is why it needs no special case
+ * for a turned board.
  */
-export function calculateFitCamera(viewport: Viewport, base?: Camera): Camera {
+export function fitRegionCamera(region: WorldRect, viewport: Viewport, base?: Camera): Camera {
   const rotation = base?.rotation ?? 0;
   const tilt = base?.tilt ?? 0;
 
@@ -86,19 +140,33 @@ export function calculateFitCamera(viewport: Viewport, base?: Camera): Camera {
     return { ...DEFAULT_CAMERA, rotation, tilt };
   }
 
-  const zoom = fitZoom(viewport, rotation);
+  const zoom = fitZoomForRegion(region, viewport, rotation);
+  const k = Math.cos(tilt);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
 
-  // The rink CENTRE lands at (x + zoom*centreX, y + zoom*centreY) whatever the
-  // rotation - that falls out of how `cameraMatrix` anchors its origin - so
-  // centring is the same arithmetic at any orientation. At rotation 0 this is
-  // arithmetically identical to the half-the-leftover-space form it replaces.
+  // Where the region's centre sits relative to the rink centre the matrix
+  // rotates about.
+  const dx = region.x + region.width / 2 - RINK.centerX;
+  const dy = region.y + region.height / 2 - RINK.centerY;
+  const offsetX = zoom * (dx * cos - dy * sin);
+  const offsetY = zoom * k * (dx * sin + dy * cos);
+
   return {
     zoom,
-    x: viewport.width / 2 - zoom * RINK.centerX,
-    y: viewport.height / 2 - zoom * RINK.centerY,
+    x: viewport.width / 2 - offsetX - zoom * RINK.centerX,
+    y: viewport.height / 2 - offsetY - zoom * RINK.centerY,
     rotation,
     tilt,
   };
+}
+
+/**
+ * The camera that shows the whole rink inside `viewport`.
+ * The tabletop lean/spin is a view preference, so it survives a re-fit.
+ */
+export function calculateFitCamera(viewport: Viewport, base?: Camera): Camera {
+  return fitRegionCamera(rinkRegion('full'), viewport, base);
 }
 
 /** Zoom by `factor` while keeping the world point under `screenPoint` fixed. */
@@ -114,23 +182,22 @@ export function zoomAt(camera: Camera, factor: number, screenPoint: { x: number;
   };
 }
 
-export type Zone = 'full' | 'offensive' | 'defensive';
-
-/** Frame a zone of the rink. `full` is the same as a fit. */
+/**
+ * Frame a named view.
+ *
+ * This used to hard-code a zoom of 2 and centre on 38% or 62% of the rink's
+ * length - numbers with no relationship to where the blue lines actually are,
+ * so the "zone" it framed was not a zone. It now fits the real region, and
+ * picks the orientation that shows most of THAT region rather than most of the
+ * whole sheet: an end zone is nearly square and should not be turned even on a
+ * phone where the full sheet is.
+ */
 export function cameraForZone(zone: Zone, viewport: Viewport, camera: Camera): Camera {
-  if (zone === 'full') return calculateFitCamera(viewport, camera);
+  const region = rinkRegion(zone);
+  const isTabletop = (camera.tilt ?? 0) > 0.01;
+  const base = isTabletop ? camera : { ...camera, rotation: autoBoardRotation(viewport, region) };
 
-  const zoom = clamp(2, MIN_ZOOM, MAX_ZOOM);
-  const cx = zone === 'offensive' ? RINK.x + RINK.width * 0.62 : RINK.x + RINK.width * 0.38;
-  const cy = RINK.centerY;
-
-  return {
-    x: -cx * zoom + viewport.width / 2,
-    y: -cy * zoom + viewport.height / 2,
-    zoom,
-    rotation: camera.rotation ?? 0,
-    tilt: camera.tilt ?? 0,
-  };
+  return fitRegionCamera(region, viewport, base);
 }
 
 /**

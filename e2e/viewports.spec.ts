@@ -218,3 +218,4 @@ test('the rink centre stays clear while editing', async ({ page }) => {
   expect(topmost).toBe('CANVAS');
 });
 
+

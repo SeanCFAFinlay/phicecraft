@@ -6,15 +6,30 @@
 // the animation respects reduced motion.
 // ============================================================================
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { useCameraSnapshot } from '@/playback/usePlaybackSnapshot';
 import { useResponsive } from '@/ui/useResponsive';
 import { TABLETOP_DEFAULT_TILT, TABLETOP_MIN_TILT } from '@/core/constants';
+import type { Zone } from '@/camera/cameraMath';
 
 /** A pleasing starting spin, matching the reference render. */
 const DEFAULT_ANGLE = -0.4;
 const ANIMATION_MS = 380;
+
+/**
+ * The views the area button steps through.
+ *
+ * Full ice is where most drills are drawn, but a station, a battle or a
+ * small-area game happens in one end - and on a phone, a full sheet shown
+ * end-to-end makes those players too small to place accurately. Cycling rather
+ * than opening a menu keeps it one tap while the coach is on the ice.
+ */
+const AREAS: { zone: Zone; label: string; description: string }[] = [
+  { zone: 'full', label: 'FULL', description: 'the whole sheet' },
+  { zone: 'defensive', label: 'D ZONE', description: 'the left end, to the blue line' },
+  { zone: 'offensive', label: 'O ZONE', description: 'the right end, to the blue line' },
+];
 
 export function ViewControls() {
   const { camera } = useEditorRuntime();
@@ -22,6 +37,7 @@ export function ViewControls() {
   const { prefersReducedMotion, isCompactLandscape } = useResponsive();
 
   const rafRef = useRef<number | null>(null);
+  const [areaIndex, setAreaIndex] = useState(0);
   const is3D = (snapshot.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
   const isVerticalBoard = Math.abs(snapshot.camera.rotation ?? 0) > Math.PI / 4;
 
@@ -113,6 +129,26 @@ export function ViewControls() {
       >
         ↻
       </button>
+
+      {/* Which patch of ice to work on. The zone views frame the real region -
+          end boards to the blue line, plus a little neutral ice, because the
+          entry into the zone is most of the coaching. */}
+      {!is3D && (
+        <button
+          type="button"
+          onClick={() => {
+            const next = (areaIndex + 1) % AREAS.length;
+            setAreaIndex(next);
+            camera.zoomToZone(AREAS[next].zone);
+          }}
+          aria-label={`Showing ${AREAS[areaIndex].description}. Tap for ${
+            AREAS[(areaIndex + 1) % AREAS.length].description
+          }.`}
+          className={`${button} px-1.5 text-[10px] font-black tracking-tight`}
+        >
+          {AREAS[areaIndex].label}
+        </button>
+      )}
 
       {/* Turning the board is what makes a full sheet usable on an upright
           phone. It is chosen automatically on a resize, and this is how a

@@ -8,7 +8,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CameraStore } from './CameraStore';
-import { calculateFitCamera, effectiveDevicePixelRatio, normalizeCamera } from './cameraMath';
+import { calculateFitCamera, effectiveDevicePixelRatio, normalizeCamera, rinkRegion } from './cameraMath';
+import { applyAffine, cameraMatrix } from '@/utils/geometry';
 import { DEFAULT_CAMERA, MAX_ZOOM, MIN_ZOOM, RINK, TABLETOP_MAX_TILT } from '@/core/constants';
 
 let store: CameraStore;
@@ -228,6 +229,61 @@ describe('zones', () => {
     store.zoomToZone('full');
     expect(store.getSnapshot().userAdjusted).toBe(false);
     expect(store.camera.zoom).toBeCloseTo(calculateFitCamera({ width: 1000, height: 500 }).zoom, 6);
+  });
+
+  it('frames the real zone, from the end boards to the blue line', () => {
+    const region = rinkRegion('defensive');
+
+    // The old implementation hard-coded a zoom of 2 and centred on 38% of the
+    // rink's length - numbers unrelated to where the blue line actually is.
+    expect(region.x).toBe(RINK.x);
+    expect(region.width).toBeGreaterThan(RINK.blueLineLeftX - RINK.x);
+    expect(region.width).toBeLessThan(RINK.width / 2);
+  });
+
+  it('mirrors the two ends', () => {
+    const left = rinkRegion('defensive');
+    const right = rinkRegion('offensive');
+
+    expect(left.width).toBeCloseTo(right.width, 6);
+    expect(right.x + right.width).toBeCloseTo(RINK.x + RINK.width, 6);
+  });
+
+  it('puts the zone centre in the middle of the viewport', () => {
+    store.setViewport(1000, 500);
+    store.zoomToZone('offensive');
+
+    const { camera } = store;
+    const region = rinkRegion('offensive');
+    const screen = applyAffine(
+      cameraMatrix(camera),
+      region.x + region.width / 2,
+      region.y + region.height / 2
+    );
+
+    expect(screen.x).toBeCloseTo(500, 3);
+    expect(screen.y).toBeCloseTo(250, 3);
+  });
+
+  it('shows a zone larger than the whole sheet does', () => {
+    store.setViewport(1000, 500);
+    store.zoomToZone('full');
+    const full = store.camera.zoom;
+
+    store.zoomToZone('offensive');
+    expect(store.camera.zoom).toBeGreaterThan(full);
+  });
+
+  it('does not turn the board for a zone, which is nearly square', () => {
+    // A full sheet is 2.35:1 and wants turning on an upright phone. An end
+    // zone is 435x425, so turning it would gain nothing and cost the coach
+    // their bearings.
+    const fresh = new CameraStore();
+    fresh.setViewport(390, 640);
+    expect(fresh.boardOrientation).toBe('vertical');
+
+    fresh.zoomToZone('offensive');
+    expect(fresh.boardOrientation).toBe('horizontal');
   });
 
   it('keeps the tabletop lean across a zone change', () => {
