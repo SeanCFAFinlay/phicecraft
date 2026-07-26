@@ -94,16 +94,46 @@ in §9.1.
 
 ---
 
-## Phase 2 — Schema v3 ⏳ not started
+## Phase 2 — Schema v3 🔶 foundation done, adoption pending
 
-Metadata, actors, equipment, phases, actor tracks with multiple movement
-segments, multiple puck tracks, pass types and receive modes, pass-to-space,
-and an idempotent v2→v3 migration.
+`src/domain/v3/`. 96 tests.
 
-Two v2 constraints this must remove, both still live:
+### Done
 
-- one route per player (`src/core/state.ts`, "One path per player")
-- one linear puck chain, globally sequential
+- **Types** (`types.ts`). Metadata, rink configuration, actors as a real union
+  (skater / goalie / **coach**), equipment, groups, phases with `repeatCount`
+  and `simultaneousGroup`, actor tracks holding **many** movement segments,
+  **many** puck tracks, the full puck-action set including pass-to-space and
+  turnover, annotations, presentation.
+- **Migration** (`migrateV2ToV3.ts`). Idempotent, and tested against the four
+  drills that actually ship rather than invented shapes. The coach-as-player
+  workaround in `fiveManCornerRetrieval` becomes a `CoachActor` and a `coach`
+  puck source — the test asserts the hack is present in the fixture first, so
+  it cannot pass vacuously.
+- **Projection** (`projectToV2.ts`). Flattens a v3 document into the v2 shape
+  the current engine runs. All four fixtures round-trip **with zero reported
+  losses**, which is what makes v3 safe to adopt as the stored format.
+- **Validation** (`validation.ts`). Referential integrity across the graph,
+  separating errors from warnings. Notably it refuses to give a coach a route
+  or pass them the puck — the v2 workaround cannot come back in a new costume.
+
+### Honest status
+
+The v3 module is **not yet imported by the application**, so the production
+bundle is byte-identical. This is a foundation, not a shipped feature: nothing
+a coach can see has changed. What it buys is that the next steps — persisting
+v3, editing a second route segment, adding equipment — are now additive rather
+than blocked on a schema rewrite.
+
+### Not done
+
+- Persisting v3 (repository, import/export and the save coordinator still
+  speak v2).
+- Editing anything v2 cannot express. The model holds equipment, phases and
+  multiple segments; no UI creates them yet.
+- Teaching the **simulation** about phases, repeats, simultaneous groups and
+  multiple pucks. Until then `projectionLosses` reports exactly what a given
+  document loses when it plays.
 
 ---
 
