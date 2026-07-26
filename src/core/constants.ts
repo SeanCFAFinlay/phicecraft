@@ -149,16 +149,28 @@ export const ARENA = {
   baseThicknessFt: 5,
 };
 
-/** Perimeter advertising panels, cycled around the boards. */
+/**
+ * Perimeter board panels, cycled around the boards.
+ *
+ * These are FIRST-PARTY and generic on purpose. The panels used to read
+ * TOSHIBA, Coca-Cola, BAUER, SKODA, NIKE, Zepter, TISSOT and OMEGA - real
+ * marks belonging to real companies, hard-coded into a product intended for
+ * sale. That is a licensing exposure rather than a styling preference, and no
+ * amount of "it is only decoration" changes who owns the trademark.
+ *
+ * Anything added here must be PhiceCraft branding or a neutral placeholder. If
+ * real sponsors are ever sold, they belong in drill data with a signed
+ * agreement recorded in `docs/licenses/ASSET_REGISTER.md`, not in source.
+ */
 export const ARENA_ADS: { label: string; bg: string; fg: string }[] = [
-  { label: 'TOSHIBA', bg: '#f4f6f8', fg: '#d1122e' },
-  { label: 'Coca-Cola', bg: '#d1122e', fg: '#ffffff' },
-  { label: 'BAUER', bg: '#111820', fg: '#f4f6f8' },
-  { label: 'ŠKODA', bg: '#0a5c36', fg: '#ffffff' },
-  { label: 'NIKE', bg: '#f4f6f8', fg: '#111820' },
-  { label: 'Zepter', bg: '#123a8f', fg: '#ffffff' },
-  { label: 'TISSOT', bg: '#f4f6f8', fg: '#111820' },
-  { label: 'OMEGA', bg: '#111820', fg: '#f2c94c' },
+  { label: 'PHICECRAFT', bg: '#f4f6f8', fg: '#0b2b45' },
+  { label: 'TRAIN · PLAY · IMPROVE', bg: '#0b2b45', fg: '#ffffff' },
+  { label: 'PH HOCKEY', bg: '#123a8f', fg: '#ffffff' },
+  { label: 'SPONSOR', bg: '#f4f6f8', fg: '#111820' },
+  { label: 'PHICECRAFT', bg: '#111820', fg: '#f2c94c' },
+  { label: 'YOUR CLUB HERE', bg: '#0a5c36', fg: '#ffffff' },
+  { label: 'PH', bg: '#f4f6f8', fg: '#d1122e' },
+  { label: 'SPONSOR', bg: '#0b2b45', fg: '#7fd4ff' },
 ];
 
 // ============================================================================

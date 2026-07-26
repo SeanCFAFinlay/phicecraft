@@ -467,6 +467,11 @@ test('menu, dialog and inspector open and close by keyboard, restoring focus', a
 // ----------------------------------------------------------------------------
 
 test('playing to the end completes Review for that revision', async ({ page }) => {
+  // This one waits out a real 8-second playback run on top of the usual setup,
+  // so under a fully parallel suite it lands close to the 45s default and has
+  // flaked twice. The work is genuinely slow rather than genuinely stuck.
+  test.setTimeout(90_000);
+
   await dragWorld(page, LINEUP.home13, { x: 520, y: 90 });
   await dragWorld(page, LINEUP.home11, LINEUP.home44);
   await waitForSaved(page);
