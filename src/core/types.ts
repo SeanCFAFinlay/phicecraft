@@ -20,16 +20,24 @@ export interface PlayerVisualProfile {
 }
 
 // Tool selection for editor
+/**
+ * The persistent modes.
+ *
+ * There are only three verbs - move, pass, skate - and only ONE of them is a
+ * mode. Pass and Skate arm a single action and then finish, so they are
+ * `PendingEditorAction`s, not tools; making them sticky modes was how Route,
+ * Pass and Shoot used to become invisible states you could get stuck in.
+ *
+ * `shoot` and `erase` are gone: the finishing shot is derived rather than
+ * authored, and deleting is done from the selection chip and from Details,
+ * where you can see what you are about to remove.
+ */
 export type Tool =
-  | 'select'
-  | 'skate'
-  | 'pass'
-  | 'shoot'
+  | 'move'
   | 'home'
   | 'away'
   | 'goalie'
-  | 'coach'
-  | 'erase';
+  | 'coach';
 
 // Net designation
 export type NetSide = 'L' | 'R';
@@ -157,6 +165,16 @@ export interface ShotEvent extends BaseEvent {
   type: 'shot';
   targetNet: NetSide;
   result?: 'goal' | 'save' | 'rebound' | 'wide' | 'post';
+  /**
+   * True for the shot the app maintains at the end of every play.
+   *
+   * A play finishes with a shot, so rather than make the coach author one, the
+   * final one is derived from whoever ends up with the puck and re-sourced
+   * whenever the chain changes. Being derived, it is transparent to the rules
+   * that ask "can another puck action be added" and "who has the puck" - an
+   * authored shot ends the drill, this one does not stop you extending it.
+   */
+  auto?: boolean;
 }
 
 // Dump event - puck dumped into zone (variation of shot, but not terminal)

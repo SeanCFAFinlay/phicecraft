@@ -217,8 +217,9 @@ test('the live region announces canvas actions', async ({ page }) => {
   await expect(region).toHaveAttribute('aria-atomic', 'true');
 
   await clickWorld(page, LINEUP.home11);
-  await page.getByRole('button', { name: /Action/ }).click();
-  await page.getByRole('dialog', { name: 'Hockey action' }).getByRole('button', { name: /^Pass/ }).click();
+  await page.getByRole('navigation', { name: 'Editing tools' })
+    .getByRole('button', { name: 'Pass' })
+    .click();
   await page.locator('body').press('Escape');
 
   await expect(region).toHaveText(/cancelled/i);

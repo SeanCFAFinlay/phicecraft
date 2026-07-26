@@ -8,6 +8,7 @@
 // ============================================================================
 
 import { describe, it, expect } from 'vitest';
+import { authoredEvents } from '@/engine/puck';
 import { appReducer, createInitialState } from './state';
 import type { AppAction, AppState, PassEvent, Player, SkatePath, Toast } from './types';
 
@@ -75,7 +76,10 @@ describe('CLEAR_PUCK_ACTIONS', () => {
       { type: 'CLEAR_PUCK_ACTIONS' }
     );
 
-    expect(state.drill.events).toEqual([]);
+    // Clearing removes everything the coach authored. The route is still
+    // there, and a route means a play, so the automatic finishing shot stays -
+    // it is derived, not one of the puck actions being cleared.
+    expect(authoredEvents(state.drill.events)).toEqual([]);
     expect(state.drill.skatePaths).toHaveLength(1);
     expect(state.drill.players).toHaveLength(2);
     expect(state.drill.coaches).toHaveLength(1);
@@ -111,7 +115,7 @@ describe('CLEAR_PUCK_ACTIONS', () => {
       { type: 'CLEAR_PUCK_ACTIONS' },
       { type: 'POP_UNDO' }
     );
-    expect(state.drill.events).toHaveLength(1);
+    expect(authoredEvents(state.drill.events)).toHaveLength(1);
   });
 });
 
@@ -125,7 +129,7 @@ describe('CLEAR_MOVEMENT_ROUTES', () => {
     );
 
     expect(state.drill.skatePaths).toEqual([]);
-    expect(state.drill.events).toHaveLength(1);
+    expect(authoredEvents(state.drill.events)).toHaveLength(1);
     expect(state.drill.players).toHaveLength(2);
   });
 

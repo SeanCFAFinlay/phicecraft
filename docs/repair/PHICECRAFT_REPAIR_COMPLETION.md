@@ -468,7 +468,77 @@ Note for whoever runs these next: the E2E `webServer` is `npm run preview`,
 which serves `dist/`. A UI change needs `npm run build` before the E2E suite
 will see it, or every new assertion fails against the previous bundle.
 
-## 16. Remaining limitations
+## 16. Addendum — three verbs, a connected pass, and a derived shot
+
+**The pass would not connect.** `passReceiverAt` has always accepted a hit on a
+receiver's *route line* as well as their token, but only the drag path used it.
+A tap went through `classify`, which returns the strict token hit, so with a
+pass armed, tapping the line a receiver was skating selected that player and
+silently dropped the pass. Both paths now resolve through `passReceiverAt`, so
+a pass connects to a token or to any point on the receiver's route - which is
+how you pass to where a player will be rather than where they are standing.
+
+**Three verbs.** `Tool` is down to `move` and the four placement modes. `shoot`
+and `erase` are gone, and the dock is Move / Pass / Skate / Add / Play. Only
+Move is a mode: Pass and Skate arm one `PendingEditorAction` and finish, which
+is the property that stops them becoming the invisible sticky states the old
+Route/Pass/Shoot tools were. The Action sheet is deleted - everything in it is
+now either a dock button or derived. Erase is not replaced: Delete is on the
+selection chip and routes come off in Details, both of which show you what you
+are about to remove first.
+
+Skate is not only a shortcut. `promotePress` reads a drag on the carrier as
+`drag-puck`, which made the carrier the one player who could never be given a
+route by dragging - exactly the skate-in-and-shoot drill. `armedRoutePlayerId`
+now overrides that, the same way `armedMovePlayerId` fixed Move.
+
+**The finishing shot is derived.** `withFinishingShot` runs from `appReducer`,
+the single point every drill mutation passes through, and maintains a trailing
+`ShotEvent` with `auto: true` sourced from whoever ends up with the puck. Three
+properties it has to hold, and each one cost something to get right:
+
+- *Pure and cheap.* `MOVE_PLAYER` fires once per animation frame during a drag,
+  so nothing in here compiles the drill; the release point comes straight from
+  the authored route or the player's position.
+- *Referentially stable.* When the derived shot already matches, the identical
+  `Drill` object is returned. `appReducer` reads a new object as a document
+  change, so churning would bump the revision and invalidate the review on
+  every action - there is a test for exactly that.
+- *Transparent.* `canAddEvents` and `getCurrentPuckHolder` both go through
+  `authoredEvents`. Without that the shot would make `canAddEvents` false and
+  the carrier null the instant it appeared, so the play it completed could
+  never be extended and the shot would have nobody left to be sourced from.
+
+One bug worth recording, because the fix is not the obvious one. `authoredEvents`
+first stripped only a *trailing* auto shot. But the reducer appends, so a new
+pass lands **after** the derived shot and strands it mid-list, where it then
+looked authored - and the drill grew a second shot on the next edit. It now
+strips every auto shot wherever it sits. The same append ordering meant
+`releaseTimeFor` was timing new passes off the shot's arrival, scheduling them
+after the shot had already been taken; it reads authored events now too.
+
+The shot is gated on a play existing at all - an authored puck event, or a
+route for the carrier - so a fresh board stays empty rather than opening with an
+event nobody drew. A consequence worth knowing: *Clear puck actions* on a drill
+that still has routes leaves the derived shot, because the drill is still a play.
+
+**Who has the puck.** Shrinking the puck to something that looks like a puck
+(§15) left the question "who is carrying" hard to answer across a full sheet of
+ice. `drawCarrierRing` is a separate marker for a separate question - a gold
+ring inside the highlight and selection rings so all three can coexist.
+
+**Two duplications removed while verifying.** The screenshot showed Pass and
+Shoot rendered twice at once - on the possession chip and on the selection chip
+- so the possession chip is a readout again. And the dock's Move and the chip's
+Move were two controls with the same accessible name; the chip's is now
+`Move #11`.
+
+**Tests.** 23 new unit tests in `finishingShot.test.ts` and one more E2E, on top
+of retargeting every assertion that counted raw events at `authoredEvents`.
+Suite total 782 unit tests over 30 files and 131 E2E tests. All 36 visual
+baselines pass unchanged.
+
+## 17. Remaining limitations
 
 Each is evidence-backed. None is a guess.
 

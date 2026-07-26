@@ -30,6 +30,7 @@ import {
 import { DEFAULT_JERSEYS } from '@/core/types';
 import { createDefaultPlayers, createNewDrill } from '@/engine/drill';
 import { removePlayerFromEvents } from '@/engine/puck';
+import { withFinishingShot } from '@/engine/finishingShot';
 
 const FALLBACK_SETTINGS = {
   assistance: 'standard' as const,
@@ -151,7 +152,17 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
   let result = next;
 
+  // A play ends with a shot. It is derived rather than authored, so it is
+  // reconciled here - the one point every drill mutation passes through,
+  // including undo, redo, import and load. `withFinishingShot` returns the
+  // same object when nothing needs to change, so this cannot itself count as
+  // a document change.
   if (next.drill !== state.drill) {
+    const withShot = withFinishingShot(next.drill);
+    if (withShot !== next.drill) result = { ...result, drill: withShot };
+  }
+
+  if (result.drill !== state.drill) {
     result = { ...result, documentRevision: state.documentRevision + 1 };
     // An edit invalidates any prior review of this drill.
     if (!DOCUMENT_SWITCH_ACTIONS.has(action.type)) {
@@ -705,12 +716,12 @@ function reduce(state: AppState, action: AppAction): AppState {
     // ========================================================================
 
     case 'SET_TOOL': {
+      // Passing is a pending action rather than a mode now, so changing tool
+      // always abandons a half-built one.
       return {
         ...state,
         ui: { ...state.ui, currentTool: action.tool },
-        selection: action.tool !== 'pass'
-          ? { ...state.selection, passFromPlayerId: null }
-          : state.selection,
+        selection: { ...state.selection, passFromPlayerId: null },
       };
     }
 

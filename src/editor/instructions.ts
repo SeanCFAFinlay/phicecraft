@@ -101,28 +101,12 @@ function toolInstruction(context: InstructionContext): Omit<Instruction, 'cancel
   const { tool, pointer, carrier } = context;
 
   switch (tool) {
-    case 'select':
+    case 'move':
       return {
-        label: 'Select',
+        label: 'Move',
         next: carrier
-          ? `${dragVerb(pointer)} #${carrier.number} to pass or shoot · drag any other player to draw a route.`
-          : `${dragVerb(pointer)} a player to draw a route · ${verb(pointer).toLowerCase()} one to select it.`,
-      };
-    case 'skate':
-      return { label: 'Route', next: `${dragVerb(pointer)} from any player to draw their route.` };
-    case 'pass':
-      return {
-        label: 'Pass',
-        next: carrier
-          ? `${verb(pointer)} #${carrier.number}, then tap a teammate.`
-          : 'No one has the puck yet — give it to a player first.',
-      };
-    case 'shoot':
-      return {
-        label: 'Shoot',
-        next: carrier
-          ? `${dragVerb(pointer)} from #${carrier.number} toward a net.`
-          : 'No one has the puck yet — give it to a player first.',
+          ? `${verb(pointer)} a player to select it · ${dragVerb(pointer).toLowerCase()} #${carrier.number} to pass.`
+          : `${verb(pointer)} a player to select it · ${dragVerb(pointer).toLowerCase()} one to draw a route.`,
       };
     case 'home':
       return { label: 'Add home', next: `${verb(pointer)} empty ice to place a home player.` };
@@ -135,11 +119,6 @@ function toolInstruction(context: InstructionContext): Omit<Instruction, 'cancel
       };
     case 'coach':
       return { label: 'Add coach', next: `${verb(pointer)} empty ice to place the coach.` };
-    case 'erase':
-      return {
-        label: 'Erase',
-        next: `${verb(pointer)} a player, coach, route, or puck line to remove it.`,
-      };
   }
 }
 

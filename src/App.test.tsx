@@ -74,14 +74,16 @@ describe('first render', () => {
     expect(screen.getByRole('progressbar', { name: 'Playback position' })).toBeInTheDocument();
   });
 
-  it('offers exactly the five primary tool-dock controls', () => {
+  it('offers exactly the three verbs, plus Add and Play', () => {
     renderApp();
     const dock = screen.getByRole('navigation', { name: 'Editing tools' });
     const labels = within(dock)
       .getAllByRole('button')
       .map(button => button.textContent?.replace(/[^A-Za-z]/g, ''));
 
-    expect(labels).toEqual(['Select', 'Add', 'Action', 'Erase', 'Play']);
+    // Move, Pass, Skate is the whole vocabulary. Shoot is derived and Erase
+    // is done from the selection chip, so neither is a tool any more.
+    expect(labels).toEqual(['Move', 'Pass', 'Skate', 'Add', 'Play']);
   });
 
   it('reports the save status in words', async () => {

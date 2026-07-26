@@ -308,7 +308,9 @@ export class GestureStateMachine {
         break;
 
       case 'player':
-        if (target.isCarrier) {
+        // Skate wins over the carrier's default drag-to-pass, so the player
+        // with the puck can be given a route like anybody else.
+        if (target.isCarrier && target.playerId !== context.armedRoutePlayerId) {
           this.gesture = {
             kind: 'drag-puck',
             playerId: target.playerId,

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { authoredEvents } from '@/engine/puck';
 import { appReducer, createInitialState } from './state';
 import { MAX_UNDO_STACK } from './constants';
 import type { AppState, AppAction, PassEvent, ShotEvent, DumpEvent, PickupEvent, SkatePath, Player } from './types';
@@ -159,7 +160,7 @@ describe('undo', () => {
     const state = run(
       stateWithPlayers(),
       { type: 'SELECT_PLAYER', id: 'a' },
-      { type: 'SET_TOOL', tool: 'pass' },
+      { type: 'SET_TOOL', tool: 'home' },
       { type: 'TOGGLE_MENU' }
     );
     expect(state.undoStack).toEqual([]);
@@ -224,9 +225,11 @@ describe('redo', () => {
     let state = appReducer(stateWithPlayers(), { type: 'ADD_PASS', event: passEvent('a', 'b') });
     for (let i = 0; i < 3; i++) {
       state = appReducer(state, { type: 'POP_UNDO' });
-      expect(state.drill.events).toHaveLength(0);
+      expect(authoredEvents(state.drill.events)).toHaveLength(0);
       state = appReducer(state, { type: 'REDO' });
-      expect(state.drill.events).toHaveLength(1);
+      // The automatic finishing shot rides along; the AUTHORED chain is what
+      // undo and redo are about.
+      expect(authoredEvents(state.drill.events)).toHaveLength(1);
     }
   });
 });
@@ -303,7 +306,7 @@ describe('event results', () => {
       { type: 'CONVERT_DUMP_TO_PASS', event: pass }
     );
 
-    expect(state.drill.events).toEqual([pass]);
+    expect(authoredEvents(state.drill.events)).toEqual([pass]);
     expect(state.drill.events[0]).toMatchObject({ type: 'pass', toPlayerId: 'b', catchResult: 'caught' });
   });
 
@@ -317,7 +320,7 @@ describe('event results', () => {
       { type: 'RETARGET_PASS', event: retargeted }
     );
 
-    expect(state.drill.events).toEqual([retargeted]);
+    expect(authoredEvents(state.drill.events)).toEqual([retargeted]);
   });
 
   it('turns a pass into a miss and removes impossible downstream actions', () => {
@@ -347,7 +350,7 @@ describe('event results', () => {
       id: shot.id,
       result: 'rebound',
     });
-    expect(rebound.drill.events).toHaveLength(2);
+    expect(authoredEvents(rebound.drill.events)).toHaveLength(2);
 
     const covered = appReducer(rebound, {
       type: 'UPDATE_SHOT_RESULT',

@@ -4,7 +4,7 @@ import { drawSkaterEffects } from './SkaterEffects';
 import { deriveSkaterPose } from './SkaterPose';
 import { getSkaterPalette } from './skaterPalette';
 import { getHockeySpriteAtlas, HOCKEY_SPRITES } from '../HockeySpriteAtlas';
-import { drawPuckMarker } from '../puckMarker';
+import { drawCarrierRing, drawPuckMarker } from '../puckMarker';
 
 interface DetailedSkaterOptions {
   isSelected: boolean;
@@ -296,6 +296,8 @@ export function drawDetailedSkater(
   }
 
   if (options.isPuckHolder) {
+    // Ring first, then the puck on top of it.
+    drawCarrierRing(ctx, player.x, player.y, r + 5);
     drawPuckMarker(ctx, frame.bladePosition.x, frame.bladePosition.y, frame.heading);
   }
 }

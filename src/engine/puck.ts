@@ -69,9 +69,14 @@ export function getPuckChain(players: Player[], events: DrillEvent[]): PuckChain
  * Returns null if the last event was a shot (puck is in/at the net)
  */
 export function getCurrentPuckHolder(players: Player[], events: DrillEvent[]): Player | null {
+  // The automatic finishing shot is derived from whoever is carrying, so
+  // reading it as "the puck is gone" would make the carrier its own cause of
+  // disappearing - and the shot would then have nobody to be sourced from.
+  const authored = authoredEvents(events);
+
   // Work backwards through events
-  for (let i = events.length - 1; i >= 0; i--) {
-    const event = events[i];
+  for (let i = authored.length - 1; i >= 0; i--) {
+    const event = authored[i];
 
     // Shot was last event - no one has puck
     if (event.type === 'shot' || event.type === 'dump') {
@@ -93,14 +98,40 @@ export function getCurrentPuckHolder(players: Player[], events: DrillEvent[]): P
   return players.find(p => p.hasPuck) ?? null;
 }
 
+/** True for the shot the app maintains at the end of a play. */
+export function isAutoShot(event: DrillEvent | undefined): boolean {
+  return !!event && event.type === 'shot' && event.auto === true;
+}
+
+/**
+ * The events the coach actually authored.
+ *
+ * The automatic finishing shot is derived, so every rule that asks about the
+ * state of the drill has to look past it. Without this, the trailing shot
+ * would make `canAddEvents` false and `getCurrentPuckHolder` null the moment
+ * it appeared, and the drill could never be extended again.
+ *
+ * Every auto shot is stripped, not merely a trailing one: a reducer that
+ * appends to `events` puts the new action AFTER the derived shot, stranding it
+ * mid-list. Filtering only the last one left the stale shot looking authored,
+ * and the drill grew a second one on the next edit.
+ *
+ * Returns the same array when there is nothing to strip, so callers that
+ * compare by identity are not defeated.
+ */
+export function authoredEvents(events: DrillEvent[]): DrillEvent[] {
+  return events.some(isAutoShot) ? events.filter(event => !isAutoShot(event)) : events;
+}
+
 /**
  * Check if we can add more events to the drill
  *
- * Returns false if the last event was a shot (drill is complete)
+ * Returns false if the last AUTHORED event was a shot (drill is complete)
  */
 export function canAddEvents(events: DrillEvent[]): boolean {
-  if (events.length === 0) return true;
-  const lastEvent = events[events.length - 1];
+  const authored = authoredEvents(events);
+  if (authored.length === 0) return true;
+  const lastEvent = authored[authored.length - 1];
   return lastEvent.type !== 'shot' && lastEvent.type !== 'dump' &&
     !(lastEvent.type === 'pass' && lastEvent.catchResult === 'missed');
 }

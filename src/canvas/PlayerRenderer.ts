@@ -414,6 +414,16 @@ function drawStandingPlayer(
   // depth scale the whole piece is already drawn at, so the puck shrinks with
   // distance along with everything else.
   if (flags.hasPuck) {
+    // The ring goes on the ICE at the piece's contact point, not around its
+    // head, so it reads as a marker under the player rather than a halo.
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 214, 10, 0.5)';
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = '#ffd60a';
+    ctx.lineWidth = Math.max(1.2, 2.2 * z);
+    ellipse(ctx, g.x, g.y, bodyR * 1.35, baseRy * 1.35);
+    ctx.stroke();
+    ctx.restore();
     drawPuckMarker(ctx, bladeX + bodyR * 0.35, g.y + baseRy * 0.05, 0, z);
   }
 

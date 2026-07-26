@@ -36,7 +36,7 @@ test('selecting a player shows a chip, not a panel; Details opens the inspector'
   await clickWorld(page, LINEUP.home11);
 
   // A compact chip with the three things you actually want.
-  await expect(page.getByRole('button', { name: 'Move' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Move #/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Details' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
   // And no inspector.
@@ -59,11 +59,11 @@ test('selecting a player shows a chip, not a panel; Details opens the inspector'
 test('a pending action is visible, explains the next input, and can be cancelled', async ({
   page,
 }) => {
+  // Pass is a dock button now, not a row inside an Action sheet.
   await clickWorld(page, LINEUP.home11);
-  await page.getByRole('button', { name: /Action/ }).click();
-
-  const sheet = page.getByRole('dialog', { name: 'Hockey action' });
-  await sheet.getByRole('button', { name: /^Pass/ }).click();
+  await page.getByRole('navigation', { name: 'Editing tools' })
+    .getByRole('button', { name: 'Pass' })
+    .click();
 
   // The chip names the player and the next input, and offers Cancel.
   const chip = page.getByRole('status').filter({ hasText: 'Pass from #11' });
@@ -76,8 +76,9 @@ test('a pending action is visible, explains the next input, and can be cancelled
 
 test('Escape cancels a pending action', async ({ page }) => {
   await clickWorld(page, LINEUP.home11);
-  await page.getByRole('button', { name: /Action/ }).click();
-  await page.getByRole('dialog', { name: 'Hockey action' }).getByRole('button', { name: /^Pass/ }).click();
+  await page.getByRole('navigation', { name: 'Editing tools' })
+    .getByRole('button', { name: 'Pass' })
+    .click();
 
   await expect(page.getByText('Pass from #11')).toBeVisible();
   await page.locator('body').press('Escape');

@@ -25,7 +25,7 @@ import { DialogHost } from '@/components/DialogHost';
 import { LiveRegion } from '@/components/a11y/LiveRegion';
 import { ViewControls } from '@/components/ViewControls';
 import { ValidationPanel } from '@/components/ValidationPanel';
-import { AddSheet, ActionSheet, PossessionSheet, WorkflowSheet } from '@/components/sheets/QuickSheets';
+import { AddSheet, PossessionSheet, WorkflowSheet } from '@/components/sheets/QuickSheets';
 import { useResponsive } from '@/ui/useResponsive';
 
 // Secondary surfaces: none of these are needed to draw the rink, select a
@@ -101,7 +101,6 @@ export function AppShell() {
       {/* Sheets and inspectors. Conditionally mounted, so nothing focusable
           sits off-screen when they are closed. */}
       <AddSheet />
-      <ActionSheet />
       <PossessionSheet />
       <WorkflowSheet />
 

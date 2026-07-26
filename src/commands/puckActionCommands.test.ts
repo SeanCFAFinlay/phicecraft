@@ -17,7 +17,9 @@ import { createTestHarness, toasted, type TestHarness } from '@/test/commandHost
 import { buildDrill, buildPlayer } from '@/test/builders';
 import {
   attackingNetFor,
+  authoredEvents,
   countPasses,
+  isAutoShot,
   MAX_PASSES_PER_DRILL,
   validatePass,
 } from '@/engine/puck';
@@ -44,7 +46,9 @@ function lineup() {
 }
 
 const state = () => harness.getState();
-const events = () => state().drill.events;
+/** The chain the coach authored, without the automatic finishing shot. */
+const events = () => authoredEvents(state().drill.events);
+const allEvents = () => state().drill.events;
 const passes = () => countPasses(events());
 
 /** Pass along the chain `count` times, 11 → 13 → 87 → 5 → 44. */
@@ -109,9 +113,18 @@ describe('the four-pass cap', () => {
     expect(events().at(-1)!.type).toBe('shot');
   });
 
+  it('ends the play with an automatic shot from the last receiver', () => {
+    chain(2);
+    const finish = allEvents().at(-1)!;
+
+    expect(isAutoShot(finish)).toBe(true);
+    expect(finish.fromPlayerId).toBe('h87');
+  });
+
   it('does not block retargeting the LAST pass, which adds nothing', () => {
     chain(4);
     const fourth = events().at(-1)!;
+    expect(fourth.type).toBe('pass');
 
     // The count is already at the cap, so a naive check here would refuse to
     // let a coach fix the receiver of a pass they already drew.

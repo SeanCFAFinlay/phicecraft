@@ -117,8 +117,9 @@ test('selected player chip', async ({ page }) => {
 test('active pass action', async ({ page }) => {
   await openFixture(page);
   await clickWorld(page, { x: 360, y: 212.5 });
-  await page.getByRole('button', { name: /Action/ }).click();
-  await page.getByRole('dialog', { name: 'Hockey action' }).getByRole('button', { name: /^Pass/ }).click();
+  await page.getByRole('navigation', { name: 'Editing tools' })
+    .getByRole('button', { name: 'Pass' })
+    .click();
   await expect(page.getByText('Pass from #11')).toBeVisible();
   await expect(page).toHaveScreenshot('active-pass-action.png', SHOT_OPTIONS);
 });
@@ -126,8 +127,9 @@ test('active pass action', async ({ page }) => {
 test('active route action', async ({ page }) => {
   await openFixture(page);
   await clickWorld(page, { x: 190, y: 267.5 });
-  await page.getByRole('button', { name: /Action/ }).click();
-  await page.getByRole('dialog', { name: 'Hockey action' }).getByRole('button', { name: /Draw route/ }).click();
+  await page.getByRole('navigation', { name: 'Editing tools' })
+    .getByRole('button', { name: 'Skate' })
+    .click();
   await expect(page.getByText('Route for #5')).toBeVisible();
   await expect(page).toHaveScreenshot('active-route-action.png', SHOT_OPTIONS);
 });

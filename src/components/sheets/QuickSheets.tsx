@@ -1,14 +1,18 @@
 // ============================================================================
 // QUICK SHEETS
 //
-// The four small disclosure sheets the phone dock and rink chips open. Each is
-// a list of large targets rather than a dense row of 9px labels.
+// The small disclosure sheets the phone dock and rink chips open. Each is a
+// list of large targets rather than a dense row of 9px labels.
+//
+// The Action sheet is gone: Route, Pass and Shoot lived in it, and all three
+// are now either a dock button or derived, so the sheet had nothing left to
+// disclose.
 // ============================================================================
 
 import type { ReactNode } from 'react';
 import { Sheet } from '../a11y/Sheet';
 import { useAppState, useCommands } from '@/hooks/useAppState';
-import { getPuckChain, getCurrentPuckHolder } from '@/engine/puck';
+import { getPuckChain } from '@/engine/puck';
 import { isReviewComplete } from '@/commands';
 import type { Tool } from '@/core/types';
 
@@ -121,75 +125,6 @@ export function AddSheet() {
 
 // ----------------------------------------------------------------------------
 
-export function ActionSheet() {
-  const { state, dispatch } = useAppState();
-  const commands = useCommands();
-  const open = state.ui.openSheet === 'action';
-  const close = () => dispatch({ type: 'CLOSE_SHEET' });
-
-  const carrier = getCurrentPuckHolder(state.drill.players, state.drill.events);
-  const selected = state.selection.selectedPlayerId
-    ? state.drill.players.find(player => player.id === state.selection.selectedPlayerId)
-    : null;
-
-  const start = (kind: 'draw-route' | 'pass' | 'shoot', playerId: string) => {
-    commands.setTool('select');
-    commands.setPendingAction({ kind, playerId } as never);
-    close();
-  };
-
-  return (
-    <Sheet
-      open={open}
-      title="Hockey action"
-      description={
-        selected
-          ? `These apply to #${selected.number}.`
-          : 'Select a player first, then choose an action.'
-      }
-      onClose={close}
-    >
-      <SheetItem
-        icon="〰"
-        label="Draw route"
-        detail={selected ? `Draw #${selected.number}'s skating path` : 'Select a player first'}
-        disabled={!selected}
-        onClick={() => selected && start('draw-route', selected.id)}
-      />
-      <SheetItem
-        icon="⟶"
-        label="Pass"
-        detail={
-          carrier
-            ? `From #${carrier.number} to a teammate`
-            : 'No one has the puck yet'
-        }
-        disabled={!carrier}
-        onClick={() => carrier && start('pass', carrier.id)}
-      />
-      <SheetItem
-        icon="🥅"
-        label="Shoot"
-        detail={carrier ? `From #${carrier.number} toward the net` : 'No one has the puck yet'}
-        disabled={!carrier}
-        onClick={() => carrier && start('shoot', carrier.id)}
-      />
-      {selected && !carrier && state.drill.events.length === 0 && (
-        <SheetItem
-          icon="🏒"
-          label={`Give the puck to #${selected.number}`}
-          onClick={() => {
-            void commands.setPuckCarrier(selected.id);
-            close();
-          }}
-        />
-      )}
-    </Sheet>
-  );
-}
-
-// ----------------------------------------------------------------------------
-
 export function PossessionSheet() {
   const { state, dispatch } = useAppState();
   const commands = useCommands();
@@ -207,7 +142,7 @@ export function PossessionSheet() {
     >
       {chain.length === 0 ? (
         <p className="px-4 py-3 text-[13px] text-white/50">
-          No one has the puck yet. Select a player and use Action → Give the puck.
+          No one has the puck yet. Open a player's Details to give it to them.
         </p>
       ) : (
         <ol className="px-1">
@@ -246,8 +181,8 @@ export function PossessionSheet() {
 
 const STEPS = [
   { id: 'setup', label: 'Setup', hint: 'Place players and choose who starts with the puck.' },
-  { id: 'movement', label: 'Movement', hint: 'Drag any player to draw their skating route.' },
-  { id: 'puck', label: 'Puck actions', hint: 'Drag the carrier to a teammate, a net, or open ice.' },
+  { id: 'movement', label: 'Movement', hint: 'Select a player and tap Skate, or just drag them.' },
+  { id: 'puck', label: 'Puck actions', hint: 'Tap Pass, then tap the receiver or the line they are skating.' },
   { id: 'review', label: 'Review', hint: 'Play it through and correct anything the check flags.' },
 ] as const;
 

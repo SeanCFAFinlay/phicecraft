@@ -53,3 +53,33 @@ export function drawPuckMarker(
   ctx.stroke();
   ctx.restore();
 }
+
+/**
+ * The ring that says THIS is the player carrying the puck.
+ *
+ * The puck itself is deliberately a small dark disc, which is what a puck
+ * looks like but not what an at-a-glance readout looks like - on a full sheet
+ * of ice, at a glance, a 3px disc at one skater's blade does not answer "who
+ * has it". The ring does, and it stays a separate thing from the puck so
+ * shrinking one did not have to make the other unreadable.
+ *
+ * It sits INSIDE the highlight ring and the selection ring so all three can be
+ * on one player without merging into a smear.
+ */
+export function drawCarrierRing(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number
+): void {
+  ctx.save();
+  ctx.shadowColor = 'rgba(255, 214, 10, 0.5)';
+  ctx.shadowBlur = 6;
+  ctx.strokeStyle = '#ffd60a';
+  ctx.lineWidth = 2.4;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}

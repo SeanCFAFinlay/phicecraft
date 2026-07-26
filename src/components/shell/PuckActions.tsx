@@ -36,13 +36,13 @@ export function PuckActionButtons({ onlyFor, compact }: PuckActionButtonsProps) 
   if (onlyFor && carrier.id !== onlyFor) return null;
 
   const startPass = () => {
-    commands.setTool('select');
+    commands.setTool('move');
     commands.setPendingAction({ kind: 'pass', playerId: carrier.id });
   };
 
   // No mode, no second tap: a team attacks one net, so the shot is the tap.
   const shoot = () => {
-    commands.setTool('select');
+    commands.setTool('move');
     void commands.requestShot(carrier.id, attackingNetFor(carrier.team));
   };
 

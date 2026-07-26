@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { authoredEvents } from '@/engine/puck';
 import { createTestHarness, lastToast, toasted, type TestHarness } from '@/test/commandHost';
 import { buildDrill, buildDistinctiveRoute, buildPass, buildPlayer } from '@/test/builders';
 import { RINK } from '@/core/constants';
@@ -143,7 +144,7 @@ describe('requestPass', () => {
   it('accepts a pass to a teammate', () => {
     const result = harness.commands.requestPass('h11', 'h13');
     expect(result.status).toBe('done');
-    expect(harness.getState().drill.events).toHaveLength(1);
+    expect(authoredEvents(harness.getState().drill.events)).toHaveLength(1);
     expect(toasted(harness, 'Pass to #13')).toBe(true);
   });
 
@@ -468,7 +469,7 @@ describe('destructive clears', () => {
     const result = await harness.commands.clearPuckActions();
 
     expect(result.status).toBe('cancelled');
-    expect(harness.getState().drill.events).toHaveLength(1);
+    expect(authoredEvents(harness.getState().drill.events)).toHaveLength(1);
   });
 
   it('clearMovementRoutes removes routes and keeps events', async () => {
@@ -476,7 +477,7 @@ describe('destructive clears', () => {
     await harness.commands.clearMovementRoutes();
 
     expect(harness.getState().drill.skatePaths).toEqual([]);
-    expect(harness.getState().drill.events).toHaveLength(1);
+    expect(authoredEvents(harness.getState().drill.events)).toHaveLength(1);
   });
 
   it('resetBoard restores the lineup but keeps the name', async () => {
@@ -535,7 +536,7 @@ describe('setPuckCarrier', () => {
 
     const result = await harness.commands.setPuckCarrier('a87');
     expect(result.status).toBe('cancelled');
-    expect(harness.getState().drill.events).toHaveLength(1);
+    expect(authoredEvents(harness.getState().drill.events)).toHaveLength(1);
   });
 
   it('rejects a player who is gone', async () => {
@@ -577,9 +578,9 @@ describe('selection and inspectors', () => {
 describe('tools and steps', () => {
   it('changing tool cancels any pending action', () => {
     harness.commands.setPendingAction({ kind: 'pass', playerId: 'h11' });
-    harness.commands.setTool('erase');
+    harness.commands.setTool('home');
 
-    expect(harness.getState().ui.currentTool).toBe('erase');
+    expect(harness.getState().ui.currentTool).toBe('home');
     expect(harness.getState().pendingAction).toEqual({ kind: 'none' });
   });
 
@@ -630,7 +631,7 @@ describe('history', () => {
     expect(harness.announcements).toContain('Undone');
 
     harness.commands.redo();
-    expect(harness.getState().drill.events).toHaveLength(1);
+    expect(authoredEvents(harness.getState().drill.events)).toHaveLength(1);
     expect(harness.announcements).toContain('Redone');
   });
 

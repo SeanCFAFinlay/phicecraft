@@ -26,6 +26,7 @@ import {
   nextPlayerNumber,
 } from '@/engine/drill';
 import {
+  authoredEvents,
   canAddEvents,
   countPasses,
   getCurrentPuckHolder,
@@ -147,13 +148,17 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
   function releaseTimeFor(playerId: ID, authoredSource: Point, floor = 0.12): number {
     const { drill } = getState();
     const hasRoute = drill.skatePaths.some(path => path.ownerId === playerId);
-    const previousArrival = drill.events.length
-      ? drill.events[drill.events.length - 1].arrivalAt ?? 0
+    // The automatic finishing shot is the last event but not the last thing
+    // the coach did. Timing off it would schedule every new pass after the
+    // shot had already been taken.
+    const previous = authoredEvents(drill.events);
+    const previousArrival = previous.length
+      ? previous[previous.length - 1].arrivalAt ?? 0
       : 0;
-    const authored = hasRoute
+    const release = hasRoute
       ? getAuthoredReleaseProgress(drill, playerId, authoredSource)
       : Math.max(floor, previousArrival + 0.04);
-    return Math.min(0.94, Math.max(authored, previousArrival + 0.04));
+    return Math.min(0.94, Math.max(release, previousArrival + 0.04));
   }
 
   function buildPassEvent(fromPlayer: Player, toPlayer: Player, fromPoint?: Point): PassEvent {

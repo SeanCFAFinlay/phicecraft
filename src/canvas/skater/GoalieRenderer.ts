@@ -1,7 +1,8 @@
 import type { AnimatedPuck, PlaybackPlayerFrame, Player } from '@/core/types';
 import { getSkaterPalette } from './skaterPalette';
 import { getHockeySpriteAtlas, HOCKEY_SPRITES } from '../HockeySpriteAtlas';
-import { drawPuckMarker } from '../puckMarker';
+import { drawCarrierRing, drawPuckMarker } from '../puckMarker';
+import { PLAYER_RADIUS } from '@/core/constants';
 
 export function drawDetailedGoalie(
   ctx: CanvasRenderingContext2D,
@@ -221,6 +222,7 @@ export function drawDetailedGoalie(
   }
 
   if (isPuckHolder) {
+    drawCarrierRing(ctx, player.x, player.y, PLAYER_RADIUS + 5);
     drawPuckMarker(ctx, frame.bladePosition.x, frame.bladePosition.y, trackedHeading);
   }
 }

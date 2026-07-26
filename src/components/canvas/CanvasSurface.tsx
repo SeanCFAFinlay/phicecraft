@@ -23,7 +23,7 @@ import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { RINK, TABLETOP_MIN_TILT, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
 import { distance, screenToWorld } from '@/utils/geometry';
-import { attackingNetFor, getAimedNetTarget } from '@/engine/puck';
+import { getAimedNetTarget } from '@/engine/puck';
 import type { ID, Point } from '@/core/types';
 
 /** Distance from a net (world units) at which a carrier drag becomes a shot. */
@@ -151,11 +151,6 @@ export function CanvasSurface() {
         return;
       }
 
-      if (tool === 'erase') {
-        eraseAt(target);
-        return;
-      }
-
       if (tool === 'home' || tool === 'away' || tool === 'goalie') {
         if (target.kind === 'player') return;
         commands.addPlayer(world, tool);
@@ -165,6 +160,23 @@ export function CanvasSurface() {
       if (tool === 'coach') {
         if (target.kind === 'player' || target.kind === 'coach') return;
         commands.addCoach(world);
+        return;
+      }
+
+      // An armed pass is resolved by the SAME hit test the drag path uses, so
+      // it connects to a teammate's token or to any point on their skating
+      // route. Tapping the line a receiver is skating is how you pass to
+      // where they will be, which is how the play is actually drawn.
+      //
+      // The tap used to require a direct hit on the token, so tapping a
+      // receiver's route selected that player and silently dropped the pass.
+      if (current.pendingAction.kind === 'pass') {
+        const receiverId = hitTester.passReceiverAt(screen, current.pendingAction.playerId);
+        if (receiverId) {
+          void commands.requestPass(current.pendingAction.playerId, receiverId);
+        } else {
+          commands.cancelPendingAction();
+        }
         return;
       }
 
@@ -210,41 +222,9 @@ export function CanvasSurface() {
       }
     };
 
+    // A pass is handled before this, by `passReceiverAt`.
     const handlePlayerTap = (playerId: ID) => {
-      const current = stateRef.current;
-      const pending = current.pendingAction;
-
-      // A pending pass is completed by tapping the receiver.
-      if (pending.kind === 'pass') {
-        commands.requestPass(pending.playerId, playerId);
-        return;
-      }
-      if (pending.kind === 'shoot') {
-        const shooter = current.drill.players.find(player => player.id === pending.playerId);
-        if (shooter) commands.requestShot(pending.playerId, attackingNetFor(shooter.team));
-        return;
-      }
-
       commands.selectPlayer(playerId);
-    };
-
-    const eraseAt = (target: PressTarget) => {
-      switch (target.kind) {
-        case 'player':
-          void commands.removePlayer(target.playerId);
-          break;
-        case 'coach':
-          commands.removeCoach(target.coachId);
-          break;
-        case 'route':
-          commands.removeRoute(target.pathId);
-          break;
-        case 'event':
-          commands.removeEvent(target.eventId);
-          break;
-        default:
-          break;
-      }
     };
 
     return {
@@ -358,7 +338,7 @@ export function CanvasSurface() {
         drawDynamic();
       },
     };
-  }, [camera, commands, drawDynamic, holdProgress]);
+  }, [camera, commands, drawDynamic, hitTester, holdProgress]);
 
   // The machine MUST outlive renders. It holds the in-flight gesture, and a
   // gesture spans many renders: the first sample of a route dispatches a
@@ -389,6 +369,10 @@ export function CanvasSurface() {
           stateRef.current.selection.selectedPlayerId ?? stateRef.current.selection.selectedEventId,
         armedMovePlayerId:
           stateRef.current.pendingAction.kind === 'move-player'
+            ? stateRef.current.pendingAction.playerId
+            : null,
+        armedRoutePlayerId:
+          stateRef.current.pendingAction.kind === 'draw-route'
             ? stateRef.current.pendingAction.playerId
             : null,
       }),

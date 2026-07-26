@@ -6,8 +6,15 @@
 // happens - stay clear while editing.
 //
 //   ActionChip     the pending hockey action, its next input, and Cancel
-//   SelectionChip  what is selected, with Move / Details / Delete
+//   SelectionChip  what is selected, with Move / Details / Delete, plus Pass
+//                  and Shoot when the selected player is carrying
 //   ContextChips   possession and workflow step, one compact chip each
+//
+// Pass and Shoot appear in exactly ONE place at a time. The dock owns Pass as
+// a verb; the selection chip owns both for the player in hand. Putting them on
+// the possession chip as well meant a carrier who was selected showed the same
+// two buttons twice, side by side, which is width a 320px phone does not have
+// to spare.
 // ============================================================================
 
 import { useAppState, useCommands } from '@/hooks/useAppState';
@@ -118,6 +125,10 @@ export function SelectionChip() {
           <button
             type="button"
             onClick={() => commands.beginPlayerMove(player.id)}
+            // Named for its player: the dock has a Move button too, and two
+            // controls reading just "Move" are indistinguishable to anyone
+            // listening rather than looking.
+            aria-label={`Move #${player.number}`}
             className="touch-target relative overflow-hidden rounded-xl border border-app-cyan/40 bg-app-cyan/10 px-3 text-[12px] font-bold text-app-cyan"
           >
             {/* Hold-to-move progress, when that shortcut is being used. */}
@@ -200,12 +211,6 @@ export function ContextChips() {
           <span className="text-white/35">· {passesUsed} pass{passesUsed === 1 ? '' : 'es'}</span>
         )}
       </button>
-
-      {/* Pass and Shoot live here too, so they are reachable without first
-          selecting anybody - the carrier is already known. */}
-      <div className="pointer-events-auto flex items-center gap-1.5">
-        <PuckActionButtons compact={isPhone} />
-      </div>
 
       <button
         type="button"

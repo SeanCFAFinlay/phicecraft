@@ -133,6 +133,7 @@ beforeEach(() => {
     holdToMoveEnabled: true,
     selectedId: null,
     armedMovePlayerId: null,
+    armedRoutePlayerId: null,
   };
 });
 

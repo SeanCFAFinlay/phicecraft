@@ -278,6 +278,10 @@ function normalizeEvent(value: unknown, index: number, warnings: string[]): Dril
       ...(typeof value.result === 'string' && results.includes(value.result)
         ? { result: value.result as 'goal' | 'save' | 'rebound' | 'wide' | 'post' }
         : {}),
+      // A shot from an older file, or from another app, is one the coach
+      // authored: it ends their drill on its own terms and is never
+      // re-sourced. Only a shot that says it is automatic is treated as ours.
+      ...(value.auto === true ? { auto: true } : {}),
     } as DrillEvent;
   }
 

@@ -304,7 +304,7 @@ export const DEFAULT_SELECTION: SelectionState = {
 
 export const DEFAULT_UI: UIState = {
   editorStep: 'setup',
-  currentTool: 'select',
+  currentTool: 'move',
   showMenu: false,
   showRenameModal: false,
   inspector: { kind: 'none' },

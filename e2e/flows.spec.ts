@@ -291,11 +291,12 @@ test('dragging the puck onto an opponent does not create a pass', async ({ page 
 });
 
 test('the tap pass path rejects an opponent with an explanation', async ({ page }) => {
-  // Arm a pass from the carrier through the Action sheet, then tap an opponent.
+  // Arm a pass from the carrier with the dock's Pass button, then tap an
+  // opponent. The Action sheet is gone; Pass is a verb in its own right.
   await clickWorld(page, LINEUP.home11);
-  await page.getByRole('button', { name: /Action/ }).click();
-  const sheet = page.getByRole('dialog', { name: 'Hockey action' });
-  await sheet.getByRole('button', { name: /^Pass/ }).click();
+  await page.getByRole('navigation', { name: 'Editing tools' })
+    .getByRole('button', { name: 'Pass' })
+    .click();
 
   await expect(page.getByText(/^Pass from #11/)).toBeVisible();
 
@@ -323,19 +324,23 @@ test('a pass to a teammate is accepted', async ({ page }) => {
 // 6. Pinch release must not become an edit
 // ----------------------------------------------------------------------------
 
-test('pinching over a player while Erase is active removes nothing', async ({ page, browser }) => {
+test('pinching over a player while a Pass is armed creates nothing', async ({ page, browser }) => {
   test.skip(browser.browserType().name() !== 'chromium', 'Touch dispatch needs CDP');
 
-  await page.getByRole('button', { name: /Erase/ }).click();
+  // Erase is gone, so the armed Pass is now the mode where a stray release
+  // would do real damage: it would commit a pass to whoever was pinched over.
+  await page.getByRole('navigation', { name: 'Editing tools' })
+    .getByRole('button', { name: /Pass/ })
+    .click();
   const before = await storedDrills(page);
-  const beforeCount = (before[0].document as { players: unknown[] }).players.length;
+  const beforeCount = (before[0].document as { events: unknown[] }).events.length;
 
   const { pinchThenReleaseSequentially } = await import('./support');
-  await pinchThenReleaseSequentially(page, LINEUP.home11);
+  await pinchThenReleaseSequentially(page, LINEUP.home13);
   await page.waitForTimeout(300);
 
   const after = await storedDrills(page);
-  expect((after[0].document as { players: unknown[] }).players).toHaveLength(beforeCount);
+  expect((after[0].document as { events: unknown[] }).events).toHaveLength(beforeCount);
 });
 
 test('pinching over empty ice while Add is active places nothing', async ({ page, browser }) => {

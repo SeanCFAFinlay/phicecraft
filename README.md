@@ -43,13 +43,22 @@ npm run assets:optimize  # regenerate runtime images from assets-src/
 
 The shell is mobile-first. Five controls are always one tap away:
 
+There are only three verbs — **Move**, **Pass**, **Skate** — plus Add and Play:
+
 | Control | What it does |
 | --- | --- |
-| **Select** | Tap to select, drag to author. This is the tool you want most of the time. |
+| **Move** | Tap to select, drag to author. This is where you are most of the time. |
+| **Pass** | Arms a pass from whoever has the puck. Then tap the receiver. |
+| **Skate** | Draws a route for the selected player. Then drag them. |
 | **Add** | Opens Home / Away / Goalie / Coach, then tap empty ice to place. |
-| **Action** | Opens Route / Pass / Shoot for the selected player or the puck carrier. Pass and Shoot are also on the rink itself — see below. |
-| **Erase** | Tap a player, coach, route or puck line to remove it. |
 | **Play** | Runs the drill. |
+
+Only **Move** is a mode. Pass and Skate arm one action and are then finished,
+so neither can leave you stuck in a state you cannot see.
+
+There is no Shoot button and no Erase tool. A play always ends with a shot and
+that shot is worked out for you (below); deleting is done from the selection
+chip and from Details, where you can see what you are about to remove.
 
 Everything else lives in a sheet: the menu (top-left), More (top-right), the
 expanded playback controls (the ⤢ on the transport), and the details of whatever
@@ -64,12 +73,30 @@ player it is for, what to do next, and offers **Cancel**. Escape cancels it too.
 
 ### Passing and shooting
 
-**Pass** and **Shoot** sit on the rink next to the puck chip, so they are one
-tap away whether or not anything is selected — they act on whoever is carrying.
-They also appear on the selection chip when the selected player has the puck.
+**Pass** is in the dock and always acts on whoever is carrying. Tap it, then
+tap the receiver — either their token **or any point on the line they are
+skating**, which is how you pass to where a player is going to be rather than
+where they are standing now.
 
-**Shoot** takes effect immediately: a team attacks exactly one net, so there is
-nothing to aim. **Pass** arms the pass, and you tap the receiver.
+**Shoot** is on the selection chip when the selected player has the puck. It
+takes effect immediately: a team attacks exactly one net, so there is nothing
+to aim. You rarely need it, because of the finishing shot below.
+
+Whoever has the puck wears a **gold ring**. The puck itself is a small dark
+disc at their blade — it looks like a puck, so the ring is what answers "who
+has it" from across the rink.
+
+### The finishing shot
+
+**A play ends with a shot, and that shot is not something you draw.** Once a
+play exists — the puck has moved, or the carrier has a route — the last event
+is worked out for you: whoever ends up with the puck shoots at the net their
+team is attacking. Add a pass and the shot moves to the new receiver; delete
+one and it moves back.
+
+It is derived, not authored, so it never gets in your way: the drill is still
+open to more passes, and the puck still belongs to the carrier. A shot you make
+yourself, or one that comes in from an imported file, is left alone.
 
 A drill holds **four passes**. The Pass button shows how many are left and goes
 dead at the cap; finish with a shot, or split the drill in two. Each pass hands
@@ -87,6 +114,7 @@ tap on each target rather than a hunt for the new carrier every time.
 | Drag from a point on a route | Releases the puck at that moment in the drill |
 | Tap **Move**, then tap the ice | Puts that player where you tapped |
 | Tap **Move**, then drag the player | Repositions with no hold first |
+| Tap **Skate**, then drag the player | Draws their route — works for the carrier too |
 | Drag a handle on a selected line | Reshapes it, one point at a time |
 | Tap a **+** between two handles | Adds a point there |
 | Tap a handle a second time | Removes that point |

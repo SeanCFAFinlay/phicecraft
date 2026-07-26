@@ -108,6 +108,10 @@ export const ShotEventSchema = z.looseObject({
   type: z.literal('shot'),
   targetNet: z.enum(['L', 'R']),
   result: z.enum(['goal', 'save', 'rebound', 'wide', 'post']).optional(),
+  // Whether this is the shot the app maintains at the end of the play. It has
+  // to survive a save: reloaded without it, a derived shot would read as one
+  // the coach authored and would wrongly close the drill to further editing.
+  auto: z.boolean().optional(),
 });
 
 export const DumpEventSchema = z.looseObject({

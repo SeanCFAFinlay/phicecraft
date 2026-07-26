@@ -104,4 +104,13 @@ export interface GestureContext {
    * button appeared to do nothing at all.
    */
   armedMovePlayerId: ID | null;
+  /**
+   * The player the Skate button has armed, if any.
+   *
+   * Dragging a player normally draws their route - unless they are carrying,
+   * where the drag is read as a pass. That left the carrier as the one player
+   * who could not be given a route by dragging, which is the exact drill of
+   * skating in and shooting. Arming Skate says "this drag is a route".
+   */
+  armedRoutePlayerId: ID | null;
 }

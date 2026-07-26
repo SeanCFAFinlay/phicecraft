@@ -12,7 +12,7 @@ import { SheetSection } from '../sheets/QuickSheets';
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { ROLE_NAMES } from '@/core/constants';
 import { distance } from '@/utils/geometry';
-import { getCurrentPuckHolder } from '@/engine/puck';
+import { attackingNetFor, getCurrentPuckHolder } from '@/engine/puck';
 import { MAX_COMFORTABLE_CONTROLS, ROUTE_CONTROL_TARGET } from '@/utils/curves';
 
 export function PlayerInspector() {
@@ -181,10 +181,13 @@ export function PlayerInspector() {
           >
             Pass
           </button>
+          {/* No mode to arm: a team attacks one net, so this IS the shot.
+              Note the play already ends with an automatic shot - this only
+              pins one down explicitly, before any further passes. */}
           <button
             type="button"
             disabled={!hasPuck}
-            onClick={() => commands.setPendingAction({ kind: 'shoot', playerId: player.id })}
+            onClick={() => void commands.requestShot(player.id, attackingNetFor(player.team))}
             className="touch-target rounded-xl border border-app-orange/40 bg-app-orange/10 px-2 py-3 text-[13px] font-bold text-app-orange disabled:opacity-35"
           >
             Shoot
