@@ -11,6 +11,7 @@
 
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
+import { ModeSwitch } from './ModeSwitch';
 import { SaveStatus } from './SaveStatus';
 
 export function TopStrip() {
@@ -79,16 +80,22 @@ export function TopStrip() {
         ↩
       </button>
 
-      {!isPhone && (
-        <button
-          type="button"
-          onClick={commands.redo}
-          disabled={!canRedo}
-          aria-label="Redo"
-          className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[16px] text-app-text hover:bg-app-cyan/10 disabled:opacity-30"
-        >
-          ↪
-        </button>
+      {isPhone ? (
+        <ModeSwitch />
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={commands.redo}
+            disabled={!canRedo}
+            aria-label="Redo"
+            className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[16px] text-app-text hover:bg-app-cyan/10 disabled:opacity-30"
+          >
+            ↪
+          </button>
+
+          <ModeSwitch />
+        </>
       )}
 
       <button

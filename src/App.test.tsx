@@ -200,6 +200,33 @@ describe('save failure', () => {
   });
 });
 
+describe('mode switcher', () => {
+  it('offers Build, Preview and Present, with Build active by default', () => {
+    renderApp();
+    const group = screen.getByRole('radiogroup', { name: 'Mode' });
+    const radios = within(group).getAllByRole('radio');
+    expect(radios.map(r => r.getAttribute('aria-label') ?? r.textContent)).toEqual(
+      expect.arrayContaining(['Build', 'Preview', 'Present'])
+    );
+    expect(within(group).getByRole('radio', { name: 'Build' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('preview hides the editing dock', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    expect(screen.queryByRole('navigation', { name: 'Editing tools' })).not.toBeInTheDocument();
+  });
+
+  it('returning to build restores the dock', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    await user.click(screen.getByRole('radio', { name: 'Build' }));
+    expect(screen.getByRole('navigation', { name: 'Editing tools' })).toBeInTheDocument();
+  });
+});
+
 describe('responsive shell', () => {
   it('hides Redo from the phone top strip, keeping it in More', async () => {
     const user = userEvent.setup();

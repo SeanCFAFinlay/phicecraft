@@ -82,6 +82,8 @@ export function AppShell() {
 
   useKeyboardShortcuts();
 
+  const mode = state.ui.mode;
+
   return (
     <div className="app-chrome flex h-full w-full flex-col overflow-hidden bg-app-bg text-app-text">
       <TopStrip />
@@ -94,16 +96,18 @@ export function AppShell() {
         <SelectionChip />
         <UpdateBanner />
         <ToastHost />
-        <ViewControls />
+        {mode !== 'present' && <ViewControls />}
         {isDesktop && <ValidationPanel />}
 
         <Suspense fallback={null}>{state.ui.showDiagnostics && <DiagnosticsOverlay />}</Suspense>
       </main>
 
       {/* On a landscape phone the transport lives inside the dock instead of
-          taking a second row of its own. */}
-      {!isCompactLandscape && <Transport />}
-      <ToolDock />
+          taking a second row of its own. Outside Build, the dock and its
+          transport are not rendered at all - Preview and Present get their
+          own surfaces in later tasks. */}
+      {mode === 'build' && !isCompactLandscape && <Transport />}
+      {mode === 'build' && <ToolDock />}
 
       {/* Sheets and inspectors. Conditionally mounted, so nothing focusable
           sits off-screen when they are closed. */}
