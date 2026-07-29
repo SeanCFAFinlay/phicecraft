@@ -8,6 +8,7 @@
 
 import type {
   AppAction,
+  AppMode,
   AppState,
   CurveShape,
   FinishPolicy,
@@ -218,6 +219,14 @@ export interface AuthoringCommands {
 }
 
 export interface PlaybackCommands {
+  /**
+   * The single entry point for switching between build, preview, and present.
+   *
+   * Entering 'build' while playing stops playback (you edit paused, not
+   * mid-flight); entering 'present' resets playback so presentation begins
+   * clean. Every change is announced to assistive tech.
+   */
+  setMode(mode: AppMode): void;
   /** The single entry point for starting playback, from any surface. */
   requestPlaybackStart(): CommandResult;
   stopPlayback(): void;

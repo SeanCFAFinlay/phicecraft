@@ -698,6 +698,72 @@ describe('playback transport', () => {
   });
 });
 
+describe('setMode', () => {
+  beforeEach(() => {
+    harness.loadDrill(
+      buildDrill({
+        players: [buildPlayer({ id: 'p1', hasPuck: true })],
+        skatePaths: [buildDistinctiveRoute('p1')],
+      })
+    );
+    harness.playback.setDrill(harness.getState().drill);
+  });
+
+  it('is a no-op when already in that mode', () => {
+    expect(harness.getState().ui.mode).toBe('build');
+    harness.commands.setMode('build');
+    expect(harness.announcements).toHaveLength(0);
+  });
+
+  it('entering build while playing stops playback', () => {
+    harness.commands.setMode('present');
+    harness.commands.requestPlaybackStart();
+    expect(harness.getState().playback.isPlaying).toBe(true);
+
+    harness.commands.setMode('build');
+    expect(harness.getState().ui.mode).toBe('build');
+    expect(harness.getState().playback.isPlaying).toBe(false);
+  });
+
+  it('entering present resets playback progress', () => {
+    harness.commands.setPlaybackProgress(0.6);
+
+    harness.commands.setMode('present');
+    expect(harness.getState().ui.mode).toBe('present');
+    expect(harness.getState().playback.isPlaying).toBe(false);
+    expect(harness.getState().playback.lifecycle).toBe('ready');
+    expect(harness.playback.getFrame().progress).toBe(0);
+  });
+
+  it('announces the mode change', () => {
+    harness.commands.setMode('preview');
+    expect(harness.announcements.at(-1)).toMatch(/preview/i);
+
+    harness.commands.setMode('present');
+    expect(harness.announcements.at(-1)).toMatch(/present/i);
+
+    harness.commands.setMode('build');
+    expect(harness.announcements.at(-1)).toMatch(/build/i);
+  });
+
+  // Task 1's review flagged that document-mutating commands (NEW_DRILL,
+  // RENAME_DRILL, DELETE_DRILL, SET_DRILL_LIST, MOVE_COACH, MOVE_PLAYER,
+  // UPDATE_SKATE_POINTS, UPDATE_EVENT_GEOMETRY) are not reducer-gated by mode.
+  // setMode is the first thing that lets mode leave 'build', so this
+  // documents that leaving build does not yet block editing at the command
+  // layer - the UI-layer gating for these surfaces is a later task.
+  it('still permits document-mutating commands outside build mode (gating is a later UI task)', async () => {
+    harness.commands.setMode('preview');
+    const before = harness.getState().drill.id;
+    harness.answerConfirm(true);
+
+    const result = await harness.commands.newDrill();
+
+    expect(result.status).toBe('done');
+    expect(harness.getState().drill.id).not.toBe(before);
+  });
+});
+
 describe('completeReview', () => {
   it('marks the current revision reviewed when nothing is blocking', () => {
     harness.loadDrill(
