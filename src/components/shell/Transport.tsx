@@ -57,7 +57,7 @@ export function Transport({
       <button
         type="button"
         onClick={commands.resetPlayback}
-        aria-label="Reset to the start"
+        aria-label="Reset playback to the start"
         className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[15px] text-app-text hover:bg-white/10"
       >
         <StepBackIcon size={16} />

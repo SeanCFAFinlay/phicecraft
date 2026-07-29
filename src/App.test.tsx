@@ -240,7 +240,9 @@ describe('preview mode', () => {
     renderApp();
     await user.click(screen.getByRole('radio', { name: 'Preview' }));
     const bar = screen.getByRole('region', { name: 'Preview' });
-    expect(within(bar).getByRole('button', { name: /play/i })).toBeInTheDocument();
+    expect(
+      within(bar).getByRole('button', { name: /^(Start|Pause) playback$/ })
+    ).toBeInTheDocument();
     expect(within(bar).getByRole('radiogroup', { name: /speed/i })).toBeInTheDocument();
   });
 
