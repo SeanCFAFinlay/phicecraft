@@ -103,6 +103,18 @@ function migrateStoredDocumentToV3(
  * (`migrateDrillCandidate`, `repairDrillDocument`, `migrateV2ToV3`) is
  * synchronous, so the only asynchronous steps are the store requests that
  * keep this same transaction alive.
+ *
+ * A single record must never be able to sink the whole upgrade. Two things
+ * can go wrong that `migrateStoredDocumentToV3`'s own `ok: false` branch does
+ * not cover: the transform itself throwing on a shape it was not built to
+ * expect, and `cursor.update` throwing a `DataError` when a tampered
+ * wrapper's `id` does not match the document's own id (`toStoredRecord`
+ * always keys the rewritten record off `document.id`). Either is caught
+ * per-record: the record is quarantined to `recovery` exactly as the
+ * `ok: false` branch does, then deleted, and the cursor moves on. Without
+ * this, either failure would reject this async callback - which idb does not
+ * await - leaving the remaining records unmigrated and, in the `DataError`
+ * case, the version-change transaction aborted.
  */
 async function migrateDrillsToV3(
   tx: IDBPTransaction<PhiceCraftDb, StoreNames<PhiceCraftDb>[], 'versionchange'>
@@ -110,21 +122,30 @@ async function migrateDrillsToV3(
   const drillStore = tx.objectStore('drills');
   const recoveryStore = tx.objectStore('recovery');
 
+  const quarantine = async (record: { id: ID; document: unknown }, reason: string) => {
+    await recoveryStore.put({
+      id: `corrupt-${record.id}-${Date.now()}`,
+      source: 'corrupt-record',
+      reference: record.id,
+      raw: record.document,
+      reason,
+      capturedAt: Date.now(),
+    });
+  };
+
   let cursor = await drillStore.openCursor();
   while (cursor) {
     const record = cursor.value as unknown as { id: ID; name: string; updatedAt: number; document: unknown };
-    const migrated = migrateStoredDocumentToV3(record.document);
-    if (migrated.ok) {
-      await cursor.update(toStoredRecord(migrated.document));
-    } else {
-      await recoveryStore.put({
-        id: `corrupt-${record.id}-${Date.now()}`,
-        source: 'corrupt-record',
-        reference: record.id,
-        raw: record.document,
-        reason: migrated.reason,
-        capturedAt: Date.now(),
-      });
+    try {
+      const migrated = migrateStoredDocumentToV3(record.document);
+      if (migrated.ok) {
+        await cursor.update(toStoredRecord(migrated.document));
+      } else {
+        await quarantine(record, migrated.reason);
+        await cursor.delete();
+      }
+    } catch (cause) {
+      await quarantine(record, cause instanceof Error ? cause.message : String(cause));
       await cursor.delete();
     }
     cursor = await cursor.continue();

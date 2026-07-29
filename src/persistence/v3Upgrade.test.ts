@@ -174,3 +174,82 @@ describe('a record that missed the version-change migration', () => {
     if (result.ok) expect(result.value.players.length).toBe(drill.players.length);
   });
 });
+
+describe('a record whose stored wrapper id does not match its document id', () => {
+  const GOOD_ID = giveAndGoRegressionDrill.id;
+  const MISMATCHED_WRAPPER_ID = 'wrapper-mismatch';
+  const MISMATCHED_DOCUMENT_ID = 'fixture-give-and-go-2';
+
+  // `migrateStoredDocumentToV3` has no fallback identity during a
+  // version-change migration (unlike a read, which always knows the key it
+  // asked for) - see the comment on that function. That means when a
+  // document's own `id` field disagrees with the wrapper's key, the migrated
+  // record is written back keyed by the DOCUMENT's id (`toStoredRecord`
+  // always uses `document.id`), which no longer matches the cursor's actual
+  // primary key. That is exactly the tampered-record shape that makes
+  // `cursor.update` throw `DataError`, without needing a document that fails
+  // the migration pipeline outright (which is total for any input).
+  async function seedMismatchedDatabase() {
+    const db = await openDB(DB_NAME, 1, {
+      upgrade(database) {
+        const drills = database.createObjectStore('drills', { keyPath: 'id' });
+        drills.createIndex('updatedAt', 'updatedAt');
+        database.createObjectStore('meta');
+        database.createObjectStore('recovery', { keyPath: 'id' });
+      },
+    });
+
+    const good = structuredClone(giveAndGoRegressionDrill);
+    await db.put('drills', { id: good.id, name: good.name, updatedAt: good.updatedAt, document: good });
+
+    const mismatched = { ...structuredClone(giveAndGoRegressionDrill), id: MISMATCHED_DOCUMENT_ID };
+    await db.put('drills', {
+      id: MISMATCHED_WRAPPER_ID,
+      name: mismatched.name,
+      updatedAt: mismatched.updatedAt,
+      document: mismatched,
+    });
+
+    db.close();
+  }
+
+  let repository: IndexedDbDrillRepository | null = null;
+
+  beforeEach(async () => {
+    indexedDB.deleteDatabase(DB_NAME);
+    await seedMismatchedDatabase();
+  });
+
+  afterEach(() => {
+    repository?.close();
+    repository = null;
+  });
+
+  it('quarantines the mismatched record and still migrates every other record', async () => {
+    repository = new IndexedDbDrillRepository();
+    const loaded = await repository.readAll();
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) {
+      // One bad record does not prevent the rest of the store from migrating.
+      const revived = loaded.value.find(d => d.id === GOOD_ID);
+      expect(revived).toBeDefined();
+      expect(revived!.players.length).toBe(giveAndGoRegressionDrill.players.length);
+      expect(loaded.value.some(d => d.id === MISMATCHED_DOCUMENT_ID)).toBe(false);
+    }
+    repository.close();
+    repository = null;
+
+    const db = await openDB(DB_NAME, DB_VERSION);
+    const remainingGood = await db.get('drills', GOOD_ID);
+    expect(remainingGood?.document.schemaVersion).toBe(3);
+
+    const remainingMismatched = await db.get('drills', MISMATCHED_WRAPPER_ID);
+    expect(remainingMismatched).toBeUndefined();
+
+    const recovery = await db.getAll('recovery');
+    const quarantined = recovery.find(r => r.reference === MISMATCHED_WRAPPER_ID);
+    expect(quarantined).toBeDefined();
+    expect(quarantined?.source).toBe('corrupt-record');
+    db.close();
+  });
+});

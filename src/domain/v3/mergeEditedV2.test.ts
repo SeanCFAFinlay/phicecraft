@@ -1,8 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { findTemplate } from '@/data/templates/registry';
+import { giveAndGoRegressionDrill } from '@/fixtures/giveAndGo.v1';
 import { mergeEditedIntoStored } from '@/domain/v3/mergeEditedV2';
 import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
 import { projectToV2 } from '@/domain/v3/projectToV2';
+import type { DrillDocumentV3, DrillPhase } from '@/domain/v3/types';
 import { validateV3Document } from '@/domain/v3/validation';
 
 describe('mergeEditedIntoStored', () => {
@@ -56,5 +58,103 @@ describe('mergeEditedIntoStored', () => {
     const merged = mergeEditedIntoStored(bare, edited);
     expect(merged.actorTracks).toEqual(edited.actorTracks);
     expect(merged.createdAt).toBe(bare.createdAt);
+  });
+});
+
+/**
+ * Every template in the catalogue has exactly one phase and one puck track,
+ * so `mergeEditedIntoStored`'s multi-phase re-anchoring (`reanchorSegment`,
+ * `reanchorAction`) and its preservation of extra puck tracks beyond the
+ * first are never exercised by the tests above. Both are reachable the
+ * moment a stored document has more than one phase or more than one puck
+ * track - reachable via `readAllDocumentsV3`/`saveDocumentV3` even though no
+ * template currently produces that shape - so they are covered here against
+ * a hand-built fixture instead.
+ */
+describe('mergeEditedIntoStored - multi-phase re-anchoring and extra puck tracks (rules 4 and 5)', () => {
+  /**
+   * A stored v3 document with two phases (named so neither collides with
+   * `MIGRATED_PHASE_ID`, the single phase id every fresh v2 edit is migrated
+   * onto) and two puck tracks, built from the give-and-go v2 fixture.
+   */
+  function buildMultiPhaseStoredFixture(): DrillDocumentV3 {
+    const base = migrateV2ToV3(structuredClone(giveAndGoRegressionDrill));
+    const [track11, track13] = base.actorTracks;
+    const [pass, shot] = base.puckTracks[0].actions;
+
+    const phaseA: DrillPhase = { ...base.phases[0], id: 'phase-A' };
+    const phaseB: DrillPhase = {
+      id: 'phase-B',
+      label: 'Second phase',
+      order: 1,
+      startAtSeconds: phaseA.durationSeconds,
+      durationSeconds: 4,
+      repeatCount: 1,
+      finishPolicy: 'none',
+    };
+
+    return {
+      ...base,
+      phases: [phaseA, phaseB],
+      actorTracks: [
+        { ...track11, segments: track11.segments.map(segment => ({ ...segment, phaseId: phaseA.id })) },
+        { ...track13, segments: track13.segments.map(segment => ({ ...segment, phaseId: phaseB.id })) },
+      ],
+      puckTracks: [
+        {
+          ...base.puckTracks[0],
+          actions: [
+            { ...pass, phaseId: phaseA.id },
+            { ...shot, phaseId: phaseA.id },
+          ],
+        },
+        {
+          id: 'puck-2',
+          initialSource: { kind: 'loose', at: { x: 0, y: 0 } },
+          actions: [],
+        },
+      ],
+    };
+  }
+
+  const stored = buildMultiPhaseStoredFixture();
+
+  it('the hand-built fixture is itself a coherent document', () => {
+    expect(validateV3Document(stored).valid).toBe(true);
+  });
+
+  it('keeps the stored multi-phase list, re-anchors unresolved edited phase ids, and preserves the extra puck track verbatim', () => {
+    const { drill } = projectToV2(stored);
+    const edited = migrateV2ToV3(drill);
+    // Confirms the premise: a fresh edit always comes back on one phase whose
+    // id is not among the stored document's phases, which is what forces the
+    // re-anchoring below rather than every id trivially resolving already.
+    expect(edited.phases).toHaveLength(1);
+    expect(stored.phases.some(phase => phase.id === edited.phases[0].id)).toBe(false);
+
+    const merged = mergeEditedIntoStored(stored, edited);
+
+    // Rule 5: the stored multi-phase list is kept, not replaced by the
+    // edit's single phase.
+    expect(merged.phases).toEqual(stored.phases);
+
+    // Rule 5: every edited segment/action, tagged with a phase id that does
+    // not resolve against the stored phases, is re-anchored onto the first
+    // stored phase.
+    const anchorPhaseId = stored.phases[0].id;
+    for (const track of merged.actorTracks) {
+      for (const segment of track.segments) {
+        expect(segment.phaseId).toBe(anchorPhaseId);
+      }
+    }
+    for (const action of merged.puckTracks[0].actions) {
+      expect(action.phaseId).toBe(anchorPhaseId);
+    }
+
+    // Rule 4: the stored extra puck track survives verbatim.
+    expect(merged.puckTracks.length).toBe(2);
+    expect(merged.puckTracks[1]).toEqual(stored.puckTracks[1]);
+
+    expect(validateV3Document(merged).valid).toBe(true);
   });
 });
