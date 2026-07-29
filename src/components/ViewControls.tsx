@@ -12,6 +12,7 @@ import { useCameraSnapshot } from '@/playback/usePlaybackSnapshot';
 import { useResponsive } from '@/ui/useResponsive';
 import { TABLETOP_DEFAULT_TILT, TABLETOP_MIN_TILT } from '@/core/constants';
 import type { Zone } from '@/camera/cameraMath';
+import { FitIcon, OrientationIcon, RotateLeftIcon, RotateRightIcon } from '@/ui/icons';
 
 /** A pleasing starting spin, matching the reference render. */
 const DEFAULT_ANGLE = -0.4;
@@ -117,7 +118,7 @@ export function ViewControls() {
         aria-label="Spin the rink left"
         className={`${button} text-[14px]`}
       >
-        ↺
+        <RotateLeftIcon size={16} />
       </button>
 
       <button
@@ -127,7 +128,7 @@ export function ViewControls() {
         aria-label="Spin the rink right"
         className={`${button} text-[14px]`}
       >
-        ↻
+        <RotateRightIcon size={16} />
       </button>
 
       {/* Which patch of ice to work on. The zone views frame the real region -
@@ -166,7 +167,7 @@ export function ViewControls() {
           }
           className={`${button} px-2 text-[12px] font-black`}
         >
-          {isVerticalBoard ? '↔' : '↕'}
+          <OrientationIcon size={16} />
         </button>
       )}
 
@@ -176,7 +177,7 @@ export function ViewControls() {
         aria-label="Fit the whole rink in view"
         className={`${button} text-[13px]`}
       >
-        ⛶
+        <FitIcon size={16} />
       </button>
     </div>
   );

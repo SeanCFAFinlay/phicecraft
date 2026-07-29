@@ -15,6 +15,7 @@ import { usePlaybackSnapshot } from '@/playback/usePlaybackSnapshot';
 import { PLAYBACK_SPEEDS } from '@/core/constants';
 import { useDrillValidation } from '@/editor/useDrillValidation';
 import { isReviewComplete } from '@/commands';
+import { PauseIcon, PlayIcon, StepBackIcon, StepForwardIcon } from '@/ui/icons';
 
 export function PlaybackSheet() {
   const { state, dispatch } = useAppState();
@@ -52,25 +53,31 @@ export function PlaybackSheet() {
           <button
             type="button"
             onClick={commands.resetPlayback}
-            className="touch-target flex-1 rounded-xl border border-app-border bg-white/5 px-3 py-2 text-[13px] font-bold"
+            aria-label="⏮ Reset"
+            className="touch-target flex flex-1 items-center justify-center gap-1 rounded-xl border border-app-border bg-white/5 px-3 py-2 text-[13px] font-bold"
           >
-            ⏮ Reset
+            <StepBackIcon size={14} />
+            Reset
           </button>
           <button
             type="button"
             onClick={() =>
               state.playback.isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart()
             }
-            className="touch-target flex-1 rounded-xl border-2 border-cyan-500 bg-cyan-500 px-3 py-2 text-[13px] font-bold text-[#03121c]"
+            aria-label={state.playback.isPlaying ? '❚❚ Pause' : '▶ Play'}
+            className="touch-target flex flex-1 items-center justify-center gap-1 rounded-xl border-2 border-cyan-500 bg-cyan-500 px-3 py-2 text-[13px] font-bold text-[#03121c]"
           >
-            {state.playback.isPlaying ? '❚❚ Pause' : '▶ Play'}
+            {state.playback.isPlaying ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
+            {state.playback.isPlaying ? 'Pause' : 'Play'}
           </button>
           <button
             type="button"
             onClick={commands.stepPlayback}
-            className="touch-target flex-1 rounded-xl border border-app-border bg-white/5 px-3 py-2 text-[13px] font-bold"
+            aria-label="⏭ Step"
+            className="touch-target flex flex-1 items-center justify-center gap-1 rounded-xl border border-app-border bg-white/5 px-3 py-2 text-[13px] font-bold"
           >
-            ⏭ Step
+            <StepForwardIcon size={14} />
+            Step
           </button>
         </div>
       </SheetSection>

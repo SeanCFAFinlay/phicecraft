@@ -13,6 +13,7 @@ import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { usePlaybackSnapshot } from '@/playback/usePlaybackSnapshot';
 import { useResponsive } from '@/ui/useResponsive';
+import { ExpandIcon, PauseIcon, PlayIcon, StepBackIcon } from '@/ui/icons';
 
 function formatClock(progress: number, duration: number): string {
   const seconds = progress * duration;
@@ -49,7 +50,7 @@ export function Transport({ inline = false }: { inline?: boolean }) {
         aria-label="Reset playback to the start"
         className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[15px] text-app-text hover:bg-white/10"
       >
-        ⏮
+        <StepBackIcon size={16} />
       </button>
 
       {!inline && (
@@ -63,7 +64,7 @@ export function Transport({ inline = false }: { inline?: boolean }) {
               : 'border-cyan-500 bg-cyan-500 text-[#03121c]'
           }`}
         >
-          {isPlaying ? '❚❚' : '▶'}
+          {isPlaying ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
         </button>
       )}
 
@@ -98,7 +99,7 @@ export function Transport({ inline = false }: { inline?: boolean }) {
         aria-haspopup="dialog"
         className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[14px] text-app-text hover:bg-white/10"
       >
-        ⤢
+        <ExpandIcon size={16} />
       </button>
     </div>
   );
