@@ -19,6 +19,7 @@ import { TopStrip } from '@/components/shell/TopStrip';
 import { ToolDock } from '@/components/shell/ToolDock';
 import { Transport } from '@/components/shell/Transport';
 import { PreviewBar } from '@/components/shell/PreviewBar';
+import { PresentOverlay } from '@/components/shell/PresentOverlay';
 import { ActionChip, ContextChips, SelectionChip } from '@/components/shell/RinkChips';
 import { useKeyboardShortcuts } from '@/components/shell/useKeyboardShortcuts';
 import { ToastHost } from '@/components/Toast';
@@ -87,20 +88,26 @@ export function AppShell() {
 
   return (
     <div className="app-chrome flex h-full w-full flex-col overflow-hidden bg-app-bg text-app-text">
-      <TopStrip />
+      {mode !== 'present' && <TopStrip />}
 
       <main className="relative min-h-0 flex-1 overflow-hidden bg-[#0a1520]">
         <CanvasSurface />
 
-        <ContextChips />
-        <ActionChip />
-        <SelectionChip />
+        {mode !== 'present' && (
+          <>
+            <ContextChips />
+            <ActionChip />
+            <SelectionChip />
+          </>
+        )}
         <UpdateBanner />
         <ToastHost />
         {mode !== 'present' && <ViewControls />}
-        {isDesktop && <ValidationPanel />}
+        {mode !== 'present' && isDesktop && <ValidationPanel />}
 
         <Suspense fallback={null}>{state.ui.showDiagnostics && <DiagnosticsOverlay />}</Suspense>
+
+        {mode === 'present' && <PresentOverlay />}
       </main>
 
       {/* On a landscape phone the transport lives inside the dock instead of

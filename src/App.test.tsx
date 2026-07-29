@@ -280,6 +280,40 @@ describe('preview mode', () => {
   });
 });
 
+describe('present mode', () => {
+  it('hides all editing chrome', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Present' }));
+    expect(screen.queryByRole('navigation', { name: 'Editing tools' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exit presentation' })).toBeInTheDocument();
+  });
+
+  it('its Play button routes through playback validation', async () => {
+    const user = userEvent.setup();
+    renderApp(); // empty drill: no routes, no events
+    await user.click(screen.getByRole('radio', { name: 'Present' }));
+    await user.click(screen.getByRole('button', { name: /play/i }));
+    // requestPlaybackStart rejects an empty drill with this exact warning toast.
+    // It also announces the same copy through the live region, so both are
+    // matched rather than asserting on a single unique node.
+    const warnings = await screen.findAllByText(
+      'Add a skating route or a puck action before playing.'
+    );
+    expect(warnings.length).toBeGreaterThan(0);
+  });
+
+  it('Escape exits to build', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Present' }));
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('radiogroup', { name: 'Mode' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Editing tools' })).toBeInTheDocument();
+  });
+});
+
 describe('responsive shell', () => {
   it('hides Redo from the phone top strip, keeping it in More', async () => {
     const user = userEvent.setup();
