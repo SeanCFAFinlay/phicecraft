@@ -26,6 +26,9 @@
 // opens it in the car park with no signal does not.
 // ============================================================================
 
+// Dev-server fallback only. `npm run build` rewrites this literal to a hash
+// of the build manifest (scripts/stamp-sw.mjs) so the worker's bytes — and
+// therefore its install/precache step — change whenever the built assets do.
 const VERSION = 'v1';
 const SHELL_CACHE = `phicecraft-shell-${VERSION}`;
 const ASSET_CACHE = `phicecraft-assets-${VERSION}`;
