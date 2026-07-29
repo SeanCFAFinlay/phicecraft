@@ -298,7 +298,7 @@ export function projectToV2(document: DrillDocumentV3): ProjectionResult {
             : segments[0].movement === 'glide'
               ? ('glide' as const)
               : ('skate' as const),
-        finish: 'stop' as const,
+        finish: segments[0].finish ?? 'stop',
       };
     })
     .filter((path): path is SkatePath => path !== null);

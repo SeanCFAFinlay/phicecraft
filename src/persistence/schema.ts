@@ -8,6 +8,8 @@
 
 import { z } from 'zod';
 import type { Drill } from '@/core/types';
+import { drillDocumentV3Schema } from '@/domain/v3/schema';
+import type { StoredDrillRecord } from './types';
 
 // ----------------------------------------------------------------------------
 // Limits
@@ -190,6 +192,43 @@ export function parseStorableDrill(
   const result = DrillSchema.safeParse(value);
   if (result.success) {
     return { ok: true, drill: result.data as unknown as Drill };
+  }
+  return {
+    ok: false,
+    issues: result.error.issues.map(issue => ({
+      path: issue.path.join('.') || '(root)',
+      message: issue.message,
+    })),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// Stored record (v3 at rest)
+//
+// The repository persists a `DrillDocumentV3` inside the wrapper it indexes
+// by. This is the gate for the whole wrapper: it succeeds only when the
+// document inside is a genuine v3 document, which is what lets
+// `indexedDbRepository` tell "already migrated" apart from "still v2" or
+// "not parseable at all" on read.
+// ----------------------------------------------------------------------------
+
+export const storedDrillRecordSchema = z.object({
+  id: idSchema,
+  name: z.string(),
+  updatedAt: finiteNumber,
+  document: drillDocumentV3Schema,
+}) satisfies z.ZodType<StoredDrillRecord>;
+
+/**
+ * Validate a stored wrapper record against the v3-at-rest shape.
+ * Never throws, whatever `value` is.
+ */
+export function parseStoredDrillRecord(
+  value: unknown
+): { ok: true; record: StoredDrillRecord } | { ok: false; issues: SchemaIssue[] } {
+  const result = storedDrillRecordSchema.safeParse(value);
+  if (result.success) {
+    return { ok: true, record: result.data };
   }
   return {
     ok: false,

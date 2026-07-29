@@ -215,6 +215,7 @@ const movementSegment: z.ZodType<MovementSegment> = z.object({
   points: z.array(point),
   curve: curveShape,
   movement: movementKind,
+  finish: z.enum(['coast', 'stop']).optional(),
   loop: z.boolean().optional(),
   delaySeconds: z.number().optional(),
 }) satisfies z.ZodType<MovementSegment>;

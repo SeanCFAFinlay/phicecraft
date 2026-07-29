@@ -8,6 +8,7 @@
 // ============================================================================
 
 import type { Drill, DrillMeta, ID } from '@/core/types';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
 
 // ----------------------------------------------------------------------------
 // Result
@@ -181,6 +182,24 @@ export interface RecoveryRecord {
 }
 
 // ----------------------------------------------------------------------------
+// Storage
+//
+// The shape actually persisted. The document is `DrillDocumentV3`: the
+// repository stores v3 at rest even though every method below still speaks
+// the v2 `Drill` the engine and UI understand - `name`/`updatedAt` are kept
+// denormalized alongside it so the `drills` list can be read without
+// deserializing every document.
+// ----------------------------------------------------------------------------
+
+export interface StoredDrillRecord {
+  id: ID;
+  name: string;
+  updatedAt: number;
+  /** The full document, exactly as validated, at the current schema version. */
+  document: DrillDocumentV3;
+}
+
+// ----------------------------------------------------------------------------
 // Repository
 // ----------------------------------------------------------------------------
 
@@ -197,6 +216,12 @@ export interface DrillRepository {
   save(drill: Drill): PersistenceResult<void>;
   /** Writes every drill in a single transaction; all or nothing. */
   saveMany(drills: Drill[]): PersistenceResult<ID[]>;
+  /**
+   * Writes a full v3 document directly, bypassing the v2 `Drill` merge path.
+   * The only v3-typed door into the repository - used for seeding a drill
+   * from a template, where there is no v2 edit to merge against.
+   */
+  saveDocumentV3(document: DrillDocumentV3): PersistenceResult<void>;
   /** Removes the drill and its list entry in one transaction. */
   delete(id: ID): PersistenceResult<void>;
   /**

@@ -6,6 +6,8 @@
 // ============================================================================
 
 import type { Drill, DrillMeta, ID } from '@/core/types';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
+import { projectToV2 } from '@/domain/v3/projectToV2';
 import {
   err,
   ok,
@@ -102,6 +104,14 @@ export class FakeRepository implements DrillRepository {
     if (failure) return err(failure);
     for (const drill of drills) this.drills.set(drill.id, structuredClone(drill));
     return ok(drills.map(drill => drill.id));
+  }
+
+  async saveDocumentV3(document: DrillDocumentV3): PersistenceResult<void> {
+    const failure = this.check('save');
+    if (failure) return err(failure);
+    const { drill } = projectToV2(document);
+    this.drills.set(drill.id, structuredClone(drill));
+    return ok(undefined);
   }
 
   async delete(id: ID): PersistenceResult<void> {
