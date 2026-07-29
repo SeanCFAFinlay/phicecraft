@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppState } from '@/hooks/useAppState';
+import type { AppState } from '@/core/types';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { useCanvasLayers } from './useCanvasLayers';
 import { useHitTesting } from './useHitTesting';
@@ -34,6 +35,18 @@ import type { ID, Point } from '@/core/types';
 
 /** Distance from a net (world units) at which a carrier drag becomes a shot. */
 const SHOT_SNAP_DISTANCE = 22 * 5;
+
+/**
+ * Editing affordances - starting a gesture, the pass-candidate rings, the
+ * route/event edit handles - are suppressed both while a play is running AND
+ * outside Build. Preview and Present are read-only surfaces: a stale
+ * selection carried over from Build must not go on offering handles nobody
+ * can use. Ghost trails are not included here - they stay tied to actual
+ * playback only, because they explain the drill while Preview plays it back.
+ */
+function isEditingSuppressed(state: AppState): boolean {
+  return state.playback.isPlaying || state.ui.mode !== 'build';
+}
 
 export function CanvasSurface() {
   const { state, commands } = useAppState();
@@ -100,7 +113,8 @@ export function CanvasSurface() {
       draggedPlayer: draggedPlayerRef.current,
       transientRoute: transientRouteRef.current,
       dragPreview: dragPreviewRef.current,
-      passCandidates: current.playback.isPlaying ? null : passCandidatesRef.current,
+      passCandidates: isEditingSuppressed(current) ? null : passCandidatesRef.current,
+      suppressEditAffordances: isEditingSuppressed(current),
       showDiagnostics: current.ui.showDiagnostics,
       reducedEffects: current.drill.settings?.reducedEffects ?? false,
     });
@@ -467,7 +481,7 @@ export function CanvasSurface() {
       handlers: forward(() => handlersRef.current),
       getContext: () => ({
         camera: camera.camera,
-        isPlaying: stateRef.current.playback.isPlaying,
+        isPlaying: isEditingSuppressed(stateRef.current),
         isTabletop: (camera.camera.tilt ?? 0) > TABLETOP_MIN_TILT,
         holdToMoveEnabled: true,
         selectedId:

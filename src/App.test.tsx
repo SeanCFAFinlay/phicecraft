@@ -7,7 +7,7 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppProvider, type AppServices } from '@/hooks/useAppState';
 import { EditorRuntimeProvider } from '@/hooks/useEditorRuntime';
@@ -19,7 +19,7 @@ import { ImportPreviewStore } from '@/ui/ImportPreviewStore';
 import { CameraStore } from '@/camera/CameraStore';
 import { PlaybackStore } from '@/playback/PlaybackStore';
 import { HoldProgressStore } from '@/ui/HoldProgressStore';
-import { setViewport, VIEWPORTS } from '@/test/utils';
+import { pointer, setViewport, VIEWPORTS } from '@/test/utils';
 import { __resetValidationCaches } from '@/editor/useDrillValidation';
 import { __resetResponsiveCache } from '@/ui/useResponsive';
 
@@ -224,6 +224,57 @@ describe('mode switcher', () => {
     await user.click(screen.getByRole('radio', { name: 'Preview' }));
     await user.click(screen.getByRole('radio', { name: 'Build' }));
     expect(screen.getByRole('navigation', { name: 'Editing tools' })).toBeInTheDocument();
+  });
+
+  it('switching to Preview shows the Preview region', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    expect(screen.getByRole('region', { name: 'Preview' })).toBeInTheDocument();
+  });
+});
+
+describe('preview mode', () => {
+  it('shows the preview bar with transport and speed controls', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    const bar = screen.getByRole('region', { name: 'Preview' });
+    expect(within(bar).getByRole('button', { name: /play/i })).toBeInTheDocument();
+    expect(within(bar).getByRole('radiogroup', { name: /speed/i })).toBeInTheDocument();
+  });
+
+  it('tapping a player in preview does not arm anything or open chips', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    // Seed a player in Build, via the Add sheet, the same way the dock does it.
+    await user.click(screen.getByRole('button', { name: /Add/ }));
+    const addSheet = await screen.findByRole('dialog', { name: 'Add to the rink' });
+    await user.click(within(addSheet).getByRole('button', { name: /Home player/ }));
+
+    const rink = screen.getByRole('application', { name: /hockey rink/i });
+    const playerTap = { pointerId: 1, x: 300, y: 200 };
+    // Raw pointer events bypass Testing Library's act() wrapping, so the
+    // resulting dispatch must be flushed explicitly before anything after it
+    // can rely on the committed state.
+    await act(async () => {
+      pointer.down(rink, playerTap);
+      pointer.up(rink, playerTap);
+    });
+
+    // Back to Move, so a tap on the token would normally select it.
+    await user.click(screen.getByRole('button', { name: 'Move' }));
+
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+
+    // Same spot the player was placed at - would select it in Build.
+    await act(async () => {
+      pointer.down(rink, playerTap);
+      pointer.up(rink, playerTap);
+    });
+
+    expect(screen.queryByRole('button', { name: /Details/ })).not.toBeInTheDocument();
   });
 });
 

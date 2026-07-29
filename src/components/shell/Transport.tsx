@@ -24,8 +24,18 @@ function formatClock(progress: number, duration: number): string {
  * `inline` folds the transport into the tool dock. On a landscape phone a
  * separate 44px row is the difference between a usable rink and a strip, and
  * Play is already in the dock - so the two rows become one.
+ *
+ * `showExpand` hides the button that opens the full Playback sheet. Preview
+ * already surfaces speed and validation inline, so it renders the transport
+ * without a second door into the same controls.
  */
-export function Transport({ inline = false }: { inline?: boolean }) {
+export function Transport({
+  inline = false,
+  showExpand = true,
+}: {
+  inline?: boolean;
+  showExpand?: boolean;
+}) {
   const { state, dispatch } = useAppState();
   const commands = useCommands();
   const { playback } = useEditorRuntime();
@@ -47,7 +57,7 @@ export function Transport({ inline = false }: { inline?: boolean }) {
       <button
         type="button"
         onClick={commands.resetPlayback}
-        aria-label="Reset playback to the start"
+        aria-label="Reset to the start"
         className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[15px] text-app-text hover:bg-white/10"
       >
         <StepBackIcon size={16} />
@@ -92,15 +102,17 @@ export function Transport({ inline = false }: { inline?: boolean }) {
           : formatClock(progress, snapshot.durationSeconds)}
       </span>
 
-      <button
-        type="button"
-        onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'playback' })}
-        aria-label="Expand playback controls"
-        aria-haspopup="dialog"
-        className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[14px] text-app-text hover:bg-white/10"
-      >
-        <ExpandIcon size={16} />
-      </button>
+      {showExpand && (
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'playback' })}
+          aria-label="Expand playback controls"
+          aria-haspopup="dialog"
+          className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[14px] text-app-text hover:bg-white/10"
+        >
+          <ExpandIcon size={16} />
+        </button>
+      )}
     </div>
   );
 }

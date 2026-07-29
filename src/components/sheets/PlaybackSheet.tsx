@@ -12,8 +12,8 @@ import { Timeline } from '../Timeline';
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { usePlaybackSnapshot } from '@/playback/usePlaybackSnapshot';
-import { PLAYBACK_SPEEDS } from '@/core/constants';
 import { useDrillValidation } from '@/editor/useDrillValidation';
+import { SpeedControl } from '../shell/SpeedControl';
 import { isReviewComplete } from '@/commands';
 import { PauseIcon, PlayIcon, StepBackIcon, StepForwardIcon } from '@/ui/icons';
 
@@ -83,23 +83,8 @@ export function PlaybackSheet() {
       </SheetSection>
 
       <SheetSection title="Speed">
-        <div className="flex gap-2 px-3 pb-2" role="radiogroup" aria-label="Playback speed">
-          {PLAYBACK_SPEEDS.map(speed => (
-            <button
-              key={speed}
-              type="button"
-              role="radio"
-              aria-checked={state.playback.speed === speed}
-              onClick={() => commands.setPlaybackSpeed(speed)}
-              className={`touch-target flex-1 rounded-xl border px-3 py-2 text-[13px] font-bold ${
-                state.playback.speed === speed
-                  ? 'border-app-cyan bg-app-cyan/15 text-app-cyan'
-                  : 'border-app-border bg-white/5 text-app-text'
-              }`}
-            >
-              {speed}×
-            </button>
-          ))}
+        <div className="px-3 pb-2">
+          <SpeedControl />
         </div>
       </SheetSection>
 

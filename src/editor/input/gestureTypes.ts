@@ -88,7 +88,10 @@ export interface GestureHandlers {
 
 export interface GestureContext {
   camera: Camera;
-  /** True while the play is running; authoring gestures are suspended. */
+  /**
+   * True while the play is running, or outside Build (Preview and Present are
+   * read-only): authoring gestures are suspended either way.
+   */
   isPlaying: boolean;
   /** The tabletop view orbits instead of panning on empty ice. */
   isTabletop: boolean;

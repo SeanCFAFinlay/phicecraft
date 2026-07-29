@@ -18,6 +18,7 @@ import { CanvasSurface } from '@/components/canvas/CanvasSurface';
 import { TopStrip } from '@/components/shell/TopStrip';
 import { ToolDock } from '@/components/shell/ToolDock';
 import { Transport } from '@/components/shell/Transport';
+import { PreviewBar } from '@/components/shell/PreviewBar';
 import { ActionChip, ContextChips, SelectionChip } from '@/components/shell/RinkChips';
 import { useKeyboardShortcuts } from '@/components/shell/useKeyboardShortcuts';
 import { ToastHost } from '@/components/Toast';
@@ -104,10 +105,11 @@ export function AppShell() {
 
       {/* On a landscape phone the transport lives inside the dock instead of
           taking a second row of its own. Outside Build, the dock and its
-          transport are not rendered at all - Preview and Present get their
-          own surfaces in later tasks. */}
+          transport are not rendered at all - Preview gets its own read-only
+          surface below; Present gets one in a later task. */}
       {mode === 'build' && !isCompactLandscape && <Transport />}
       {mode === 'build' && <ToolDock />}
+      {mode === 'preview' && <PreviewBar />}
 
       {/* Sheets and inspectors. Conditionally mounted, so nothing focusable
           sits off-screen when they are closed. */}
