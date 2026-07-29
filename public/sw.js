@@ -87,9 +87,14 @@ self.addEventListener('install', event => {
       const files = await buildAssets();
       await Promise.allSettled(files.map(url => assets.add(url)));
 
-      // Take over straight away. Waiting for every tab to close would mean the
-      // first visit ends with the app still uncached.
-      await self.skipWaiting();
+      // No skipWaiting() here. VERSION changes on every deploy, so an
+      // installed worker is almost always superseding one already controlling
+      // open tabs; auto-activating would reload the app under a coach
+      // mid-drill, which is exactly what updateManager.ts's consent contract
+      // ("the update is never applied silently") forbids. The page asks for
+      // this explicitly via the SKIP_WAITING message handler below. A first
+      // install has no prior worker to wait behind, so it activates on its
+      // own regardless.
     })()
   );
 });
