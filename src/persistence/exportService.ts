@@ -14,6 +14,9 @@
 // ============================================================================
 
 import type { Drill } from '@/core/types';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
+import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
+import { mergeEditedIntoStored } from '@/domain/v3/mergeEditedV2';
 import {
   err,
   ok,
@@ -42,16 +45,16 @@ export type ExportOutcome =
   | { kind: 'cancelled' };
 
 export function buildExportPayload(
-  drills: Drill[],
+  documents: DrillDocumentV3[],
   containsUnsavedRevision: boolean,
   now: number = Date.now()
 ): ExportPayload {
   return {
     format: 'phicecraft-drills',
-    version: 1,
+    version: 2,
     exportedAt: now,
     containsUnsavedRevision,
-    drills,
+    documents,
   };
 }
 
@@ -61,15 +64,19 @@ function exportFilename(now: number, unsaved: boolean): string {
 }
 
 /**
- * Merge the in-memory drill over the durable copy of the same ID, so an
- * unsaved export contains the user's latest work exactly once.
+ * Merge the in-memory drill over the durable v3 document of the same ID, so
+ * an unsaved export contains the user's latest work exactly once. The merge
+ * runs through `mergeEditedIntoStored`, the same seam `prepareForWrite` uses
+ * on save, so v3-only content the pending v2 edit cannot express - equipment,
+ * phases, extra puck tracks - survives an unsaved export too.
  */
-function mergeUnsaved(durable: Drill[], pending: Drill | null): Drill[] {
+function mergeUnsaved(durable: DrillDocumentV3[], pending: Drill | null): DrillDocumentV3[] {
   if (!pending) return durable;
-  const index = durable.findIndex(drill => drill.id === pending.id);
-  if (index === -1) return [pending, ...durable];
+  const migrated = migrateV2ToV3(pending);
+  const index = durable.findIndex(document => document.id === pending.id);
+  if (index === -1) return [migrated, ...durable];
   const merged = [...durable];
-  merged[index] = pending;
+  merged[index] = mergeEditedIntoStored(durable[index], migrated);
   return merged;
 }
 
@@ -88,14 +95,14 @@ export async function exportDrills(
     containsUnsaved = true;
   }
 
-  const all = await repository.readAll();
+  const all = await repository.readAllDocumentsV3();
   if (!all.ok) {
     // The durable read failed too. If there is still an in-memory drill, that
     // is the only thing left worth rescuing.
     const pending = coordinator.pendingDocument;
     if (!pending) return err(all.error);
 
-    const payload = buildExportPayload([pending], true, now);
+    const payload = buildExportPayload([migrateV2ToV3(pending)], true, now);
     return ok({
       kind: 'exported',
       payload,
@@ -104,8 +111,8 @@ export async function exportDrills(
     });
   }
 
-  const drills = containsUnsaved ? mergeUnsaved(all.value, coordinator.pendingDocument) : all.value;
-  const payload = buildExportPayload(drills, containsUnsaved, now);
+  const documents = containsUnsaved ? mergeUnsaved(all.value, coordinator.pendingDocument) : all.value;
+  const payload = buildExportPayload(documents, containsUnsaved, now);
 
   return ok({
     kind: 'exported',

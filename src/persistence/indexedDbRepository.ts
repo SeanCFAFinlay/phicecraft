@@ -196,6 +196,50 @@ function reviveStoredDocument(
   return { ok: true, drill: parsed.drill };
 }
 
+interface RevivedDocumentV3 {
+  ok: true;
+  document: DrillDocumentV3;
+  /** Present under the same conditions, and for the same reason, as `RevivedDocument.rewrite`. */
+  rewrite?: StoredDrillRecord;
+}
+
+/**
+ * Read a stored document back at its full v3 shape, without the v2
+ * projection `reviveStoredDocument` applies. Export uses this so equipment,
+ * phases, extra puck tracks and rich metadata survive into a backup. The
+ * three fallback branches, and which of them rewrite, mirror
+ * `reviveStoredDocument` exactly - see its comment for why each one behaves
+ * the way it does.
+ */
+function reviveStoredDocumentV3(
+  record: StoredDrillRecord | undefined,
+  id: ID
+): RevivedDocumentV3 | { ok: false; reason: string } {
+  if (!record) return { ok: false, reason: 'not-found' };
+
+  const gated = parseStoredDrillRecord(record);
+  if (gated.ok) {
+    return { ok: true, document: gated.record.document };
+  }
+
+  const legacy = parseStorableDrill(record.document);
+  if (legacy.ok) {
+    const migrated = migrateV2ToV3(legacy.drill);
+    return { ok: true, document: migrated, rewrite: toStoredRecord(migrated) };
+  }
+
+  const { drill } = migrateDrillCandidate(record.document, { fallbackId: id, fallbackName: record.name });
+  const repaired = repairDrillDocument({ ...drill, id: drill.id || id }, generateId);
+  const parsed = parseStorableDrill(repaired);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      reason: parsed.issues.map(issue => `${issue.path}: ${issue.message}`).join('; '),
+    };
+  }
+  return { ok: true, document: migrateV2ToV3(parsed.drill) };
+}
+
 // ----------------------------------------------------------------------------
 // Writing: read-merge-validate-write
 // ----------------------------------------------------------------------------
@@ -344,6 +388,24 @@ export class IndexedDbDrillRepository implements DrillRepository {
         }
       }
       return ok(drills);
+    } catch (cause) {
+      return err(classifyThrown('read', cause, 'Could not read stored drills.'));
+    }
+  }
+
+  async readAllDocumentsV3(): PersistenceResult<DrillDocumentV3[]> {
+    try {
+      const db = await this.getDb();
+      const records = await db.getAllFromIndex('drills', 'updatedAt');
+      const documents: DrillDocumentV3[] = [];
+      for (const record of records.reverse()) {
+        const revived = reviveStoredDocumentV3(record, record.id);
+        if (revived.ok) {
+          documents.push(revived.document);
+          if (revived.rewrite) await this.rewriteStoredRecord(revived.rewrite);
+        }
+      }
+      return ok(documents);
     } catch (cause) {
       return err(classifyThrown('read', cause, 'Could not read stored drills.'));
     }

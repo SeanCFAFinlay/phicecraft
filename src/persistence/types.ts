@@ -158,9 +158,18 @@ export interface ImportResult {
 
 export interface ExportPayload {
   format: 'phicecraft-drills';
-  version: 1;
+  version: 2;
   exportedAt: number;
   /** True when the payload includes an in-memory revision that is not durable. */
+  containsUnsavedRevision: boolean;
+  documents: DrillDocumentV3[];
+}
+
+/** The envelope shape every export produced before v3 documents existed. */
+export interface LegacyExportPayloadV1 {
+  format: 'phicecraft-drills';
+  version: 1;
+  exportedAt: number;
   containsUnsavedRevision: boolean;
   drills: Drill[];
 }
@@ -212,6 +221,12 @@ export interface DrillRepository {
   /** `not-found` error when the drill does not exist; other codes mean read failure. */
   read(id: ID): PersistenceResult<Drill>;
   readAll(): PersistenceResult<Drill[]>;
+  /**
+   * Reads every stored document at its full v3 shape, without projecting to
+   * v2. Export uses this instead of `readAll` so equipment, phases, extra
+   * puck tracks and rich metadata survive into a backup.
+   */
+  readAllDocumentsV3(): PersistenceResult<DrillDocumentV3[]>;
   /** Writes the drill and its list entry in one transaction. */
   save(drill: Drill): PersistenceResult<void>;
   /** Writes every drill in a single transaction; all or nothing. */

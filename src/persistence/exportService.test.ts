@@ -11,6 +11,7 @@ import { SaveCoordinator } from './saveCoordinator';
 import { FakeRepository } from '@/test/fakeRepository';
 import { buildDrill, FIXED_NOW } from '@/test/builders';
 import { buildRecoveryBundle, captureRecovery, loadRecoveryRecords } from './recoveryService';
+import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
 
 let repository: FakeRepository;
 let coordinator: SaveCoordinator;
@@ -26,10 +27,10 @@ const neverAsked = vi.fn(async () => {
 
 describe('buildExportPayload', () => {
   it('labels a clean payload', () => {
-    const payload = buildExportPayload([buildDrill()], false, FIXED_NOW);
+    const payload = buildExportPayload([migrateV2ToV3(buildDrill())], false, FIXED_NOW);
     expect(payload).toMatchObject({
       format: 'phicecraft-drills',
-      version: 1,
+      version: 2,
       exportedAt: FIXED_NOW,
       containsUnsavedRevision: false,
     });
@@ -51,9 +52,29 @@ describe('exportDrills', () => {
     expect(result.ok).toBe(true);
     if (!result.ok || result.value.kind !== 'exported') throw new Error('expected an export');
     expect(result.value.payload.containsUnsavedRevision).toBe(false);
-    expect(result.value.payload.drills.map(drill => drill.id).sort()).toEqual(['a', 'b']);
+    expect(result.value.payload.documents.map(document => document.id).sort()).toEqual(['a', 'b']);
     expect(result.value.filename).toBe('phicecraft-drills-2023-11-14.json');
     expect(neverAsked).not.toHaveBeenCalled();
+  });
+
+  it('exports version 2 payloads holding v3 documents', async () => {
+    repository.drills.set('a', buildDrill({ id: 'a', name: 'A' }));
+    coordinator.markDirty(buildDrill({ id: 'b', name: 'B' }));
+
+    const result = await exportDrills({
+      repository,
+      coordinator,
+      confirmUnsavedExport: neverAsked,
+      now: FIXED_NOW,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.kind !== 'exported') throw new Error('expected an export');
+    const { payload } = result.value;
+    expect(payload.format).toBe('phicecraft-drills');
+    expect(payload.version).toBe(2);
+    expect(payload.documents.every(document => document.schemaVersion === 3)).toBe(true);
+    expect('drills' in payload).toBe(false);
   });
 
   it('asks for an explicit decision when the flush fails, and honours cancel', async () => {
@@ -89,8 +110,8 @@ describe('exportDrills', () => {
     expect(result.ok).toBe(true);
     if (!result.ok || result.value.kind !== 'exported') throw new Error('expected an export');
     expect(result.value.payload.containsUnsavedRevision).toBe(true);
-    expect(result.value.payload.drills).toHaveLength(1);
-    expect(result.value.payload.drills[0].name).toBe('Unsaved version');
+    expect(result.value.payload.documents).toHaveLength(1);
+    expect(result.value.payload.documents[0].metadata.title).toBe('Unsaved version');
     expect(result.value.filename).toContain('-unsaved');
   });
 
@@ -106,7 +127,7 @@ describe('exportDrills', () => {
     });
 
     if (!result.ok || result.value.kind !== 'exported') throw new Error('expected an export');
-    expect(result.value.payload.drills.map(drill => drill.id)).toEqual(['brand-new']);
+    expect(result.value.payload.documents.map(document => document.id)).toEqual(['brand-new']);
   });
 
   it('still rescues the in-memory drill when the durable read also fails', async () => {
@@ -123,7 +144,7 @@ describe('exportDrills', () => {
 
     if (!result.ok || result.value.kind !== 'exported') throw new Error('expected an export');
     expect(result.value.payload.containsUnsavedRevision).toBe(true);
-    expect(result.value.payload.drills[0].name).toBe('Rescued');
+    expect(result.value.payload.documents[0].metadata.title).toBe('Rescued');
   });
 
   it('fails outright when there is nothing readable and nothing in memory', async () => {
@@ -148,7 +169,7 @@ describe('exportDrills', () => {
     });
 
     if (!result.ok || result.value.kind !== 'exported') throw new Error('expected an export');
-    expect(JSON.parse(result.value.json).drills).toHaveLength(1);
+    expect(JSON.parse(result.value.json).documents).toHaveLength(1);
   });
 });
 

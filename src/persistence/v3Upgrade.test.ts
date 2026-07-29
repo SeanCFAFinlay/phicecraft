@@ -141,6 +141,24 @@ describe('a record that missed the version-change migration', () => {
     if (read.ok) expect(read.value.name).toBe('Edited via v2 editor');
   });
 
+  it('migrates a still-v2 record on the fly for readAllDocumentsV3 too', async () => {
+    const drill = await insertRawV2Record();
+
+    const loaded = await repository.readAllDocumentsV3();
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) {
+      const revived = loaded.value.find(document => document.id === drill.id);
+      expect(revived).toBeDefined();
+      expect(revived!.schemaVersion).toBe(3);
+      expect(revived!.actors.length).toBe(drill.players.length);
+    }
+
+    const db = await openDB(DB_NAME, DB_VERSION);
+    const record = await db.get('drills', drill.id);
+    expect(record.document.schemaVersion).toBe(3);
+    db.close();
+  });
+
   it('does not fail the read when the rewrite itself cannot be persisted', async () => {
     const drill = await insertRawV2Record();
 

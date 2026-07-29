@@ -411,8 +411,8 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
 
       notify.toast({
         message: payload.containsUnsavedRevision
-          ? `Exported ${payload.drills.length} play(s), including your unsaved changes`
-          : `Exported ${payload.drills.length} play(s)`,
+          ? `Exported ${payload.documents.length} play(s), including your unsaved changes`
+          : `Exported ${payload.documents.length} play(s)`,
         type: payload.containsUnsavedRevision ? 'warning' : 'success',
       });
       dispatch({ type: 'CLOSE_MENU' });

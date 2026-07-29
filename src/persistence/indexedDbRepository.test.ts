@@ -281,6 +281,42 @@ describe('corrupt stored records', () => {
     const all = await repository.readAll();
     expect(all.ok && all.value).toHaveLength(1);
   });
+
+  it('skips unreadable records in readAllDocumentsV3 rather than failing the export', async () => {
+    await repository.save(buildDrill({ id: 'good', players: [buildPlayer({ id: 'p', hasPuck: true })] }));
+    const all = await repository.readAllDocumentsV3();
+    expect(all.ok && all.value).toHaveLength(1);
+  });
+
+  it('repairs a scrambled record for readAllDocumentsV3 too, the same tolerant way read() does', async () => {
+    const drill = buildDrill({ id: 'legacyish' });
+    await repository.save(drill);
+
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('phicecraft');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('drills', 'readwrite');
+      tx.objectStore('drills').put({
+        id: 'legacyish',
+        name: 'Scrambled',
+        updatedAt: FIXED_NOW,
+        document: { id: 'legacyish', name: 'Scrambled', players: null, events: null },
+      });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+
+    const all = await repository.readAllDocumentsV3();
+    expect(all.ok).toBe(true);
+    if (!all.ok) return;
+    expect(all.value).toHaveLength(1);
+    expect(all.value[0].schemaVersion).toBe(3);
+    expect(all.value[0].actors).toEqual([]);
+  });
 });
 
 describe('meta and recovery', () => {
@@ -337,6 +373,23 @@ describe('meta and recovery', () => {
 });
 
 describe('v3 storage', () => {
+  it('readAllDocumentsV3 returns the full v3 shape, not the v2 projection', async () => {
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+    const withGear = DRILL_TEMPLATES.find(t => t.document.equipment.length > 0);
+    expect(withGear).toBeDefined();
+
+    const stored = structuredClone(withGear!.document);
+    const seeded = await repository.saveDocumentV3(stored);
+    expect(seeded.ok).toBe(true);
+
+    const all = await repository.readAllDocumentsV3();
+    expect(all.ok).toBe(true);
+    if (!all.ok) return;
+    expect(all.value).toHaveLength(1);
+    expect(all.value[0].schemaVersion).toBe(3);
+    expect(all.value[0].equipment).toEqual(stored.equipment);
+  });
+
   it('an edit-save round trip preserves v3-only content at rest', async () => {
     const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
     const { projectToV2 } = await import('@/domain/v3/projectToV2');

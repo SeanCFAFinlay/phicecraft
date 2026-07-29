@@ -8,6 +8,7 @@
 import type { Drill, DrillMeta, ID } from '@/core/types';
 import type { DrillDocumentV3 } from '@/domain/v3/types';
 import { projectToV2 } from '@/domain/v3/projectToV2';
+import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
 import {
   err,
   ok,
@@ -86,6 +87,19 @@ export class FakeRepository implements DrillRepository {
     const failure = this.check('read');
     if (failure) return err(failure);
     return ok([...this.drills.values()].map(drill => structuredClone(drill)));
+  }
+
+  /**
+   * The fake keeps its store as v2 `Drill`, so unlike the real repository -
+   * which has genuine v3 documents at rest - this door migrates on the fly.
+   * That is fine here: it mirrors `saveDocumentV3`'s v3-to-v2 projection
+   * running in the opposite direction, and every test exercising it cares
+   * about the resulting document's shape, not byte-identity with storage.
+   */
+  async readAllDocumentsV3(): PersistenceResult<DrillDocumentV3[]> {
+    const failure = this.check('read');
+    if (failure) return err(failure);
+    return ok([...this.drills.values()].map(drill => migrateV2ToV3(structuredClone(drill))));
   }
 
   async save(drill: Drill): PersistenceResult<void> {

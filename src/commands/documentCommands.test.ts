@@ -342,7 +342,7 @@ describe('exportDrills', () => {
 
     expect(result.status).toBe('done');
     expect(harness.downloads).toHaveLength(1);
-    expect(JSON.parse(harness.downloads[0].contents).drills).toHaveLength(1);
+    expect(JSON.parse(harness.downloads[0].contents).documents).toHaveLength(1);
     expect(toasted(harness, /Exported 1 play/)).toBe(true);
   });
 
@@ -378,7 +378,7 @@ describe('exportDrills', () => {
 
     const payload = JSON.parse(harness.downloads[0].contents);
     expect(payload.containsUnsavedRevision).toBe(true);
-    expect(payload.drills[0].name).toBe('Unsaved Edit');
+    expect(payload.documents[0].metadata.title).toBe('Unsaved Edit');
     expect(harness.downloads[0].filename).toContain('unsaved');
     expect(toasted(harness, /including your unsaved changes/)).toBe(true);
   });
