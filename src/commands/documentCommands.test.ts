@@ -236,6 +236,46 @@ describe('newDrill', () => {
   });
 });
 
+describe('useTemplate', () => {
+  it('stores the full v3 document, not the projection, while the editor gets the projected v2 copy under the same fresh id', async () => {
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+    const withGear = DRILL_TEMPLATES.find(template => template.document.equipment.length > 0);
+    if (!withGear) throw new Error('expected a template with equipment for this test to mean anything');
+
+    const saveDocumentV3 = vi.spyOn(harness.repository, 'saveDocumentV3');
+
+    const result = await harness.commands.useTemplate(withGear.id);
+    expect(result.status).toBe('done');
+
+    expect(saveDocumentV3).toHaveBeenCalledTimes(1);
+    const storedDocument = saveDocumentV3.mock.calls[0][0];
+
+    // The stored document is the real thing, not the v2 projection: equipment
+    // and template provenance survive, and it carries a fresh id rather than
+    // the template's own.
+    expect(storedDocument.equipment).toEqual(withGear.document.equipment);
+    expect(storedDocument.templateId).toBe(withGear.id);
+    expect(storedDocument.id).not.toBe(withGear.document.id);
+
+    // The editor's projected copy shares that same fresh id, so a later
+    // edit-save merges onto the record that was actually stored.
+    expect(harness.getState().drill.id).toBe(storedDocument.id);
+  });
+
+  it('reports a failure to store the template copy', async () => {
+    harness.repository.failOperation('save');
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+
+    const result = await harness.commands.useTemplate(DRILL_TEMPLATES[0].id);
+    expect(result.status).toBe('failed');
+  });
+
+  it('rejects a template id that is no longer in the catalogue', async () => {
+    const result = await harness.commands.useTemplate('not-a-real-template');
+    expect(result.status).toBe('rejected');
+  });
+});
+
 describe('loadFixture', () => {
   it('opens an example with a fresh identity', async () => {
     const result = await harness.commands.loadFixture('give-and-go');

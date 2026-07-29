@@ -7,6 +7,7 @@
 // ============================================================================
 
 import type { Drill, DrillMeta, ID } from '@/core/types';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
 import { duplicateDrill } from '@/engine/drill';
 import { generateId } from '@/utils/id';
 import {
@@ -199,16 +200,34 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
       if (!template) return rejected('That drill is no longer in the library.');
 
       const now = host.now();
+      const freshId = generateId();
       // Project to the shape the engine runs, then re-identify everything. The
       // template document itself is never handed to the editor, so nothing a
-      // coach does can reach back into the catalogue.
+      // coach does can reach back into the catalogue. `remapImportedDrill`
+      // re-ids every player/route/event independently of the document's own
+      // fresh id below, so the projected copy's internal ids differ from the
+      // stored document's - that is fine, because the save-merge
+      // (`mergeEditedIntoStored`) replaces actors/tracks wholesale from the
+      // edited side rather than reconciling ids across the two shapes.
       const { drill: projected, losses } = projectToV2(template.document);
       const copy: Drill = {
         ...remapImportedDrill(projected, generateId, now),
-        id: generateId(),
+        id: freshId,
         name: template.document.metadata.title,
         createdAt: now,
         updatedAt: now,
+      };
+
+      // The full v3 document is what gets stored, so equipment, annotations,
+      // phases and extra puck tracks survive the copy - the projected `copy`
+      // above only exists to seed the v2 editor.
+      const documentCopy: DrillDocumentV3 = {
+        ...structuredClone(template.document),
+        id: freshId,
+        templateId: template.id,
+        createdAt: now,
+        updatedAt: now,
+        metadata: { ...template.document.metadata },
       };
 
       dispatch({ type: 'STOP_PLAYBACK' });
@@ -217,9 +236,10 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
       dispatch({ type: 'CLOSE_SHEET' });
       coordinator.reset();
 
-      const saved = await coordinator.save(copy);
+      const saved = await repository.saveDocumentV3(documentCopy);
       if (!saved.ok) return reportFailure('That drill could not be saved', saved.error);
 
+      coordinator.adoptSaved(copy, now);
       await repository.setCurrentDrillId(copy.id);
       await refreshDrillList();
 
