@@ -93,9 +93,15 @@ describe('a record that missed the version-change migration', () => {
     repository.close();
   });
 
-  /** Write a still-v2 record straight into an already-v2 (DB_VERSION 2) store. */
+  /**
+   * Write a still-v2 record straight into an already-v2 (DB_VERSION 2) store -
+   * a genuinely complete, valid v2 document (`coaches` included: the strict
+   * v2 schema requires it even though the domain type leaves it optional for
+   * backward compatibility), so this exercises the belt-and-braces "well-formed
+   * v2" tier rather than falling through to the tolerant-repair tier.
+   */
   async function insertRawV2Record() {
-    const drill = structuredClone(giveAndGoRegressionDrill);
+    const drill = { ...structuredClone(giveAndGoRegressionDrill), coaches: [] };
     const db = await openDB(DB_NAME, DB_VERSION);
     await db.put('drills', { id: drill.id, name: drill.name, updatedAt: drill.updatedAt, document: drill });
     db.close();
@@ -117,6 +123,22 @@ describe('a record that missed the version-change migration', () => {
     const record = await db.get('drills', drill.id);
     expect(record.document.schemaVersion).toBe(3);
     db.close();
+  });
+
+  it('saving over it merges instead of throwing on the still-v2 stored document', async () => {
+    const drill = await insertRawV2Record();
+
+    // `existing.document` here is still the raw v2 `Drill`, not a
+    // `DrillDocumentV3` - `prepareForWrite` must gate it before handing it to
+    // `mergeEditedIntoStored`, or the merge throws on `stored.phases.length`
+    // and the edit is silently dropped.
+    const edited = { ...drill, name: 'Edited via v2 editor', updatedAt: drill.updatedAt + 1 };
+    const result = await repository.save(edited);
+    expect(result.ok).toBe(true);
+
+    const read = await repository.read(drill.id);
+    expect(read.ok).toBe(true);
+    if (read.ok) expect(read.value.name).toBe('Edited via v2 editor');
   });
 
   it('does not fail the read when the rewrite itself cannot be persisted', async () => {

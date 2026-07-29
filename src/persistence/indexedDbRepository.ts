@@ -153,13 +153,19 @@ interface RevivedDocument {
  *
  *   1. A record that fails the v3 gate but is still a well-formed v2
  *      document - belt-and-braces for a store that missed the version-change
- *      migration - is migrated on the fly and rewritten.
+ *      migration - is migrated on the fly and rewritten. This is the ONLY
+ *      fallback that rewrites: the record is provably a genuine, complete v2
+ *      document, so migrating it forward loses nothing.
  *   2. Anything else goes through the same tolerant repair every stored
  *      document has always gone through (`migrateDrillCandidate` ->
  *      `repairDrillDocument`), because a record written by an older build, or
  *      scrambled on disk, should be repaired rather than crash the editor.
  *      If even that fails, the caller gets a typed `corrupt-data` error
- *      instead of a silent `null`.
+ *      instead of a silent `null`. This path never rewrites: `repairDrillDocument`
+ *      may drop dangling references or invent a puck carrier, and doing that
+ *      silently to the durable copy - rather than just to what is handed back -
+ *      would make a repair destructive. The record is left exactly as found,
+ *      matching the pre-v3 corrupt-record contract.
  */
 function reviveStoredDocument(
   record: StoredDrillRecord | undefined,
@@ -187,7 +193,7 @@ function reviveStoredDocument(
       reason: parsed.issues.map(issue => `${issue.path}: ${issue.message}`).join('; '),
     };
   }
-  return { ok: true, drill: parsed.drill, rewrite: toStoredRecord(migrateV2ToV3(parsed.drill)) };
+  return { ok: true, drill: parsed.drill };
 }
 
 // ----------------------------------------------------------------------------
@@ -199,13 +205,22 @@ function reviveStoredDocument(
  * whatever is already stored under that id, so v3-only content the v2
  * projection cannot express - equipment, annotations, extra puck tracks,
  * phase structure, rich metadata - survives the round trip.
+ *
+ * `existing.document` is gated with `parseDrillDocumentV3` rather than
+ * trusted outright: a half-upgraded store can still hold a v2 document under
+ * that key (see `reviveStoredDocument`'s belt-and-braces fallback), and
+ * `mergeEditedIntoStored` assumes a genuine v3 shape - handing it a v2
+ * document throws (`stored.phases` is `undefined`). When the gate fails,
+ * the save falls back to the freshly migrated document alone, exactly as if
+ * nothing were stored yet, rather than failing the whole save.
  */
 function prepareForWrite(
   drill: Drill,
   existing: StoredDrillRecord | undefined
 ): { ok: true; record: StoredDrillRecord } | { ok: false; message: string } {
   const migrated = migrateV2ToV3(drill);
-  const next = existing ? mergeEditedIntoStored(existing.document, migrated) : migrated;
+  const existingDocument = existing ? parseDrillDocumentV3(existing.document) : null;
+  const next = existingDocument?.ok ? mergeEditedIntoStored(existingDocument.document, migrated) : migrated;
   const parsed = parseDrillDocumentV3(next);
   if (!parsed.ok) return { ok: false, message: parsed.message };
   return { ok: true, record: toStoredRecord(parsed.document) };

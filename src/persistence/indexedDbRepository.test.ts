@@ -227,6 +227,55 @@ describe('corrupt stored records', () => {
     }
   });
 
+  it('never overwrites the original bytes of a merely-repaired record', async () => {
+    const drill = buildDrill({ id: 'legacyish' });
+    await repository.save(drill);
+
+    // Scramble the stored document behind the repository's back - the same
+    // fixture as above, which only survives via the tolerant repair chain
+    // (`migrateDrillCandidate` -> `repairDrillDocument`), not the v3 gate or
+    // the strict v2 gate.
+    const scrambled = { id: 'legacyish', name: 'Scrambled', players: null, events: null };
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('phicecraft');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('drills', 'readwrite');
+      tx.objectStore('drills').put({ id: 'legacyish', name: 'Scrambled', updatedAt: FIXED_NOW, document: scrambled });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+
+    const read = await repository.read('legacyish');
+    expect(read.ok).toBe(true);
+
+    // Repair is for what is handed back, not for the durable copy: a repair
+    // may drop dangling references or invent a puck carrier, and doing that
+    // silently to storage - rather than just to the returned `Drill` - would
+    // make a read destructive. The stored bytes must be exactly what was
+    // found, still unrepaired, with no recovery snapshot needed because
+    // nothing was overwritten.
+    const verify = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('phicecraft');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const stored = await new Promise<{ document: unknown }>((resolve, reject) => {
+      const tx = verify.transaction('drills', 'readonly');
+      const req = tx.objectStore('drills').get('legacyish');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    verify.close();
+    expect(stored.document).toEqual(scrambled);
+
+    const recovery = await repository.listRecovery();
+    expect(recovery.ok && recovery.value).toHaveLength(0);
+  });
+
   it('skips unreadable records in readAll rather than failing the export', async () => {
     await repository.save(buildDrill({ id: 'good', players: [buildPlayer({ id: 'p', hasPuck: true })] }));
     const all = await repository.readAll();
