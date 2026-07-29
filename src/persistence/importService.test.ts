@@ -369,6 +369,48 @@ describe('v3-aware import shapes', () => {
     );
   });
 
+  it('keeps a v3 import at its file-authored internal actor ids, not the v2 remap, across two copies', async () => {
+    // The v3 enrichment pass in `commitImport` writes `saveDocumentV3` *after*
+    // `replaceAndSave` has already stored the remapped v2 projection, and
+    // `saveDocumentV3` overwrites that record wholesale with the original
+    // document (top-level id/timestamps restamped, everything else
+    // untouched) - so a v3-origin import's internal actor/route/event ids end
+    // up exactly as the source file had them, NOT the fresh ids
+    // `remapImportedDrill` computed. This is accepted, not a bug: those ids
+    // are document-scoped (only ever read alongside the document's own top
+    // level id), and a fresh top-level id per import - proven distinct below
+    // - is what actually prevents one imported copy from clobbering another
+    // or the original. The v2-only remap test at importService.test.ts:127
+    // does not exercise this path, so this locks it down explicitly.
+    const doc = migrateV2ToV3(structuredClone(giveAndGoRegressionDrill));
+    const payload = json({
+      format: 'phicecraft-drills',
+      version: 2,
+      exportedAt: 5,
+      containsUnsavedRevision: false,
+      documents: [doc],
+    });
+
+    const first = await importAsCopies(payload, repository, { now: FIXED_NOW });
+    const second = await importAsCopies(payload, repository, { now: FIXED_NOW + 1 });
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+
+    const firstId = first.value.importedIds[0];
+    const secondId = second.value.importedIds[0];
+    expect(firstId).not.toBe(secondId);
+
+    const firstStored = repository.drills.get(firstId)!;
+    const secondStored = repository.drills.get(secondId)!;
+    const sourcePlayerIds = giveAndGoRegressionDrill.players.map(player => player.id).sort();
+
+    expect(firstStored.players.map(player => player.id).sort()).toEqual(sourcePlayerIds);
+    expect(secondStored.players.map(player => player.id).sort()).toEqual(sourcePlayerIds);
+    expect(firstStored.players.map(player => player.id).sort()).toEqual(
+      secondStored.players.map(player => player.id).sort()
+    );
+  });
+
   it('imports a bare v3 document object', async () => {
     const doc = migrateV2ToV3(structuredClone(giveAndGoRegressionDrill));
     const result = await prepareImport(json(doc), repository, { now: FIXED_NOW });

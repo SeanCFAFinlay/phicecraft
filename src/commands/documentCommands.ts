@@ -19,6 +19,7 @@ import {
   prepareImport as prepareImportFromText,
   type ImportDecision,
   type ImportPreview,
+  type LegacyExportPayloadV1,
 } from '@/persistence';
 import { giveAndGoRegressionDrill } from '@/fixtures/giveAndGo.v1';
 import { fiveManCornerRetrievalDrill } from '@/fixtures/fiveManCornerRetrieval.v1';
@@ -482,17 +483,19 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
 
     async exportUnsavedData() {
       const pending = coordinator.pendingDocument ?? getState().drill;
-      const json = JSON.stringify(
-        {
-          format: 'phicecraft-drills',
-          version: 1,
-          exportedAt: host.now(),
-          containsUnsavedRevision: true,
-          drills: [pending],
-        },
-        null,
-        2
-      );
+      // A second live export format alongside `ExportPayload` (version 2):
+      // the crash-recovery screen has only the in-memory v2 drill to hand,
+      // with no repository to read a v3 document back from, so this stays a
+      // version-1 envelope. Typed against `LegacyExportPayloadV1` so a future
+      // change to that shape is compiler-guarded here too.
+      const payload: LegacyExportPayloadV1 = {
+        format: 'phicecraft-drills',
+        version: 1,
+        exportedAt: host.now(),
+        containsUnsavedRevision: true,
+        drills: [pending],
+      };
+      const json = JSON.stringify(payload, null, 2);
 
       const downloaded = host.download(`phicecraft-unsaved-${pending.name || 'drill'}.json`, json);
       if (!downloaded) {

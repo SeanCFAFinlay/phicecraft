@@ -206,10 +206,17 @@ interface RevivedDocumentV3 {
 /**
  * Read a stored document back at its full v3 shape, without the v2
  * projection `reviveStoredDocument` applies. Export uses this so equipment,
- * phases, extra puck tracks and rich metadata survive into a backup. The
- * three fallback branches, and which of them rewrite, mirror
- * `reviveStoredDocument` exactly - see its comment for why each one behaves
- * the way it does.
+ * phases, extra puck tracks and rich metadata survive into a backup.
+ *
+ * The genuine-v3 gate is checked here directly, and deliberately does not
+ * repair the result the way `reviveStoredDocument`'s tier 1 does: this is a
+ * faithful export of exactly what a genuine document holds, and a bare or
+ * odd shape gets its chance to be repaired on re-import, at
+ * `finalizeCandidate` in `importService.ts`. When the gate fails, this
+ * delegates to `reviveStoredDocument` for the remaining two tiers - the well
+ * formed legacy v2 fallback (which rewrites) and the tolerant-repair fallback
+ * (which never rewrites) - so those two tiers are not duplicated, then
+ * migrates whatever `Drill` came back forward to v3.
  */
 function reviveStoredDocumentV3(
   record: StoredDrillRecord | undefined,
@@ -222,22 +229,13 @@ function reviveStoredDocumentV3(
     return { ok: true, document: gated.record.document };
   }
 
-  const legacy = parseStorableDrill(record.document);
-  if (legacy.ok) {
-    const migrated = migrateV2ToV3(legacy.drill);
-    return { ok: true, document: migrated, rewrite: toStoredRecord(migrated) };
-  }
-
-  const { drill } = migrateDrillCandidate(record.document, { fallbackId: id, fallbackName: record.name });
-  const repaired = repairDrillDocument({ ...drill, id: drill.id || id }, generateId);
-  const parsed = parseStorableDrill(repaired);
-  if (!parsed.ok) {
-    return {
-      ok: false,
-      reason: parsed.issues.map(issue => `${issue.path}: ${issue.message}`).join('; '),
-    };
-  }
-  return { ok: true, document: migrateV2ToV3(parsed.drill) };
+  // The gate already failed above, so this only ever runs `reviveStoredDocument`'s
+  // tiers 2 and 3 - its own (redundant) re-check of the same gate is cheap
+  // and pure, and keeping it there avoids threading a "skip tier 1" flag
+  // through a function this one is not otherwise coupled to.
+  const fallback = reviveStoredDocument(record, id);
+  if (!fallback.ok) return fallback;
+  return { ok: true, document: migrateV2ToV3(fallback.drill), rewrite: fallback.rewrite };
 }
 
 // ----------------------------------------------------------------------------
