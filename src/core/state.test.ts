@@ -392,3 +392,53 @@ describe('NEW_DRILL / LOAD_DRILL', () => {
     expect(appReducer(base, { type: 'LOAD_DRILL', drill }).currentDrillId).toBe('other');
   });
 });
+
+describe('SET_MODE', () => {
+  it('defaults to build', () => {
+    expect(createInitialState().ui.mode).toBe('build');
+  });
+
+  it('entering preview clears the pending action and closes chrome', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_PENDING_ACTION', action: { kind: 'pass', playerId: state.drill.players[0].id } });
+    state = appReducer(state, { type: 'OPEN_SHEET', sheet: 'more' });
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    expect(state.ui.mode).toBe('preview');
+    expect(state.pendingAction.kind).toBe('none');
+    expect(state.ui.openSheet).toBe('none');
+    expect(state.ui.showMenu).toBe(false);
+    expect(state.ui.inspector.kind).toBe('none');
+  });
+
+  it('outside build, document edits are ignored', () => {
+    let state = createInitialState();
+    const before = state.drill;
+    const nonCarrierId = before.players.find(p => !p.hasPuck)!.id;
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const moved = appReducer(state, { type: 'SET_PUCK_CARRIER', id: nonCarrierId });
+    expect(moved.drill).toBe(state.drill);
+    expect(moved.undoStack).toBe(state.undoStack);
+  });
+
+  it('outside build, arming an action is ignored', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'present' });
+    const armed = appReducer(state, { type: 'SET_PENDING_ACTION', action: { kind: 'pass', playerId: state.drill.players[0].id } });
+    expect(armed.pendingAction.kind).toBe('none');
+  });
+
+  it('LOAD_DRILL still works outside build (library can hand over a drill)', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const drill = { ...state.drill, id: 'other', name: 'Other' };
+    const loaded = appReducer(state, { type: 'LOAD_DRILL', drill });
+    expect(loaded.drill.id).toBe('other');
+  });
+
+  it('playback actions still work outside build', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'present' });
+    state = appReducer(state, { type: 'START_PLAYBACK' });
+    expect(state.playback.isPlaying).toBe(true);
+  });
+});

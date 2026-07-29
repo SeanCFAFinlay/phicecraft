@@ -443,7 +443,11 @@ export type SheetKind =
   | 'diagnostics'
   | 'import-preview';
 
+/** The three product states. Only 'build' may mutate the document. */
+export type AppMode = 'build' | 'preview' | 'present';
+
 export interface UIState {
+  mode: AppMode;
   editorStep: 'setup' | 'movement' | 'puck' | 'review';
   currentTool: Tool;
   showMenu: boolean;
@@ -647,6 +651,7 @@ export type AppAction =
   | { type: 'CANCEL_PENDING_ACTION' }
 
   // UI
+  | { type: 'SET_MODE'; mode: AppMode }
   | { type: 'SET_TOOL'; tool: Tool }
   | { type: 'SET_EDITOR_STEP'; step: UIState['editorStep'] }
   | { type: 'TOGGLE_MENU' }

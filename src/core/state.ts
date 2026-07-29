@@ -145,7 +145,19 @@ const DOCUMENT_SWITCH_ACTIONS: ReadonlySet<AppAction['type']> = new Set(['NEW_DR
  *     what validation caches and review completion key off,
  *   - cancel any pending hockey action whose subject just disappeared.
  */
+const EDIT_ONLY_OUTSIDE_UNDOABLE = new Set(['SET_PENDING_ACTION', 'SET_TOOL']);
+
 export function appReducer(state: AppState, action: AppAction): AppState {
+  // Preview and Present are read-only: a document mutation or an armed editing
+  // action arriving there is a bug in a caller, and the safe answer is a no-op.
+  if (
+    state.ui.mode !== 'build' &&
+    action.type !== 'LOAD_DRILL' &&
+    (UNDOABLE_ACTIONS.has(action.type) || EDIT_ONLY_OUTSIDE_UNDOABLE.has(action.type))
+  ) {
+    return state;
+  }
+
   const next = reduce(state, action);
 
   // Nothing changed (e.g. a rejected SET_PUCK_CARRIER) - don't record history.
@@ -730,6 +742,19 @@ function reduce(state: AppState, action: AppAction): AppState {
     // ========================================================================
     // UI
     // ========================================================================
+
+    case 'SET_MODE': {
+      if (action.mode === state.ui.mode) return state;
+      return {
+        ...state,
+        pendingAction: { kind: 'none' },
+        ui: {
+          ...state.ui, mode: action.mode,
+          openSheet: 'none', showMenu: false,
+          inspector: { kind: 'none' }, modeBanner: null,
+        },
+      };
+    }
 
     case 'SET_TOOL': {
       // Passing is a pending action rather than a mode now, so changing tool
