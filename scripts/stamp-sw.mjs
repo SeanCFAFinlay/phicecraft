@@ -9,17 +9,16 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+const DECLARATION = /const VERSION = '[^']*';/;
+
 export function stampServiceWorker(swSource, manifestSource) {
+  if (!DECLARATION.test(swSource)) {
+    throw new Error("service worker source has no `const VERSION = '...';` declaration to stamp");
+  }
   const hash = createHash('sha256').update(manifestSource).digest('hex').slice(0, 12);
   const version = `build-${hash}`;
-  const stamped = swSource.replace(
-    /const VERSION = '[^']*';/,
-    `const VERSION = '${version}';`
-  );
-  if (stamped === swSource) {
-    throw new Error("dist/sw.js has no `const VERSION = '...';` declaration to stamp");
-  }
-  return { stamped, version };
+  // One declaration by construction; a second would be a bug in sw.js, not something to stamp.
+  return { stamped: swSource.replace(DECLARATION, `const VERSION = '${version}';`), version };
 }
 
 // Same two candidate paths as public/sw.js:43 — Vite 4 writes manifest.json

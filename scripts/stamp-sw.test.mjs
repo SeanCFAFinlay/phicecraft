@@ -28,4 +28,11 @@ describe('stampServiceWorker', () => {
   it('throws when the VERSION declaration is missing, rather than shipping unstamped', () => {
     expect(() => stampServiceWorker('// no version here', MANIFEST_A)).toThrow(/VERSION/);
   });
+
+  it('re-stamping an already-stamped source is a no-op, not an error', () => {
+    const first = stampServiceWorker(SW_FIXTURE, MANIFEST_A);
+    const second = stampServiceWorker(first.stamped, MANIFEST_A);
+    expect(second.version).toBe(first.version);
+    expect(second.stamped).toBe(first.stamped);
+  });
 });
