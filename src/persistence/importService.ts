@@ -330,11 +330,18 @@ export async function commitImport(
     warnings.push(...candidate.warnings.map(warning => `"${candidate.name}": ${warning}`));
 
     if (candidate.sourceDocument) {
-      // The same-fresh-id invariant `useTemplate` relies on: the v3 document
-      // gets the exact id, and timestamps, `prepared` just settled on, even
-      // though its own internal actor/track ids are left untouched. That is
-      // fine - a future edit-save round trip replaces them wholesale via
-      // `mergeEditedIntoStored`, the same seam a template copy relies on.
+      // The v3 document gets the exact id and timestamps `prepared` just
+      // settled on, but its own internal actor/track ids are always left as
+      // the file authored them - on both the `replace` and `copy` paths -
+      // even though the v2 side above gets entirely fresh ones on `copy`
+      // (`remapImportedDrill`). That mismatch is deliberate and harmless:
+      // nothing reconciles the two shapes by id, a future edit-save round
+      // trip replaces actors/tracks wholesale via `mergeEditedIntoStored`
+      // instead. Template copies now go further and give both shapes the
+      // SAME ids up front (`remapDocumentIds`), because a template is
+      // user-facing content a coach reopens and re-saves; an import's
+      // file-authored ids are kept for their own sake (P2T5) and were never
+      // required to agree with whatever the v2 projection did.
       v3Enrichments.push({
         document: {
           ...candidate.sourceDocument,

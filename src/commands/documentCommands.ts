@@ -26,7 +26,7 @@ import { fiveManCornerRetrievalDrill } from '@/fixtures/fiveManCornerRetrieval.v
 import { fiveManCrossCornerDrill } from '@/fixtures/fiveManCrossCorner.v1';
 import { fiveManLowHighDrill } from '@/fixtures/fiveManLowHigh.v1';
 import { CONFIRMATIONS, deleteDrillConfirmation } from './confirmations';
-import { remapImportedDrill } from '@/persistence/drillPipeline';
+import { remapDocumentIds } from '@/domain/v3/remapIds';
 import {
   cancelled,
   done,
@@ -202,33 +202,33 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
 
       const now = host.now();
       const freshId = generateId();
-      // Project to the shape the engine runs, then re-identify everything. The
-      // template document itself is never handed to the editor, so nothing a
-      // coach does can reach back into the catalogue. `remapImportedDrill`
-      // re-ids every player/route/event independently of the document's own
-      // fresh id below, so the projected copy's internal ids differ from the
-      // stored document's - that is fine, because the save-merge
-      // (`mergeEditedIntoStored`) replaces actors/tracks wholesale from the
-      // edited side rather than reconciling ids across the two shapes.
-      const { drill: projected, losses } = projectToV2(template.document);
-      const copy: Drill = {
-        ...remapImportedDrill(projected, generateId, now),
-        id: freshId,
-        name: template.document.metadata.title,
-        createdAt: now,
-        updatedAt: now,
-      };
 
-      // The full v3 document is what gets stored, so equipment, annotations,
-      // phases and extra puck tracks survive the copy - the projected `copy`
-      // above only exists to seed the v2 editor.
+      // Remap FIRST, then project the ALREADY-remapped document to the shape
+      // the engine runs. The template document itself is never handed to the
+      // editor, so nothing a coach does can reach back into the catalogue -
+      // and because the projection is id-preserving (projectToV2 carries
+      // actor/action ids straight through), the projected v2 copy and the
+      // stored v3 document share ids by construction, not by a second,
+      // independent re-identification pass that could disagree with it.
       const documentCopy: DrillDocumentV3 = {
-        ...structuredClone(template.document),
+        ...remapDocumentIds(structuredClone(template.document), generateId),
         id: freshId,
         templateId: template.id,
         createdAt: now,
         updatedAt: now,
         metadata: { ...template.document.metadata },
+      };
+
+      // The full v3 document is what gets stored, so equipment, annotations,
+      // phases and extra puck tracks survive the copy - the projected `copy`
+      // below only exists to seed the v2 editor.
+      const { drill: projected, losses } = projectToV2(documentCopy);
+      const copy: Drill = {
+        ...projected,
+        id: freshId,
+        name: template.document.metadata.title,
+        createdAt: now,
+        updatedAt: now,
       };
 
       dispatch({ type: 'STOP_PLAYBACK' });

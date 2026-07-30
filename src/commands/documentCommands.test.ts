@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestHarness, toasted, type TestHarness } from '@/test/commandHost';
 import { buildDrill, buildDistinctiveRoute, buildPlayer, FIXED_NOW } from '@/test/builders';
 import { RINK } from '@/core/constants';
+import { isOnIce } from '@/domain/v3/types';
 import { isReviewComplete } from './playbackCommands';
 
 let harness: TestHarness;
@@ -251,15 +252,46 @@ describe('useTemplate', () => {
     const storedDocument = saveDocumentV3.mock.calls[0][0];
 
     // The stored document is the real thing, not the v2 projection: equipment
-    // and template provenance survive, and it carries a fresh id rather than
-    // the template's own.
-    expect(storedDocument.equipment).toEqual(withGear.document.equipment);
+    // and template provenance survive in content, and it carries a fresh id
+    // rather than the template's own. Every equipment id is fresh too (Finding
+    // 3 / remapDocumentIds), so the comparison ignores ids and checks them
+    // separately.
+    expect(storedDocument.equipment.map(item => ({ ...item, id: '' }))).toEqual(
+      withGear.document.equipment.map(item => ({ ...item, id: '' }))
+    );
+    const originalEquipmentIds = new Set(withGear.document.equipment.map(item => item.id));
+    expect(storedDocument.equipment.some(item => originalEquipmentIds.has(item.id))).toBe(false);
+
     expect(storedDocument.templateId).toBe(withGear.id);
     expect(storedDocument.id).not.toBe(withGear.document.id);
 
     // The editor's projected copy shares that same fresh id, so a later
     // edit-save merges onto the record that was actually stored.
     expect(harness.getState().drill.id).toBe(storedDocument.id);
+  });
+
+  it('gives the template copy document-wide fresh ids, matched between the stored document and the editor', async () => {
+    // A template copy must not share so much as one actor id with the
+    // template it came from (Finding 3): a stranded reference is exactly how
+    // the v2 coach hack worked its way into the model. Remapping happens
+    // BEFORE the document is projected to v2, so the stored document and the
+    // editor's copy agree on every actor id by construction, not by a later
+    // merge reconciling two disagreeing shapes.
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+    const template = DRILL_TEMPLATES[0];
+    const originalActorIds = new Set(template.document.actors.map(actor => actor.id));
+
+    const saveDocumentV3 = vi.spyOn(harness.repository, 'saveDocumentV3');
+    const result = await harness.commands.useTemplate(template.id);
+    expect(result.status).toBe('done');
+
+    const storedDocument = saveDocumentV3.mock.calls[0][0];
+    const storedOnIceIds = storedDocument.actors.filter(isOnIce).map(actor => actor.id).sort();
+    const editorPlayerIds = harness.getState().drill.players.map(player => player.id).sort();
+
+    expect(editorPlayerIds).toEqual(storedOnIceIds);
+    expect(storedDocument.actors.some(actor => originalActorIds.has(actor.id))).toBe(false);
+    expect(editorPlayerIds.some(id => originalActorIds.has(id))).toBe(false);
   });
 
   it('reports a failure to store the template copy', async () => {
