@@ -10,7 +10,10 @@
 // end because it is playback-adjacent information, not an editing control -
 // it used to be its own chip floating over the rink, collapsed with the
 // workflow chip into `ContextChips`. The lifecycle badge that chip also
-// carried on non-phone layouts lives here too, as plain status text.
+// carried on non-phone layouts lives here too, as plain status text. Both are
+// dropped from the `inline` variant: that is the compact-landscape row folded
+// into the tool dock, which has no width to spare for anything beyond the
+// controls that were already there.
 //
 // It subscribes to the playback store's COARSE snapshot, so it re-renders
 // about once per percent of progress rather than 60 times a second.
@@ -63,20 +66,25 @@ export function Transport({
       }
       style={inline ? undefined : { minHeight: 'var(--transport-height)' }}
     >
-      <button
-        type="button"
-        onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'possession' })}
-        aria-haspopup="dialog"
-        className="touch-target flex shrink-0 items-center gap-1 rounded-xl border border-app-border bg-white/5 px-2.5 text-[12px] font-bold hover:bg-white/10"
-      >
-        <span className="text-white/45">Puck</span>
-        <span className={carrier ? 'text-app-gold' : 'text-white/40'}>
-          {carrier ? `#${carrier.number}` : 'loose'}
-        </span>
-        {passesUsed > 0 && (
-          <span className="text-white/35">· {passesUsed} pass{passesUsed === 1 ? '' : 'es'}</span>
-        )}
-      </button>
+      {/* Compact landscape has no room to spare here: this used to be its
+          own chip, and `ContextChips` hid it outright in that layout for the
+          same reason - it would eat the progress bar's width. */}
+      {!inline && (
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'possession' })}
+          aria-haspopup="dialog"
+          className="touch-target flex shrink-0 items-center gap-1 rounded-xl border border-app-border bg-white/5 px-2.5 text-[12px] font-bold hover:bg-white/10"
+        >
+          <span className="text-white/45">Puck</span>
+          <span className={carrier ? 'text-app-gold' : 'text-white/40'}>
+            {carrier ? `#${carrier.number}` : 'loose'}
+          </span>
+          {passesUsed > 0 && (
+            <span className="text-white/35">· {passesUsed} pass{passesUsed === 1 ? '' : 'es'}</span>
+          )}
+        </button>
+      )}
 
       <button
         type="button"

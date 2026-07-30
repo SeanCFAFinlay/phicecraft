@@ -379,6 +379,18 @@ describe('responsive shell', () => {
     expect(screen.getByRole('button', { name: 'Redo' })).toBeInTheDocument();
   });
 
+  it('folds the transport into the dock on a compact-landscape phone, without the possession button', () => {
+    setViewport(VIEWPORTS.phoneLandscapeSmall);
+    __resetResponsiveCache();
+    renderApp();
+
+    // The dock's own Play button is still there...
+    expect(screen.getByRole('navigation', { name: 'Editing tools' })).toBeInTheDocument();
+    // ...but the possession button, which the dock has no width to spare
+    // for, is not - it only lives in the transport's own (non-inline) row.
+    expect(screen.queryByRole('button', { name: /^Puck/ })).not.toBeInTheDocument();
+  });
+
   it('a phone frames a zone for a reopened drill that happens to have zero players', async () => {
     setViewport(VIEWPORTS.phonePortrait);
     __resetResponsiveCache();
