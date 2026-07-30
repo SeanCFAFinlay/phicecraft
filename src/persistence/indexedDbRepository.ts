@@ -472,6 +472,35 @@ export class IndexedDbDrillRepository implements DrillRepository {
     return result.ok ? ok(undefined) : err(result.error);
   }
 
+  /** Mirrors `read`, but at the full v3 shape - see `reviveStoredDocumentV3`. */
+  async readDocumentV3(id: ID): PersistenceResult<DrillDocumentV3> {
+    try {
+      const db = await this.getDb();
+      const record = await db.get('drills', id);
+      const revived = reviveStoredDocumentV3(record, id);
+      if (!revived.ok) {
+        if (revived.reason === 'not-found') {
+          return err(persistenceError('not-found', 'read', `No drill stored with id ${id}.`));
+        }
+        await this.putRecovery({
+          id: `corrupt-${id}-${Date.now()}`,
+          source: 'corrupt-record',
+          reference: id,
+          raw: record,
+          reason: revived.reason,
+          capturedAt: Date.now(),
+        });
+        return err(
+          persistenceError('corrupt-data', 'read', `Stored drill ${id} could not be read: ${revived.reason}`)
+        );
+      }
+      if (revived.rewrite) await this.rewriteStoredRecord(revived.rewrite);
+      return ok(revived.document);
+    } catch (cause) {
+      return err(classifyThrown('read', cause, `Could not read drill ${id}.`));
+    }
+  }
+
   async saveMany(drills: Drill[]): PersistenceResult<ID[]> {
     if (drills.length === 0) return ok([]);
 

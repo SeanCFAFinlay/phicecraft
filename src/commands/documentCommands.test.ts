@@ -83,9 +83,13 @@ describe('saveAsNewPlay', () => {
   });
 
   it('preserves every semantic route field in the copy', async () => {
+    // `route.team` has no independent existence in the v3 model storage now
+    // round-trips through - it is derived from the owning actor's team
+    // (`projectToV2`) - so the owner must actually be on the team the route
+    // claims for this to test anything meaningful.
     harness.loadDrill(
       buildDrill({
-        players: [buildPlayer({ id: 'p1', hasPuck: true })],
+        players: [buildPlayer({ id: 'p1', hasPuck: true, team: 'away' })],
         skatePaths: [buildDistinctiveRoute('p1')],
       })
     );
@@ -243,13 +247,16 @@ describe('useTemplate', () => {
     const withGear = DRILL_TEMPLATES.find(template => template.document.equipment.length > 0);
     if (!withGear) throw new Error('expected a template with equipment for this test to mean anything');
 
-    const saveDocumentV3 = vi.spyOn(harness.repository, 'saveDocumentV3');
-
     const result = await harness.commands.useTemplate(withGear.id);
     expect(result.status).toBe('done');
 
-    expect(saveDocumentV3).toHaveBeenCalledTimes(1);
-    const storedDocument = saveDocumentV3.mock.calls[0][0];
+    // Read back what the fake actually has in storage - not merely what was
+    // passed to `saveDocumentV3` - so a bug in the save call itself (writing
+    // something other than its argument) would be caught too. The fake stores
+    // v3 natively (`documents`), the same as the real repository.
+    const storedDocument = harness.repository.documents.get(harness.getState().drill.id);
+    expect(storedDocument).toBeDefined();
+    if (!storedDocument) return;
 
     // The stored document is the real thing, not the v2 projection: equipment
     // and template provenance survive in content, and it carries a fresh id
@@ -281,11 +288,10 @@ describe('useTemplate', () => {
     const template = DRILL_TEMPLATES[0];
     const originalActorIds = new Set(template.document.actors.map(actor => actor.id));
 
-    const saveDocumentV3 = vi.spyOn(harness.repository, 'saveDocumentV3');
     const result = await harness.commands.useTemplate(template.id);
     expect(result.status).toBe('done');
 
-    const storedDocument = saveDocumentV3.mock.calls[0][0];
+    const storedDocument = harness.repository.documents.get(harness.getState().drill.id)!;
     const storedOnIceIds = storedDocument.actors.filter(isOnIce).map(actor => actor.id).sort();
     const editorPlayerIds = harness.getState().drill.players.map(player => player.id).sort();
 

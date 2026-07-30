@@ -227,6 +227,14 @@ export interface DrillRepository {
    * puck tracks and rich metadata survive into a backup.
    */
   readAllDocumentsV3(): PersistenceResult<DrillDocumentV3[]>;
+  /**
+   * Reads one stored document at its full v3 shape, without projecting to v2.
+   * `not-found` when there is no record under `id`; other codes mean read
+   * failure. Used wherever a v3-to-v3 operation - duplicating a drill,
+   * chiefly - needs the genuine stored document rather than the v2 `Drill`
+   * `read` would hand back.
+   */
+  readDocumentV3(id: ID): PersistenceResult<DrillDocumentV3>;
   /** Writes the drill and its list entry in one transaction. */
   save(drill: Drill): PersistenceResult<void>;
   /** Writes every drill in a single transaction; all or nothing. */

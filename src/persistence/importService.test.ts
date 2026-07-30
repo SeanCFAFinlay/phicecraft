@@ -149,7 +149,14 @@ describe('copy mode (the default)', () => {
   });
 
   it('preserves route mode, finish, team and points through the import', async () => {
-    const incoming = buildDrill({ skatePaths: [buildDistinctiveRoute('p1')] });
+    // `route.team` has no independent existence in the v3 model storage now
+    // round-trips through - it is derived from the owning actor's team
+    // (`projectToV2`) - so the owner must actually be on the team the route
+    // claims for this to test anything meaningful.
+    const incoming = buildDrill({
+      players: [buildPlayer({ id: 'p1', hasPuck: true, team: 'away' })],
+      skatePaths: [buildDistinctiveRoute('p1')],
+    });
     const result = await importAsCopies(json(incoming), repository, { now: FIXED_NOW });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -224,7 +231,11 @@ describe('copy mode (the default)', () => {
     const result = await importAsCopies(json(incoming), repository, { now: FIXED_NOW });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(repository.drills.get(result.value.importedIds[0])!.skatePaths[0].points).toHaveLength(1);
+    // The repair pipeline drops only the NaN point, leaving one - but v3
+    // storage (native in the fake, same as the real repository) needs at
+    // least two points to form a movement segment at all, so the route is
+    // dropped entirely rather than surviving as a single point.
+    expect(repository.drills.get(result.value.importedIds[0])!.skatePaths).toEqual([]);
   });
 
   it('rejects an event with an unsupported type', async () => {
