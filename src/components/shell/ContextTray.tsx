@@ -12,6 +12,13 @@
 // absolutely-positioned chip floating over the ice instead: this task moves
 // it into the layout on purpose, because a control that can be mistaken for
 // part of the ice is a control a coach can tap through by accident.
+//
+// On a compact-landscape phone that trade measured short of the rink-height
+// floor in a real browser (667x375 and 844x390 - see e2e/viewports.spec.ts):
+// stacking a second row on top of the dock's own row left too little ice.
+// There, the selection does not get a row of its own at all - Details and
+// Delete replace Add and Play inside the dock's one row instead (`ToolDock`'s
+// `compactSelection` prop), so the total chrome height never changes.
 // ============================================================================
 
 import { useAppState, useCommands } from '@/hooks/useAppState';
@@ -24,7 +31,7 @@ export function ContextTray() {
   const { state } = useAppState();
   const commands = useCommands();
   const hold = useHoldProgress();
-  const { isPhone } = useResponsive();
+  const { isPhone, isCompactLandscape } = useResponsive();
 
   const playerId = state.selection.selectedPlayerId;
   const eventId = state.selection.selectedEventId;
@@ -36,7 +43,18 @@ export function ContextTray() {
   // The row deliberately stays mounted while the inspector is open. Removing
   // it meant the Details button that opened the inspector no longer existed
   // when the inspector closed, so focus had nowhere to return to.
-  const showSelection = state.pendingAction.kind === 'none' && (player !== null || event !== null);
+  const hasSelection = state.pendingAction.kind === 'none' && (player !== null || event !== null);
+  const openDetails = () =>
+    player ? commands.openPlayerInspector(player.id) : commands.openEventInspector(event!.id);
+  const remove = () => {
+    if (player) void commands.removePlayer(player.id);
+    else commands.removeEvent(event!.id);
+  };
+
+  // In compact landscape the selection folds into the dock row itself
+  // (below); everywhere else it is the stacked row this component is named
+  // for.
+  const showSelection = hasSelection && !isCompactLandscape;
 
   return (
     <div className="shrink-0">
@@ -79,9 +97,7 @@ export function ContextTray() {
 
           <button
             type="button"
-            onClick={() =>
-              player ? commands.openPlayerInspector(player.id) : commands.openEventInspector(event!.id)
-            }
+            onClick={openDetails}
             className="touch-target rounded-xl border border-app-border bg-white/5 px-3 text-[12px] font-bold text-app-text"
           >
             Details
@@ -89,17 +105,16 @@ export function ContextTray() {
 
           <button
             type="button"
-            onClick={() => {
-              if (player) void commands.removePlayer(player.id);
-              else commands.removeEvent(event!.id);
-            }}
+            onClick={remove}
             className="touch-target rounded-xl border border-red-400/40 bg-red-500/10 px-3 text-[12px] font-bold text-red-200"
           >
             Delete
           </button>
         </div>
       )}
-      <ToolDock />
+      <ToolDock
+        compactSelection={hasSelection && isCompactLandscape ? { onDetails: openDetails, onDelete: remove } : null}
+      />
     </div>
   );
 }

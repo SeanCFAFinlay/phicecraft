@@ -159,6 +159,17 @@ export function DeleteIcon(props: IconProps) {
   );
 }
 
+/** Open the inspector for whatever is selected. */
+export function DetailsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5.5" />
+      <circle cx="12" cy="7.8" r="0.9" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
+
 // ----------------------------------------------------------------------------
 // Menu and secondary actions
 //
