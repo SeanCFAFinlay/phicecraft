@@ -18,6 +18,7 @@ import type {
   Point,
 } from '@/core/types';
 import { jerseyColor } from '@/core/types';
+import type { GhostTrailsSource } from '@/playback/playbackFrame';
 import { RINK, TABLETOP_MIN_TILT } from '@/core/constants';
 import { drawArenaWalls } from '@/canvas/RinkRenderer';
 import { drawArenaPlayers, drawPlayers } from '@/canvas/PlayerRenderer';
@@ -56,7 +57,7 @@ export interface DynamicLayerInput {
   positions: Record<ID, Point>;
   playerFrames: Record<ID, PlaybackPlayerFrame>;
   puck: AnimatedPuck | null;
-  ghostTrails: [ID, Point[]][];
+  ghostTrails: GhostTrailsSource;
   isPlaying: boolean;
   /**
    * True while a play is running, or outside Build. Route and event edit
@@ -147,8 +148,8 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
       )
     : scrubbed;
 
-  if (input.isPlaying && input.ghostTrails.length > 0) {
-    drawGhostTrails(ctx, new Map(input.ghostTrails), players);
+  if (input.isPlaying) {
+    drawGhostTrails(ctx, input.ghostTrails, players);
   }
 
   drawSkatePaths(ctx, drill.skatePaths);

@@ -3,6 +3,7 @@
 // ============================================================================
 
 import type { CurveShape, Point, SkatePath, DrillEvent, Player, ID } from '@/core/types';
+import type { GhostTrailsSource } from '@/playback/playbackFrame';
 import { COLORS, RINK } from '@/core/constants';
 import { pointAtParameter } from '@/utils/geometry';
 import { controlMidpoints, expandCurve } from '@/utils/curves';
@@ -565,10 +566,10 @@ export function drawEventEditHandles(ctx: CanvasRenderingContext2D, event: Drill
  */
 export function drawGhostTrails(
   ctx: CanvasRenderingContext2D,
-  trails: Map<ID, Point[]>,
+  trails: GhostTrailsSource,
   players: Player[]
 ): void {
-  trails.forEach((trail, playerId) => {
+  trails.forEach((playerId, trail) => {
     if (!trail || trail.length < 2) return;
 
     const player = players.find(p => p.id === playerId);

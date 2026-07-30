@@ -12,6 +12,7 @@ import type { StaticLayerInput } from '@/components/canvas/renderStatic';
 import type { DynamicLayerInput } from '@/components/canvas/renderDynamic';
 import type { Camera, Drill } from '@/core/types';
 import type { RendererHost } from '@/render/BoardRenderer';
+import { EMPTY_TRAILS } from '@/playback/playbackFrame';
 
 const drawStaticLayerMock = vi.fn();
 const drawDynamicLayerMock = vi.fn();
@@ -56,7 +57,7 @@ function dynamicInput(overrides: Partial<DynamicLayerInput> = {}): DynamicLayerI
     positions: {},
     playerFrames: {},
     puck: null,
-    ghostTrails: [],
+    ghostTrails: EMPTY_TRAILS,
     isPlaying: false,
     suppressEditAffordances: false,
     progress: 0,

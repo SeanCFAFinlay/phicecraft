@@ -62,6 +62,24 @@ export function derivePlaybackFrame(drill: Drill, progress: number, isPlaying: b
 // Ghost trails
 // ----------------------------------------------------------------------------
 
+/** An allocation-free-per-call trail source, for a render path that cannot afford a Map or array per frame. */
+export interface GhostTrailsSource {
+  /**
+   * Visit each player with an accumulated trail, oldest point first.
+   *
+   * The `points` array is reused across every callback invocation in the
+   * SAME `forEach` call - it is only valid for the duration of that one
+   * invocation. A consumer that needs the data afterward must copy it out
+   * (e.g. `[...points]`), never retain the reference itself.
+   */
+  forEach(cb: (playerId: ID, points: readonly Point[]) => void): void;
+}
+
+/** No trails: the singleton passed in whenever playback is not running. */
+export const EMPTY_TRAILS: GhostTrailsSource = {
+  forEach: () => {},
+};
+
 /**
  * A fixed-capacity ring buffer per player.
  *
@@ -69,8 +87,10 @@ export function derivePlaybackFrame(drill: Drill, progress: number, isPlaying: b
  * per frame. This allocates once, writes in place, and is owned by the
  * renderer rather than the document reducer.
  */
-export class GhostTrailBuffer {
+export class GhostTrailBuffer implements GhostTrailsSource {
   private readonly buffers = new Map<ID, { points: Point[]; head: number; size: number }>();
+  /** Reused by `forEach` across every player it visits in one pass - see `GhostTrailsSource`. */
+  private readonly scratch: Point[] = [];
 
   constructor(private readonly capacity: number) {}
 
@@ -107,6 +127,20 @@ export class GhostTrailBuffer {
 
   entries(): [ID, Point[]][] {
     return [...this.buffers.keys()].map(id => [id, this.read(id)]);
+  }
+
+  /** Allocation-free-per-call: see `GhostTrailsSource` for the reuse contract. */
+  forEach(cb: (playerId: ID, points: readonly Point[]) => void): void {
+    for (const [playerId, buffer] of this.buffers) {
+      if (buffer.size === 0) continue;
+
+      this.scratch.length = 0;
+      const start = (buffer.head - buffer.size + this.capacity) % this.capacity;
+      for (let index = 0; index < buffer.size; index++) {
+        this.scratch.push(buffer.points[(start + index) % this.capacity]);
+      }
+      cb(playerId, this.scratch);
+    }
   }
 
   clear(): void {

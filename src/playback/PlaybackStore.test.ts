@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { PlaybackStore } from './PlaybackStore';
 import { GhostTrailBuffer, derivePlaybackFrame } from './playbackFrame';
 import { buildDrill, buildPass, buildPlayer, buildRoute } from '@/test/builders';
-import type { Drill } from '@/core/types';
+import type { Drill, Point } from '@/core/types';
 
 function drillWithRoute(): Drill {
   return buildDrill({
@@ -131,6 +131,53 @@ describe('ghost trails', () => {
     store.seek(0.5);
     store.reset();
     expect(store.trails.entries()).toEqual([]);
+  });
+
+  it('forEach yields the same points as read(), oldest-first, per player', () => {
+    const buffer = new GhostTrailBuffer(4);
+    for (let index = 0; index < 6; index++) buffer.push('a', { x: index * 10, y: 0 });
+    buffer.push('b', { x: 1, y: 1 });
+    buffer.push('b', { x: 2, y: 2 });
+
+    const seen: Record<string, readonly Point[]> = {};
+    buffer.forEach((playerId, points) => {
+      seen[playerId] = [...points];
+    });
+
+    expect(seen.a).toEqual(buffer.read('a'));
+    expect(seen.b).toEqual(buffer.read('b'));
+  });
+
+  it('reuses a single scratch array across callback invocations in one forEach pass', () => {
+    // The renderer relies on this to stay allocation-free: forEach hands every
+    // player's callback the SAME backing array, overwritten in place. This is
+    // only safe because each callback runs synchronously before the next -
+    // a consumer must copy out what it needs (as the assertion above does)
+    // rather than retain the reference past its own invocation.
+    const buffer = new GhostTrailBuffer(4);
+    buffer.push('a', { x: 0, y: 0 });
+    buffer.push('a', { x: 10, y: 0 });
+    buffer.push('b', { x: 1, y: 1 });
+    buffer.push('b', { x: 2, y: 2 });
+
+    const references: (readonly Point[])[] = [];
+    buffer.forEach((_playerId, points) => {
+      references.push(points);
+    });
+
+    expect(references).toHaveLength(2);
+    expect(references[0]).toBe(references[1]);
+  });
+
+  it('skips a player with no accumulated points', () => {
+    const buffer = new GhostTrailBuffer(4);
+    buffer.push('a', { x: 0, y: 0 });
+    buffer.push('b', undefined); // never actually accumulates
+
+    const seenIds: string[] = [];
+    buffer.forEach(playerId => seenIds.push(playerId));
+
+    expect(seenIds).toEqual(['a']);
   });
 });
 

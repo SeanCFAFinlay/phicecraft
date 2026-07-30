@@ -21,6 +21,7 @@ import type { DragPreview } from './renderDynamic';
 import { GestureStateMachine } from '@/editor/input/GestureStateMachine';
 import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input/gestureTypes';
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
+import { EMPTY_TRAILS } from '@/playback/playbackFrame';
 import { RINK, TABLETOP_MIN_TILT, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
 import { distance, screenToWorld } from '@/utils/geometry';
 import { authoredEvents, getAimedNetTarget } from '@/engine/puck';
@@ -100,7 +101,7 @@ export function CanvasSurface() {
       positions: frame.positions,
       playerFrames: frame.playerFrames,
       puck: frame.puck,
-      ghostTrails: current.playback.isPlaying ? playback.trails.entries() : [],
+      ghostTrails: current.playback.isPlaying ? playback.trails : EMPTY_TRAILS,
       isPlaying: current.playback.isPlaying,
       progress: frame.progress,
       selectedPlayerId: current.selection.selectedPlayerId,
