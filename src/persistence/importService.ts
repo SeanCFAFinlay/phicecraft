@@ -358,13 +358,41 @@ export async function commitImport(
     return ok({ importedIds: [], replacedIds: [], failures, warnings });
   }
 
+  // RULING (P2 followups item 3): a confirmed `replace` merges onto the local
+  // document for a v2-origin candidate (a v1 payload, a bare v2 drill) but
+  // replaces it wholesale for a v3-origin one (a version-2 payload, a bare v3
+  // document). The reasoning: `replaceAndSave`'s merge (`prepareForWrite` ->
+  // `mergeEditedIntoStored`) exists to preserve what the SOURCE FORMAT could
+  // not express - restoring your own pre-v3 backup should not silently erase
+  // equipment and phases the backup never had a chance to declare. A v3-origin
+  // file carries its own equipment/annotations/phases; blending them with
+  // whatever happens to be stored locally would produce a chimera the file
+  // never described, not a restore.
+  //
+  // The write below is genuinely a two-step "merge, then replace wholesale"
+  // for a replace-mode v3-origin candidate: `replaceAndSave` runs its normal
+  // merge first (the v2-shaped `toStore` write, keyed by `replaceIds`), and
+  // the enrichment loop that follows unconditionally overwrites the record
+  // with `candidate.sourceDocument` - a raw `saveDocumentV3` put, not a merge
+  // - for ANY candidate that had one, on both `copy` and `replace` decisions.
+  // For a v2-origin candidate there is no second write (no `sourceDocument`),
+  // so the first write's merge is what actually lands: restore semantics,
+  // preserved. This is the seam: the enrichment write is what already
+  // enforces "v3-origin replaces wholesale", for a different original reason
+  // (v3-only content the `toStore` projection cannot express at all), and the
+  // ruling above is what makes that a deliberate policy rather than a
+  // coincidence of write order.
   const stored = await repository.replaceAndSave(toStore, replaceIds);
   if (!stored.ok) return err(stored.error);
 
   // Best-effort enrichment: the import already succeeded at the v2 shape
   // above, so a failure here is reported as a warning rather than undoing
   // that success - the coach keeps their import, just without the v3-only
-  // extras this pass would have added.
+  // extras this pass would have added. For a replace-mode v3-origin
+  // candidate specifically, that also means the merge `replaceAndSave` just
+  // performed is left standing rather than the intended wholesale replace -
+  // a narrower miss than losing the import outright, and surfaced by the
+  // same warning.
   for (const enrichment of v3Enrichments) {
     const saved = await repository.saveDocumentV3(enrichment.document);
     if (!saved.ok) {

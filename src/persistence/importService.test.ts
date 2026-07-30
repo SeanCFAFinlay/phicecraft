@@ -308,6 +308,84 @@ describe('replace mode', () => {
     expect(result.value.importedIds).toHaveLength(1);
     expect(result.value.warnings.some(w => w.includes('imported as a copy'))).toBe(true);
   });
+
+  // The ruling (P2 followups item 3): the preservation merge exists to carry
+  // across what the SOURCE FORMAT could not express, so it only applies to
+  // v2-origin imports (v1 payloads, bare v2 drills) - restoring one's own
+  // pre-v3 backup keeps local extras, because the backup never had a chance
+  // to declare its own. A v3-origin import (a version-2 envelope, or a bare
+  // v3 document) carries its own equipment/annotations/phases, so a confirmed
+  // replace takes the file's shape wholesale instead.
+  it('replaces equipment wholesale when a confirmed replace imports a v3-origin document', async () => {
+    const localId = 'shared-v3';
+    const localDocument: DrillDocumentV3 = {
+      ...migrateV2ToV3(structuredClone(giveAndGoRegressionDrill)),
+      id: localId,
+      equipment: [{ id: 'old-cone', kind: 'cone', position: { x: 1, y: 1 } }],
+    };
+    await repository.saveDocumentV3(localDocument);
+
+    const incomingDocument: DrillDocumentV3 = {
+      ...migrateV2ToV3(structuredClone(giveAndGoRegressionDrill)),
+      id: localId,
+      equipment: [{ id: 'new-tire', kind: 'tire', position: { x: 5, y: 5 } }],
+    };
+
+    const preview = await prepareImport(json(incomingDocument), repository, { now: FIXED_NOW });
+    expect(preview.ok).toBe(true);
+    if (!preview.ok) return;
+    expect(preview.value.candidates[0].collidesWith).toMatchObject({ id: localId });
+
+    const result = await commitImport(
+      preview.value,
+      [{ sourceIndex: 0, mode: 'replace' }],
+      repository,
+      { now: FIXED_NOW }
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.replacedIds).toEqual([localId]);
+
+    const stored = repository.documents.get(localId)!;
+    expect(stored.equipment.map(item => item.id)).toEqual(['new-tire']);
+  });
+
+  it('preserves local v3 extras when a confirmed replace imports a v1-origin payload', async () => {
+    const localId = 'shared-v1';
+    const localDocument: DrillDocumentV3 = {
+      ...migrateV2ToV3(structuredClone(giveAndGoRegressionDrill)),
+      id: localId,
+      equipment: [{ id: 'kept-cone', kind: 'cone', position: { x: 2, y: 2 } }],
+    };
+    await repository.saveDocumentV3(localDocument);
+
+    const incoming = {
+      format: 'phicecraft-drills',
+      version: 1,
+      exportedAt: 5,
+      containsUnsavedRevision: false,
+      drills: [buildDrill({ id: localId, name: 'Restored backup' })],
+    };
+
+    const preview = await prepareImport(json(incoming), repository, { now: FIXED_NOW });
+    expect(preview.ok).toBe(true);
+    if (!preview.ok) return;
+    expect(preview.value.candidates[0].collidesWith).toMatchObject({ id: localId });
+
+    const result = await commitImport(
+      preview.value,
+      [{ sourceIndex: 0, mode: 'replace' }],
+      repository,
+      { now: FIXED_NOW }
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.replacedIds).toEqual([localId]);
+
+    const stored = repository.documents.get(localId)!;
+    expect(stored.equipment.map(item => item.id)).toEqual(['kept-cone']);
+    expect(stored.metadata.title).toBe('Restored backup');
+  });
 });
 
 describe('the exact imported ID', () => {
