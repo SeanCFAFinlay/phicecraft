@@ -1,17 +1,25 @@
 // ============================================================================
 // TOP STRIP
 //
-// On a phone this holds only what has to be one tap away: menu, brand, the
-// truncated play name, Undo, and More. Redo, the destructive clears, import,
-// export, rename, settings and diagnostics all live in the More sheet.
+// On a phone this holds only what has to be one tap away: menu, the truncated
+// play name, Undo, Mode and More. Redo, the destructive clears, import,
+// export, rename, settings and diagnostics all live in the More sheet; the
+// brand wordmark hides here too, and the badge follows at the narrowest
+// width, since neither is one of those essentials.
 //
-// At 320px this is five targets of at least 44px plus a flexible name - it
-// cannot clip, because the name is the only thing that shrinks.
+// At 320px this is five 44px targets (menu, play name, undo, mode, more) plus
+// a flexible name - it cannot clip, because the name is the only thing that
+// shrinks. Five 44px buttons, not six: Build/Preview/Present would be three
+// MORE targets on their own, which is why a phone gets `ModeSwitchTrigger`
+// (one button, opens `ModeSheet`) instead of the desktop `ModeSwitch`
+// radiogroup inline - three-wide, it does not fit this row at any of the
+// required portrait widths (320-390) alongside everything else that has to
+// stay visible.
 // ============================================================================
 
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
-import { ModeSwitch } from './ModeSwitch';
+import { ModeSwitch, ModeSwitchTrigger } from './ModeSwitch';
 import { SaveStatus } from './SaveStatus';
 
 export function TopStrip() {
@@ -41,19 +49,23 @@ export function TopStrip() {
 
       {/*
         A 36px badge, served from a 36px-class asset. The 2 MB, 1254x1254
-        source used to be downloaded in full for this.
+        source used to be downloaded in full for this. Dropped on a phone: the
+        five 44px buttons this row needs already claim most of 320px, and
+        branding is the one thing here a coach does not need mid-drill.
       */}
-      <img
-        src="/assets/ph-logo.webp"
-        alt=""
-        width={32}
-        height={32}
-        decoding="async"
-        className="h-8 w-8 flex-shrink-0 rounded-lg object-contain"
-        draggable={false}
-      />
+      {!isPhone && (
+        <img
+          src="/assets/ph-logo.webp"
+          alt=""
+          width={32}
+          height={32}
+          decoding="async"
+          className="h-8 w-8 flex-shrink-0 rounded-lg object-contain"
+          draggable={false}
+        />
+      )}
 
-      {!isCompactLandscape && (
+      {!isPhone && !isCompactLandscape && (
         <span className="hidden flex-shrink-0 text-base font-black tracking-wider text-white sm:block">
           PHICE<span className="text-app-cyan">CRAFT</span>
         </span>
@@ -81,7 +93,7 @@ export function TopStrip() {
       </button>
 
       {isPhone ? (
-        <ModeSwitch />
+        <ModeSwitchTrigger />
       ) : (
         <>
           <button

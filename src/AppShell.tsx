@@ -29,7 +29,7 @@ import { DialogHost } from '@/components/DialogHost';
 import { LiveRegion } from '@/components/a11y/LiveRegion';
 import { ViewControls } from '@/components/ViewControls';
 import { ValidationPanel } from '@/components/ValidationPanel';
-import { AddSheet, PossessionSheet, WorkflowSheet } from '@/components/sheets/QuickSheets';
+import { AddSheet, ModeSheet, PossessionSheet, WorkflowSheet } from '@/components/sheets/QuickSheets';
 import { UpdateBanner } from '@/pwa/UpdateBanner';
 import { useResponsive } from '@/ui/useResponsive';
 
@@ -139,6 +139,7 @@ export function AppShell() {
       <AddSheet />
       <PossessionSheet />
       <WorkflowSheet />
+      <ModeSheet />
 
       <Suspense fallback={null}>
         {state.ui.openSheet === 'library' && <LibraryPage />}

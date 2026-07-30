@@ -438,6 +438,7 @@ export type SheetKind =
   | 'library'
   | 'possession'
   | 'workflow'
+  | 'mode'
   | 'playback'
   | 'help'
   | 'diagnostics'

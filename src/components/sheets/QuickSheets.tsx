@@ -16,6 +16,7 @@ import { getPuckChain } from '@/engine/puck';
 import { isReviewComplete } from '@/commands';
 import type { Tool } from '@/core/types';
 import { CoachIcon, GoalieIcon, PuckIcon, ShootIcon, SkaterIcon } from '@/ui/icons';
+import { ModeSwitch } from '../shell/ModeSwitch';
 
 export function SheetItem({
   icon,
@@ -236,6 +237,28 @@ export function WorkflowSheet() {
           </p>
         </div>
       )}
+    </Sheet>
+  );
+}
+
+// ----------------------------------------------------------------------------
+
+/** The phone stand-in for the header's `ModeSwitch` - see its own doc comment. */
+export function ModeSheet() {
+  const { state, dispatch } = useAppState();
+  const open = state.ui.openSheet === 'mode';
+  const close = () => dispatch({ type: 'CLOSE_SHEET' });
+
+  return (
+    <Sheet
+      open={open}
+      title="Mode"
+      description="Build, Preview or Present - the same drill, viewed for a different purpose."
+      onClose={close}
+    >
+      <div className="flex justify-center px-3 py-2">
+        <ModeSwitch onSelect={close} />
+      </div>
     </Sheet>
   );
 }
