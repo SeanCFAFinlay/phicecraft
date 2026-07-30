@@ -76,12 +76,15 @@ export function Transport({
           aria-haspopup="dialog"
           className="touch-target flex shrink-0 items-center gap-1 rounded-xl border border-app-border bg-white/5 px-2.5 text-[12px] font-bold hover:bg-white/10"
         >
-          <span className="text-white/45">Puck</span>
+          {/* /45 measured 4.32:1 against this row's background - just under
+              the 4.5:1 axe requires; /60 clears it with room to spare. */}
+          <span className="text-white/60">Puck</span>
           <span className={carrier ? 'text-app-gold' : 'text-white/40'}>
             {carrier ? `#${carrier.number}` : 'loose'}
           </span>
+          {/* Same contrast fix as the "Puck" label above. */}
           {passesUsed > 0 && (
-            <span className="text-white/35">· {passesUsed} pass{passesUsed === 1 ? '' : 'es'}</span>
+            <span className="text-white/60">· {passesUsed} pass{passesUsed === 1 ? '' : 'es'}</span>
           )}
         </button>
       )}
