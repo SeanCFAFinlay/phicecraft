@@ -8,6 +8,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { effectiveDevicePixelRatio } from '@/camera/cameraMath';
+import type { BoardRenderer } from '@/render/BoardRenderer';
+import { Canvas2DRenderer } from '@/render/canvas2d/Canvas2DRenderer';
 
 export type RenderQuality = 'high' | 'medium' | 'low';
 
@@ -21,6 +23,12 @@ export interface CanvasLayers {
   quality: RenderQuality;
   /** Report a frame time so the renderer can shed pixels under sustained load. */
   reportFrameTime: (ms: number) => void;
+  /**
+   * The active renderer, or null before the two canvas elements have mounted.
+   * A function, not a value, so its identity is stable across renders — the
+   * renderer itself lives in a ref and must never join the memo below.
+   */
+  getRenderer: () => BoardRenderer | null;
 }
 
 /** Frames above this are over the 60fps budget with no headroom to spare. */
@@ -40,6 +48,13 @@ export function useCanvasLayers(onResize?: (width: number, height: number) => vo
 
   const overBudget = useRef(0);
   const underBudget = useRef(0);
+
+  const rendererRef = useRef<BoardRenderer | null>(null);
+  const getRenderer = useCallback(() => rendererRef.current, []);
+
+  // Task 2 wires this into the app-owned paint counters; for now it is the
+  // seam every renderer implementation reports through.
+  const onPaint = useCallback((_layer: 'static' | 'dynamic') => {}, []);
 
   const dpr = effectiveDevicePixelRatio(
     typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
@@ -66,16 +81,26 @@ export function useCanvasLayers(onResize?: (width: number, height: number) => vo
     return () => observer.disconnect();
   }, [onResize]);
 
+  // The renderer is constructed once both canvas elements exist. It lives in
+  // a ref, not in state or the memo below, so choosing (or later swapping)
+  // one never forces every subscriber of the memoized object to re-run.
+  useEffect(() => {
+    const staticCanvas = staticCanvasRef.current;
+    const dynamicCanvas = dynamicCanvasRef.current;
+    if (!staticCanvas || !dynamicCanvas) return;
+
+    const renderer = new Canvas2DRenderer({ staticCanvas, dynamicCanvas, onPaint });
+    rendererRef.current = renderer;
+    return () => {
+      renderer.dispose();
+      rendererRef.current = null;
+    };
+  }, [onPaint]);
+
   // Apply the backing-store size whenever the layout size or DPR changes.
   useEffect(() => {
-    for (const ref of [staticCanvasRef, dynamicCanvasRef]) {
-      const canvas = ref.current;
-      if (!canvas || size.width === 0 || size.height === 0) continue;
-      canvas.width = Math.round(size.width * dpr);
-      canvas.height = Math.round(size.height * dpr);
-      canvas.style.width = `${size.width}px`;
-      canvas.style.height = `${size.height}px`;
-    }
+    if (size.width === 0 || size.height === 0) return;
+    rendererRef.current?.resize(size.width, size.height, dpr);
   }, [size, dpr]);
 
   const reportFrameTime = useCallback((ms: number) => {
@@ -99,6 +124,8 @@ export function useCanvasLayers(onResize?: (width: number, height: number) => vo
   // Memoized: this object is a dependency of the draw callbacks, which are in
   // turn dependencies of subscriptions. A fresh object every render would
   // re-subscribe the canvas to the camera and frame stores continuously.
+  // getRenderer's identity never changes (useCallback, no deps), so adding it
+  // here does not add a new invalidation source.
   return useMemo(
     () => ({
       containerRef,
@@ -109,7 +136,8 @@ export function useCanvasLayers(onResize?: (width: number, height: number) => vo
       dpr,
       quality,
       reportFrameTime,
+      getRenderer,
     }),
-    [size.width, size.height, dpr, quality, reportFrameTime]
+    [size.width, size.height, dpr, quality, reportFrameTime, getRenderer]
   );
 }

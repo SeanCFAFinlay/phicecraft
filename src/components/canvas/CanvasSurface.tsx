@@ -17,8 +17,7 @@ import type { AppState } from '@/core/types';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { useCanvasLayers } from './useCanvasLayers';
 import { useHitTesting } from './useHitTesting';
-import { drawStaticLayer, staticLayerKey } from './renderStatic';
-import { drawDynamicLayer, type DragPreview } from './renderDynamic';
+import type { DragPreview } from './renderDynamic';
 import { GestureStateMachine } from '@/editor/input/GestureStateMachine';
 import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input/gestureTypes';
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
@@ -79,22 +78,20 @@ export function CanvasSurface() {
    * interception against a compiled drill.
    */
   const passCandidatesRef = useRef<{ passerId: ID; candidates: PassCandidateView[] } | null>(null);
-  const lastStaticKey = useRef<string>('');
 
   // --------------------------------------------------------------------------
   // Rendering
   // --------------------------------------------------------------------------
 
   const drawDynamic = useCallback(() => {
-    const canvas = layers.dynamicCanvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || layers.width === 0) return;
+    const renderer = layers.getRenderer();
+    if (!renderer || layers.width === 0) return;
 
     const started = performance.now();
     const current = stateRef.current;
     const frame = playback.getFrame();
 
-    drawDynamicLayer(ctx, {
+    renderer.drawDynamic({
       camera: camera.camera,
       width: layers.width,
       height: layers.height,
@@ -123,20 +120,15 @@ export function CanvasSurface() {
   }, [camera, playback, layers]);
 
   const drawStatic = useCallback(() => {
-    const canvas = layers.staticCanvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || layers.width === 0) return;
+    const renderer = layers.getRenderer();
+    if (!renderer || layers.width === 0) return;
 
-    const input = {
+    renderer.drawStatic({
       camera: camera.camera,
       width: layers.width,
       height: layers.height,
       dpr: layers.dpr,
-    };
-    const key = staticLayerKey(input);
-    if (key === lastStaticKey.current) return;
-    lastStaticKey.current = key;
-    drawStaticLayer(ctx, input);
+    });
   }, [camera, layers]);
 
   // The dynamic layer repaints after every committed React render (an
