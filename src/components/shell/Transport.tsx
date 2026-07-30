@@ -1,9 +1,16 @@
 // ============================================================================
 // TRANSPORT
 //
-// The collapsed playback bar: reset, play/pause, time, expand. Everything else
-// - the full timeline, speed, step controls, lifecycle, diagnostics - lives in
-// the expanded playback sheet, so the rink keeps its height on a phone.
+// The collapsed playback bar: possession, reset, play/pause, time, expand.
+// Everything else - the full timeline, speed, step controls, lifecycle,
+// diagnostics - lives in the expanded playback sheet, so the rink keeps its
+// height on a phone.
+//
+// Possession (who has the puck, and how many passes so far) sits at the left
+// end because it is playback-adjacent information, not an editing control -
+// it used to be its own chip floating over the rink, collapsed with the
+// workflow chip into `ContextChips`. The lifecycle badge that chip also
+// carried on non-phone layouts lives here too, as plain status text.
 //
 // It subscribes to the playback store's COARSE snapshot, so it re-renders
 // about once per percent of progress rather than 60 times a second.
@@ -12,6 +19,7 @@
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { usePlaybackSnapshot } from '@/playback/usePlaybackSnapshot';
+import { usePuckActions } from '@/hooks/usePuckActions';
 import { useResponsive } from '@/ui/useResponsive';
 import { ExpandIcon, PauseIcon, PlayIcon, StepBackIcon } from '@/ui/icons';
 
@@ -40,7 +48,8 @@ export function Transport({
   const commands = useCommands();
   const { playback } = useEditorRuntime();
   const snapshot = usePlaybackSnapshot(playback);
-  const { isCompactLandscape } = useResponsive();
+  const { isCompactLandscape, isPhone } = useResponsive();
+  const { carrier, passesUsed } = usePuckActions();
 
   const isPlaying = state.playback.isPlaying;
   const progress = snapshot.progressPercent / 100;
@@ -54,6 +63,21 @@ export function Transport({
       }
       style={inline ? undefined : { minHeight: 'var(--transport-height)' }}
     >
+      <button
+        type="button"
+        onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'possession' })}
+        aria-haspopup="dialog"
+        className="touch-target flex shrink-0 items-center gap-1 rounded-xl border border-app-border bg-white/5 px-2.5 text-[12px] font-bold hover:bg-white/10"
+      >
+        <span className="text-white/45">Puck</span>
+        <span className={carrier ? 'text-app-gold' : 'text-white/40'}>
+          {carrier ? `#${carrier.number}` : 'loose'}
+        </span>
+        {passesUsed > 0 && (
+          <span className="text-white/35">· {passesUsed} pass{passesUsed === 1 ? '' : 'es'}</span>
+        )}
+      </button>
+
       <button
         type="button"
         onClick={commands.resetPlayback}
@@ -101,6 +125,14 @@ export function Transport({
           ? `${(progress * snapshot.durationSeconds).toFixed(1)}s`
           : formatClock(progress, snapshot.durationSeconds)}
       </span>
+
+      {/* The lifecycle status used to ride along on the (now-gone) workflow
+          chip, shown only where there is room to spare for it. */}
+      {!inline && !isPhone && state.playback.lifecycle !== 'ready' && (
+        <span className="shrink-0 text-[11px] font-black uppercase tracking-wide text-cyan-200">
+          {state.playback.lifecycle}
+        </span>
+      )}
 
       {showExpand && (
         <button

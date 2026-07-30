@@ -109,6 +109,49 @@ describe('selection does not open a large panel', () => {
   });
 });
 
+describe('context tray', () => {
+  it('selecting a player extends the tray instead of floating a chip over the ice', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    // Seed a player in Build, via the Add sheet, the same way other tests do.
+    await user.click(screen.getByRole('button', { name: /Add/ }));
+    const addSheet = await screen.findByRole('dialog', { name: 'Add to the rink' });
+    await user.click(within(addSheet).getByRole('button', { name: /Home player/ }));
+
+    const rink = screen.getByRole('application', { name: /hockey rink/i });
+    const playerTap = { pointerId: 1, x: 300, y: 200 };
+    await act(async () => {
+      pointer.down(rink, playerTap);
+      pointer.up(rink, playerTap);
+    });
+
+    // Back to Move, so a second tap on the token selects it instead of
+    // placing another player.
+    await user.click(screen.getByRole('button', { name: 'Move' }));
+    await act(async () => {
+      pointer.down(rink, playerTap);
+      pointer.up(rink, playerTap);
+    });
+
+    const main = screen.getByRole('main');
+    expect(within(main).queryByRole('button', { name: /Details/ })).not.toBeInTheDocument();
+    const tray = screen.getByRole('group', { name: 'Selection' });
+    expect(within(tray).getByRole('button', { name: 'Details' })).toBeInTheDocument();
+  });
+
+  it('the workflow guide lives in the menu, not on the rink', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    expect(screen.queryByRole('button', { name: /Step 1 of 4/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open main menu' }));
+    const sheet = await screen.findByRole('dialog');
+    expect(within(sheet).getByRole('button', { name: /Step 1 of 4/ })).toBeInTheDocument();
+  });
+});
+
 describe('sheets', () => {
   it('opens and closes the Add sheet from the dock', async () => {
     const user = userEvent.setup();

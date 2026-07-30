@@ -17,11 +17,11 @@ import { useAppServices, useAppState } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { CanvasSurface } from '@/components/canvas/CanvasSurface';
 import { TopStrip } from '@/components/shell/TopStrip';
-import { ToolDock } from '@/components/shell/ToolDock';
+import { ContextTray } from '@/components/shell/ContextTray';
 import { Transport } from '@/components/shell/Transport';
 import { PreviewBar } from '@/components/shell/PreviewBar';
 import { PresentOverlay } from '@/components/shell/PresentOverlay';
-import { ActionChip, ContextChips, SelectionChip } from '@/components/shell/RinkChips';
+import { ActionChip } from '@/components/shell/RinkChips';
 import { useKeyboardShortcuts } from '@/components/shell/useKeyboardShortcuts';
 import { ToastHost } from '@/components/Toast';
 import { DialogHost } from '@/components/DialogHost';
@@ -113,13 +113,7 @@ export function AppShell() {
       <main className="relative min-h-0 flex-1 overflow-hidden bg-[#0a1520]">
         <CanvasSurface />
 
-        {mode !== 'present' && (
-          <>
-            <ContextChips />
-            <ActionChip />
-            <SelectionChip />
-          </>
-        )}
+        {mode !== 'present' && <ActionChip />}
         <UpdateBanner />
         <ToastHost />
         {mode !== 'present' && <ViewControls />}
@@ -135,7 +129,7 @@ export function AppShell() {
           transport are not rendered at all - Preview gets its own read-only
           surface below; Present gets one in a later task. */}
       {mode === 'build' && !isCompactLandscape && <Transport />}
-      {mode === 'build' && <ToolDock />}
+      {mode === 'build' && <ContextTray />}
       {mode === 'preview' && <PreviewBar />}
 
       {/* Sheets and inspectors. Conditionally mounted, so nothing focusable

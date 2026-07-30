@@ -7,6 +7,7 @@
 
 import { useRef, type ChangeEvent } from 'react';
 import {
+  ChartIcon,
   CopyIcon,
   DrillIcon,
   ExportIcon,
@@ -26,6 +27,10 @@ import { SheetItem, SheetSection } from './QuickSheets';
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { JERSEY_COLORS, jerseyColor, type Team } from '@/core/types';
+
+// Moved from RinkChips.tsx along with the workflow chip it used to label.
+const STEP_NAMES = { setup: 'Setup', movement: 'Movement', puck: 'Puck actions', review: 'Review' } as const;
+const STEP_ORDER = ['setup', 'movement', 'puck', 'review'] as const;
 
 function JerseyRow({ team }: { team: Team }) {
   const { state } = useAppState();
@@ -65,6 +70,7 @@ export function MenuSheet() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const close = () => dispatch({ type: 'CLOSE_MENU' });
+  const stepIndex = STEP_ORDER.indexOf(state.ui.editorStep);
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -86,6 +92,18 @@ export function MenuSheet() {
         />
         <SheetItem icon={<RenameIcon />} label="Rename play" onClick={() => void commands.requestRename()} />
         <SheetItem icon={<NewDrillIcon />} label="New drill" onClick={() => void commands.newDrill()} />
+      </SheetSection>
+
+      <SheetSection title="Guide">
+        <SheetItem
+          icon={<ChartIcon />}
+          label={`Guide · Step ${stepIndex + 1} of ${STEP_ORDER.length}`}
+          detail={STEP_NAMES[state.ui.editorStep]}
+          onClick={() => {
+            close();
+            dispatch({ type: 'OPEN_SHEET', sheet: 'workflow' });
+          }}
+        />
       </SheetSection>
 
       <SheetSection title="Jerseys">
