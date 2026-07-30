@@ -43,4 +43,11 @@ describe('parseDrillDocumentV3', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.message.length).toBeGreaterThan(0);
   });
+
+  it('rejects an empty title: storable but not importable is not a state worth allowing', () => {
+    const doc = migrateV2ToV3(structuredClone(giveAndGoRegressionDrill));
+    const result = parseDrillDocumentV3({ ...doc, metadata: { ...doc.metadata, title: '' } });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain('title');
+  });
 });

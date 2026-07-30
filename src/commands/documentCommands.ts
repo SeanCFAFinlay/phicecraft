@@ -235,7 +235,12 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
       dispatch({ type: 'LOAD_DRILL', drill: copy });
       dispatch({ type: 'CLOSE_MENU' });
       dispatch({ type: 'CLOSE_SHEET' });
-      coordinator.reset();
+      // Mark `copy` pending BEFORE attempting the save, not after: the editor
+      // has already switched to it above, so if `saveDocumentV3` below fails,
+      // `retrySave` needs something to retry. Calling `coordinator.reset()`
+      // here first would clear `pending` ahead of that failure, leaving
+      // `retry()` with nothing to do and reporting a silent, false success.
+      coordinator.markDirty(copy);
 
       const saved = await repository.saveDocumentV3(documentCopy);
       if (!saved.ok) return reportFailure('That drill could not be saved', saved.error);

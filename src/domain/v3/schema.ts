@@ -67,7 +67,7 @@ const curveShape = z.enum(['spline', 'polyline']);
 // ----------------------------------------------------------------------------
 
 const drillMetadata: z.ZodType<DrillMetadata> = z.object({
-  title: z.string(),
+  title: z.string().min(1),
   summary: z.string(),
   categories: z.array(drillCategory),
   tags: z.array(z.string()),

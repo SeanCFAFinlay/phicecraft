@@ -306,6 +306,24 @@ describe('useTemplate', () => {
     const result = await harness.commands.useTemplate('not-a-real-template');
     expect(result.status).toBe('rejected');
   });
+
+  it('leaves a retryable state when the template copy fails to save, so retrySave is not a no-op', async () => {
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+    harness.repository.failOperation('save');
+
+    const result = await harness.commands.useTemplate(DRILL_TEMPLATES[0].id);
+    expect(result.status).toBe('failed');
+    // The editor already switched to the copy; the coordinator must still
+    // treat it as an outstanding write, not a cleared/reset one.
+    expect(harness.coordinator.hasUnsavedChanges).toBe(true);
+    expect(harness.repository.drills.has(harness.getState().drill.id)).toBe(false);
+
+    harness.repository.clearFailures();
+    const retried = await harness.commands.retrySave();
+
+    expect(retried.status).toBe('done');
+    expect(harness.repository.drills.has(harness.getState().drill.id)).toBe(true);
+  });
 });
 
 describe('loadFixture', () => {
