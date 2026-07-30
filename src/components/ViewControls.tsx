@@ -6,7 +6,7 @@
 // the animation respects reduced motion.
 // ============================================================================
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { useCameraSnapshot } from '@/playback/usePlaybackSnapshot';
 import { useResponsive } from '@/ui/useResponsive';
@@ -32,13 +32,24 @@ const AREAS: { zone: Zone; label: string; description: string }[] = [
   { zone: 'offensive', label: 'O ZONE', description: 'the right end, to the blue line' },
 ];
 
+/**
+ * Once the coach has panned or pinch-zoomed by hand, the camera is no longer
+ * any of the named views. The cycle button still needs something to show and
+ * to step on from - it shows a neutral label, and treats the next tap as
+ * starting the cycle over from `FULL`.
+ */
+const CUSTOM_AREA = { label: 'VIEW', description: 'a custom view' };
+
 export function ViewControls() {
   const { camera } = useEditorRuntime();
   const snapshot = useCameraSnapshot(camera);
   const { prefersReducedMotion, isCompactLandscape } = useResponsive();
 
   const rafRef = useRef<number | null>(null);
-  const [areaIndex, setAreaIndex] = useState(0);
+  // -1 (not found) for 'custom' - the arithmetic below then starts back at FULL.
+  const areaIndex = AREAS.findIndex(area => area.zone === snapshot.zone);
+  const currentArea = AREAS[areaIndex] ?? CUSTOM_AREA;
+  const nextArea = AREAS[(areaIndex + 1) % AREAS.length];
   const is3D = (snapshot.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
   const isVerticalBoard = Math.abs(snapshot.camera.rotation ?? 0) > Math.PI / 4;
 
@@ -137,17 +148,11 @@ export function ViewControls() {
       {!is3D && (
         <button
           type="button"
-          onClick={() => {
-            const next = (areaIndex + 1) % AREAS.length;
-            setAreaIndex(next);
-            camera.zoomToZone(AREAS[next].zone);
-          }}
-          aria-label={`Showing ${AREAS[areaIndex].description}. Tap for ${
-            AREAS[(areaIndex + 1) % AREAS.length].description
-          }.`}
+          onClick={() => camera.zoomToZone(nextArea.zone)}
+          aria-label={`Showing ${currentArea.description}. Tap for ${nextArea.description}.`}
           className={`${button} px-1.5 text-[10px] font-black tracking-tight`}
         >
-          {AREAS[areaIndex].label}
+          {currentArea.label}
         </button>
       )}
 

@@ -19,7 +19,8 @@ import { ImportPreviewStore } from '@/ui/ImportPreviewStore';
 import { CameraStore } from '@/camera/CameraStore';
 import { PlaybackStore } from '@/playback/PlaybackStore';
 import { HoldProgressStore } from '@/ui/HoldProgressStore';
-import { pointer, setViewport, VIEWPORTS } from '@/test/utils';
+import { flush, pointer, setViewport, VIEWPORTS } from '@/test/utils';
+import { createNewDrill } from '@/engine/drill';
 import { __resetValidationCaches } from '@/editor/useDrillValidation';
 import { __resetResponsiveCache } from '@/ui/useResponsive';
 
@@ -333,5 +334,28 @@ describe('responsive shell', () => {
     __resetResponsiveCache();
     renderApp();
     expect(screen.getByRole('button', { name: 'Redo' })).toBeInTheDocument();
+  });
+
+  it('a phone starts a new empty drill framed on a zone, not the full sheet', async () => {
+    setViewport(VIEWPORTS.phonePortrait);
+    __resetResponsiveCache();
+
+    // The boot fixture (`createInitialState`) seeds the default 12-player
+    // lineup, so it is not itself an empty drill. A genuinely empty one - the
+    // case this default is for - is a drill with no players saved as the
+    // repository's current one, which `initialize()` reopens on mount.
+    const emptyDrill = { ...createNewDrill(), players: [] };
+    await repository.save(emptyDrill);
+    await repository.setCurrentDrillId(emptyDrill.id);
+
+    renderApp();
+    await flush();
+    expect(services.camera.zone).toBe('offensive');
+  });
+
+  it('a desktop keeps the full sheet', async () => {
+    renderApp();
+    await flush();
+    expect(services.camera.zone).toBe('full');
   });
 });

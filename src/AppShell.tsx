@@ -12,8 +12,9 @@
 // lazy-loaded so none of them are on the path to first interaction.
 // ============================================================================
 
-import { Suspense, lazy, useSyncExternalStore } from 'react';
+import { Suspense, lazy, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useAppServices, useAppState } from '@/hooks/useAppState';
+import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { CanvasSurface } from '@/components/canvas/CanvasSurface';
 import { TopStrip } from '@/components/shell/TopStrip';
 import { ToolDock } from '@/components/shell/ToolDock';
@@ -72,7 +73,21 @@ const DiagnosticsOverlay = lazy(() =>
 export function AppShell() {
   const { state, dispatch } = useAppState();
   const { importPreviews } = useAppServices();
-  const { isDesktop, isCompactLandscape } = useResponsive();
+  const { camera } = useEditorRuntime();
+  const { isDesktop, isPhone, isCompactLandscape } = useResponsive();
+
+  // A full sheet on a phone shows an empty drill's players too small to place
+  // accurately, so a brand-new drill opens framed on the offensive zone
+  // instead - full ice stays one tap away, in the cycle button or Fit.
+  // Guarded per drill id so it fires once, not every time a player is added
+  // or removed from an already-open drill.
+  const appliedZoneFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isPhone || state.currentDrillId === null) return;
+    if (appliedZoneFor.current === state.currentDrillId) return;
+    appliedZoneFor.current = state.currentDrillId;
+    if (state.drill.players.length === 0) camera.zoomToZone('offensive');
+  }, [isPhone, state.currentDrillId, state.drill.players.length, camera]);
 
   // The command layer parses the file and publishes the preview here; this
   // component only renders it.
