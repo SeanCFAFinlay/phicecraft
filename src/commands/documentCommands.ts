@@ -340,10 +340,57 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
       const trimmed = chosen.trim();
       if (!trimmed) return rejected('A play needs a name.');
 
-      const copy = duplicateDrill(getState().drill, trimmed);
+      const current = getState().drill;
+      const storedDocument = await repository.readDocumentV3(current.id);
 
-      // The copy has to be durable BEFORE the editor switches to it, or a
-      // failed write leaves the user editing a document that does not exist.
+      if (storedDocument.ok) {
+        // Duplicate the stored v3 document, not the v2 projection - the
+        // `useTemplate` pattern - so equipment, annotations, extra puck
+        // tracks and phase structure survive the copy. The current (possibly
+        // unsaved) edit is merged onto the stored document first, via the
+        // same `mergeEditedIntoStored` seam `prepareForWrite` uses on every
+        // ordinary save, so the copy reflects what is actually on screen
+        // rather than a stale last-saved snapshot.
+        const [{ projectToV2 }, { migrateV2ToV3 }, { mergeEditedIntoStored }] = await Promise.all([
+          import('@/domain/v3/projectToV2'),
+          import('@/domain/v3/migrateV2ToV3'),
+          import('@/domain/v3/mergeEditedV2'),
+        ]);
+
+        const now = host.now();
+        const freshId = generateId();
+        const merged = mergeEditedIntoStored(storedDocument.value, migrateV2ToV3(current));
+        const documentCopy: DrillDocumentV3 = {
+          ...remapDocumentIds(merged, generateId),
+          id: freshId,
+          createdAt: now,
+          updatedAt: now,
+          metadata: { ...merged.metadata, title: trimmed },
+        };
+
+        const { drill: projected } = projectToV2(documentCopy);
+        const copy: Drill = { ...projected, id: freshId, name: trimmed, createdAt: now, updatedAt: now };
+
+        // The copy has to be durable BEFORE the editor switches to it, or a
+        // failed write leaves the user editing a document that does not exist.
+        const stored = await repository.saveDocumentV3(documentCopy);
+        if (!stored.ok) {
+          return reportFailure('The copy was not saved, so you are still editing the original', stored.error);
+        }
+
+        openDrill(copy);
+        dispatch({ type: 'CLOSE_MENU' });
+        await refreshDrillList();
+        notify.toast({ message: `Saved as “${trimmed}”`, type: 'success' });
+        return done(copy.id);
+      }
+
+      // No stored v3 document under the current id - an unsaved drill that
+      // has never been written, or a read failure of its own - so there is
+      // nothing v3-only to carry across. Falls back to the v2-only duplicate,
+      // which still respects whatever is on screen right now.
+      const copy = duplicateDrill(current, trimmed);
+
       const stored = await repository.save(copy);
       if (!stored.ok) {
         return reportFailure('The copy was not saved, so you are still editing the original', stored.error);

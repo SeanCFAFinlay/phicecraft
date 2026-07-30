@@ -104,6 +104,42 @@ describe('saveAsNewPlay', () => {
     expect(route.points).toEqual(buildDistinctiveRoute('p1').points);
   });
 
+  it('duplicates via the stored v3 document, keeping equipment and giving the copy fresh ids', async () => {
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+    const withGear = DRILL_TEMPLATES.find(template => template.document.equipment.length > 0);
+    if (!withGear) throw new Error('expected a template with equipment for this test to mean anything');
+
+    await harness.commands.useTemplate(withGear.id);
+    const firstCopyId = harness.getState().drill.id;
+    const firstCopyDocument = harness.repository.documents.get(firstCopyId)!;
+    expect(firstCopyDocument.equipment.length).toBeGreaterThan(0);
+
+    const result = await harness.commands.saveAsNewPlay('Second Copy');
+    expect(result.status).toBe('done');
+    const secondCopyId = result.status === 'done' ? result.value : '';
+    expect(secondCopyId).not.toBe(firstCopyId);
+
+    const secondCopyDocument = harness.repository.documents.get(secondCopyId);
+    expect(secondCopyDocument).toBeDefined();
+    if (!secondCopyDocument) return;
+
+    // The equipment content survives the second copy too - the v2 projection
+    // `duplicateDrill` used to fall back to cannot express equipment at all -
+    // but every id is fresh again: a second remap, not a carry-over of the
+    // first copy's own ids.
+    expect(secondCopyDocument.equipment.map(item => ({ ...item, id: '' }))).toEqual(
+      firstCopyDocument.equipment.map(item => ({ ...item, id: '' }))
+    );
+    const firstCopyEquipmentIds = new Set(firstCopyDocument.equipment.map(item => item.id));
+    expect(secondCopyDocument.equipment.some(item => firstCopyEquipmentIds.has(item.id))).toBe(false);
+
+    const firstCopyActorIds = new Set(firstCopyDocument.actors.map(actor => actor.id));
+    expect(secondCopyDocument.actors.some(actor => firstCopyActorIds.has(actor.id))).toBe(false);
+
+    expect(harness.getState().drill.id).toBe(secondCopyId);
+    expect(harness.getState().drill.name).toBe('Second Copy');
+  });
+
   it('asks for a name when none is given, and cancels cleanly', async () => {
     harness.answerPrompt(null);
     expect((await harness.commands.saveAsNewPlay()).status).toBe('cancelled');
