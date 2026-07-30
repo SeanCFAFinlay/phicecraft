@@ -13,7 +13,36 @@ import { done, rejected, type CommandHost, type PlaybackCommands } from './comma
 export function createPlaybackCommands(host: CommandHost): PlaybackCommands {
   const { dispatch, getState, notify } = host;
 
+  function stopPlayback() {
+    dispatch({ type: 'STOP_PLAYBACK' });
+    dispatch({ type: 'CLEAR_BANNERS' });
+  }
+
+  function resetPlayback() {
+    dispatch({ type: 'STOP_PLAYBACK' });
+    dispatch({ type: 'RESET_PLAYBACK' });
+    dispatch({ type: 'CLEAR_BANNERS' });
+    host.playback.reset();
+  }
+
   return {
+    setMode(mode) {
+      const state = getState();
+      if (state.ui.mode === mode) return;
+
+      if (mode === 'build' && state.playback.isPlaying) stopPlayback();
+      if (mode === 'present') resetPlayback();
+
+      dispatch({ type: 'SET_MODE', mode });
+      host.announce(
+        mode === 'build'
+          ? 'Build mode. Editing enabled.'
+          : mode === 'preview'
+            ? 'Preview mode. Editing is off; play and scrub the drill.'
+            : 'Present mode. Full-screen playback.'
+      );
+    },
+
     requestPlaybackStart() {
       const state = getState();
 
@@ -55,10 +84,7 @@ export function createPlaybackCommands(host: CommandHost): PlaybackCommands {
       return done();
     },
 
-    stopPlayback() {
-      dispatch({ type: 'STOP_PLAYBACK' });
-      dispatch({ type: 'CLEAR_BANNERS' });
-    },
+    stopPlayback,
 
     setPlaybackProgress(progress) {
       // Scrubbing writes straight into the frame store: the canvas redraws,
@@ -76,12 +102,7 @@ export function createPlaybackCommands(host: CommandHost): PlaybackCommands {
       });
     },
 
-    resetPlayback() {
-      dispatch({ type: 'STOP_PLAYBACK' });
-      dispatch({ type: 'RESET_PLAYBACK' });
-      dispatch({ type: 'CLEAR_BANNERS' });
-      host.playback.reset();
-    },
+    resetPlayback,
 
     stepPlayback() {
       const state = getState();

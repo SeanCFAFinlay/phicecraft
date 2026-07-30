@@ -167,4 +167,15 @@ describe('the catalogue', () => {
     expect(RINK_LANDMARKS.centreX).toBe(RINK.centerX);
     expect(RINK_LANDMARKS.centreY).toBe(RINK.centerY);
   });
+
+  it('no template ships actor groups until the edit-save round trip preserves them', () => {
+    // A stored document's groups survive mergeEditedIntoStored, but a v2 edit
+    // round-trip cannot carry SkaterActor.groupId (migrateV2ToV3 never sets it),
+    // so a groups-bearing template would silently lose group membership on the
+    // coach's first save. Design the groupId round-trip before shipping one.
+    // See Phase 2 Task 4 review finding (2026-07-29).
+    for (const { id, document } of DRILL_TEMPLATES) {
+      expect(document.groups, `template ${id}`).toEqual([]);
+    }
+  });
 });

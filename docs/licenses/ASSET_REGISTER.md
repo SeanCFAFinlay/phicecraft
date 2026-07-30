@@ -37,7 +37,7 @@ The gaps are listed at the end and are release blockers, not paperwork.
 | Asset | Origin | Licence | Status |
 |---|---|---|---|
 | The four bundled example drills | First-party | Owned | ✅ Clear |
-| The 24-template catalogue | Not yet authored | — | Must be **originally authored**. The names in review §11 are a starting list, not content to copy. No third-party diagram, screenshot or written description ships without a recorded permission. |
+| The 24-template catalogue | First-party — originally authored in `src/data/templates/` (`passing.ts`, `smallArea.ts`, `transition.ts`, registered in `registry.ts`) | Owned | ✅ Clear. Authored as original content per the rule below; validated as coherent v3 documents by `src/data/templates/registry.test.ts`. No third-party diagram, screenshot or written description was copied. |
 
 ## 3D assets
 
@@ -55,7 +55,8 @@ and each item recorded here with its licence before it ships.
 2. **Sprite-atlas source images have unknown provenance.** Phase 3's renderer
    replacement should delete them; until then they ship.
 3. **No 3D asset licences**, because there are no 3D assets yet.
-4. **Template content not authored**, so nothing to clear yet.
+4. ~~Template content not authored.~~ Resolved: the 24-template catalogue is
+   authored first-party in `src/data/templates/` and registered above.
 
 ## Rule
 

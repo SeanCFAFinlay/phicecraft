@@ -135,6 +135,26 @@ than blocked on a schema rewrite.
   multiple pucks. Until then `projectionLosses` reports exactly what a given
   document loses when it plays.
 
+## Phase 2 — v3 at rest ✅ done
+
+Storage now holds `DrillDocumentV3` via a database upgrade (DB_VERSION 2) that
+uses a recovery quarantine for records that cannot be migrated — a safeguard
+against losing an unmigratable document on a stray reload.
+
+The editor and simulation still speak v2 at the persistence seam: the repository
+returns v3, but `migrateV2ToV3`/`projectToV2` maintain the boundary. Exports
+are version 2, and all older import shapes are accepted.
+
+The invariant that guards the seam is `mergeEditedIntoStored`: when an edit
+completes, it merges the edited v2 state back into the stored v3 document,
+ensuring no v3-only content (extra pucks, equipment, phases, segments) is
+silently lost if the user edits after a load.
+
+### Explicit non-goals left for a future phase
+
+- v3-native simulation (engine still runs v2 compiled from v3).
+- Editing equipment, phases, extra pucks, or multiple segments in the UI.
+
 ---
 
 ## Phase 3 — 2D editor 🔶 portrait fixed, renderer not started

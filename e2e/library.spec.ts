@@ -7,7 +7,7 @@
 // ============================================================================
 
 import { expect, test, type Page } from '@playwright/test';
-import { openEditor } from './support';
+import { openEditor, storedDrills } from './support';
 
 async function openLibrary(page: Page) {
   await page.getByRole('button', { name: 'Open main menu' }).click();
@@ -138,27 +138,8 @@ test('the copy has its own identity, so editing it cannot reach the template', a
     { timeout: 20_000 }
   );
 
-  const stored = await page.evaluate(
-    () =>
-      new Promise<{ id: string; players: { id: string }[] }[]>((resolve, reject) => {
-        const request = indexedDB.open('phicecraft');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          const all = db.transaction('drills', 'readonly').objectStore('drills').getAll();
-          all.onsuccess = () => {
-            resolve(
-              (all.result as { document: { id: string; players: { id: string }[] } }[]).map(
-                item => item.document
-              )
-            );
-            db.close();
-          };
-        };
-      })
-  );
-
-  const copy = stored[stored.length - 1];
+  const stored = await storedDrills(page);
+  const copy = stored[stored.length - 1].document;
   // Fresh ids throughout: not the template id, and not the template's actor ids.
   expect(copy.id.startsWith('tpl-')).toBe(false);
   expect(copy.players.length).toBeGreaterThan(0);

@@ -31,12 +31,20 @@ export interface CameraSnapshot {
    * fitting only once leaves the rink cropped.
    */
   userAdjusted: boolean;
+  /**
+   * The named view the camera currently frames, or `'custom'` once the coach
+   * has panned or pinch-zoomed away from one. `ViewControls` and `MenuSheet`
+   * both read this instead of keeping their own idea of "which zone" - the
+   * two used to disagree, because only one of them updated on a tap.
+   */
+  zone: Zone | 'custom';
 }
 
 const INITIAL: CameraSnapshot = {
   camera: { ...DEFAULT_CAMERA },
   viewport: { width: 0, height: 0 },
   userAdjusted: false,
+  zone: 'full',
 };
 
 export class CameraStore {
@@ -60,6 +68,11 @@ export class CameraStore {
     return this.snapshot.viewport;
   }
 
+  /** The named view currently framed, or `'custom'` once panned or zoomed by hand. */
+  get zone(): Zone | 'custom' {
+    return this.snapshot.zone;
+  }
+
   private commit(next: CameraSnapshot): void {
     this.snapshot = next;
     for (const listener of this.listeners) listener();
@@ -67,7 +80,12 @@ export class CameraStore {
 
   /** A deliberate camera change by the user. Disables auto-fit. */
   setCamera(camera: Camera): void {
-    this.commit({ ...this.snapshot, camera: normalizeCamera(camera), userAdjusted: true });
+    this.commit({
+      ...this.snapshot,
+      camera: normalizeCamera(camera),
+      userAdjusted: true,
+      zone: 'custom',
+    });
   }
 
   /**
@@ -88,6 +106,7 @@ export class CameraStore {
       ...this.snapshot,
       camera: calculateFitCamera(viewport, base),
       userAdjusted: false,
+      zone: 'full',
     });
   }
 
@@ -125,6 +144,7 @@ export class CameraStore {
       ...this.snapshot,
       camera: normalizeCamera(zoomAt(this.snapshot.camera, factor, screenPoint)),
       userAdjusted: true,
+      zone: 'custom',
     });
   }
 
@@ -134,11 +154,12 @@ export class CameraStore {
       camera: normalizeCamera(cameraForZone(zone, this.snapshot.viewport, this.snapshot.camera)),
       // "Show me everything" is the one zoom that keeps auto-fit alive.
       userAdjusted: zone !== 'full',
+      zone,
     });
   }
 
   setViewport(width: number, height: number): void {
-    const { viewport, userAdjusted, camera } = this.snapshot;
+    const { viewport, userAdjusted, camera, zone } = this.snapshot;
     if (viewport.width === width && viewport.height === height) return;
 
     const shouldFit = !userAdjusted && width > 0 && height > 0;
@@ -153,6 +174,8 @@ export class CameraStore {
       camera: shouldFit ? calculateFitCamera({ width, height }, base) : camera,
       viewport: { width, height },
       userAdjusted,
+      // Auto-fit refresh is not a user zone change, so it is left alone.
+      zone,
     });
   }
 

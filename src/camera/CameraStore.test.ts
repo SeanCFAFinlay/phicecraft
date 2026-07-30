@@ -328,6 +328,32 @@ describe('subscription', () => {
   });
 });
 
+describe('zone tracking', () => {
+  it('starts at full', () => {
+    expect(new CameraStore().zone).toBe('full');
+  });
+  it('follows zoomToZone and resets on fit', () => {
+    const store = new CameraStore();
+    store.setViewport(390, 700);
+    store.zoomToZone('offensive');
+    expect(store.zone).toBe('offensive');
+    store.fit();
+    expect(store.zone).toBe('full');
+  });
+  it('goes custom when the user pans or pinch-zooms', () => {
+    const store = new CameraStore();
+    store.setViewport(390, 700);
+    store.zoomToZone('defensive');
+    store.zoomAt(1.2, { x: 100, y: 100 });
+    expect(store.zone).toBe('custom');
+  });
+  it('is part of the snapshot so React can subscribe', () => {
+    const store = new CameraStore();
+    store.zoomToZone('offensive');
+    expect(store.getSnapshot().zone).toBe('offensive');
+  });
+});
+
 describe('normalizeCamera', () => {
   it('defaults a missing tilt to zero', () => {
     expect(normalizeCamera({ x: 0, y: 0, zoom: 1 }).tilt).toBe(0);

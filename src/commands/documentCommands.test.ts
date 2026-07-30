@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestHarness, toasted, type TestHarness } from '@/test/commandHost';
 import { buildDrill, buildDistinctiveRoute, buildPlayer, FIXED_NOW } from '@/test/builders';
 import { RINK } from '@/core/constants';
+import { isOnIce } from '@/domain/v3/types';
 import { isReviewComplete } from './playbackCommands';
 
 let harness: TestHarness;
@@ -236,6 +237,77 @@ describe('newDrill', () => {
   });
 });
 
+describe('useTemplate', () => {
+  it('stores the full v3 document, not the projection, while the editor gets the projected v2 copy under the same fresh id', async () => {
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+    const withGear = DRILL_TEMPLATES.find(template => template.document.equipment.length > 0);
+    if (!withGear) throw new Error('expected a template with equipment for this test to mean anything');
+
+    const saveDocumentV3 = vi.spyOn(harness.repository, 'saveDocumentV3');
+
+    const result = await harness.commands.useTemplate(withGear.id);
+    expect(result.status).toBe('done');
+
+    expect(saveDocumentV3).toHaveBeenCalledTimes(1);
+    const storedDocument = saveDocumentV3.mock.calls[0][0];
+
+    // The stored document is the real thing, not the v2 projection: equipment
+    // and template provenance survive in content, and it carries a fresh id
+    // rather than the template's own. Every equipment id is fresh too (Finding
+    // 3 / remapDocumentIds), so the comparison ignores ids and checks them
+    // separately.
+    expect(storedDocument.equipment.map(item => ({ ...item, id: '' }))).toEqual(
+      withGear.document.equipment.map(item => ({ ...item, id: '' }))
+    );
+    const originalEquipmentIds = new Set(withGear.document.equipment.map(item => item.id));
+    expect(storedDocument.equipment.some(item => originalEquipmentIds.has(item.id))).toBe(false);
+
+    expect(storedDocument.templateId).toBe(withGear.id);
+    expect(storedDocument.id).not.toBe(withGear.document.id);
+
+    // The editor's projected copy shares that same fresh id, so a later
+    // edit-save merges onto the record that was actually stored.
+    expect(harness.getState().drill.id).toBe(storedDocument.id);
+  });
+
+  it('gives the template copy document-wide fresh ids, matched between the stored document and the editor', async () => {
+    // A template copy must not share so much as one actor id with the
+    // template it came from (Finding 3): a stranded reference is exactly how
+    // the v2 coach hack worked its way into the model. Remapping happens
+    // BEFORE the document is projected to v2, so the stored document and the
+    // editor's copy agree on every actor id by construction, not by a later
+    // merge reconciling two disagreeing shapes.
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+    const template = DRILL_TEMPLATES[0];
+    const originalActorIds = new Set(template.document.actors.map(actor => actor.id));
+
+    const saveDocumentV3 = vi.spyOn(harness.repository, 'saveDocumentV3');
+    const result = await harness.commands.useTemplate(template.id);
+    expect(result.status).toBe('done');
+
+    const storedDocument = saveDocumentV3.mock.calls[0][0];
+    const storedOnIceIds = storedDocument.actors.filter(isOnIce).map(actor => actor.id).sort();
+    const editorPlayerIds = harness.getState().drill.players.map(player => player.id).sort();
+
+    expect(editorPlayerIds).toEqual(storedOnIceIds);
+    expect(storedDocument.actors.some(actor => originalActorIds.has(actor.id))).toBe(false);
+    expect(editorPlayerIds.some(id => originalActorIds.has(id))).toBe(false);
+  });
+
+  it('reports a failure to store the template copy', async () => {
+    harness.repository.failOperation('save');
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+
+    const result = await harness.commands.useTemplate(DRILL_TEMPLATES[0].id);
+    expect(result.status).toBe('failed');
+  });
+
+  it('rejects a template id that is no longer in the catalogue', async () => {
+    const result = await harness.commands.useTemplate('not-a-real-template');
+    expect(result.status).toBe('rejected');
+  });
+});
+
 describe('loadFixture', () => {
   it('opens an example with a fresh identity', async () => {
     const result = await harness.commands.loadFixture('give-and-go');
@@ -302,7 +374,7 @@ describe('exportDrills', () => {
 
     expect(result.status).toBe('done');
     expect(harness.downloads).toHaveLength(1);
-    expect(JSON.parse(harness.downloads[0].contents).drills).toHaveLength(1);
+    expect(JSON.parse(harness.downloads[0].contents).documents).toHaveLength(1);
     expect(toasted(harness, /Exported 1 play/)).toBe(true);
   });
 
@@ -338,7 +410,7 @@ describe('exportDrills', () => {
 
     const payload = JSON.parse(harness.downloads[0].contents);
     expect(payload.containsUnsavedRevision).toBe(true);
-    expect(payload.drills[0].name).toBe('Unsaved Edit');
+    expect(payload.documents[0].metadata.title).toBe('Unsaved Edit');
     expect(harness.downloads[0].filename).toContain('unsaved');
     expect(toasted(harness, /including your unsaved changes/)).toBe(true);
   });
@@ -655,6 +727,72 @@ describe('playback transport', () => {
     harness.commands.requestPlaybackStart();
     harness.commands.stepPlayback();
     expect(harness.getState().playback.isPlaying).toBe(false);
+  });
+});
+
+describe('setMode', () => {
+  beforeEach(() => {
+    harness.loadDrill(
+      buildDrill({
+        players: [buildPlayer({ id: 'p1', hasPuck: true })],
+        skatePaths: [buildDistinctiveRoute('p1')],
+      })
+    );
+    harness.playback.setDrill(harness.getState().drill);
+  });
+
+  it('is a no-op when already in that mode', () => {
+    expect(harness.getState().ui.mode).toBe('build');
+    harness.commands.setMode('build');
+    expect(harness.announcements).toHaveLength(0);
+  });
+
+  it('entering build while playing stops playback', () => {
+    harness.commands.setMode('present');
+    harness.commands.requestPlaybackStart();
+    expect(harness.getState().playback.isPlaying).toBe(true);
+
+    harness.commands.setMode('build');
+    expect(harness.getState().ui.mode).toBe('build');
+    expect(harness.getState().playback.isPlaying).toBe(false);
+  });
+
+  it('entering present resets playback progress', () => {
+    harness.commands.setPlaybackProgress(0.6);
+
+    harness.commands.setMode('present');
+    expect(harness.getState().ui.mode).toBe('present');
+    expect(harness.getState().playback.isPlaying).toBe(false);
+    expect(harness.getState().playback.lifecycle).toBe('ready');
+    expect(harness.playback.getFrame().progress).toBe(0);
+  });
+
+  it('announces the mode change', () => {
+    harness.commands.setMode('preview');
+    expect(harness.announcements.at(-1)).toMatch(/preview/i);
+
+    harness.commands.setMode('present');
+    expect(harness.announcements.at(-1)).toMatch(/present/i);
+
+    harness.commands.setMode('build');
+    expect(harness.announcements.at(-1)).toMatch(/build/i);
+  });
+
+  // Task 1's review flagged that document-mutating commands (NEW_DRILL,
+  // RENAME_DRILL, DELETE_DRILL, SET_DRILL_LIST, MOVE_COACH, MOVE_PLAYER,
+  // UPDATE_SKATE_POINTS, UPDATE_EVENT_GEOMETRY) are not reducer-gated by mode.
+  // setMode is the first thing that lets mode leave 'build', so this
+  // documents that leaving build does not yet block editing at the command
+  // layer - the UI-layer gating for these surfaces is a later task.
+  it('still permits document-mutating commands outside build mode (gating is a later UI task)', async () => {
+    harness.commands.setMode('preview');
+    const before = harness.getState().drill.id;
+    harness.answerConfirm(true);
+
+    const result = await harness.commands.newDrill();
+
+    expect(result.status).toBe('done');
+    expect(harness.getState().drill.id).not.toBe(before);
   });
 });
 

@@ -58,6 +58,15 @@ export interface DynamicLayerInput {
   puck: AnimatedPuck | null;
   ghostTrails: [ID, Point[]][];
   isPlaying: boolean;
+  /**
+   * True while a play is running, or outside Build. Route and event edit
+   * handles are hidden either way - Preview and Present are read-only, and a
+   * selection carried over from Build must not go on offering handles nobody
+   * can use. Ghost trails are deliberately NOT gated by this: they stay tied
+   * to `isPlaying` alone, because they explain the drill while Preview plays
+   * it back.
+   */
+  suppressEditAffordances: boolean;
   progress: number;
   selectedPlayerId: ID | null;
   selectedEventId: ID | null;
@@ -226,8 +235,8 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   }
 
   // Edit handles: reshape the selected player's route or bend/re-aim the
-  // selected puck line. Hidden during playback.
-  if (!input.isPlaying) {
+  // selected puck line. Hidden during playback, and outside Build.
+  if (!input.isPlaying && !input.suppressEditAffordances) {
     if (input.selectedPlayerId) {
       const route = drill.skatePaths.find(path => path.ownerId === input.selectedPlayerId);
       if (route && route.points.length >= 2) drawRouteEditHandles(ctx, route.points);

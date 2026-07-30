@@ -81,13 +81,21 @@ describe('save and read', () => {
     expect((await repository.list()).ok && (await repository.list())).toMatchObject({ value: [] });
   });
 
-  it('reports a transaction failure instead of claiming success', async () => {
-    // A function is not structured-cloneable, so IndexedDB rejects the write.
+  it('never lets a non-cloneable value reach the store, v2 in or v3 at rest', async () => {
+    // A function is not structured-cloneable. Under v1 storage this reached
+    // IndexedDB verbatim and the write failed there; storing v3 at rest means
+    // every write is rebuilt field-by-field through `migrateV2ToV3` and
+    // re-validated with `parseDrillDocumentV3`, so a function attached to a
+    // field the document does not track is dropped before it ever reaches a
+    // transaction, and the save of the real content still succeeds.
     const drill = buildDrill();
     const hostile = { ...drill, settings: { ...drill.settings!, onSave: () => {} } } as never;
     const result = await repository.save(hostile);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(['validation-failed', 'corrupt-data', 'unknown']).toContain(result.error.code);
+    expect(result.ok).toBe(true);
+
+    const read = await repository.read(drill.id);
+    expect(read.ok).toBe(true);
+    if (read.ok) expect(read.value.settings).not.toHaveProperty('onSave');
   });
 
   it('lists drills newest first', async () => {
@@ -167,7 +175,10 @@ describe('replaceAndSave', () => {
     if (recovery.ok) {
       expect(recovery.value).toHaveLength(1);
       expect(recovery.value[0].source).toBe('replaced-drill');
-      expect((recovery.value[0].raw as { name: string }).name).toBe('Local original');
+      // The snapshot is the v3 document as it was stored, not the v2 `Drill`
+      // the caller passed in - storage is v3 at rest, so a recovery copy of
+      // "what was there before" is v3 too.
+      expect((recovery.value[0].raw as { metadata: { title: string } }).metadata.title).toBe('Local original');
     }
   });
 
@@ -216,10 +227,95 @@ describe('corrupt stored records', () => {
     }
   });
 
+  it('never overwrites the original bytes of a merely-repaired record', async () => {
+    const drill = buildDrill({ id: 'legacyish' });
+    await repository.save(drill);
+
+    // Scramble the stored document behind the repository's back - the same
+    // fixture as above, which only survives via the tolerant repair chain
+    // (`migrateDrillCandidate` -> `repairDrillDocument`), not the v3 gate or
+    // the strict v2 gate.
+    const scrambled = { id: 'legacyish', name: 'Scrambled', players: null, events: null };
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('phicecraft');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('drills', 'readwrite');
+      tx.objectStore('drills').put({ id: 'legacyish', name: 'Scrambled', updatedAt: FIXED_NOW, document: scrambled });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+
+    const read = await repository.read('legacyish');
+    expect(read.ok).toBe(true);
+
+    // Repair is for what is handed back, not for the durable copy: a repair
+    // may drop dangling references or invent a puck carrier, and doing that
+    // silently to storage - rather than just to the returned `Drill` - would
+    // make a read destructive. The stored bytes must be exactly what was
+    // found, still unrepaired, with no recovery snapshot needed because
+    // nothing was overwritten.
+    const verify = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('phicecraft');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const stored = await new Promise<{ document: unknown }>((resolve, reject) => {
+      const tx = verify.transaction('drills', 'readonly');
+      const req = tx.objectStore('drills').get('legacyish');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    verify.close();
+    expect(stored.document).toEqual(scrambled);
+
+    const recovery = await repository.listRecovery();
+    expect(recovery.ok && recovery.value).toHaveLength(0);
+  });
+
   it('skips unreadable records in readAll rather than failing the export', async () => {
     await repository.save(buildDrill({ id: 'good', players: [buildPlayer({ id: 'p', hasPuck: true })] }));
     const all = await repository.readAll();
     expect(all.ok && all.value).toHaveLength(1);
+  });
+
+  it('skips unreadable records in readAllDocumentsV3 rather than failing the export', async () => {
+    await repository.save(buildDrill({ id: 'good', players: [buildPlayer({ id: 'p', hasPuck: true })] }));
+    const all = await repository.readAllDocumentsV3();
+    expect(all.ok && all.value).toHaveLength(1);
+  });
+
+  it('repairs a scrambled record for readAllDocumentsV3 too, the same tolerant way read() does', async () => {
+    const drill = buildDrill({ id: 'legacyish' });
+    await repository.save(drill);
+
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('phicecraft');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('drills', 'readwrite');
+      tx.objectStore('drills').put({
+        id: 'legacyish',
+        name: 'Scrambled',
+        updatedAt: FIXED_NOW,
+        document: { id: 'legacyish', name: 'Scrambled', players: null, events: null },
+      });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+
+    const all = await repository.readAllDocumentsV3();
+    expect(all.ok).toBe(true);
+    if (!all.ok) return;
+    expect(all.value).toHaveLength(1);
+    expect(all.value[0].schemaVersion).toBe(3);
+    expect(all.value[0].actors).toEqual([]);
   });
 });
 
@@ -273,6 +369,48 @@ describe('meta and recovery', () => {
     await repository.clearRecovery();
     const records = await repository.listRecovery();
     expect(records.ok && records.value).toHaveLength(0);
+  });
+});
+
+describe('v3 storage', () => {
+  it('readAllDocumentsV3 returns the full v3 shape, not the v2 projection', async () => {
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+    const withGear = DRILL_TEMPLATES.find(t => t.document.equipment.length > 0);
+    expect(withGear).toBeDefined();
+
+    const stored = structuredClone(withGear!.document);
+    const seeded = await repository.saveDocumentV3(stored);
+    expect(seeded.ok).toBe(true);
+
+    const all = await repository.readAllDocumentsV3();
+    expect(all.ok).toBe(true);
+    if (!all.ok) return;
+    expect(all.value).toHaveLength(1);
+    expect(all.value[0].schemaVersion).toBe(3);
+    expect(all.value[0].equipment).toEqual(stored.equipment);
+  });
+
+  it('an edit-save round trip preserves v3-only content at rest', async () => {
+    const { DRILL_TEMPLATES } = await import('@/data/templates/registry');
+    const { projectToV2 } = await import('@/domain/v3/projectToV2');
+    const { openDB } = await import('idb');
+    const { DB_NAME, DB_VERSION } = await import('./indexedDbRepository');
+    const withGear = DRILL_TEMPLATES.find(t => t.document.equipment.length > 0);
+    expect(withGear).toBeDefined();
+
+    const stored = structuredClone(withGear!.document);
+    const seeded = await repository.saveDocumentV3(stored); // seeded as full v3 (Task 4 uses this)
+    expect(seeded.ok).toBe(true);
+
+    const { drill } = projectToV2(stored);
+    drill.players[0] = { ...drill.players[0], x: drill.players[0].x + 10 };
+    const saved = await repository.saveMany([drill]);
+    expect(saved.ok).toBe(true);
+
+    const db = await openDB(DB_NAME, DB_VERSION);
+    const record = await db.get('drills', stored.id);
+    expect(record.document.equipment).toEqual(stored.equipment);
+    db.close();
   });
 });
 

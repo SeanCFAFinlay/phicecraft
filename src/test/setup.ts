@@ -50,6 +50,16 @@ if (isDom) {
   // renderers already bail out on a null context, so this replaces it outright
   // rather than letting every render spam the output.
   HTMLCanvasElement.prototype.getContext = (() => null) as never;
+
+  // jsdom does not implement the Pointer Events capture methods. The gesture
+  // surface calls `setPointerCapture` unconditionally on pointerdown, so a
+  // synthetic pointer sequence dispatched straight at the canvas (rather than
+  // through a real browser) would otherwise throw.
+  if (!Element.prototype.setPointerCapture) {
+    Element.prototype.setPointerCapture = () => {};
+    Element.prototype.releasePointerCapture = () => {};
+    Element.prototype.hasPointerCapture = () => false;
+  }
 }
 
 afterEach(() => {

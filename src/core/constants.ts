@@ -315,6 +315,7 @@ export const DEFAULT_SELECTION: SelectionState = {
 };
 
 export const DEFAULT_UI: UIState = {
+  mode: 'build',
   editorStep: 'setup',
   currentTool: 'move',
   showMenu: false,

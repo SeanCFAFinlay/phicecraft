@@ -13,14 +13,26 @@
 // whoever ends up with the puck rather than authored; and Erase, because
 // deleting is done from the selection chip and from Details, where you can see
 // what you are about to remove before you remove it.
+//
+// On a compact-landscape phone WITH a selection, `compactSelection` swaps Add
+// and Play for Details and Delete: stacking the tray's usual selection row
+// above this dock, on top of the row it already costs, measured short of the
+// 667x375 and 844x390 rink-height floors in the real browser (see
+// ContextTray). Replacing two dock buttons in place keeps the row's total
+// height fixed instead of adding a second one.
 // ============================================================================
 
 import type { ReactNode } from 'react';
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
 import { usePuckActions } from '@/hooks/usePuckActions';
-import { AddIcon, MoveIcon, PassIcon, PlayIcon, SkateIcon, StopIcon } from '@/ui/icons';
+import { AddIcon, DeleteIcon, DetailsIcon, MoveIcon, PassIcon, PlayIcon, SkateIcon, StopIcon } from '@/ui/icons';
 import { Transport } from './Transport';
+
+export interface CompactSelectionActions {
+  onDetails: () => void;
+  onDelete: () => void;
+}
 
 interface DockButtonProps {
   icon: ReactNode;
@@ -69,7 +81,12 @@ function DockButton({
   );
 }
 
-export function ToolDock() {
+export function ToolDock({
+  compactSelection,
+}: {
+  /** Set only in the compact-landscape tray, only while something is selected. */
+  compactSelection?: CompactSelectionActions | null;
+} = {}) {
   const { state, dispatch } = useAppState();
   const commands = useCommands();
   const { isCompactLandscape } = useResponsive();
@@ -132,38 +149,57 @@ export function ToolDock() {
         }}
       />
 
-      <DockButton
-        icon={<AddIcon />}
-        label="Add"
-        active={isPlacing}
-        accent="#34d399"
-        ariaHasPopup
-        ariaExpanded={state.ui.openSheet === 'add'}
-        onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'add' })}
-      />
+      {compactSelection ? (
+        <DockButton icon={<DetailsIcon />} label="Details" onClick={compactSelection.onDetails} />
+      ) : (
+        <DockButton
+          icon={<AddIcon />}
+          label="Add"
+          active={isPlacing}
+          accent="#34d399"
+          ariaHasPopup
+          ariaExpanded={state.ui.openSheet === 'add'}
+          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'add' })}
+        />
+      )}
 
       {/* Landscape phone: the transport folds in here rather than costing a
           second 44px row, which is the difference between a usable rink and
-          a strip. Play is immediately to its right either way. */}
+          a strip. Play (or, with a selection, Delete) is immediately to its
+          right either way. */}
       {isCompactLandscape && <Transport inline />}
 
-      <button
-        type="button"
-        onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
-        aria-label={isPlaying ? 'Stop playback' : 'Play drill'}
-        className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 font-bold transition-colors ${
-          isPlaying
-            ? 'border-red-500 bg-red-500 text-white'
-            : 'border-cyan-500 bg-cyan-500 text-[#03121c]'
-        }`}
-      >
-        <span className="flex h-5 items-center justify-center leading-none">
-          {isPlaying ? <StopIcon /> : <PlayIcon />}
-        </span>
-        {!isCompactLandscape && (
-          <span className="text-[12px] tracking-tight">{isPlaying ? 'Stop' : 'Play'}</span>
-        )}
-      </button>
+      {compactSelection ? (
+        // Only ever rendered while isCompactLandscape is true (see
+        // ContextTray), so - like the inline Transport above - there is no
+        // room to spare for a text label here, just the icon.
+        <button
+          type="button"
+          onClick={compactSelection.onDelete}
+          aria-label="Delete"
+          className="touch-target flex flex-1 items-center justify-center rounded-xl border-2 border-red-400/40 bg-red-500/10 px-2 py-1.5 text-red-200 transition-colors"
+        >
+          <DeleteIcon />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
+          aria-label={isPlaying ? 'Stop playback' : 'Play drill'}
+          className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 font-bold transition-colors ${
+            isPlaying
+              ? 'border-red-500 bg-red-500 text-white'
+              : 'border-cyan-500 bg-cyan-500 text-[#03121c]'
+          }`}
+        >
+          <span className="flex h-5 items-center justify-center leading-none">
+            {isPlaying ? <StopIcon /> : <PlayIcon />}
+          </span>
+          {!isCompactLandscape && (
+            <span className="text-[12px] tracking-tight">{isPlaying ? 'Stop' : 'Play'}</span>
+          )}
+        </button>
+      )}
     </nav>
   );
 }

@@ -7,7 +7,7 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppProvider, type AppServices } from '@/hooks/useAppState';
 import { EditorRuntimeProvider } from '@/hooks/useEditorRuntime';
@@ -19,7 +19,8 @@ import { ImportPreviewStore } from '@/ui/ImportPreviewStore';
 import { CameraStore } from '@/camera/CameraStore';
 import { PlaybackStore } from '@/playback/PlaybackStore';
 import { HoldProgressStore } from '@/ui/HoldProgressStore';
-import { setViewport, VIEWPORTS } from '@/test/utils';
+import { flush, installFakeLocalStorage, pointer, setViewport, VIEWPORTS } from '@/test/utils';
+import { createNewDrill } from '@/engine/drill';
 import { __resetValidationCaches } from '@/editor/useDrillValidation';
 import { __resetResponsiveCache } from '@/ui/useResponsive';
 
@@ -105,6 +106,49 @@ describe('selection does not open a large panel', () => {
   it('has no inspector open on first render', () => {
     renderApp();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('context tray', () => {
+  it('selecting a player extends the tray instead of floating a chip over the ice', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    // Seed a player in Build, via the Add sheet, the same way other tests do.
+    await user.click(screen.getByRole('button', { name: /Add/ }));
+    const addSheet = await screen.findByRole('dialog', { name: 'Add to the rink' });
+    await user.click(within(addSheet).getByRole('button', { name: /Home player/ }));
+
+    const rink = screen.getByRole('application', { name: /hockey rink/i });
+    const playerTap = { pointerId: 1, x: 300, y: 200 };
+    await act(async () => {
+      pointer.down(rink, playerTap);
+      pointer.up(rink, playerTap);
+    });
+
+    // Back to Move, so a second tap on the token selects it instead of
+    // placing another player.
+    await user.click(screen.getByRole('button', { name: 'Move' }));
+    await act(async () => {
+      pointer.down(rink, playerTap);
+      pointer.up(rink, playerTap);
+    });
+
+    const main = screen.getByRole('main');
+    expect(within(main).queryByRole('button', { name: /Details/ })).not.toBeInTheDocument();
+    const tray = screen.getByRole('group', { name: 'Selection' });
+    expect(within(tray).getByRole('button', { name: 'Details' })).toBeInTheDocument();
+  });
+
+  it('the workflow guide lives in the menu, not on the rink', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    expect(screen.queryByRole('button', { name: /Step 1 of 4/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open main menu' }));
+    const sheet = await screen.findByRole('dialog');
+    expect(within(sheet).getByRole('button', { name: /Step 1 of 4/ })).toBeInTheDocument();
   });
 });
 
@@ -200,6 +244,142 @@ describe('save failure', () => {
   });
 });
 
+describe('mode switcher', () => {
+  it('offers Build, Preview and Present, with Build active by default', () => {
+    renderApp();
+    const group = screen.getByRole('radiogroup', { name: 'Mode' });
+    const radios = within(group).getAllByRole('radio');
+    expect(radios.map(r => r.getAttribute('aria-label') ?? r.textContent)).toEqual(
+      expect.arrayContaining(['Build', 'Preview', 'Present'])
+    );
+    expect(within(group).getByRole('radio', { name: 'Build' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('preview hides the editing dock', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    expect(screen.queryByRole('navigation', { name: 'Editing tools' })).not.toBeInTheDocument();
+  });
+
+  it('returning to build restores the dock', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    await user.click(screen.getByRole('radio', { name: 'Build' }));
+    expect(screen.getByRole('navigation', { name: 'Editing tools' })).toBeInTheDocument();
+  });
+
+  it('switching to Preview shows the Preview region', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    expect(screen.getByRole('region', { name: 'Preview' })).toBeInTheDocument();
+  });
+});
+
+describe('preview mode', () => {
+  it('shows the preview bar with transport and speed controls', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+    const bar = screen.getByRole('region', { name: 'Preview' });
+    expect(
+      within(bar).getByRole('button', { name: /^(Start|Pause) playback$/ })
+    ).toBeInTheDocument();
+    expect(within(bar).getByRole('radiogroup', { name: /speed/i })).toBeInTheDocument();
+  });
+
+  it('preview is read-only: no Undo in the top strip, and More has no History, Clear or Repair section', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Redo' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    const sheet = await screen.findByRole('dialog', { name: 'More' });
+
+    expect(within(sheet).queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Redo/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Clear puck actions/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Clear skating routes/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Reset the board/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Recover off-rink objects/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /No set finish/ })).not.toBeInTheDocument();
+    // Diagnostics is a display overlay, not a mutation, so it stays available.
+    expect(within(sheet).getByRole('button', { name: /Mechanics overlay/ })).toBeInTheDocument();
+  });
+
+  it('tapping a player in preview does not arm anything or open chips', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    // Seed a player in Build, via the Add sheet, the same way the dock does it.
+    await user.click(screen.getByRole('button', { name: /Add/ }));
+    const addSheet = await screen.findByRole('dialog', { name: 'Add to the rink' });
+    await user.click(within(addSheet).getByRole('button', { name: /Home player/ }));
+
+    const rink = screen.getByRole('application', { name: /hockey rink/i });
+    const playerTap = { pointerId: 1, x: 300, y: 200 };
+    // Raw pointer events bypass Testing Library's act() wrapping, so the
+    // resulting dispatch must be flushed explicitly before anything after it
+    // can rely on the committed state.
+    await act(async () => {
+      pointer.down(rink, playerTap);
+      pointer.up(rink, playerTap);
+    });
+
+    // Back to Move, so a tap on the token would normally select it.
+    await user.click(screen.getByRole('button', { name: 'Move' }));
+
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+
+    // Same spot the player was placed at - would select it in Build.
+    await act(async () => {
+      pointer.down(rink, playerTap);
+      pointer.up(rink, playerTap);
+    });
+
+    expect(screen.queryByRole('button', { name: /Details/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('present mode', () => {
+  it('hides all editing chrome', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Present' }));
+    expect(screen.queryByRole('navigation', { name: 'Editing tools' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exit presentation' })).toBeInTheDocument();
+  });
+
+  it('its Play button routes through playback validation', async () => {
+    const user = userEvent.setup();
+    renderApp(); // empty drill: no routes, no events
+    await user.click(screen.getByRole('radio', { name: 'Present' }));
+    await user.click(screen.getByRole('button', { name: /play/i }));
+    // requestPlaybackStart rejects an empty drill with this exact warning toast.
+    // It also announces the same copy through the live region, so both are
+    // matched rather than asserting on a single unique node.
+    const warnings = await screen.findAllByText(
+      'Add a skating route or a puck action before playing.'
+    );
+    expect(warnings.length).toBeGreaterThan(0);
+  });
+
+  it('Escape exits to build', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Present' }));
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('radiogroup', { name: 'Mode' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Editing tools' })).toBeInTheDocument();
+  });
+});
+
 describe('responsive shell', () => {
   it('hides Redo from the phone top strip, keeping it in More', async () => {
     const user = userEvent.setup();
@@ -219,5 +399,98 @@ describe('responsive shell', () => {
     __resetResponsiveCache();
     renderApp();
     expect(screen.getByRole('button', { name: 'Redo' })).toBeInTheDocument();
+  });
+
+  it('folds the transport into the dock on a compact-landscape phone, without the possession button', () => {
+    setViewport(VIEWPORTS.phoneLandscapeSmall);
+    __resetResponsiveCache();
+    renderApp();
+
+    // The dock's own Play button is still there...
+    expect(screen.getByRole('navigation', { name: 'Editing tools' })).toBeInTheDocument();
+    // ...but the possession button, which the dock has no width to spare
+    // for, is not - it only lives in the transport's own (non-inline) row.
+    expect(screen.queryByRole('button', { name: /^Puck/ })).not.toBeInTheDocument();
+  });
+
+  it('a phone frames a zone for a reopened drill that happens to have zero players', async () => {
+    setViewport(VIEWPORTS.phonePortrait);
+    __resetResponsiveCache();
+
+    // The boot fixture (`createInitialState`) seeds the default 12-player
+    // lineup, so it is not itself an empty drill. A genuinely empty one here
+    // is a drill with no players saved as the repository's current one, which
+    // `initialize()` reopens on mount - the zero-player fallback trigger,
+    // distinct from (and in addition to) the new-drill-creation trigger
+    // covered below.
+    const emptyDrill = { ...createNewDrill(), players: [] };
+    await repository.save(emptyDrill);
+    await repository.setCurrentDrillId(emptyDrill.id);
+
+    renderApp();
+    await flush();
+    expect(services.camera.zone).toBe('offensive');
+  });
+
+  it('a phone frames a freshly created drill on a zone, default lineup and all', async () => {
+    const user = userEvent.setup();
+    setViewport(VIEWPORTS.phonePortrait);
+    __resetResponsiveCache();
+    renderApp();
+    await waitFor(() => expect(repository.drills.size).toBe(1));
+
+    // The real `commands.newDrill()` flow, via the menu - the default lineup
+    // is 12 players, so this only passes if the zone default fires on
+    // creation rather than waiting for an empty board.
+    await user.click(screen.getByRole('button', { name: 'Open main menu' }));
+    await user.click(await screen.findByRole('button', { name: 'New drill' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Start a new drill?' });
+    await user.click(within(confirm).getByRole('button', { name: 'New drill' }));
+
+    await flush();
+    expect(services.camera.zone).toBe('offensive');
+  });
+
+  it('a desktop keeps the full sheet', async () => {
+    renderApp();
+    await flush();
+    expect(services.camera.zone).toBe('full');
+  });
+});
+
+describe('first-run hint', () => {
+  beforeEach(() => {
+    installFakeLocalStorage();
+  });
+
+  // The boot fixture seeds the default 12-player lineup (see the phone-zone
+  // tests above), so a fresh app is never at the "no players" stage - it
+  // starts wherever that lineup actually leaves the coach: players placed,
+  // no routes drawn yet.
+  it('greets a fresh drill at the routes stage, not the Add stage', async () => {
+    renderApp();
+    expect(
+      await screen.findByText(/select a player, then tap skate to draw their route/i)
+    ).toBeInTheDocument();
+  });
+
+  it('greets a genuinely empty drill with the Add hint', async () => {
+    const emptyDrill = { ...createNewDrill(), players: [] };
+    await repository.save(emptyDrill);
+    await repository.setCurrentDrillId(emptyDrill.id);
+
+    renderApp();
+    expect(await screen.findByText(/tap add to place your first player/i)).toBeInTheDocument();
+  });
+
+  it('never returns once dismissed', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: 'Dismiss hint' }));
+    cleanup();
+    renderApp();
+
+    expect(screen.queryByText(/select a player, then tap skate/i)).not.toBeInTheDocument();
   });
 });

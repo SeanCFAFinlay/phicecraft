@@ -253,6 +253,11 @@ export interface MovementSegment {
   points: Point[];
   curve: CurveShape;
   movement: MovementKind;
+  /**
+   * How the segment ends: gliding to a natural stop, or a full stop.
+   * Absent means `stop`, matching the v2 `SkatePath` this migrates from.
+   */
+  finish?: 'coast' | 'stop';
   /** Repeat this segment until the phase ends - a shuttle or a circle. */
   loop?: boolean;
   /** Wait here before starting, e.g. a queue releasing on a whistle. */

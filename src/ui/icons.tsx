@@ -159,6 +159,17 @@ export function DeleteIcon(props: IconProps) {
   );
 }
 
+/** Open the inspector for whatever is selected. */
+export function DetailsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5.5" />
+      <circle cx="12" cy="7.8" r="0.9" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
+
 // ----------------------------------------------------------------------------
 // Menu and secondary actions
 //
@@ -331,6 +342,116 @@ export function ChartIcon(props: IconProps) {
       <path d="M4 20V4" opacity="0.6" />
       <path d="M4 20h16" opacity="0.6" />
       <path d="M8 17V12M12 17V7M16 17v-7" />
+    </Icon>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Modes and transport
+//
+// The mode switcher (Build / Preview / Present) and the playback and camera
+// controls that used to be literal Unicode glyphs - ⏮ ▶ ❚❚ ⏭ ⤢ ↺ ↻ ↔ ↕ - which
+// this set exists to end, same as the emoji they replaced.
+// ----------------------------------------------------------------------------
+
+/** Build mode: the editing grid. */
+export function BuildIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="2" />
+      <path d="M8 3.5v17M16 3.5v17M3.5 8h17M3.5 16h17" opacity="0.5" />
+    </Icon>
+  );
+}
+
+/** Preview mode: an eye. */
+export function PreviewIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </Icon>
+  );
+}
+
+/** Present mode: a screen playing back. */
+export function PresentIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4.5" width="18" height="12" rx="1.5" />
+      <path d="M9 21h6M12 16.5V21" />
+      <path d="M10 8.3l5 2.7-5 2.7z" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
+
+export function PauseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <line x1="9" y1="5" x2="9" y2="19" />
+      <line x1="15" y1="5" x2="15" y2="19" />
+    </Icon>
+  );
+}
+
+/** Skip to the start: a bar, then a triangle pointing back at it. */
+export function StepBackIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 5.5v13" />
+      <path d="M19 5.5l-11 6.5 11 6.5z" fill="currentColor" />
+    </Icon>
+  );
+}
+
+/** Step forward: the mirror of StepBackIcon. */
+export function StepForwardIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5.5 5.5l11 6.5-11 6.5z" fill="currentColor" />
+      <path d="M19 5.5v13" />
+    </Icon>
+  );
+}
+
+/** Expand: opposite of FitIcon's inward corners - arrows pointing out. */
+export function ExpandIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M14 4h6v6" />
+      <path d="M20 4l-7 7" />
+      <path d="M10 20H4v-6" />
+      <path d="M4 20l7-7" />
+    </Icon>
+  );
+}
+
+/** Spin the rink right: clockwise. */
+export function RotateRightIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M19.5 12a7.5 7.5 0 1 1-2.3-5.4" />
+      <path d="M19.8 4.5v4.2h-4.2" />
+    </Icon>
+  );
+}
+
+/** Spin the rink left: the mirror of RotateRightIcon. */
+export function RotateLeftIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 12a7.5 7.5 0 1 0 2.3-5.4" />
+      <path d="M4.2 4.5v4.2h4.2" />
+    </Icon>
+  );
+}
+
+/** Board orientation: the rink laid out one way, and the other, faintly. */
+export function OrientationIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="8" width="13" height="9" rx="1.5" />
+      <rect x="15.5" y="4" width="6" height="16" rx="1.5" opacity="0.45" />
     </Icon>
   );
 }

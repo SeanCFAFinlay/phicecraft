@@ -9,10 +9,17 @@
 //   2. Nothing returns a bare boolean. A caller can always tell "no such
 //      drill" from "the read failed", because only one of those is safe to
 //      show as an empty library.
+//
+// STORAGE IS V3 AT REST. Every method here still speaks the v2 `Drill` the
+// engine, the UI and every command understand - that interface does not
+// change - but what actually sits in the `drills` store is a
+// `DrillDocumentV3`. `reviveStoredDocument` and `saveMany`/`replaceAndSave`
+// are the seam: they translate between the two on every read and write.
 // ============================================================================
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from 'idb';
 import type { Drill, DrillMeta, ID } from '@/core/types';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
 import { generateId } from '@/utils/id';
 import {
   classifyThrown,
@@ -22,25 +29,22 @@ import {
   type DrillRepository,
   type PersistenceResult,
   type RecoveryRecord,
+  type StoredDrillRecord,
 } from './types';
-import { parseStorableDrill } from './schema';
+import { parseStorableDrill, parseStoredDrillRecord } from './schema';
 import { migrateDrillCandidate, repairDrillDocument } from './drillPipeline';
+import { parseDrillDocumentV3 } from '@/domain/v3/schema';
+import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
+import { projectToV2 } from '@/domain/v3/projectToV2';
+import { mergeEditedIntoStored } from '@/domain/v3/mergeEditedV2';
 
 export const DB_NAME = 'phicecraft';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const META_KEYS = {
   currentDrillId: 'currentDrillId',
   legacyMigrationCompletedAt: 'legacyMigrationCompletedAt',
 } as const;
-
-interface StoredDrillRecord {
-  id: ID;
-  name: string;
-  updatedAt: number;
-  /** The full document, exactly as validated. */
-  document: Drill;
-}
 
 interface PhiceCraftDb extends DBSchema {
   drills: {
@@ -58,25 +62,148 @@ interface PhiceCraftDb extends DBSchema {
   };
 }
 
-function toRecord(drill: Drill): StoredDrillRecord {
-  return { id: drill.id, name: drill.name, updatedAt: drill.updatedAt, document: drill };
+function toStoredRecord(document: DrillDocumentV3): StoredDrillRecord {
+  return { id: document.id, name: document.metadata.title, updatedAt: document.updatedAt, document };
 }
 
 function toMeta(record: StoredDrillRecord): DrillMeta {
   return { id: record.id, name: record.name, updatedAt: record.updatedAt };
 }
 
+// ----------------------------------------------------------------------------
+// v1 -> v2 database upgrade: rewrite every stored document as v3
+// ----------------------------------------------------------------------------
+
 /**
- * Read a stored document back through the same normalize/repair pipeline used
- * for imports. A record written by an older build, or scrambled on disk, is
- * repaired rather than crashing the editor - and if it cannot be repaired the
- * caller gets a typed `corrupt-data` error instead of a silent `null`.
+ * Bring one stored (still v2) document up to v3, the way a fresh migration
+ * should: no fallback identity is offered, unlike a read where the caller
+ * already knows the key it asked for. A record with no usable id of its own
+ * is not silently given one here - it is quarantined instead, so a genuinely
+ * unreadable record surfaces rather than acquiring an identity nobody
+ * authored.
+ */
+function migrateStoredDocumentToV3(
+  document: unknown
+): { ok: true; document: DrillDocumentV3 } | { ok: false; reason: string } {
+  const { drill } = migrateDrillCandidate(document);
+  const repaired = repairDrillDocument(drill, generateId);
+  const parsed = parseStorableDrill(repaired);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      reason: parsed.issues.map(issue => `${issue.path}: ${issue.message}`).join('; '),
+    };
+  }
+  return { ok: true, document: migrateV2ToV3(parsed.drill) };
+}
+
+/**
+ * Cursor over every record in `drills`, rewriting each one's document as v3.
+ * Runs inside the version-change transaction itself: every function it calls
+ * (`migrateDrillCandidate`, `repairDrillDocument`, `migrateV2ToV3`) is
+ * synchronous, so the only asynchronous steps are the store requests that
+ * keep this same transaction alive.
+ *
+ * A single record must never be able to sink the whole upgrade. Two things
+ * can go wrong that `migrateStoredDocumentToV3`'s own `ok: false` branch does
+ * not cover: the transform itself throwing on a shape it was not built to
+ * expect, and `cursor.update` throwing a `DataError` when a tampered
+ * wrapper's `id` does not match the document's own id (`toStoredRecord`
+ * always keys the rewritten record off `document.id`). Either is caught
+ * per-record: the record is quarantined to `recovery` exactly as the
+ * `ok: false` branch does, then deleted, and the cursor moves on. Without
+ * this, either failure would reject this async callback - which idb does not
+ * await - leaving the remaining records unmigrated and, in the `DataError`
+ * case, the version-change transaction aborted.
+ */
+async function migrateDrillsToV3(
+  tx: IDBPTransaction<PhiceCraftDb, StoreNames<PhiceCraftDb>[], 'versionchange'>
+): Promise<void> {
+  const drillStore = tx.objectStore('drills');
+  const recoveryStore = tx.objectStore('recovery');
+
+  const quarantine = async (record: { id: ID; document: unknown }, reason: string) => {
+    await recoveryStore.put({
+      id: `corrupt-${record.id}-${Date.now()}`,
+      source: 'corrupt-record',
+      reference: record.id,
+      raw: record.document,
+      reason,
+      capturedAt: Date.now(),
+    });
+  };
+
+  let cursor = await drillStore.openCursor();
+  while (cursor) {
+    const record = cursor.value as unknown as { id: ID; name: string; updatedAt: number; document: unknown };
+    try {
+      const migrated = migrateStoredDocumentToV3(record.document);
+      if (migrated.ok) {
+        await cursor.update(toStoredRecord(migrated.document));
+      } else {
+        await quarantine(record, migrated.reason);
+        await cursor.delete();
+      }
+    } catch (cause) {
+      await quarantine(record, cause instanceof Error ? cause.message : String(cause));
+      await cursor.delete();
+    }
+    cursor = await cursor.continue();
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Reading a stored record back
+// ----------------------------------------------------------------------------
+
+interface RevivedDocument {
+  ok: true;
+  drill: Drill;
+  /**
+   * Present when the record was reconstructed from something other than a
+   * genuine v3 document (a half-upgraded store, or a scrambled one) - the
+   * caller should persist this so the fallback does not run again next time.
+   */
+  rewrite?: StoredDrillRecord;
+}
+
+/**
+ * Read a stored document back. Storage is v3 at rest, so the primary path is
+ * the v3 gate followed by the v2 projection the current engine runs on. Two
+ * fallbacks exist beneath it, in order:
+ *
+ *   1. A record that fails the v3 gate but is still a well-formed v2
+ *      document - belt-and-braces for a store that missed the version-change
+ *      migration - is migrated on the fly and rewritten. This is the ONLY
+ *      fallback that rewrites: the record is provably a genuine, complete v2
+ *      document, so migrating it forward loses nothing.
+ *   2. Anything else goes through the same tolerant repair every stored
+ *      document has always gone through (`migrateDrillCandidate` ->
+ *      `repairDrillDocument`), because a record written by an older build, or
+ *      scrambled on disk, should be repaired rather than crash the editor.
+ *      If even that fails, the caller gets a typed `corrupt-data` error
+ *      instead of a silent `null`. This path never rewrites: `repairDrillDocument`
+ *      may drop dangling references or invent a puck carrier, and doing that
+ *      silently to the durable copy - rather than just to what is handed back -
+ *      would make a repair destructive. The record is left exactly as found,
+ *      matching the pre-v3 corrupt-record contract.
  */
 function reviveStoredDocument(
   record: StoredDrillRecord | undefined,
   id: ID
-): { ok: true; drill: Drill } | { ok: false; reason: string } {
+): RevivedDocument | { ok: false; reason: string } {
   if (!record) return { ok: false, reason: 'not-found' };
+
+  const gated = parseStoredDrillRecord(record);
+  if (gated.ok) {
+    const { drill } = projectToV2(gated.record.document);
+    return { ok: true, drill: repairDrillDocument(drill, generateId) };
+  }
+
+  const legacy = parseStorableDrill(record.document);
+  if (legacy.ok) {
+    return { ok: true, drill: legacy.drill, rewrite: toStoredRecord(migrateV2ToV3(legacy.drill)) };
+  }
 
   const { drill } = migrateDrillCandidate(record.document, { fallbackId: id, fallbackName: record.name });
   const repaired = repairDrillDocument({ ...drill, id: drill.id || id }, generateId);
@@ -88,6 +215,78 @@ function reviveStoredDocument(
     };
   }
   return { ok: true, drill: parsed.drill };
+}
+
+interface RevivedDocumentV3 {
+  ok: true;
+  document: DrillDocumentV3;
+  /** Present under the same conditions, and for the same reason, as `RevivedDocument.rewrite`. */
+  rewrite?: StoredDrillRecord;
+}
+
+/**
+ * Read a stored document back at its full v3 shape, without the v2
+ * projection `reviveStoredDocument` applies. Export uses this so equipment,
+ * phases, extra puck tracks and rich metadata survive into a backup.
+ *
+ * The genuine-v3 gate is checked here directly, and deliberately does not
+ * repair the result the way `reviveStoredDocument`'s tier 1 does: this is a
+ * faithful export of exactly what a genuine document holds, and a bare or
+ * odd shape gets its chance to be repaired on re-import, at
+ * `finalizeCandidate` in `importService.ts`. When the gate fails, this
+ * delegates to `reviveStoredDocument` for the remaining two tiers - the well
+ * formed legacy v2 fallback (which rewrites) and the tolerant-repair fallback
+ * (which never rewrites) - so those two tiers are not duplicated, then
+ * migrates whatever `Drill` came back forward to v3.
+ */
+function reviveStoredDocumentV3(
+  record: StoredDrillRecord | undefined,
+  id: ID
+): RevivedDocumentV3 | { ok: false; reason: string } {
+  if (!record) return { ok: false, reason: 'not-found' };
+
+  const gated = parseStoredDrillRecord(record);
+  if (gated.ok) {
+    return { ok: true, document: gated.record.document };
+  }
+
+  // The gate already failed above, so this only ever runs `reviveStoredDocument`'s
+  // tiers 2 and 3 - its own (redundant) re-check of the same gate is cheap
+  // and pure, and keeping it there avoids threading a "skip tier 1" flag
+  // through a function this one is not otherwise coupled to.
+  const fallback = reviveStoredDocument(record, id);
+  if (!fallback.ok) return fallback;
+  return { ok: true, document: migrateV2ToV3(fallback.drill), rewrite: fallback.rewrite };
+}
+
+// ----------------------------------------------------------------------------
+// Writing: read-merge-validate-write
+// ----------------------------------------------------------------------------
+
+/**
+ * What a `Drill` the editor hands back should be written as: merged with
+ * whatever is already stored under that id, so v3-only content the v2
+ * projection cannot express - equipment, annotations, extra puck tracks,
+ * phase structure, rich metadata - survives the round trip.
+ *
+ * `existing.document` is gated with `parseDrillDocumentV3` rather than
+ * trusted outright: a half-upgraded store can still hold a v2 document under
+ * that key (see `reviveStoredDocument`'s belt-and-braces fallback), and
+ * `mergeEditedIntoStored` assumes a genuine v3 shape - handing it a v2
+ * document throws (`stored.phases` is `undefined`). When the gate fails,
+ * the save falls back to the freshly migrated document alone, exactly as if
+ * nothing were stored yet, rather than failing the whole save.
+ */
+function prepareForWrite(
+  drill: Drill,
+  existing: StoredDrillRecord | undefined
+): { ok: true; record: StoredDrillRecord } | { ok: false; message: string } {
+  const migrated = migrateV2ToV3(drill);
+  const existingDocument = existing ? parseDrillDocumentV3(existing.document) : null;
+  const next = existingDocument?.ok ? mergeEditedIntoStored(existingDocument.document, migrated) : migrated;
+  const parsed = parseDrillDocumentV3(next);
+  if (!parsed.ok) return { ok: false, message: parsed.message };
+  return { ok: true, record: toStoredRecord(parsed.document) };
 }
 
 export class IndexedDbDrillRepository implements DrillRepository {
@@ -102,7 +301,7 @@ export class IndexedDbDrillRepository implements DrillRepository {
         throw persistenceError('unavailable', 'open', 'IndexedDB is not available in this browser.');
       }
       this.opening = openDB<PhiceCraftDb>(DB_NAME, DB_VERSION, {
-        upgrade(db) {
+        async upgrade(db, oldVersion, _newVersion, transaction) {
           if (!db.objectStoreNames.contains('drills')) {
             const drills = db.createObjectStore('drills', { keyPath: 'id' });
             drills.createIndex('updatedAt', 'updatedAt');
@@ -112,6 +311,9 @@ export class IndexedDbDrillRepository implements DrillRepository {
           }
           if (!db.objectStoreNames.contains('recovery')) {
             db.createObjectStore('recovery', { keyPath: 'id' });
+          }
+          if (oldVersion < 2) {
+            await migrateDrillsToV3(transaction);
           }
         },
       }).then(db => {
@@ -129,6 +331,16 @@ export class IndexedDbDrillRepository implements DrillRepository {
       });
     }
     return this.opening;
+  }
+
+  /** Best-effort: a failed rewrite must never turn a successful read into a failure. */
+  private async rewriteStoredRecord(record: StoredDrillRecord): Promise<void> {
+    try {
+      const db = await this.getDb();
+      await db.put('drills', record);
+    } catch {
+      // The fallback simply runs again on the next read.
+    }
   }
 
   async open(): PersistenceResult<void> {
@@ -175,6 +387,7 @@ export class IndexedDbDrillRepository implements DrillRepository {
           persistenceError('corrupt-data', 'read', `Stored drill ${id} could not be read: ${revived.reason}`)
         );
       }
+      if (revived.rewrite) await this.rewriteStoredRecord(revived.rewrite);
       return ok(revived.drill);
     } catch (cause) {
       return err(classifyThrown('read', cause, `Could not read drill ${id}.`));
@@ -188,9 +401,30 @@ export class IndexedDbDrillRepository implements DrillRepository {
       const drills: Drill[] = [];
       for (const record of records.reverse()) {
         const revived = reviveStoredDocument(record, record.id);
-        if (revived.ok) drills.push(revived.drill);
+        if (revived.ok) {
+          drills.push(revived.drill);
+          if (revived.rewrite) await this.rewriteStoredRecord(revived.rewrite);
+        }
       }
       return ok(drills);
+    } catch (cause) {
+      return err(classifyThrown('read', cause, 'Could not read stored drills.'));
+    }
+  }
+
+  async readAllDocumentsV3(): PersistenceResult<DrillDocumentV3[]> {
+    try {
+      const db = await this.getDb();
+      const records = await db.getAllFromIndex('drills', 'updatedAt');
+      const documents: DrillDocumentV3[] = [];
+      for (const record of records.reverse()) {
+        const revived = reviveStoredDocumentV3(record, record.id);
+        if (revived.ok) {
+          documents.push(revived.document);
+          if (revived.rewrite) await this.rewriteStoredRecord(revived.rewrite);
+        }
+      }
+      return ok(documents);
     } catch (cause) {
       return err(classifyThrown('read', cause, 'Could not read stored drills.'));
     }
@@ -223,11 +457,39 @@ export class IndexedDbDrillRepository implements DrillRepository {
     try {
       const db = await this.getDb();
       const tx = db.transaction('drills', 'readwrite');
+      const store = tx.store;
+      const records: StoredDrillRecord[] = [];
+      for (const drill of drills) {
+        const existing = await store.get(drill.id);
+        const prepared = prepareForWrite(drill, existing);
+        if (!prepared.ok) {
+          return err(
+            persistenceError('validation-failed', 'save', `Drill "${drill.name}" failed validation: ${prepared.message}`)
+          );
+        }
+        records.push(prepared.record);
+      }
       // Queue every write, then await the transaction. A failure anywhere
       // aborts all of them together.
-      await Promise.all(drills.map(drill => tx.store.put(toRecord(drill))));
+      await Promise.all(records.map(record => store.put(record)));
       await tx.done;
       return ok(drills.map(drill => drill.id));
+    } catch (cause) {
+      return err(classifyThrown('save', cause, 'The drill could not be saved.'));
+    }
+  }
+
+  async saveDocumentV3(document: DrillDocumentV3): PersistenceResult<void> {
+    const parsed = parseDrillDocumentV3(document);
+    if (!parsed.ok) {
+      return err(
+        persistenceError('validation-failed', 'save', `Document "${document?.id ?? 'unknown'}" failed validation: ${parsed.message}`)
+      );
+    }
+    try {
+      const db = await this.getDb();
+      await db.put('drills', toStoredRecord(parsed.document));
+      return ok(undefined);
     } catch (cause) {
       return err(classifyThrown('save', cause, 'The drill could not be saved.'));
     }
@@ -275,6 +537,22 @@ export class IndexedDbDrillRepository implements DrillRepository {
       const drillStore = tx.objectStore('drills');
       const recoveryStore = tx.objectStore('recovery');
 
+      const records: StoredDrillRecord[] = [];
+      for (const drill of drills) {
+        const existing = await drillStore.get(drill.id);
+        const prepared = prepareForWrite(drill, existing);
+        if (!prepared.ok) {
+          return err(
+            persistenceError(
+              'validation-failed',
+              'import',
+              `Drill "${drill.name}" failed validation and nothing was replaced: ${prepared.message}`
+            )
+          );
+        }
+        records.push(prepared.record);
+      }
+
       // Keep a copy of anything about to be overwritten, inside the same
       // transaction, so a replacement can never destroy the only copy.
       for (const id of replaceIds) {
@@ -291,8 +569,8 @@ export class IndexedDbDrillRepository implements DrillRepository {
         }
       }
 
-      for (const drill of drills) {
-        await drillStore.put(toRecord(drill));
+      for (const record of records) {
+        await drillStore.put(record);
       }
 
       await tx.done;

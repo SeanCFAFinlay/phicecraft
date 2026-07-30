@@ -30,7 +30,7 @@ export default defineConfig({
   test: {
     // Pure logic suites stay in `node`; anything that renders React or touches
     // the DOM opts in through its filename.
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
     environment: 'node',
     environmentMatchGlobs: [
       ['src/**/*.test.tsx', 'jsdom'],

@@ -6,42 +6,7 @@
 // ============================================================================
 
 import { expect, test, type Page } from '@playwright/test';
-import { LINEUP, clickWorld, dragWorld, openEditor, worldToScreen } from './support';
-
-interface StoredRoute {
-  points: { x: number; y: number }[];
-  shape?: string;
-}
-
-interface StoredEvent {
-  id: string;
-  type: string;
-  at?: number;
-  arrivalAt?: number;
-  fromPoint: { x: number; y: number };
-  toPoint: { x: number; y: number };
-  waypoints?: { x: number; y: number }[];
-  shape?: string;
-}
-
-async function storedDrill(page: Page) {
-  return page.evaluate(
-    () =>
-      new Promise<{ skatePaths: StoredRoute[]; events: StoredEvent[] }>((resolve, reject) => {
-        const request = indexedDB.open('phicecraft');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          const all = db.transaction('drills', 'readonly').objectStore('drills').getAll();
-          all.onsuccess = () => {
-            const drills = all.result as { document: { skatePaths: StoredRoute[]; events: StoredEvent[] } }[];
-            resolve(drills[0].document);
-            db.close();
-          };
-        };
-      })
-  );
-}
+import { LINEUP, clickWorld, dragWorld, openEditor, storedDrill, worldToScreen } from './support';
 
 async function waitForSaved(page: Page): Promise<void> {
   await expect
@@ -57,6 +22,35 @@ async function drawRouteAndOpenDetails(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Details' })).toBeVisible();
   await page.getByRole('button', { name: 'Details' }).click();
   await expect(page.getByRole('dialog', { name: /^#13/ })).toBeVisible();
+}
+
+/**
+ * The midpoint of a route's widest segment - the one whose "+" affordance is
+ * unambiguously farther from either neighbouring control point than from the
+ * midpoint itself. Two adjacent handles closer together than the handle hit
+ * radius allows (`HANDLE_HIT` in `useHitTesting.ts`) would otherwise win the
+ * tap, because a control point deliberately takes priority over the add
+ * affordance between two of them - simplification does not space control
+ * points evenly, so picking a fixed index risks landing on exactly such a
+ * pair.
+ */
+function widestSegmentMidpoint(points: { x: number; y: number }[]): { x: number; y: number } {
+  let bestIndex = 0;
+  let bestDistance = -1;
+  for (let index = 0; index < points.length - 1; index++) {
+    const distance = Math.hypot(
+      points[index + 1].x - points[index].x,
+      points[index + 1].y - points[index].y
+    );
+    if (distance > bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  }
+  return {
+    x: (points[bestIndex].x + points[bestIndex + 1].x) / 2,
+    y: (points[bestIndex].y + points[bestIndex + 1].y) / 2,
+  };
 }
 
 /** Halfway along the #11 to #13 pass, clear of either player token. */
@@ -135,16 +129,18 @@ test('dragging one route handle moves only that point', async ({ page }) => {
 });
 
 test('tapping the "+" between two handles adds a control point', async ({ page }) => {
-  await dragWorld(page, LINEUP.home13, { x: 560, y: 120 });
+  // A longer drag than the other route tests here: simplification does not
+  // space control points evenly, and a shorter route can leave every segment
+  // within the handle hit radius of its neighbour, so tapping "the widest
+  // segment's midpoint" would still land closer to a control point than to
+  // the add affordance between them.
+  await dragWorld(page, LINEUP.home13, { x: 820, y: 100 });
   await waitForSaved(page);
 
   const before = (await storedDrill(page)).skatePaths[0].points;
 
   // The add-affordance sits at the midpoint of a segment of the polygon.
-  const midpoint = {
-    x: (before[1].x + before[2].x) / 2,
-    y: (before[1].y + before[2].y) / 2,
-  };
+  const midpoint = widestSegmentMidpoint(before);
   await clickWorld(page, midpoint);
   await waitForSaved(page);
 
@@ -234,15 +230,14 @@ test('the event inspector reports how far the puck actually travels', async ({ p
 // ----------------------------------------------------------------------------
 
 test('adding and reshaping are undoable', async ({ page }) => {
-  await dragWorld(page, LINEUP.home13, { x: 560, y: 120 });
+  // See the comment on the "+"-tap test above: a longer drag keeps every
+  // segment clear of the neighbouring handle's hit radius.
+  await dragWorld(page, LINEUP.home13, { x: 820, y: 100 });
   await waitForSaved(page);
 
   const before = (await storedDrill(page)).skatePaths[0].points;
 
-  const midpoint = {
-    x: (before[1].x + before[2].x) / 2,
-    y: (before[1].y + before[2].y) / 2,
-  };
+  const midpoint = widestSegmentMidpoint(before);
   await clickWorld(page, midpoint);
   await expect
     .poll(async () => (await storedDrill(page)).skatePaths[0].points.length)

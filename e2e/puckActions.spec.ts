@@ -11,48 +11,12 @@
 // ============================================================================
 
 import { expect, test, type Page } from '@playwright/test';
-import { LINEUP, clickWorld, openEditor, worldToScreen } from './support';
-
-interface StoredEvent {
-  id: string;
-  type: string;
-  fromPlayerId: string;
-  toPlayerId?: string;
-  /** True for the shot the app maintains at the end of every play. */
-  auto?: boolean;
-}
+import type { DrillEvent } from '@/core/types';
+import { LINEUP, clickWorld, openEditor, storedDrill, worldToScreen } from './support';
 
 /** The chain the coach authored, without the automatic finishing shot. */
-function authored(events: StoredEvent[]): StoredEvent[] {
+function authored(events: DrillEvent[]): DrillEvent[] {
   return events.filter(event => !(event.type === 'shot' && event.auto));
-}
-
-interface StoredPlayer {
-  id: string;
-  number: string;
-  x: number;
-  y: number;
-}
-
-async function storedDrill(page: Page) {
-  return page.evaluate(
-    () =>
-      new Promise<{ players: StoredPlayer[]; events: StoredEvent[] }>((resolve, reject) => {
-        const request = indexedDB.open('phicecraft');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          const all = db.transaction('drills', 'readonly').objectStore('drills').getAll();
-          all.onsuccess = () => {
-            const drills = all.result as {
-              document: { players: StoredPlayer[]; events: StoredEvent[] };
-            }[];
-            resolve(drills[0].document);
-            db.close();
-          };
-        };
-      })
-  );
 }
 
 async function waitForSaved(page: Page): Promise<void> {

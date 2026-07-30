@@ -391,4 +391,155 @@ describe('NEW_DRILL / LOAD_DRILL', () => {
     const drill = { ...base.drill, id: 'other', name: 'Other' };
     expect(appReducer(base, { type: 'LOAD_DRILL', drill }).currentDrillId).toBe('other');
   });
+
+  it('starts with no last-created drill', () => {
+    expect(createInitialState().lastCreatedDrillId).toBeNull();
+  });
+
+  it('stamps lastCreatedDrillId on a fresh new drill, so a phone can recognize it without needing zero players', () => {
+    const state = appReducer(createInitialState(), { type: 'NEW_DRILL' });
+    expect(state.lastCreatedDrillId).toBe(state.drill.id);
+    expect(state.currentDrillId).toBe(state.drill.id);
+  });
+
+  it('leaves lastCreatedDrillId alone when loading an existing drill', () => {
+    const created = appReducer(createInitialState(), { type: 'NEW_DRILL' });
+    const other = { ...created.drill, id: 'other', name: 'Other' };
+    const loaded = appReducer(created, { type: 'LOAD_DRILL', drill: other });
+    expect(loaded.lastCreatedDrillId).toBe(created.lastCreatedDrillId);
+    expect(loaded.currentDrillId).toBe('other');
+  });
+});
+
+describe('SET_MODE', () => {
+  it('defaults to build', () => {
+    expect(createInitialState().ui.mode).toBe('build');
+  });
+
+  it('entering preview clears the pending action and closes chrome', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_PENDING_ACTION', action: { kind: 'pass', playerId: state.drill.players[0].id } });
+    state = appReducer(state, { type: 'OPEN_SHEET', sheet: 'more' });
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    expect(state.ui.mode).toBe('preview');
+    expect(state.pendingAction.kind).toBe('none');
+    expect(state.ui.openSheet).toBe('none');
+    expect(state.ui.showMenu).toBe(false);
+    expect(state.ui.inspector.kind).toBe('none');
+  });
+
+  it('outside build, document edits are ignored', () => {
+    let state = createInitialState();
+    const before = state.drill;
+    const nonCarrierId = before.players.find(p => !p.hasPuck)!.id;
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const moved = appReducer(state, { type: 'SET_PUCK_CARRIER', id: nonCarrierId });
+    expect(moved.drill).toBe(state.drill);
+    expect(moved.undoStack).toBe(state.undoStack);
+  });
+
+  it('outside build, arming an action is ignored', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'present' });
+    const armed = appReducer(state, { type: 'SET_PENDING_ACTION', action: { kind: 'pass', playerId: state.drill.players[0].id } });
+    expect(armed.pendingAction.kind).toBe('none');
+  });
+
+  it('LOAD_DRILL still works outside build (library can hand over a drill)', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const drill = { ...state.drill, id: 'other', name: 'Other' };
+    const loaded = appReducer(state, { type: 'LOAD_DRILL', drill });
+    expect(loaded.drill.id).toBe('other');
+  });
+
+  it('playback actions still work outside build', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'present' });
+    state = appReducer(state, { type: 'START_PLAYBACK' });
+    expect(state.playback.isPlaying).toBe(true);
+  });
+
+  it('outside build, POP_UNDO is ignored even with history on the stack', () => {
+    let state = run(stateWithPlayers(), { type: 'ADD_PLAYER', player: player('c', 5, 5) });
+    expect(state.undoStack).toHaveLength(1);
+
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const attempted = appReducer(state, { type: 'POP_UNDO' });
+    expect(attempted).toBe(state);
+    expect(attempted.drill.players).toHaveLength(3);
+  });
+
+  it('outside build, REDO is ignored even with a redo entry available', () => {
+    let state = run(
+      stateWithPlayers(),
+      { type: 'ADD_PLAYER', player: player('c', 5, 5) },
+      { type: 'POP_UNDO' }
+    );
+    expect(state.redoStack).toHaveLength(1);
+
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const attempted = appReducer(state, { type: 'REDO' });
+    expect(attempted).toBe(state);
+    expect(attempted.drill.players).toHaveLength(2);
+  });
+
+  it('outside build, MOVE_PLAYER is ignored', () => {
+    const state = appReducer(stateWithPlayers(), { type: 'SET_MODE', mode: 'preview' });
+    const before = state.drill;
+    const moved = appReducer(state, { type: 'MOVE_PLAYER', id: 'a', x: 999, y: 999 });
+    expect(moved.drill).toBe(before);
+  });
+
+  it('outside build, MOVE_COACH is ignored', () => {
+    let state = run(
+      appReducer(stateWithPlayers(), { type: 'SET_MODE', mode: 'build' }),
+      { type: 'ADD_COACH', coach: { id: 'coach-a', x: 0, y: 0, name: 'Coach' } }
+    );
+    state = appReducer(state, { type: 'SET_MODE', mode: 'present' });
+    const before = state.drill;
+    const moved = appReducer(state, { type: 'MOVE_COACH', id: 'coach-a', x: 999, y: 999 });
+    expect(moved.drill).toBe(before);
+  });
+
+  it('outside build, UPDATE_SKATE_POINTS is ignored', () => {
+    let state = run(stateWithPlayers(), { type: 'ADD_SKATE_PATH', path: path('a') });
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const before = state.drill;
+    const updated = appReducer(state, {
+      type: 'UPDATE_SKATE_POINTS',
+      id: 'path-a',
+      points: [{ x: 9, y: 9 }, { x: 10, y: 10 }],
+    });
+    expect(updated.drill).toBe(before);
+  });
+
+  it('outside build, UPDATE_EVENT_GEOMETRY is ignored', () => {
+    let state = run(stateWithPlayers(), { type: 'ADD_PASS', event: passEvent('a', 'b') });
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const before = state.drill;
+    const updated = appReducer(state, {
+      type: 'UPDATE_EVENT_GEOMETRY',
+      id: 'pass-a-b',
+      toPoint: { x: 999, y: 999 },
+    });
+    expect(updated.drill).toBe(before);
+  });
+});
+
+describe('DOCUMENT_SWITCH_ACTIONS reset mode', () => {
+  it('LOAD_DRILL in preview returns to build', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const drill = { ...state.drill, id: 'other', name: 'Other' };
+    const loaded = appReducer(state, { type: 'LOAD_DRILL', drill });
+    expect(loaded.ui.mode).toBe('build');
+  });
+
+  it('NEW_DRILL in preview returns to build', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const created = appReducer(state, { type: 'NEW_DRILL' });
+    expect(created.ui.mode).toBe('build');
+  });
 });

@@ -32,6 +32,14 @@ export function useKeyboardShortcuts(): void {
       if (dialogs.getSnapshot()) return;
 
       if (event.key === 'Escape') {
+        // Present has no chrome of its own to dismiss - exiting the mode IS
+        // the escape, and it takes priority over everything below.
+        if (state.ui.mode === 'present') {
+          commands.setMode('build');
+          event.preventDefault();
+          return;
+        }
+
         // Topmost first: pending action, then inspector, then sheet, then menu.
         if (state.pendingAction.kind !== 'none') {
           commands.cancelPendingAction();

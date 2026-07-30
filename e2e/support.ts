@@ -6,8 +6,65 @@
 // ============================================================================
 
 import { expect, type Page } from '@playwright/test';
+import { projectToV2 } from '@/domain/v3/projectToV2';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
+import type { Drill } from '@/core/types';
 
 export const RINK = 'canvas[role="application"]';
+
+// ----------------------------------------------------------------------------
+// Storage
+//
+// Storage keeps the authored v3 document (metadata, actors, puck tracks, ...);
+// the app's editor, engine and these specs all still speak the flat v2 shape
+// (`players`, `skatePaths`, `events`) - see `src/domain/v3/projectToV2.ts` for
+// the seam that bridges the two. Reading a raw record straight off IndexedDB
+// and casting it to the v2 shape (what these specs used to do) stopped working
+// the moment storage moved to v3; this runs it back through the same
+// projection the app itself uses, so a spec asserts on what a coach actually
+// sees rather than on the wire format underneath it.
+// ----------------------------------------------------------------------------
+
+interface StoredRecord {
+  id: string;
+  name: string;
+  document: Drill;
+}
+
+async function rawDrillRecords(page: Page): Promise<{ id: string; name: string; document: DrillDocumentV3 }[]> {
+  return page.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const request = indexedDB.open('phicecraft');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const all = db.transaction('drills', 'readonly').objectStore('drills').getAll();
+          all.onsuccess = () => {
+            resolve(all.result);
+            db.close();
+          };
+          all.onerror = () => reject(all.error);
+        };
+      })
+  );
+}
+
+/** Every stored drill, projected to the v2 shape the app and these specs assert on. */
+export async function storedDrills(page: Page): Promise<StoredRecord[]> {
+  const raw = await rawDrillRecords(page);
+  return raw.map(record => ({
+    id: record.id,
+    name: record.name,
+    document: projectToV2(record.document).drill,
+  }));
+}
+
+/** The first stored drill's projected document - most specs only ever have one. */
+export async function storedDrill(page: Page): Promise<Drill> {
+  const [first] = await storedDrills(page);
+  return first.document;
+}
 
 /**
  * Open the app with a clean local store.
@@ -47,6 +104,24 @@ export async function openEditor(page: Page): Promise<void> {
   await expect(page.getByRole('status', { name: /^Save status:/ })).toHaveAccessibleName(
     /Saved|Unsaved/
   );
+}
+
+/**
+ * Dismiss the first-run hint, if it is showing.
+ *
+ * A fresh e2e context has no `phicecraft.firstRunHintDone` in localStorage, so
+ * the three-step hint chip appears in build mode the moment a new drill has
+ * no drawn routes yet - which is every spec that opens a fresh editor and
+ * has not yet drawn one. It shares the same top-of-rink lane as the pending
+ * action chip, so a spec whose first taps land near there should dismiss it
+ * first rather than risk the tap landing on the hint instead of the rink.
+ */
+export async function dismissFirstRunHint(page: Page): Promise<void> {
+  const dismiss = page.getByRole('button', { name: 'Dismiss hint' });
+  if (await dismiss.isVisible().catch(() => false)) {
+    await dismiss.click();
+    await expect(dismiss).toBeHidden();
+  }
 }
 
 /** The rink's bounding box, for coordinate maths. */

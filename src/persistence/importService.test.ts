@@ -13,6 +13,10 @@ import { commitImport, importAsCopies, prepareImport } from './importService';
 import { FakeRepository } from '@/test/fakeRepository';
 import { buildDrill, buildDistinctiveRoute, buildPass, buildPlayer, FIXED_NOW } from '@/test/builders';
 import { IMPORT_LIMITS } from './schema';
+import { giveAndGoRegressionDrill } from '@/fixtures/giveAndGo.v1';
+import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
+import { err, persistenceError, type PersistenceResult } from './types';
 
 let repository: FakeRepository;
 
@@ -70,6 +74,13 @@ describe('prepareImport limits and shapes', () => {
     repository.failOperation('list', { code: 'unavailable', message: 'no db' });
     const result = await prepareImport(json(buildDrill()), repository);
     expect(result.ok).toBe(false);
+  });
+
+  it('propagates a prepare failure through importAsCopies rather than committing anything', async () => {
+    repository.failOperation('list', { code: 'unavailable', message: 'no db' });
+    const result = await importAsCopies(json(buildDrill()), repository);
+    expect(result.ok).toBe(false);
+    expect(repository.drills.size).toBe(0);
   });
 });
 
@@ -314,5 +325,151 @@ describe('the exact imported ID', () => {
     if (!result.ok) return;
     expect(result.value.importedIds).toEqual([]);
     expect(result.value.failures).toHaveLength(2);
+  });
+});
+
+describe('v3-aware import shapes', () => {
+  it('imports a version-1 export payload (v2 drills) unchanged in meaning', async () => {
+    const legacy = {
+      format: 'phicecraft-drills',
+      version: 1,
+      exportedAt: 5,
+      containsUnsavedRevision: false,
+      drills: [structuredClone(giveAndGoRegressionDrill)],
+    };
+
+    const result = await importAsCopies(json(legacy), repository, { now: FIXED_NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.importedIds).toHaveLength(1);
+
+    const stored = repository.drills.get(result.value.importedIds[0])!;
+    expect(stored.players).toHaveLength(giveAndGoRegressionDrill.players.length);
+  });
+
+  it('imports a version-2 export payload (v3 documents)', async () => {
+    const doc = migrateV2ToV3(structuredClone(giveAndGoRegressionDrill));
+    const payload = {
+      format: 'phicecraft-drills',
+      version: 2,
+      exportedAt: 5,
+      containsUnsavedRevision: false,
+      documents: [doc],
+    };
+
+    const result = await importAsCopies(json(payload), repository, { now: FIXED_NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.importedIds).toHaveLength(1);
+
+    const stored = repository.drills.get(result.value.importedIds[0])!;
+    expect(stored.players).toHaveLength(giveAndGoRegressionDrill.players.length);
+    expect(stored.players.map(player => player.number).sort()).toEqual(
+      giveAndGoRegressionDrill.players.map(player => player.number).sort()
+    );
+  });
+
+  it('keeps a v3 import at its file-authored internal actor ids, not the v2 remap, across two copies', async () => {
+    // The v3 enrichment pass in `commitImport` writes `saveDocumentV3` *after*
+    // `replaceAndSave` has already stored the remapped v2 projection, and
+    // `saveDocumentV3` overwrites that record wholesale with the original
+    // document (top-level id/timestamps restamped, everything else
+    // untouched) - so a v3-origin import's internal actor/route/event ids end
+    // up exactly as the source file had them, NOT the fresh ids
+    // `remapImportedDrill` computed. This is accepted, not a bug: those ids
+    // are document-scoped (only ever read alongside the document's own top
+    // level id), and a fresh top-level id per import - proven distinct below
+    // - is what actually prevents one imported copy from clobbering another
+    // or the original. The v2-only remap test at importService.test.ts:127
+    // does not exercise this path, so this locks it down explicitly.
+    const doc = migrateV2ToV3(structuredClone(giveAndGoRegressionDrill));
+    const payload = json({
+      format: 'phicecraft-drills',
+      version: 2,
+      exportedAt: 5,
+      containsUnsavedRevision: false,
+      documents: [doc],
+    });
+
+    const first = await importAsCopies(payload, repository, { now: FIXED_NOW });
+    const second = await importAsCopies(payload, repository, { now: FIXED_NOW + 1 });
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+
+    const firstId = first.value.importedIds[0];
+    const secondId = second.value.importedIds[0];
+    expect(firstId).not.toBe(secondId);
+
+    const firstStored = repository.drills.get(firstId)!;
+    const secondStored = repository.drills.get(secondId)!;
+    const sourcePlayerIds = giveAndGoRegressionDrill.players.map(player => player.id).sort();
+
+    expect(firstStored.players.map(player => player.id).sort()).toEqual(sourcePlayerIds);
+    expect(secondStored.players.map(player => player.id).sort()).toEqual(sourcePlayerIds);
+    expect(firstStored.players.map(player => player.id).sort()).toEqual(
+      secondStored.players.map(player => player.id).sort()
+    );
+  });
+
+  it('imports a bare v3 document object', async () => {
+    const doc = migrateV2ToV3(structuredClone(giveAndGoRegressionDrill));
+    const result = await prepareImport(json(doc), repository, { now: FIXED_NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.candidates).toHaveLength(1);
+    expect(result.value.candidates[0].drill.players).toHaveLength(giveAndGoRegressionDrill.players.length);
+  });
+
+  it('falls back to no declared name when a v2 candidate never had one', async () => {
+    const source = { players: [], skatePaths: [], events: [] };
+    const result = await prepareImport(json(source), repository, { now: FIXED_NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // No `name` field at all: `migrateDrillCandidate` still falls back to
+    // "Imported Drill" for the stored drill, but the *declared* name used in
+    // failure messages has nothing to report.
+    expect(result.value.candidates).toHaveLength(1);
+    expect(result.value.candidates[0].drill.name).toBe('Imported Drill');
+  });
+
+  it('falls back to no declared name in the failure report when a v3 document has an empty title', async () => {
+    const doc = migrateV2ToV3(structuredClone(giveAndGoRegressionDrill));
+    doc.metadata.title = '';
+    const result = await prepareImport(json(doc), repository, { now: FIXED_NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // An empty title projects to an empty v2 `name`, which the storage schema
+    // requires to be non-empty - so this is a legitimate schema failure, and
+    // it is reported with no declared name rather than an empty string.
+    expect(result.value.candidates).toHaveLength(0);
+    expect(result.value.failures).toHaveLength(1);
+    expect(result.value.failures[0].name).toBeNull();
+  });
+
+  it('reports a schema failure for a v3-tagged document that does not actually match the v3 shape', async () => {
+    const broken = { schemaVersion: 3, id: 'x' };
+    const result = await prepareImport(json(broken), repository);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.candidates).toHaveLength(0);
+    expect(result.value.failures).toHaveLength(1);
+    expect(result.value.failures[0].code).toBe('schema-failed');
+  });
+
+  it('keeps the v2-shaped import when preserving v3 extras fails, and warns instead of failing', async () => {
+    class BlockedV3Repository extends FakeRepository {
+      async saveDocumentV3(_document: DrillDocumentV3): PersistenceResult<void> {
+        return err(persistenceError('unknown', 'save', 'v3 write blocked for test'));
+      }
+    }
+    const blocked = new BlockedV3Repository();
+    const doc = migrateV2ToV3(structuredClone(giveAndGoRegressionDrill));
+
+    const result = await importAsCopies(json(doc), blocked, { now: FIXED_NOW });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.importedIds).toHaveLength(1);
+    expect(blocked.drills.has(result.value.importedIds[0])).toBe(true);
+    expect(result.value.warnings.some(warning => warning.includes('could not be preserved'))).toBe(true);
   });
 });

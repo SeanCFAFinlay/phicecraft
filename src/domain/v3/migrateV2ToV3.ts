@@ -111,6 +111,7 @@ function toSegment(path: SkatePath, duration: number): MovementSegment {
     curve: path.shape ?? 'spline',
     movement:
       path.mode === 'backward' ? 'backward' : path.mode === 'glide' ? 'glide' : 'forward',
+    finish: path.finish,
   };
 }
 

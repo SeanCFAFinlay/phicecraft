@@ -7,6 +7,7 @@
 // ============================================================================
 
 import type { Drill, DrillMeta, ID } from '@/core/types';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
 import { duplicateDrill } from '@/engine/drill';
 import { generateId } from '@/utils/id';
 import {
@@ -18,13 +19,14 @@ import {
   prepareImport as prepareImportFromText,
   type ImportDecision,
   type ImportPreview,
+  type LegacyExportPayloadV1,
 } from '@/persistence';
 import { giveAndGoRegressionDrill } from '@/fixtures/giveAndGo.v1';
 import { fiveManCornerRetrievalDrill } from '@/fixtures/fiveManCornerRetrieval.v1';
 import { fiveManCrossCornerDrill } from '@/fixtures/fiveManCrossCorner.v1';
 import { fiveManLowHighDrill } from '@/fixtures/fiveManLowHigh.v1';
 import { CONFIRMATIONS, deleteDrillConfirmation } from './confirmations';
-import { remapImportedDrill } from '@/persistence/drillPipeline';
+import { remapDocumentIds } from '@/domain/v3/remapIds';
 import {
   cancelled,
   done,
@@ -199,13 +201,31 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
       if (!template) return rejected('That drill is no longer in the library.');
 
       const now = host.now();
-      // Project to the shape the engine runs, then re-identify everything. The
-      // template document itself is never handed to the editor, so nothing a
-      // coach does can reach back into the catalogue.
-      const { drill: projected, losses } = projectToV2(template.document);
+      const freshId = generateId();
+
+      // Remap FIRST, then project the ALREADY-remapped document to the shape
+      // the engine runs. The template document itself is never handed to the
+      // editor, so nothing a coach does can reach back into the catalogue -
+      // and because the projection is id-preserving (projectToV2 carries
+      // actor/action ids straight through), the projected v2 copy and the
+      // stored v3 document share ids by construction, not by a second,
+      // independent re-identification pass that could disagree with it.
+      const documentCopy: DrillDocumentV3 = {
+        ...remapDocumentIds(structuredClone(template.document), generateId),
+        id: freshId,
+        templateId: template.id,
+        createdAt: now,
+        updatedAt: now,
+        metadata: { ...template.document.metadata },
+      };
+
+      // The full v3 document is what gets stored, so equipment, annotations,
+      // phases and extra puck tracks survive the copy - the projected `copy`
+      // below only exists to seed the v2 editor.
+      const { drill: projected, losses } = projectToV2(documentCopy);
       const copy: Drill = {
-        ...remapImportedDrill(projected, generateId, now),
-        id: generateId(),
+        ...projected,
+        id: freshId,
         name: template.document.metadata.title,
         createdAt: now,
         updatedAt: now,
@@ -217,9 +237,10 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
       dispatch({ type: 'CLOSE_SHEET' });
       coordinator.reset();
 
-      const saved = await coordinator.save(copy);
+      const saved = await repository.saveDocumentV3(documentCopy);
       if (!saved.ok) return reportFailure('That drill could not be saved', saved.error);
 
+      coordinator.adoptSaved(copy, now);
       await repository.setCurrentDrillId(copy.id);
       await refreshDrillList();
 
@@ -391,8 +412,8 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
 
       notify.toast({
         message: payload.containsUnsavedRevision
-          ? `Exported ${payload.drills.length} play(s), including your unsaved changes`
-          : `Exported ${payload.drills.length} play(s)`,
+          ? `Exported ${payload.documents.length} play(s), including your unsaved changes`
+          : `Exported ${payload.documents.length} play(s)`,
         type: payload.containsUnsavedRevision ? 'warning' : 'success',
       });
       dispatch({ type: 'CLOSE_MENU' });
@@ -462,17 +483,19 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
 
     async exportUnsavedData() {
       const pending = coordinator.pendingDocument ?? getState().drill;
-      const json = JSON.stringify(
-        {
-          format: 'phicecraft-drills',
-          version: 1,
-          exportedAt: host.now(),
-          containsUnsavedRevision: true,
-          drills: [pending],
-        },
-        null,
-        2
-      );
+      // A second live export format alongside `ExportPayload` (version 2):
+      // the crash-recovery screen has only the in-memory v2 drill to hand,
+      // with no repository to read a v3 document back from, so this stays a
+      // version-1 envelope. Typed against `LegacyExportPayloadV1` so a future
+      // change to that shape is compiler-guarded here too.
+      const payload: LegacyExportPayloadV1 = {
+        format: 'phicecraft-drills',
+        version: 1,
+        exportedAt: host.now(),
+        containsUnsavedRevision: true,
+        drills: [pending],
+      };
+      const json = JSON.stringify(payload, null, 2);
 
       const downloaded = host.download(`phicecraft-unsaved-${pending.name || 'drill'}.json`, json);
       if (!downloaded) {

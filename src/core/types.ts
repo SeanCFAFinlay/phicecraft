@@ -438,12 +438,17 @@ export type SheetKind =
   | 'library'
   | 'possession'
   | 'workflow'
+  | 'mode'
   | 'playback'
   | 'help'
   | 'diagnostics'
   | 'import-preview';
 
+/** The three product states. Only 'build' may mutate the document. */
+export type AppMode = 'build' | 'preview' | 'present';
+
 export interface UIState {
+  mode: AppMode;
   editorStep: 'setup' | 'movement' | 'puck' | 'review';
   currentTool: Tool;
   showMenu: boolean;
@@ -534,6 +539,14 @@ export interface AppState {
   // Drill list (for management)
   drillList: DrillMeta[];
   currentDrillId: ID | null;
+  /**
+   * The id `NEW_DRILL` last stamped, so a phone can recognize "this drill was
+   * just created" without waiting for the player count to reach zero - a
+   * brand-new drill starts with the full default lineup, not an empty board.
+   * `LOAD_DRILL` leaves this alone: opening an existing drill is not creating
+   * one, however many players it happens to have.
+   */
+  lastCreatedDrillId: ID | null;
 }
 
 // ============================================================================
@@ -647,6 +660,7 @@ export type AppAction =
   | { type: 'CANCEL_PENDING_ACTION' }
 
   // UI
+  | { type: 'SET_MODE'; mode: AppMode }
   | { type: 'SET_TOOL'; tool: Tool }
   | { type: 'SET_EDITOR_STEP'; step: UIState['editorStep'] }
   | { type: 'TOGGLE_MENU' }

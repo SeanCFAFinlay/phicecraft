@@ -8,6 +8,7 @@
 // ============================================================================
 
 import type { Drill, DrillMeta, ID } from '@/core/types';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
 
 // ----------------------------------------------------------------------------
 // Result
@@ -157,9 +158,18 @@ export interface ImportResult {
 
 export interface ExportPayload {
   format: 'phicecraft-drills';
-  version: 1;
+  version: 2;
   exportedAt: number;
   /** True when the payload includes an in-memory revision that is not durable. */
+  containsUnsavedRevision: boolean;
+  documents: DrillDocumentV3[];
+}
+
+/** The envelope shape every export produced before v3 documents existed. */
+export interface LegacyExportPayloadV1 {
+  format: 'phicecraft-drills';
+  version: 1;
+  exportedAt: number;
   containsUnsavedRevision: boolean;
   drills: Drill[];
 }
@@ -181,6 +191,24 @@ export interface RecoveryRecord {
 }
 
 // ----------------------------------------------------------------------------
+// Storage
+//
+// The shape actually persisted. The document is `DrillDocumentV3`: the
+// repository stores v3 at rest even though every method below still speaks
+// the v2 `Drill` the engine and UI understand - `name`/`updatedAt` are kept
+// denormalized alongside it so the `drills` list can be read without
+// deserializing every document.
+// ----------------------------------------------------------------------------
+
+export interface StoredDrillRecord {
+  id: ID;
+  name: string;
+  updatedAt: number;
+  /** The full document, exactly as validated, at the current schema version. */
+  document: DrillDocumentV3;
+}
+
+// ----------------------------------------------------------------------------
 // Repository
 // ----------------------------------------------------------------------------
 
@@ -193,10 +221,22 @@ export interface DrillRepository {
   /** `not-found` error when the drill does not exist; other codes mean read failure. */
   read(id: ID): PersistenceResult<Drill>;
   readAll(): PersistenceResult<Drill[]>;
+  /**
+   * Reads every stored document at its full v3 shape, without projecting to
+   * v2. Export uses this instead of `readAll` so equipment, phases, extra
+   * puck tracks and rich metadata survive into a backup.
+   */
+  readAllDocumentsV3(): PersistenceResult<DrillDocumentV3[]>;
   /** Writes the drill and its list entry in one transaction. */
   save(drill: Drill): PersistenceResult<void>;
   /** Writes every drill in a single transaction; all or nothing. */
   saveMany(drills: Drill[]): PersistenceResult<ID[]>;
+  /**
+   * Writes a full v3 document directly, bypassing the v2 `Drill` merge path.
+   * The only v3-typed door into the repository - used for seeding a drill
+   * from a template, where there is no v2 edit to merge against.
+   */
+  saveDocumentV3(document: DrillDocumentV3): PersistenceResult<void>;
   /** Removes the drill and its list entry in one transaction. */
   delete(id: ID): PersistenceResult<void>;
   /**
