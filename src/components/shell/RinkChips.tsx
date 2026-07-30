@@ -20,8 +20,11 @@ import { getCurrentPuckHolder } from '@/engine/puck';
 
 /**
  * The lane chip lives across the top of the rink, below the toast strip.
+ * Exported so `FirstRunHint` shares it: the two are mutually exclusive (a
+ * pending action always outranks the hint), so there is never a moment where
+ * both would occupy the lane at once.
  */
-const CHIP_LANE = 'pointer-events-none absolute inset-x-0 top-11 z-30 flex px-2';
+export const CHIP_LANE = 'pointer-events-none absolute inset-x-0 top-11 z-30 flex px-2';
 
 /**
  * The visible pending action. Route, Pass and Shoot can no longer become

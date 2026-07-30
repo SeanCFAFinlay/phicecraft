@@ -22,6 +22,7 @@ import { Transport } from '@/components/shell/Transport';
 import { PreviewBar } from '@/components/shell/PreviewBar';
 import { PresentOverlay } from '@/components/shell/PresentOverlay';
 import { ActionChip } from '@/components/shell/RinkChips';
+import { FirstRunHint } from '@/components/shell/FirstRunHint';
 import { useKeyboardShortcuts } from '@/components/shell/useKeyboardShortcuts';
 import { ToastHost } from '@/components/Toast';
 import { DialogHost } from '@/components/DialogHost';
@@ -114,6 +115,7 @@ export function AppShell() {
         <CanvasSurface />
 
         {mode !== 'present' && <ActionChip />}
+        {mode === 'build' && <FirstRunHint />}
         <UpdateBanner />
         <ToastHost />
         {mode !== 'present' && <ViewControls />}

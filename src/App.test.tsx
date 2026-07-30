@@ -7,7 +7,7 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppProvider, type AppServices } from '@/hooks/useAppState';
 import { EditorRuntimeProvider } from '@/hooks/useEditorRuntime';
@@ -19,7 +19,7 @@ import { ImportPreviewStore } from '@/ui/ImportPreviewStore';
 import { CameraStore } from '@/camera/CameraStore';
 import { PlaybackStore } from '@/playback/PlaybackStore';
 import { HoldProgressStore } from '@/ui/HoldProgressStore';
-import { flush, pointer, setViewport, VIEWPORTS } from '@/test/utils';
+import { flush, installFakeLocalStorage, pointer, setViewport, VIEWPORTS } from '@/test/utils';
 import { createNewDrill } from '@/engine/drill';
 import { __resetValidationCaches } from '@/editor/useDrillValidation';
 import { __resetResponsiveCache } from '@/ui/useResponsive';
@@ -433,5 +433,42 @@ describe('responsive shell', () => {
     renderApp();
     await flush();
     expect(services.camera.zone).toBe('full');
+  });
+});
+
+describe('first-run hint', () => {
+  beforeEach(() => {
+    installFakeLocalStorage();
+  });
+
+  // The boot fixture seeds the default 12-player lineup (see the phone-zone
+  // tests above), so a fresh app is never at the "no players" stage - it
+  // starts wherever that lineup actually leaves the coach: players placed,
+  // no routes drawn yet.
+  it('greets a fresh drill at the routes stage, not the Add stage', async () => {
+    renderApp();
+    expect(
+      await screen.findByText(/select a player, then tap skate to draw their route/i)
+    ).toBeInTheDocument();
+  });
+
+  it('greets a genuinely empty drill with the Add hint', async () => {
+    const emptyDrill = { ...createNewDrill(), players: [] };
+    await repository.save(emptyDrill);
+    await repository.setCurrentDrillId(emptyDrill.id);
+
+    renderApp();
+    expect(await screen.findByText(/tap add to place your first player/i)).toBeInTheDocument();
+  });
+
+  it('never returns once dismissed', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole('button', { name: 'Dismiss hint' }));
+    cleanup();
+    renderApp();
+
+    expect(screen.queryByText(/select a player, then tap skate/i)).not.toBeInTheDocument();
   });
 });
