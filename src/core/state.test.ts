@@ -391,6 +391,24 @@ describe('NEW_DRILL / LOAD_DRILL', () => {
     const drill = { ...base.drill, id: 'other', name: 'Other' };
     expect(appReducer(base, { type: 'LOAD_DRILL', drill }).currentDrillId).toBe('other');
   });
+
+  it('starts with no last-created drill', () => {
+    expect(createInitialState().lastCreatedDrillId).toBeNull();
+  });
+
+  it('stamps lastCreatedDrillId on a fresh new drill, so a phone can recognize it without needing zero players', () => {
+    const state = appReducer(createInitialState(), { type: 'NEW_DRILL' });
+    expect(state.lastCreatedDrillId).toBe(state.drill.id);
+    expect(state.currentDrillId).toBe(state.drill.id);
+  });
+
+  it('leaves lastCreatedDrillId alone when loading an existing drill', () => {
+    const created = appReducer(createInitialState(), { type: 'NEW_DRILL' });
+    const other = { ...created.drill, id: 'other', name: 'Other' };
+    const loaded = appReducer(created, { type: 'LOAD_DRILL', drill: other });
+    expect(loaded.lastCreatedDrillId).toBe(created.lastCreatedDrillId);
+    expect(loaded.currentDrillId).toBe('other');
+  });
 });
 
 describe('SET_MODE', () => {

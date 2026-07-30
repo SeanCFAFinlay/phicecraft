@@ -538,6 +538,14 @@ export interface AppState {
   // Drill list (for management)
   drillList: DrillMeta[];
   currentDrillId: ID | null;
+  /**
+   * The id `NEW_DRILL` last stamped, so a phone can recognize "this drill was
+   * just created" without waiting for the player count to reach zero - a
+   * brand-new drill starts with the full default lineup, not an empty board.
+   * `LOAD_DRILL` leaves this alone: opening an existing drill is not creating
+   * one, however many players it happens to have.
+   */
+  lastCreatedDrillId: ID | null;
 }
 
 // ============================================================================

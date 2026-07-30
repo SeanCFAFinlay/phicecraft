@@ -336,19 +336,40 @@ describe('responsive shell', () => {
     expect(screen.getByRole('button', { name: 'Redo' })).toBeInTheDocument();
   });
 
-  it('a phone starts a new empty drill framed on a zone, not the full sheet', async () => {
+  it('a phone frames a zone for a reopened drill that happens to have zero players', async () => {
     setViewport(VIEWPORTS.phonePortrait);
     __resetResponsiveCache();
 
     // The boot fixture (`createInitialState`) seeds the default 12-player
-    // lineup, so it is not itself an empty drill. A genuinely empty one - the
-    // case this default is for - is a drill with no players saved as the
-    // repository's current one, which `initialize()` reopens on mount.
+    // lineup, so it is not itself an empty drill. A genuinely empty one here
+    // is a drill with no players saved as the repository's current one, which
+    // `initialize()` reopens on mount - the zero-player fallback trigger,
+    // distinct from (and in addition to) the new-drill-creation trigger
+    // covered below.
     const emptyDrill = { ...createNewDrill(), players: [] };
     await repository.save(emptyDrill);
     await repository.setCurrentDrillId(emptyDrill.id);
 
     renderApp();
+    await flush();
+    expect(services.camera.zone).toBe('offensive');
+  });
+
+  it('a phone frames a freshly created drill on a zone, default lineup and all', async () => {
+    const user = userEvent.setup();
+    setViewport(VIEWPORTS.phonePortrait);
+    __resetResponsiveCache();
+    renderApp();
+    await waitFor(() => expect(repository.drills.size).toBe(1));
+
+    // The real `commands.newDrill()` flow, via the menu - the default lineup
+    // is 12 players, so this only passes if the zone default fires on
+    // creation rather than waiting for an empty board.
+    await user.click(screen.getByRole('button', { name: 'Open main menu' }));
+    await user.click(await screen.findByRole('button', { name: 'New drill' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Start a new drill?' });
+    await user.click(within(confirm).getByRole('button', { name: 'New drill' }));
+
     await flush();
     expect(services.camera.zone).toBe('offensive');
   });

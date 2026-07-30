@@ -57,6 +57,7 @@ export function createInitialState(): AppState {
     redoStack: [],
     drillList: [],
     currentDrillId: drill.id,
+    lastCreatedDrillId: null,
   };
 }
 
@@ -243,6 +244,7 @@ function reduce(state: AppState, action: AppAction): AppState {
         undoStack: [],
         redoStack: [],
         currentDrillId: drill.id,
+        lastCreatedDrillId: drill.id,
       };
     }
 

@@ -76,18 +76,23 @@ export function AppShell() {
   const { camera } = useEditorRuntime();
   const { isDesktop, isPhone, isCompactLandscape } = useResponsive();
 
-  // A full sheet on a phone shows an empty drill's players too small to place
-  // accurately, so a brand-new drill opens framed on the offensive zone
-  // instead - full ice stays one tap away, in the cycle button or Fit.
-  // Guarded per drill id so it fires once, not every time a player is added
-  // or removed from an already-open drill.
+  // A full sheet on a phone shows the players too small to place accurately,
+  // so a drill opens framed on the offensive zone instead - full ice stays
+  // one tap away, in the cycle button or Fit. Two triggers, because a
+  // brand-new drill is NOT an empty one: `NEW_DRILL` stamps the default
+  // 12-player lineup, so waiting for zero players would never fire for the
+  // case the feature was written for. The zero-player check is a secondary
+  // trigger, for a drill that is genuinely empty regardless of how it was
+  // reached (e.g. every player removed by hand). Guarded per drill id so it
+  // fires once, not every time a player is added or removed afterwards.
   const appliedZoneFor = useRef<string | null>(null);
   useEffect(() => {
     if (!isPhone || state.currentDrillId === null) return;
     if (appliedZoneFor.current === state.currentDrillId) return;
     appliedZoneFor.current = state.currentDrillId;
-    if (state.drill.players.length === 0) camera.zoomToZone('offensive');
-  }, [isPhone, state.currentDrillId, state.drill.players.length, camera]);
+    const isFreshlyCreated = state.currentDrillId === state.lastCreatedDrillId;
+    if (isFreshlyCreated || state.drill.players.length === 0) camera.zoomToZone('offensive');
+  }, [isPhone, state.currentDrillId, state.lastCreatedDrillId, state.drill.players.length, camera]);
 
   // The command layer parses the file and publishes the preview here; this
   // component only renders it.
