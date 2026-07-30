@@ -42,7 +42,16 @@ export function mergeEditedIntoStored(
       })),
       ...stored.puckTracks.slice(1),
     ],
-    presentation: { ...stored.presentation, durationSeconds: edited.presentation.durationSeconds },
+    // durationSeconds, jerseys and reducedEffects are all things v2 can edit,
+    // so the coach's edit wins; defaultView and showPlayerNumbers have no v2
+    // equivalent (migrateV2ToV3 always hardcodes them), so the stored value -
+    // kept by the spread below - survives an edit-save untouched.
+    presentation: {
+      ...stored.presentation,
+      durationSeconds: edited.presentation.durationSeconds,
+      jerseys: edited.presentation.jerseys,
+      reducedEffects: edited.presentation.reducedEffects,
+    },
     templateId: stored.templateId,
     createdAt: stored.createdAt,
     updatedAt: edited.updatedAt,

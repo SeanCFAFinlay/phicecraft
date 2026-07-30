@@ -45,6 +45,28 @@ describe('mergeEditedIntoStored', () => {
     expect(merged.metadata.categories).toEqual(stored.metadata.categories);
   });
 
+  it('takes the edited jerseys, reducedEffects and duration, but keeps the stored defaultView', () => {
+    const { drill } = projectToV2(stored);
+    drill.settings = {
+      ...drill.settings!,
+      jerseys: { home: '#129d5a', away: '#2f80ed' },
+      reducedEffects: true,
+    };
+    const edited = migrateV2ToV3(drill);
+    const merged = mergeEditedIntoStored(
+      { ...stored, presentation: { ...stored.presentation, defaultView: '3d' } },
+      edited
+    );
+
+    // The coach's edits, which v2 can express, must survive the save.
+    expect(merged.presentation.jerseys).toEqual({ home: '#129d5a', away: '#2f80ed' });
+    expect(merged.presentation.reducedEffects).toBe(true);
+    expect(merged.presentation.durationSeconds).toBe(edited.presentation.durationSeconds);
+    // defaultView has no v2 equivalent - migrateV2ToV3 always hardcodes '2d' -
+    // so the merge must keep whatever was already stored, not silently reset it.
+    expect(merged.presentation.defaultView).toBe('3d');
+  });
+
   it('produces a coherent document', () => {
     const { drill } = projectToV2(stored);
     const merged = mergeEditedIntoStored(stored, migrateV2ToV3(drill));
