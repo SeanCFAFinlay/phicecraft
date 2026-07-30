@@ -8,6 +8,8 @@
 
 import { expect, test } from '@playwright/test';
 import {
+  LINEUP,
+  clickWorld,
   closeSheet,
   expectNoHorizontalOverflow,
   expectNothingClipped,
@@ -50,6 +52,40 @@ test('the rink keeps a usable height', async ({ page }, testInfo) => {
 
   // Record it, so the completion report can quote a measured number.
   await testInfo.attach('usable-rink-height', {
+    body: String(height),
+    contentType: 'text/plain',
+  });
+});
+
+/**
+ * The same floors, but with a player selected.
+ *
+ * The context tray's selection row is in normal flow (not an absolutely
+ * positioned chip), so it costs the rink `--tool-dock-height` of vertical
+ * space for as long as the selection lasts - except in compact landscape,
+ * where the selection folds into the dock's own row (Details/Delete replace
+ * Add/Play) instead of costing a second one. Either way, something naming
+ * the selection must be showing, so this checks for whichever form applies.
+ */
+test('the rink keeps a usable height with a player selected', async ({ page }, testInfo) => {
+  await clickWorld(page, LINEUP.home11);
+  const selectionShown = page
+    .getByRole('group', { name: 'Selection' })
+    .or(page.getByRole('navigation', { name: 'Editing tools' }).getByRole('button', { name: 'Delete' }));
+  await expect(selectionShown).toBeVisible();
+
+  const height = await usableRinkHeight(page);
+  const target = RINK_HEIGHT_TARGETS[testInfo.project.name];
+
+  if (target) {
+    expect(height, `${testInfo.project.name} rink height with a selection`).toBeGreaterThanOrEqual(
+      target
+    );
+  } else {
+    expect(height).toBeGreaterThan(150);
+  }
+
+  await testInfo.attach('usable-rink-height-selected', {
     body: String(height),
     contentType: 'text/plain',
   });

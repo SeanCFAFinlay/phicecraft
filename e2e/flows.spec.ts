@@ -13,30 +13,8 @@ import {
   dragWorld,
   openEditor,
   openSheet,
+  storedDrills,
 } from './support';
-
-/** Read the drills currently in IndexedDB, straight from the page. */
-async function storedDrills(page: Page) {
-  return page.evaluate(
-    () =>
-      new Promise<{ id: string; name: string; document: Record<string, unknown> }[]>(
-        (resolve, reject) => {
-          const request = indexedDB.open('phicecraft');
-          request.onerror = () => reject(request.error);
-          request.onsuccess = () => {
-            const db = request.result;
-            const tx = db.transaction('drills', 'readonly');
-            const all = tx.objectStore('drills').getAll();
-            all.onsuccess = () => {
-              resolve(all.result);
-              db.close();
-            };
-            all.onerror = () => reject(all.error);
-          };
-        }
-      )
-  );
-}
 
 /**
  * Wait until nothing is outstanding.
@@ -99,9 +77,7 @@ test('jerseys survive undo, redo, save and reload', async ({ page }) => {
   await expect(page.getByRole('application', { name: /hockey rink/i })).toBeVisible();
 
   const drills = await storedDrills(page);
-  const jerseys = drills.map(
-    drill => (drill.document as { settings?: { jerseys?: { home?: string } } }).settings?.jerseys?.home
-  );
+  const jerseys = drills.map(drill => drill.document.settings?.jerseys?.home);
   expect(jerseys).toContain('#129d5a');
 });
 
@@ -150,7 +126,7 @@ test('Save As New preserves a backward, coasting route', async ({ page }) => {
   const copy = drills.find(drill => drill.name === 'Coast Copy');
   expect(copy, 'the copy survived a reload').toBeTruthy();
 
-  const routes = (copy!.document as { skatePaths: { mode?: string; finish?: string }[] }).skatePaths;
+  const routes = copy!.document.skatePaths;
   expect(routes).toHaveLength(1);
   // The defect: duplicateDrill rebuilt routes from a subset of fields and
   // silently dropped mode and finish.
@@ -285,8 +261,8 @@ test('dragging the puck onto an opponent does not create a pass', async ({ page 
   await dragWorld(page, LINEUP.home11, LINEUP.away87);
 
   const drills = await storedDrills(page);
-  const events = (drills[0]?.document as { events?: unknown[] })?.events ?? [];
-  const passes = (events as { type: string }[]).filter(event => event.type === 'pass');
+  const events = drills[0]?.document.events ?? [];
+  const passes = events.filter(event => event.type === 'pass');
   expect(passes, 'no cross-team pass was created').toHaveLength(0);
 });
 
@@ -304,7 +280,7 @@ test('the tap pass path rejects an opponent with an explanation', async ({ page 
   await expect(page.getByRole('status').filter({ hasText: 'other team' }).first()).toBeVisible();
 
   const drills = await storedDrills(page);
-  const events = (drills[0]?.document as { events?: unknown[] })?.events ?? [];
+  const events = drills[0]?.document.events ?? [];
   expect(events).toHaveLength(0);
 });
 
@@ -314,9 +290,7 @@ test('a pass to a teammate is accepted', async ({ page }) => {
   await waitForSaved(page);
 
   const drills = await storedDrills(page);
-  const events = ((drills[0].document as { events: { type: string }[] }).events ?? []).filter(
-    event => event.type === 'pass'
-  );
+  const events = drills[0].document.events.filter(event => event.type === 'pass');
   expect(events).toHaveLength(1);
 });
 
@@ -333,14 +307,14 @@ test('pinching over a player while a Pass is armed creates nothing', async ({ pa
     .getByRole('button', { name: /Pass/ })
     .click();
   const before = await storedDrills(page);
-  const beforeCount = (before[0].document as { events: unknown[] }).events.length;
+  const beforeCount = before[0].document.events.length;
 
   const { pinchThenReleaseSequentially } = await import('./support');
   await pinchThenReleaseSequentially(page, LINEUP.home13);
   await page.waitForTimeout(300);
 
   const after = await storedDrills(page);
-  expect((after[0].document as { events: unknown[] }).events).toHaveLength(beforeCount);
+  expect(after[0].document.events).toHaveLength(beforeCount);
 });
 
 test('pinching over empty ice while Add is active places nothing', async ({ page, browser }) => {
@@ -350,14 +324,14 @@ test('pinching over empty ice while Add is active places nothing', async ({ page
   await page.getByRole('dialog', { name: 'Add to the rink' }).getByRole('button', { name: /Home player/ }).click();
 
   const before = await storedDrills(page);
-  const beforeCount = (before[0].document as { players: unknown[] }).players.length;
+  const beforeCount = before[0].document.players.length;
 
   const { pinchThenReleaseSequentially } = await import('./support');
   await pinchThenReleaseSequentially(page, LINEUP.emptyIce);
   await page.waitForTimeout(300);
 
   const after = await storedDrills(page);
-  expect((after[0].document as { players: unknown[] }).players).toHaveLength(beforeCount);
+  expect(after[0].document.players).toHaveLength(beforeCount);
 });
 
 // ----------------------------------------------------------------------------
@@ -391,7 +365,7 @@ async function buildRouteAndPass(page: Page): Promise<void> {
   await waitForSaved(page);
 
   const drills = await storedDrills(page);
-  const document = drills[0].document as { skatePaths: unknown[]; events: unknown[] };
+  const document = drills[0].document;
   expect(document.skatePaths.length).toBeGreaterThan(0);
   expect(document.events.length).toBeGreaterThan(0);
 }
@@ -405,7 +379,7 @@ test('clearing puck actions keeps the routes', async ({ page }) => {
   await waitForSaved(page);
 
   const drills = await storedDrills(page);
-  const document = drills[0].document as { skatePaths: unknown[]; events: unknown[] };
+  const document = drills[0].document;
   expect(document.events).toHaveLength(0);
   expect(document.skatePaths.length).toBeGreaterThan(0);
 });
@@ -419,7 +393,7 @@ test('clearing routes keeps the puck actions', async ({ page }) => {
   await waitForSaved(page);
 
   const drills = await storedDrills(page);
-  const document = drills[0].document as { skatePaths: unknown[]; events: unknown[] };
+  const document = drills[0].document;
   expect(document.skatePaths).toHaveLength(0);
   expect(document.events.length).toBeGreaterThan(0);
 });

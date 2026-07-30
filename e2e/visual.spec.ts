@@ -12,7 +12,7 @@
 // ============================================================================
 
 import { expect, test, type Page } from '@playwright/test';
-import { LINEUP, clickWorld, dragWorld } from './support';
+import { LINEUP, clickWorld, dismissFirstRunHint, dragWorld } from './support';
 
 /**
  * A fixed drill, written straight into storage, so nothing about the capture
@@ -89,6 +89,12 @@ async function openFixture(page: Page, overrides: Partial<typeof FIXTURE> = {}):
 
   await page.goto('/');
   await expect(page.getByRole('button', { name: /^Play name: Visual Fixture/ })).toBeVisible();
+  // The fixture has a route but no puck events, so the first-run hint would
+  // otherwise sit in the same top-of-rink lane as the tabletop toggle and the
+  // pending-action chip, on a fresh context's empty localStorage. A visual
+  // baseline should show the steady-state chrome, not a coach's first-run
+  // nudge, so it is dismissed before anything is captured.
+  await dismissFirstRunHint(page);
   // Let the sprite atlas and the first paint settle.
   await page.waitForTimeout(600);
 }
