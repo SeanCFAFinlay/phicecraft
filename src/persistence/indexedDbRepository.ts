@@ -264,6 +264,39 @@ function reviveStoredDocumentV3(
 // ----------------------------------------------------------------------------
 
 /**
+ * A stored record whose gate just failed can still declare `schemaVersion: 3`
+ * - the signature of version skew, not corruption: a build was rolled back
+ * after a schema addition (a new enum member, a new required field) and left
+ * behind a document from the future this build cannot parse. That is NOT the
+ * same situation as a half-upgraded v2 document (`reviveStoredDocument`'s own
+ * fallback already covers that) or scrambled bytes - it is somebody's newer,
+ * genuine work, and `prepareForWrite`'s existing "nothing stored yet"
+ * fallback would otherwise overwrite it with no trace. Snapshotting it here,
+ * before that overwrite, is the only chance to keep it.
+ *
+ * A dedicated `'version-skew'` source is used rather than reusing
+ * `'replaced-drill'`: the latter means "a human confirmed replacing this",
+ * which is a different event (and already has its own recovery path in
+ * `replaceAndSave`) from a save silently landing on top of a document this
+ * build cannot read at all.
+ */
+function versionSkewSnapshot(
+  existing: StoredDrillRecord | undefined,
+  existingDocument: ReturnType<typeof parseDrillDocumentV3> | null
+): RecoveryRecord | undefined {
+  if (!existing || !existingDocument || existingDocument.ok) return undefined;
+  if ((existing.document as { schemaVersion?: unknown })?.schemaVersion !== 3) return undefined;
+  return {
+    id: `version-skew-${existing.id}-${Date.now()}`,
+    source: 'version-skew',
+    reference: existing.id,
+    raw: existing.document,
+    reason: `Stored document declared schemaVersion 3 but failed the current gate: ${existingDocument.message}`,
+    capturedAt: Date.now(),
+  };
+}
+
+/**
  * What a `Drill` the editor hands back should be written as: merged with
  * whatever is already stored under that id, so v3-only content the v2
  * projection cannot express - equipment, annotations, extra puck tracks,
@@ -275,18 +308,22 @@ function reviveStoredDocumentV3(
  * `mergeEditedIntoStored` assumes a genuine v3 shape - handing it a v2
  * document throws (`stored.phases` is `undefined`). When the gate fails,
  * the save falls back to the freshly migrated document alone, exactly as if
- * nothing were stored yet, rather than failing the whole save.
+ * nothing were stored yet, rather than failing the whole save - unless the
+ * failed record is itself version-skewed (see `versionSkewSnapshot`), in
+ * which case the caller is handed a snapshot to write to `recovery` in the
+ * same transaction before that overwrite happens.
  */
 function prepareForWrite(
   drill: Drill,
   existing: StoredDrillRecord | undefined
-): { ok: true; record: StoredDrillRecord } | { ok: false; message: string } {
+): { ok: true; record: StoredDrillRecord; recoverySnapshot?: RecoveryRecord } | { ok: false; message: string } {
   const migrated = migrateV2ToV3(drill);
   const existingDocument = existing ? parseDrillDocumentV3(existing.document) : null;
+  const recoverySnapshot = versionSkewSnapshot(existing, existingDocument);
   const next = existingDocument?.ok ? mergeEditedIntoStored(existingDocument.document, migrated) : migrated;
   const parsed = parseDrillDocumentV3(next);
   if (!parsed.ok) return { ok: false, message: parsed.message };
-  return { ok: true, record: toStoredRecord(parsed.document) };
+  return { ok: true, record: toStoredRecord(parsed.document), recoverySnapshot };
 }
 
 export class IndexedDbDrillRepository implements DrillRepository {
@@ -456,9 +493,11 @@ export class IndexedDbDrillRepository implements DrillRepository {
 
     try {
       const db = await this.getDb();
-      const tx = db.transaction('drills', 'readwrite');
-      const store = tx.store;
+      const tx = db.transaction(['drills', 'recovery'], 'readwrite');
+      const store = tx.objectStore('drills');
+      const recoveryStore = tx.objectStore('recovery');
       const records: StoredDrillRecord[] = [];
+      const recoverySnapshots: RecoveryRecord[] = [];
       for (const drill of drills) {
         const existing = await store.get(drill.id);
         const prepared = prepareForWrite(drill, existing);
@@ -468,10 +507,16 @@ export class IndexedDbDrillRepository implements DrillRepository {
           );
         }
         records.push(prepared.record);
+        if (prepared.recoverySnapshot) recoverySnapshots.push(prepared.recoverySnapshot);
       }
       // Queue every write, then await the transaction. A failure anywhere
-      // aborts all of them together.
-      await Promise.all(records.map(record => store.put(record)));
+      // aborts all of them together - the version-skew snapshots included, so
+      // one is never recorded without the overwrite it documents actually
+      // landing.
+      await Promise.all([
+        ...records.map(record => store.put(record)),
+        ...recoverySnapshots.map(record => recoveryStore.put(record)),
+      ]);
       await tx.done;
       return ok(drills.map(drill => drill.id));
     } catch (cause) {
@@ -551,6 +596,7 @@ export class IndexedDbDrillRepository implements DrillRepository {
           );
         }
         records.push(prepared.record);
+        if (prepared.recoverySnapshot) await recoveryStore.put(prepared.recoverySnapshot);
       }
 
       // Keep a copy of anything about to be overwritten, inside the same

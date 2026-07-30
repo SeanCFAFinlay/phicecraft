@@ -319,6 +319,116 @@ describe('corrupt stored records', () => {
   });
 });
 
+describe('version-skew recovery', () => {
+  async function openRawDb(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('phicecraft');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function getRawRecord(db: IDBDatabase, id: string): Promise<{ id: string; name: string; updatedAt: number; document: Record<string, unknown> }> {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('drills', 'readonly');
+      const req = tx.objectStore('drills').get(id);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function putRawRecord(db: IDBDatabase, record: unknown): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('drills', 'readwrite');
+      tx.objectStore('drills').put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  it('snapshots a schemaVersion-3 document that fails the current gate before a save overwrites it', async () => {
+    const original = buildDrill({ id: 'skewed', name: 'Original' });
+    await repository.save(original);
+
+    // Simulate a document a future build wrote: still `schemaVersion: 3`, but
+    // carrying an enum value this build's gate does not recognize - a rollback
+    // after a schema addition, not corruption.
+    const db = await openRawDb();
+    const stored = await getRawRecord(db, 'skewed');
+    const skewedDocument = {
+      ...stored.document,
+      rink: { ...(stored.document.rink as Record<string, unknown>), area: 'oversized-future-rink' },
+    };
+    await putRawRecord(db, { ...stored, document: skewedDocument });
+    db.close();
+
+    const updated = buildDrill({ id: 'skewed', name: 'Updated' });
+    const result = await repository.save(updated);
+    expect(result.ok).toBe(true);
+
+    const recovery = await repository.listRecovery();
+    expect(recovery.ok).toBe(true);
+    if (recovery.ok) {
+      expect(recovery.value).toHaveLength(1);
+      expect(recovery.value[0].source).toBe('version-skew');
+      expect(recovery.value[0].reference).toBe('skewed');
+      expect((recovery.value[0].raw as { rink: { area: string } }).rink.area).toBe('oversized-future-rink');
+    }
+
+    const read = await repository.read('skewed');
+    expect(read.ok && read.value.name).toBe('Updated');
+  });
+
+  it('does not treat a merely half-upgraded (non-v3) record as version skew', async () => {
+    // No `schemaVersion: 3` at all - a genuine pre-v3 document, which
+    // `reviveStoredDocument`'s own fallback already handles on read. This must
+    // NOT produce a version-skew recovery snapshot.
+    const drill = buildDrill({ id: 'legacyish' });
+    await repository.save(drill);
+
+    const db = await openRawDb();
+    await putRawRecord(db, {
+      id: 'legacyish',
+      name: 'Scrambled',
+      updatedAt: FIXED_NOW,
+      document: { id: 'legacyish', name: 'Scrambled', players: null, events: null },
+    });
+    db.close();
+
+    const updated = buildDrill({ id: 'legacyish', name: 'Updated' });
+    const result = await repository.save(updated);
+    expect(result.ok).toBe(true);
+
+    const recovery = await repository.listRecovery();
+    expect(recovery.ok && recovery.value).toHaveLength(0);
+  });
+
+  it('snapshots version skew through replaceAndSave too, alongside its own replaced-drill copy', async () => {
+    const original = buildDrill({ id: 'skewed', name: 'Original' });
+    await repository.save(original);
+
+    const db = await openRawDb();
+    const stored = await getRawRecord(db, 'skewed');
+    const skewedDocument = {
+      ...stored.document,
+      rink: { ...(stored.document.rink as Record<string, unknown>), area: 'oversized-future-rink' },
+    };
+    await putRawRecord(db, { ...stored, document: skewedDocument });
+    db.close();
+
+    const incoming = buildDrill({ id: 'skewed', name: 'Imported version' });
+    const result = await repository.replaceAndSave([incoming], ['skewed']);
+    expect(result.ok).toBe(true);
+
+    const recovery = await repository.listRecovery();
+    expect(recovery.ok).toBe(true);
+    if (recovery.ok) {
+      const sources = recovery.value.map(record => record.source).sort();
+      expect(sources).toEqual(['replaced-drill', 'version-skew']);
+    }
+  });
+});
+
 describe('meta and recovery', () => {
   it('stores and clears the current drill pointer', async () => {
     await repository.setCurrentDrillId('abc');

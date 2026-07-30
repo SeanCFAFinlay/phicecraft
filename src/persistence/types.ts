@@ -181,7 +181,7 @@ export interface LegacyExportPayloadV1 {
 export interface RecoveryRecord {
   id: string;
   /** Where the unreadable value came from. */
-  source: 'legacy-localstorage' | 'import' | 'replaced-drill' | 'corrupt-record';
+  source: 'legacy-localstorage' | 'import' | 'replaced-drill' | 'corrupt-record' | 'version-skew';
   /** The original key or index, so a human can find it again. */
   reference: string;
   /** The raw value exactly as it was found, never repaired. */
