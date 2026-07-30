@@ -15,7 +15,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { LINEUP, clickWorld, dragWorld, openEditor, usableRinkHeight, worldToScreen } from './support';
+import { LINEUP, clickWorld, dragWorld, openEditor, rinkBox, usableRinkHeight, worldToScreen } from './support';
 
 const OUTPUT_DIR = path.resolve('docs/repair/final');
 
@@ -84,23 +84,62 @@ test.describe.configure({ mode: 'serial' });
 
 test('a route drag does not put a React render on every pointer sample', async ({ page }) => {
   await openEditor(page);
+
+  // Select the owner up front. commitRoute selects it anyway
+  // (authoringCommands.ts:378), and a NEW selection opens ContextTray's
+  // selection row, changing the canvas container height and legitimately
+  // re-fitting the camera. Selecting first keeps this measuring what it is
+  // named for: repaints per pointer sample, not the one after the commit.
+  await clickWorld(page, LINEUP.home13);
+  await expect(page.getByRole('group', { name: 'Selection' })).toBeVisible();
+  const heightWhileSelected = (await rinkBox(page)).height;
+
+  // Driven by hand rather than `dragWorld`, so counters can be read BEFORE
+  // mouse.up() commits the route - the property under test is about the
+  // samples, not the commit that follows them.
+  const start = await worldToScreen(page, LINEUP.home13.x, LINEUP.home13.y);
+  const end = await worldToScreen(page, 640, 300);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+
+  // A press only promotes to a route-drawing gesture once it clears
+  // MOVE_THRESHOLD (9px - see GestureStateMachine.promotePress), and that
+  // promotion arms a pending action which hides the ContextTray selection
+  // row, handing its space to the rink. That is a real, one-time layout
+  // change every route drag causes at its start; it has to happen and settle
+  // here, BEFORE instrumenting, or it gets counted as a repaint per pointer
+  // sample instead of what it actually is.
+  await page.mouse.move(start.x + 15, start.y + 15, { steps: 3 });
+  await expect.poll(async () => (await rinkBox(page)).height).not.toBe(heightWhileSelected);
+
   await instrument(page);
   await resetCounters(page);
 
   // 60 discrete pointer samples across the rink.
-  await dragWorld(page, LINEUP.home13, { x: 640, y: 300 }, 60);
+  await page.mouse.move(end.x, end.y, { steps: 60 });
+
+  const duringDrag = await readCounters(page);
+
+  // The route is not committed yet. What must NOT happen is a render per
+  // sample: 60 samples with a per-sample render would be well over a hundred
+  // mutations.
+  expect(duringDrag.react, 'React mutations during a 60-sample drag').toBeLessThan(60);
+  // The rink itself never repainted: the camera did not move.
+  expect(duringDrag.staticPaints, 'static rink repaints during a drag').toBe(0);
+  // The dynamic layer did repaint, because that is where the preview lives.
+  expect(duringDrag.dynamicPaints, 'the drag previews').toBeGreaterThan(0);
+
+  await page.mouse.up();
   await page.waitForTimeout(200);
 
-  const counters = await readCounters(page);
+  const afterCommit = await readCounters(page);
 
-  // The route is committed once, which does render. What must NOT happen is a
-  // render per sample: 60 samples with a per-sample render would be well over
-  // a hundred mutations.
-  expect(counters.react, 'React mutations during a 60-sample drag').toBeLessThan(60);
-  // The rink itself never repainted: the camera did not move.
-  expect(counters.staticPaints, 'static rink repaints during a drag').toBe(0);
-  // The dynamic layer did repaint, because that is where the preview lives.
-  expect(counters.dynamicPaints).toBeGreaterThan(0);
+  // The pre-selected owner keeps the commit's SELECT_PLAYER a no-op for the
+  // ContextTray, so this is bounded by "at most one re-fit", not per-sample.
+  expect(
+    afterCommit.staticPaints,
+    'static rink repaints after the commit (a bounded re-fit, not a repaint per sample)'
+  ).toBeLessThanOrEqual(2);
 });
 
 test('a player drag writes the document once, not once per pointer sample', async ({ page }) => {
