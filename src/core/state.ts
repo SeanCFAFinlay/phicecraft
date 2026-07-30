@@ -148,13 +148,31 @@ const DOCUMENT_SWITCH_ACTIONS: ReadonlySet<AppAction['type']> = new Set(['NEW_DR
  */
 const EDIT_ONLY_OUTSIDE_UNDOABLE = new Set(['SET_PENDING_ACTION', 'SET_TOOL']);
 
+/**
+ * Actions blocked outside build even though they are not each their own undo
+ * step. Every one of these mutates the document directly (or rewinds/replays
+ * one that does), and none of them has legitimate business firing from
+ * Preview or Present - defence in depth alongside hiding their controls in
+ * the UI (TopStrip, MoreSheet).
+ */
+const BLOCKED_OUTSIDE_BUILD: ReadonlySet<AppAction['type']> = new Set([
+  'POP_UNDO',
+  'REDO',
+  'MOVE_PLAYER',
+  'MOVE_COACH',
+  'UPDATE_SKATE_POINTS',
+  'UPDATE_EVENT_GEOMETRY',
+]);
+
 export function appReducer(state: AppState, action: AppAction): AppState {
   // Preview and Present are read-only: a document mutation or an armed editing
   // action arriving there is a bug in a caller, and the safe answer is a no-op.
   if (
     state.ui.mode !== 'build' &&
     action.type !== 'LOAD_DRILL' &&
-    (UNDOABLE_ACTIONS.has(action.type) || EDIT_ONLY_OUTSIDE_UNDOABLE.has(action.type))
+    (UNDOABLE_ACTIONS.has(action.type) ||
+      EDIT_ONLY_OUTSIDE_UNDOABLE.has(action.type) ||
+      BLOCKED_OUTSIDE_BUILD.has(action.type))
   ) {
     return state;
   }
@@ -185,7 +203,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
   }
 
   if (DOCUMENT_SWITCH_ACTIONS.has(action.type)) {
-    result = { ...result, documentRevision: 0, reviewedRevision: null };
+    // A fresh or newly-opened document always lands in Build, regardless of
+    // which mode was showing beforehand - Preview and Present describe a
+    // relationship to the PREVIOUS document, not a standing preference.
+    result = {
+      ...result,
+      documentRevision: 0,
+      reviewedRevision: null,
+      ui: { ...result.ui, mode: 'build' },
+    };
   }
 
   result = cancelOrphanedPendingAction(result);

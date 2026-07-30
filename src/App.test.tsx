@@ -290,6 +290,28 @@ describe('preview mode', () => {
     expect(within(bar).getByRole('radiogroup', { name: /speed/i })).toBeInTheDocument();
   });
 
+  it('preview is read-only: no Undo in the top strip, and More has no History, Clear or Repair section', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('radio', { name: 'Preview' }));
+
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Redo' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    const sheet = await screen.findByRole('dialog', { name: 'More' });
+
+    expect(within(sheet).queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Redo/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Clear puck actions/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Clear skating routes/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Reset the board/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /Recover off-rink objects/ })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /No set finish/ })).not.toBeInTheDocument();
+    // Diagnostics is a display overlay, not a mutation, so it stays available.
+    expect(within(sheet).getByRole('button', { name: /Mechanics overlay/ })).toBeInTheDocument();
+  });
+
   it('tapping a player in preview does not arm anything or open chips', async () => {
     const user = userEvent.setup();
     renderApp();

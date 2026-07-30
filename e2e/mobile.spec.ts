@@ -188,3 +188,22 @@ test('a phone switches to Preview and Present through the Mode sheet', async ({ 
   await page.locator('body').press('Escape');
   await expect(page.getByRole('button', { name: /^Mode: Build/ })).toBeVisible();
 });
+
+test('Preview is read-only: no Undo in the top strip, and More has no Clear controls', async ({
+  page,
+}) => {
+  await switchMode(page, 'Preview');
+
+  // Undo mutates the document by definition - it has nothing to do once
+  // Preview stops accepting edits, so it should not be sitting on the strip.
+  await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'More actions' }).click();
+  const sheet = page.getByRole('dialog', { name: 'More' });
+  await expect(sheet).toBeVisible();
+
+  await expect(sheet.getByRole('button', { name: /Clear puck actions/ })).toHaveCount(0);
+  await expect(sheet.getByRole('button', { name: /Clear skating routes/ })).toHaveCount(0);
+  await expect(sheet.getByRole('button', { name: /Reset the board/ })).toHaveCount(0);
+  await expect(sheet.getByRole('button', { name: /Redo/ })).toHaveCount(0);
+});

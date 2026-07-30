@@ -82,29 +82,37 @@ export function TopStrip() {
 
       <SaveStatus compact={isPhone} />
 
-      <button
-        type="button"
-        onClick={commands.undo}
-        disabled={!canUndo}
-        aria-label="Undo"
-        className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[16px] text-app-text hover:bg-app-cyan/10 disabled:opacity-30"
-      >
-        ↩
-      </button>
+      {state.ui.mode === 'build' && (
+        <button
+          type="button"
+          onClick={commands.undo}
+          disabled={!canUndo}
+          aria-label="Undo"
+          className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[16px] text-app-text hover:bg-app-cyan/10 disabled:opacity-30"
+        >
+          ↩
+        </button>
+      )}
 
       {isPhone ? (
         <ModeSwitchTrigger />
       ) : (
         <>
-          <button
-            type="button"
-            onClick={commands.redo}
-            disabled={!canRedo}
-            aria-label="Redo"
-            className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[16px] text-app-text hover:bg-app-cyan/10 disabled:opacity-30"
-          >
-            ↪
-          </button>
+          {/* Preview and Present are read-only: Undo/Redo have nothing to do
+              there, and disabled-but-visible would just invite a tap that
+              silently does nothing (the reducer no-ops POP_UNDO/REDO outside
+              build regardless, but the button should not be there to press). */}
+          {state.ui.mode === 'build' && (
+            <button
+              type="button"
+              onClick={commands.redo}
+              disabled={!canRedo}
+              aria-label="Redo"
+              className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[16px] text-app-text hover:bg-app-cyan/10 disabled:opacity-30"
+            >
+              ↪
+            </button>
+          )}
 
           <ModeSwitch />
         </>

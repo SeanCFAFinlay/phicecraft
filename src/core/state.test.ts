@@ -459,4 +459,87 @@ describe('SET_MODE', () => {
     state = appReducer(state, { type: 'START_PLAYBACK' });
     expect(state.playback.isPlaying).toBe(true);
   });
+
+  it('outside build, POP_UNDO is ignored even with history on the stack', () => {
+    let state = run(stateWithPlayers(), { type: 'ADD_PLAYER', player: player('c', 5, 5) });
+    expect(state.undoStack).toHaveLength(1);
+
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const attempted = appReducer(state, { type: 'POP_UNDO' });
+    expect(attempted).toBe(state);
+    expect(attempted.drill.players).toHaveLength(3);
+  });
+
+  it('outside build, REDO is ignored even with a redo entry available', () => {
+    let state = run(
+      stateWithPlayers(),
+      { type: 'ADD_PLAYER', player: player('c', 5, 5) },
+      { type: 'POP_UNDO' }
+    );
+    expect(state.redoStack).toHaveLength(1);
+
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const attempted = appReducer(state, { type: 'REDO' });
+    expect(attempted).toBe(state);
+    expect(attempted.drill.players).toHaveLength(2);
+  });
+
+  it('outside build, MOVE_PLAYER is ignored', () => {
+    const state = appReducer(stateWithPlayers(), { type: 'SET_MODE', mode: 'preview' });
+    const before = state.drill;
+    const moved = appReducer(state, { type: 'MOVE_PLAYER', id: 'a', x: 999, y: 999 });
+    expect(moved.drill).toBe(before);
+  });
+
+  it('outside build, MOVE_COACH is ignored', () => {
+    let state = run(
+      appReducer(stateWithPlayers(), { type: 'SET_MODE', mode: 'build' }),
+      { type: 'ADD_COACH', coach: { id: 'coach-a', x: 0, y: 0, name: 'Coach' } }
+    );
+    state = appReducer(state, { type: 'SET_MODE', mode: 'present' });
+    const before = state.drill;
+    const moved = appReducer(state, { type: 'MOVE_COACH', id: 'coach-a', x: 999, y: 999 });
+    expect(moved.drill).toBe(before);
+  });
+
+  it('outside build, UPDATE_SKATE_POINTS is ignored', () => {
+    let state = run(stateWithPlayers(), { type: 'ADD_SKATE_PATH', path: path('a') });
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const before = state.drill;
+    const updated = appReducer(state, {
+      type: 'UPDATE_SKATE_POINTS',
+      id: 'path-a',
+      points: [{ x: 9, y: 9 }, { x: 10, y: 10 }],
+    });
+    expect(updated.drill).toBe(before);
+  });
+
+  it('outside build, UPDATE_EVENT_GEOMETRY is ignored', () => {
+    let state = run(stateWithPlayers(), { type: 'ADD_PASS', event: passEvent('a', 'b') });
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const before = state.drill;
+    const updated = appReducer(state, {
+      type: 'UPDATE_EVENT_GEOMETRY',
+      id: 'pass-a-b',
+      toPoint: { x: 999, y: 999 },
+    });
+    expect(updated.drill).toBe(before);
+  });
+});
+
+describe('DOCUMENT_SWITCH_ACTIONS reset mode', () => {
+  it('LOAD_DRILL in preview returns to build', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const drill = { ...state.drill, id: 'other', name: 'Other' };
+    const loaded = appReducer(state, { type: 'LOAD_DRILL', drill });
+    expect(loaded.ui.mode).toBe('build');
+  });
+
+  it('NEW_DRILL in preview returns to build', () => {
+    let state = createInitialState();
+    state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
+    const created = appReducer(state, { type: 'NEW_DRILL' });
+    expect(created.ui.mode).toBe('build');
+  });
 });

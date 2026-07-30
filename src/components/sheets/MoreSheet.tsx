@@ -43,6 +43,11 @@ export function MoreSheet() {
 
   const open = state.ui.openSheet === 'more';
   const close = () => dispatch({ type: 'CLOSE_SHEET' });
+  // Preview and Present are read-only: history, finish policy, the
+  // destructive clears and repair all mutate the document, so none of them
+  // belong here outside Build. Diagnostics is a display overlay, not a
+  // mutation, and stays available in every mode.
+  const isBuild = state.ui.mode === 'build';
 
   const run = (action: () => unknown) => () => {
     close();
@@ -51,70 +56,78 @@ export function MoreSheet() {
 
   return (
     <Sheet open={open} title="More" onClose={close}>
-      <SheetSection title="History">
-        <SheetItem
-          icon={<UndoIcon />}
-          label="Undo"
-          detail={state.undoStack.length === 0 ? 'Nothing to undo' : `${state.undoStack.length} step(s)`}
-          disabled={state.undoStack.length === 0}
-          onClick={run(commands.undo)}
-        />
-        <SheetItem
-          icon={<RedoIcon />}
-          label="Redo"
-          detail={state.redoStack.length === 0 ? 'Nothing to redo' : `${state.redoStack.length} step(s)`}
-          disabled={state.redoStack.length === 0}
-          onClick={run(commands.redo)}
-        />
-      </SheetSection>
-
-      <SheetSection title="How this drill ends">
-        {FINISHES.map(option => (
+      {isBuild && (
+        <SheetSection title="History">
           <SheetItem
-            key={option.policy}
-            icon={(state.drill.settings?.finishPolicy ?? 'none') === option.policy ? '●' : '○'}
-            label={option.label}
-            detail={option.detail}
-            selected={(state.drill.settings?.finishPolicy ?? 'none') === option.policy}
-            onClick={() => commands.setFinishPolicy(option.policy)}
+            icon={<UndoIcon />}
+            label="Undo"
+            detail={state.undoStack.length === 0 ? 'Nothing to undo' : `${state.undoStack.length} step(s)`}
+            disabled={state.undoStack.length === 0}
+            onClick={run(commands.undo)}
           />
-        ))}
-      </SheetSection>
+          <SheetItem
+            icon={<RedoIcon />}
+            label="Redo"
+            detail={state.redoStack.length === 0 ? 'Nothing to redo' : `${state.redoStack.length} step(s)`}
+            disabled={state.redoStack.length === 0}
+            onClick={run(commands.redo)}
+          />
+        </SheetSection>
+      )}
 
-      <SheetSection title="Clear">
-        <SheetItem
-          icon={<PuckIcon />}
-          label="Clear puck actions"
-          detail="Removes passes, dumps, pickups and shots. Routes are kept."
-          tone="danger"
-          disabled={state.drill.events.length === 0}
-          onClick={run(commands.clearPuckActions)}
-        />
-        <SheetItem
-          icon={<SkateIcon />}
-          label="Clear skating routes"
-          detail="Removes routes only. Puck actions are kept."
-          tone="danger"
-          disabled={state.drill.skatePaths.length === 0}
-          onClick={run(commands.clearMovementRoutes)}
-        />
-        <SheetItem
-          icon={<ResetIcon />}
-          label="Reset the board"
-          detail="Back to the default lineup. Keeps the name, jerseys and settings."
-          tone="danger"
-          onClick={run(commands.resetBoard)}
-        />
-      </SheetSection>
+      {isBuild && (
+        <SheetSection title="How this drill ends">
+          {FINISHES.map(option => (
+            <SheetItem
+              key={option.policy}
+              icon={(state.drill.settings?.finishPolicy ?? 'none') === option.policy ? '●' : '○'}
+              label={option.label}
+              detail={option.detail}
+              selected={(state.drill.settings?.finishPolicy ?? 'none') === option.policy}
+              onClick={() => commands.setFinishPolicy(option.policy)}
+            />
+          ))}
+        </SheetSection>
+      )}
 
-      <SheetSection title="Repair">
-        <SheetItem
-          icon={<MagnetIcon />}
-          label="Recover off-rink objects"
-          detail="Pulls anything outside the boards back onto the ice"
-          onClick={run(commands.recoverOffRinkObjects)}
-        />
-      </SheetSection>
+      {isBuild && (
+        <SheetSection title="Clear">
+          <SheetItem
+            icon={<PuckIcon />}
+            label="Clear puck actions"
+            detail="Removes passes, dumps, pickups and shots. Routes are kept."
+            tone="danger"
+            disabled={state.drill.events.length === 0}
+            onClick={run(commands.clearPuckActions)}
+          />
+          <SheetItem
+            icon={<SkateIcon />}
+            label="Clear skating routes"
+            detail="Removes routes only. Puck actions are kept."
+            tone="danger"
+            disabled={state.drill.skatePaths.length === 0}
+            onClick={run(commands.clearMovementRoutes)}
+          />
+          <SheetItem
+            icon={<ResetIcon />}
+            label="Reset the board"
+            detail="Back to the default lineup. Keeps the name, jerseys and settings."
+            tone="danger"
+            onClick={run(commands.resetBoard)}
+          />
+        </SheetSection>
+      )}
+
+      {isBuild && (
+        <SheetSection title="Repair">
+          <SheetItem
+            icon={<MagnetIcon />}
+            label="Recover off-rink objects"
+            detail="Pulls anything outside the boards back onto the ice"
+            onClick={run(commands.recoverOffRinkObjects)}
+          />
+        </SheetSection>
+      )}
 
       <SheetSection title="Diagnostics">
         <SheetItem
