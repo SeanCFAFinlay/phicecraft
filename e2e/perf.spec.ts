@@ -22,12 +22,16 @@ const OUTPUT_DIR = path.resolve('docs/repair/final');
 /**
  * Instrument the page:
  *   - count React commits, by observing DOM mutations on the shell
- *   - count static-layer paints, by wrapping the static canvas's clearRect
- *   - count dynamic-layer paints the same way
+ *   - static/dynamic-layer paints come from the app-owned counters at
+ *     `window.__phicecraftPaint` (src/render/paintCounters.ts), fed by
+ *     RendererHost.onPaint. That is renderer-agnostic and does not assume
+ *     canvas order or a 2D context - the previous approach wrapped the
+ *     static canvas's `clearRect` by DOM index, which read 0 silently the
+ *     moment a canvas became `webgl2`.
  */
 async function instrument(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const counters = { react: 0, staticPaints: 0, dynamicPaints: 0 };
+    const counters = { react: 0 };
     (window as unknown as { __counters: typeof counters }).__counters = counters;
 
     // React commits show up as DOM mutations inside the shell. The canvases
@@ -48,35 +52,27 @@ async function instrument(page: Page): Promise<void> {
         characterData: true,
       });
     }
-
-    const canvases = [...document.querySelectorAll('canvas')];
-    canvases.forEach((canvas, index) => {
-      const context = canvas.getContext('2d');
-      if (!context) return;
-      const original = context.clearRect.bind(context);
-      context.clearRect = (...args: Parameters<CanvasRenderingContext2D['clearRect']>) => {
-        // Canvas 0 is the static rink, canvas 1 the dynamic game layer.
-        if (index === 0) counters.staticPaints += 1;
-        else counters.dynamicPaints += 1;
-        return original(...args);
-      };
-    });
   });
 }
 
 async function readCounters(page: Page) {
-  return page.evaluate(
-    () => (window as unknown as { __counters: { react: number; staticPaints: number; dynamicPaints: number } }).__counters
-  );
+  return page.evaluate(() => {
+    const react = (window as unknown as { __counters: { react: number } }).__counters.react;
+    const paint = (window as unknown as { __phicecraftPaint?: { staticPaints: number; dynamicPaints: number } })
+      .__phicecraftPaint;
+    return {
+      react,
+      staticPaints: paint?.staticPaints ?? 0,
+      dynamicPaints: paint?.dynamicPaints ?? 0,
+    };
+  });
 }
 
 async function resetCounters(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const counters = (window as unknown as { __counters: { react: number; staticPaints: number; dynamicPaints: number } })
-      .__counters;
+    const counters = (window as unknown as { __counters: { react: number } }).__counters;
     counters.react = 0;
-    counters.staticPaints = 0;
-    counters.dynamicPaints = 0;
+    (window as unknown as { __phicecraftPaint?: { reset(): void } }).__phicecraftPaint?.reset();
   });
 }
 

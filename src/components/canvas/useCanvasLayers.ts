@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { effectiveDevicePixelRatio } from '@/camera/cameraMath';
 import type { BoardRenderer } from '@/render/BoardRenderer';
 import { Canvas2DRenderer } from '@/render/canvas2d/Canvas2DRenderer';
+import { recordPaint } from '@/render/paintCounters';
 
 export type RenderQuality = 'high' | 'medium' | 'low';
 
@@ -52,9 +53,9 @@ export function useCanvasLayers(onResize?: (width: number, height: number) => vo
   const rendererRef = useRef<BoardRenderer | null>(null);
   const getRenderer = useCallback(() => rendererRef.current, []);
 
-  // Task 2 wires this into the app-owned paint counters; for now it is the
-  // seam every renderer implementation reports through.
-  const onPaint = useCallback((_layer: 'static' | 'dynamic') => {}, []);
+  // The seam every renderer implementation reports through; recordPaint owns
+  // the app's `window.__phicecraftPaint` counters (src/render/paintCounters.ts).
+  const onPaint = useCallback(recordPaint, []);
 
   const dpr = effectiveDevicePixelRatio(
     typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
