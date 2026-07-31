@@ -1,6 +1,6 @@
 {
   "recordedAt": "perf",
-  "renderer": "canvas2d",
+  "renderer": "webgl",
   "rinkHeights": {
     "phone-320-portrait": 390,
     "phone-360-portrait": 622,

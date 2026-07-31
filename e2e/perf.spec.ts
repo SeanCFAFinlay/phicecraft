@@ -344,12 +344,20 @@ test('records the final measurements', async ({ page }, testInfo) => {
     rinkHeights[name] = await usableRinkHeight(page);
   }
 
+  const kind = await rendererKind(page);
+  const record =
+    JSON.stringify({ recordedAt: testInfo.project.name, renderer: kind, rinkHeights }, null, 2) + '\n';
+
   await mkdir(OUTPUT_DIR, { recursive: true });
-  await writeFile(
-    path.join(OUTPUT_DIR, 'measurements.json'),
-    JSON.stringify({ recordedAt: testInfo.project.name, rinkHeights }, null, 2) + '\n',
-    'utf8'
-  );
+  // Named by renderer kind so a webgl run's numbers do not clobber a
+  // canvas2d run's - same convention as playback-counters.json above. The
+  // plain `measurements.json` (no suffix) is kept in sync with the canvas2d
+  // (default-renderer) run only, since
+  // docs/repair/PHICECRAFT_REPAIR_COMPLETION.md links that exact filename.
+  await writeFile(path.join(OUTPUT_DIR, `measurements.${kind}.json`), record, 'utf8');
+  if (kind === 'canvas2d') {
+    await writeFile(path.join(OUTPUT_DIR, 'measurements.json'), record, 'utf8');
+  }
 
   // Landscape phones are the case the repair targeted.
   expect(rinkHeights['phone-667-landscape']).toBeGreaterThanOrEqual(230);
