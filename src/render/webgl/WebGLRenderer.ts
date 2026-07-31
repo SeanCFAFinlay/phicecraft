@@ -70,12 +70,37 @@ export class WebGLRenderer implements BoardRenderer {
   }
 
   private async init(): Promise<void> {
-    const [staticLayer, dynamicLayer] = await Promise.all([
+    // allSettled, not all: a real GPU can hand out a context for one canvas
+    // and then refuse the other (context limit, driver reset, shader/
+    // extension failure). `Promise.all` would reject the moment the second
+    // one throws while the first canvas has ALREADY been irreversibly handed
+    // a `webgl2` context - a context type, once granted, can never change for
+    // that canvas element. Settling both first means the succeeded layer is
+    // known and can be disposed (its GPU resources released) before this
+    // renderer is discarded, rather than left dangling. The canvas itself
+    // stays locked to `webgl2` either way - only selectRenderer, which still
+    // holds the host, can detect that and warn accurately instead of
+    // silently handing the coach a Canvas2DRenderer that can't draw it.
+    const [staticResult, dynamicResult] = await Promise.allSettled([
       buildLayer(this.host.staticCanvas),
       buildLayer(this.host.dynamicCanvas),
     ]);
-    this.staticLayer = staticLayer;
-    this.dynamicLayer = dynamicLayer;
+
+    if (staticResult.status === 'fulfilled') this.staticLayer = staticResult.value;
+    if (dynamicResult.status === 'fulfilled') this.dynamicLayer = dynamicResult.value;
+
+    if (staticResult.status === 'rejected' || dynamicResult.status === 'rejected') {
+      this.dispose();
+      const reason =
+        staticResult.status === 'rejected'
+          ? staticResult.reason
+          : dynamicResult.status === 'rejected'
+            ? dynamicResult.reason
+            : undefined;
+      throw reason instanceof Error
+        ? reason
+        : new Error('WebGL renderer failed to initialize on one or both canvases');
+    }
   }
 
   /** Resolves once both canvases have a Pixi renderer attached; rejects if either failed. */

@@ -24,8 +24,35 @@ import { Canvas2DRenderer } from '@/render/canvas2d/Canvas2DRenderer';
 import type { RendererPreference } from '@/core/types';
 import { RENDERER_PREFERENCE_STORAGE_KEY, DEFAULT_RENDERER_PREFERENCE } from '@/core/constants';
 
-/** What the announcer says when the GPU renderer could not be used. */
+/** What the announcer says when the GPU renderer could not be used, but the fallback can draw fine. */
 export const GPU_UNAVAILABLE_MESSAGE = 'GPU renderer unavailable; using standard renderer';
+
+/**
+ * What the announcer says when the WebGL attempt has already left a canvas
+ * unable to yield a `2d` context - the fallback can never fully recover this
+ * session (see `canRenderCanvas2D` below).
+ */
+export const RENDER_BROKEN_MESSAGE =
+  'Rendering failed on this device. Reload the page to recover.';
+
+/**
+ * Whether Canvas2DRenderer can actually draw on both canvases.
+ *
+ * A failed WebGL attempt can leave one canvas mid-init'd: `WebGLRenderer`
+ * builds its two canvases independently (`Promise.allSettled`, since a GPU
+ * can hand out a context for one and then refuse the other - a context
+ * limit, driver reset, or shader/extension failure), so it is entirely
+ * possible for one canvas to have already been irreversibly handed a
+ * `webgl2` context while the other never got one. A canvas's context type is
+ * fixed for its lifetime once granted, so `getContext('2d')` on the
+ * `webgl2` one now, and forever after, returns `null` - Canvas2DRenderer
+ * would silently stop drawing that one layer for the rest of the session.
+ * This check is what tells the difference between "GPU unavailable, standard
+ * renderer works fine" and "this session's canvases are partially wrecked."
+ */
+function canRenderCanvas2D(host: RendererHost): boolean {
+  return host.staticCanvas.getContext('2d') !== null && host.dynamicCanvas.getContext('2d') !== null;
+}
 
 function isRendererPreference(value: string | null): value is RendererPreference {
   return value === 'canvas2d' || value === 'webgl';
@@ -83,7 +110,10 @@ export async function selectRenderer(
     await renderer.whenReady();
     return renderer;
   } catch {
-    announce(GPU_UNAVAILABLE_MESSAGE);
+    // canRenderCanvas2D's own getContext('2d') probe is safe to run even
+    // here: any canvas it still finds virgin is exactly what Canvas2DRenderer
+    // would acquire lazily on its first draw anyway.
+    announce(canRenderCanvas2D(host) ? GPU_UNAVAILABLE_MESSAGE : RENDER_BROKEN_MESSAGE);
     return new Canvas2DRenderer(host);
   }
 }
