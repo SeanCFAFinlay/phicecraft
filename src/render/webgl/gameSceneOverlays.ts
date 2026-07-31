@@ -574,7 +574,12 @@ export function updateGlow(
   }
 
   const holder = getCurrentPuckHolder(input.drill.players, input.drill.events);
-  if (holder) {
+  // Gated the same way gameScene.ts gates the solid ring (`isPuckHolder`,
+  // see its `!input.puck && isPuckHolder` there): while the puck is animated
+  // in flight/shot/loose, `getCurrentPuckHolder` still names the player who
+  // last had it, but nobody currently does - drawing the glow anyway blooms a
+  // player who visibly doesn't have the puck for the whole of playback.
+  if (!input.puck && holder) {
     const carrier = players.find(p => p.id === holder.id);
     if (carrier) g.circle(carrier.x, carrier.y, PLAYER_RADIUS + 5).stroke({ color: 0xffd60a, alpha: 0.5, width: 6 });
   }

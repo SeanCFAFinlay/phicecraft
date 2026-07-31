@@ -104,6 +104,10 @@ describe('selectRenderer', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', new FakeStorage());
     vi.resetModules();
+    // Every "unavailable"/import-failure path below now warns via
+    // console.warn (Task 6 finding: the discarded catch reason) - keep test
+    // output clean without asserting on the message itself.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -128,13 +132,15 @@ describe('selectRenderer', () => {
 
     const { selectRenderer } = await import('./selectRenderer');
     const announce = vi.fn();
-    // Only `webgl2` is unsupported - a REAL "this browser has no webgl2"
-    // canvas still yields `2d` fine, and a failed/unsupported getContext call
-    // never locks the canvas to anything (unlike a successful one).
+    // The capability probe now runs on a throwaway canvas the caller
+    // supplies (never `host.dynamicCanvas` - see selectRenderer.ts), so
+    // "webgl2 unsupported" is simulated by making THAT probe return null,
+    // not by shaping the host's canvases.
     const renderer = await selectRenderer(
       'webgl',
-      fakeHost({ dynamicCanvas: fakeCanvas(type => (type === 'webgl2' ? null : {})) }),
-      announce
+      fakeHost(),
+      announce,
+      () => fakeCanvas(() => null)
     );
 
     expect(renderer.kind).toBe('canvas2d');
@@ -165,7 +171,12 @@ describe('selectRenderer', () => {
 
     const { selectRenderer } = await import('./selectRenderer');
     const announce = vi.fn();
-    const renderer = await selectRenderer('webgl', fakeHost({ staticCanvas, dynamicCanvas }), announce);
+    const renderer = await selectRenderer(
+      'webgl',
+      fakeHost({ staticCanvas, dynamicCanvas }),
+      announce,
+      () => fakeCanvas(() => ({}))
+    );
 
     expect(renderer.kind).toBe('canvas2d');
     expect(announce).toHaveBeenCalledWith(RENDER_BROKEN_MESSAGE);
@@ -198,11 +209,101 @@ describe('selectRenderer', () => {
     const announce = vi.fn();
     const renderer = await selectRenderer(
       'webgl',
-      fakeHost({ dynamicCanvas: fakeCanvas(() => ({})) }),
-      announce
+      fakeHost(),
+      announce,
+      () => fakeCanvas(() => ({}))
     );
 
     expect(renderer.kind).toBe('webgl');
     expect(announce).not.toHaveBeenCalled();
+  });
+
+  it('probes capability on a throwaway canvas, never on host.dynamicCanvas', async () => {
+    // Regression test for the review finding: a bare getContext('webgl2') on
+    // the REAL canvas creates its context right there with default
+    // attributes, silently overriding what Pixi's own init later asks for.
+    // The probe must never call getContext on either host canvas.
+    class FakeWebGLRenderer {
+      readonly kind = 'webgl' as const;
+      whenReady() {
+        return Promise.resolve();
+      }
+    }
+    vi.doMock('@/render/webgl/WebGLRenderer', () => ({ WebGLRenderer: FakeWebGLRenderer }));
+
+    const dynamicCanvas = fakeCanvas();
+    const staticCanvas = fakeCanvas();
+    const dynamicGetContext = vi.spyOn(dynamicCanvas, 'getContext');
+    const staticGetContext = vi.spyOn(staticCanvas, 'getContext');
+    const probeCanvas = fakeCanvas(() => ({}));
+
+    const { selectRenderer } = await import('./selectRenderer');
+    const renderer = await selectRenderer(
+      'webgl',
+      fakeHost({ staticCanvas, dynamicCanvas }),
+      vi.fn(),
+      () => probeCanvas
+    );
+
+    expect(renderer.kind).toBe('webgl');
+    expect(dynamicGetContext).not.toHaveBeenCalledWith('webgl2');
+    expect(staticGetContext).not.toHaveBeenCalledWith('webgl2');
+  });
+
+  it('reuses the in-flight WebGL renderer for the same canvas pair instead of racing a second Pixi init (StrictMode dev double-mount)', async () => {
+    // Regression test for the review finding: React.StrictMode's dev-only
+    // effect double-invoke (setup -> cleanup -> setup) calls selectRenderer
+    // twice for the SAME two canvas elements before either promise has
+    // settled. Two independent WebGLRenderer instances racing on one canvas
+    // pair is exactly what let a cancelled instance's dispose() lose the GL
+    // context the surviving instance was using (see selectRenderer.ts's
+    // `webglClaims` comment) - reproduced live via a headless dev-server
+    // load: repeated `CONTEXT_LOST_WEBGL` / "Could not retrieve shader
+    // source" console warnings and a permanently blank board.
+    class FakeWebGLRenderer {
+      static instances: FakeWebGLRenderer[] = [];
+      readonly kind = 'webgl' as const;
+      readonly dispose = vi.fn();
+      constructor() {
+        FakeWebGLRenderer.instances.push(this);
+      }
+      whenReady() {
+        return Promise.resolve();
+      }
+      drawStatic() {}
+      drawDynamic() {}
+      resize() {}
+    }
+    vi.doMock('@/render/webgl/WebGLRenderer', () => ({ WebGLRenderer: FakeWebGLRenderer }));
+
+    const { selectRenderer } = await import('./selectRenderer');
+    const staticCanvas = fakeCanvas();
+    const dynamicCanvas = fakeCanvas();
+    const probeCanvas = () => fakeCanvas(() => ({}));
+
+    // Two DIFFERENT RendererHost wrapper objects (as useCanvasLayers.ts
+    // creates fresh each effect run) around the SAME canvas elements,
+    // resolved concurrently - matching StrictMode's timing, where both
+    // calls happen before either settles.
+    const [rendererA, rendererB] = await Promise.all([
+      selectRenderer('webgl', { staticCanvas, dynamicCanvas, onPaint: vi.fn() }, vi.fn(), probeCanvas),
+      selectRenderer('webgl', { staticCanvas, dynamicCanvas, onPaint: vi.fn() }, vi.fn(), probeCanvas),
+    ]);
+
+    expect(FakeWebGLRenderer.instances).toHaveLength(1);
+    expect(rendererA).toBe(rendererB);
+
+    const realInstance = FakeWebGLRenderer.instances[0];
+
+    // The "cancelled" caller (Setup1, in StrictMode terms) releases first -
+    // this must NOT tear down the shared GL context while the surviving
+    // caller (Setup2) still holds it.
+    rendererA.dispose();
+    expect(realInstance.dispose).not.toHaveBeenCalled();
+
+    // The surviving caller's own eventual (real) unmount releases the last
+    // claim - only now does the underlying renderer actually dispose.
+    rendererB.dispose();
+    expect(realInstance.dispose).toHaveBeenCalledTimes(1);
   });
 });

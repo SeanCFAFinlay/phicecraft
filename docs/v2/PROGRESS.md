@@ -244,8 +244,11 @@ renderer's identity is a runtime fact, not an assumption baked into a test.
 
 `selectRenderer` resolves, in order: the `?renderer=` URL query, then
 `localStorage`, then the built-in default (**`canvas2d`**). WebGL is a lazy
-chunk — it is only downloaded/initialized when actually selected — so every
-coach who never opts in pays nothing for it. If WebGL fails to initialize (no
+chunk — it is only parsed/executed when actually selected, so a coach who
+never opts in pays no startup cost for it. This is not the same as never
+downloading it: `public/sw.js` precaches every chunk the build manifest lists,
+including this one, in the background for offline availability, whether or
+not the coach has ever selected WebGL. If WebGL fails to initialize (no
 `webgl2` context, a partially-contaminated canvas, an init error), selection
 falls back to Canvas 2D safely rather than leaving a broken renderer live.
 

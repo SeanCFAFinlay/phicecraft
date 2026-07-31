@@ -204,6 +204,41 @@ describe('updateGameScene', () => {
     expect(coachesContainer.children.filter(child => child.visible)).toHaveLength(0);
   });
 
+  it('gates the carrier glow ring on !input.puck, same as the solid ring in gameScene.ts (finding: it used to bloom the last holder throughout animated playback)', () => {
+    const scene = buildGameScene();
+    const glowContainer = scene.root.children.find(child => child.label === 'glow')!;
+    const glow = glowContainer.children[0] as Graphics;
+    const strokeSpy = vi.spyOn(glow, 'stroke');
+
+    // giveAndGoRegressionDrill's default events end on a shot, so
+    // getCurrentPuckHolder returns null there (correctly, nobody has the
+    // puck after a shot) - this drill instead ends on the pass, so p13 is
+    // the current holder and the ring actually has something to draw.
+    const passOnlyDrill = {
+      ...giveAndGoRegressionDrill,
+      events: giveAndGoRegressionDrill.events.filter(event => event.type === 'pass'),
+    };
+
+    // Authoring view (no animated puck): the holder ring draws.
+    updateGameScene(scene, { ...BASE_INPUT, drill: passOnlyDrill });
+    expect(strokeSpy.mock.calls.some(([opts]) => (opts as { color?: number }).color === 0xffd60a)).toBe(true);
+
+    strokeSpy.mockClear();
+
+    // Animated playback, puck in flight: the holder ring must NOT draw - the
+    // puck is visibly not with anyone right now, even though
+    // getCurrentPuckHolder still names who last had it.
+    updateGameScene(scene, {
+      ...BASE_INPUT,
+      drill: passOnlyDrill,
+      isPlaying: true,
+      puck: { x: 100, y: 100, visible: true, state: 'in_flight', intendedReceiverId: 'p13' },
+    });
+    expect(strokeSpy.mock.calls.some(([opts]) => (opts as { color?: number }).color === 0xffd60a)).toBe(false);
+
+    destroyGameScene(scene);
+  });
+
   it("'low' quality hides the glow container; 'high' shows it", () => {
     const scene = buildGameScene();
     const glow = scene.root.children.find(child => child.label === 'glow')!;
