@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { effectiveDevicePixelRatio } from '@/camera/cameraMath';
 import type { BoardRenderer, RendererHost } from '@/render/BoardRenderer';
-import { recordPaint } from '@/render/paintCounters';
+import { recordPaint, setRendererKind } from '@/render/paintCounters';
 import { resolveRendererPreference, selectRenderer } from '@/render/selectRenderer';
 
 /** Default `announce` when a caller has no live region to report through. */
@@ -132,6 +132,12 @@ export function useCanvasLayers(
         return;
       }
       rendererRef.current = renderer;
+      // Records the renderer that actually won selection (review finding,
+      // Task 5 round 1) - paint counts alone can't distinguish a genuine
+      // WebGL capture from a silent Canvas2D degrade (webgl2 probe failure,
+      // chunk import failure), so e2e's visual-webgl-shell gate asserts on
+      // this rather than trusting paint activity to imply the pipeline.
+      setRendererKind(renderer.kind);
       // The size/DPR effect below may already have run once with nothing to
       // resize (the renderer did not exist yet); apply the latest known
       // values now so the new renderer is never left at its native default.

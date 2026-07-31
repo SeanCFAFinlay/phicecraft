@@ -143,6 +143,16 @@ export default defineConfig({
       snapshotPathTemplate: `e2e/__screenshots__/{projectName}/{arg}{ext}`,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
     },
+    // The binding "tabletop MUST still work with the GPU toggle on"
+    // requirement (Phase 3 Task 5, review round 1) - a real Chromium tab with
+    // `?renderer=webgl`, no screenshot baseline. Grouped with the other
+    // functional projects (not the visual ones): it asserts on paint counters
+    // and pixel content, not on layout pixels that drift per platform.
+    {
+      name: 'webgl-tabletop',
+      testMatch: /webglTabletop\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
+    },
     {
       name: 'perf',
       testMatch: /perf\.spec\.ts/,

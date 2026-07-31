@@ -406,8 +406,9 @@ function buildBenches(container: Container): void {
   const benchWidth = 32 * FT;
   const boxDepth = 5 * FT;
   const g = new Graphics();
+  const centers = [centerX - benchWidth * 0.58, centerX + benchWidth * 0.58];
 
-  [centerX - benchWidth * 0.58, centerX + benchWidth * 0.58].forEach((cx, index) => {
+  centers.forEach(cx => {
     g.rect(cx - benchWidth / 2, y - boxDepth, benchWidth, boxDepth)
       .fill('rgba(214, 226, 234, 0.2)')
       .stroke({ color: 'rgba(117, 213, 245, 0.72)', width: 1.4 });
@@ -415,10 +416,18 @@ function buildBenches(container: Container): void {
       g.moveTo(sx, y - boxDepth).lineTo(sx, y);
     }
     g.stroke({ color: 'rgba(117, 213, 245, 0.72)', width: 1.4 });
-    container.addChild(fixtureLabel(index === 0 ? 'HOME BENCH' : 'AWAY BENCH', cx, y - boxDepth * 0.52));
   });
 
+  // The Graphics (rects + dividers) must be added BEFORE the labels, mirroring
+  // buildPenaltyBoxes below and the canvas original's paint order
+  // (RinkRenderer.ts: rect -> stroke -> dividers -> fillText) - otherwise the
+  // box fill washes over "HOME BENCH"/"AWAY BENCH" and the dividers strike
+  // through the glyphs.
   container.addChild(g);
+
+  centers.forEach((cx, index) => {
+    container.addChild(fixtureLabel(index === 0 ? 'HOME BENCH' : 'AWAY BENCH', cx, y - boxDepth * 0.52));
+  });
 }
 
 /** Penalty boxes and the scorer's table opposite the benches. */

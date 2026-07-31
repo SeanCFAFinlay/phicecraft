@@ -5,7 +5,7 @@
 // ============================================================================
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { installPaintCounters, recordPaint } from './paintCounters';
+import { installPaintCounters, recordPaint, setRendererKind } from './paintCounters';
 
 describe('paintCounters', () => {
   beforeEach(() => {
@@ -39,5 +39,27 @@ describe('paintCounters', () => {
 
     expect(second).toBe(first);
     expect(second.staticPaints).toBe(1);
+  });
+
+  it('kind starts null, before any renderer has been selected', () => {
+    expect(installPaintCounters().kind).toBeNull();
+  });
+
+  it('setRendererKind records which BoardRenderer actually won selection', () => {
+    setRendererKind('webgl');
+    expect(window.__phicecraftPaint?.kind).toBe('webgl');
+
+    setRendererKind('canvas2d');
+    expect(window.__phicecraftPaint?.kind).toBe('canvas2d');
+  });
+
+  it('reset() zeroes the paint counts but leaves kind untouched', () => {
+    setRendererKind('webgl');
+    recordPaint('static');
+
+    window.__phicecraftPaint?.reset();
+
+    expect(window.__phicecraftPaint?.staticPaints).toBe(0);
+    expect(window.__phicecraftPaint?.kind).toBe('webgl');
   });
 });

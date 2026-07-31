@@ -13,11 +13,23 @@
 // paint, and staying renderer-agnostic (every BoardRenderer reports through
 // the same RendererHost.onPaint seam, see BoardRenderer.ts) is what lets the
 // perf spec stop assuming canvas index 0 is always a 2D context.
+//
+// `kind` (review finding, Task 5 round 1): paint counts alone cannot tell a
+// WebGL capture from a Canvas2D one — if `?renderer=webgl` silently degrades
+// (webgl2 probe fails, chunk import fails), `selectRenderer` still resolves
+// to a working Canvas2DRenderer that paints fine, and a paint-counter-only
+// wait would never notice it got the wrong pipeline. `useCanvasLayers.ts`
+// records which `BoardRenderer.kind` actually won via `setRendererKind` the
+// moment selection resolves, so a caller (e2e's `visual-webgl-shell` project)
+// can assert on the real active renderer instead of inferring it from paint
+// activity alone.
 // ============================================================================
 
 export interface PaintCounters {
   staticPaints: number;
   dynamicPaints: number;
+  /** The active BoardRenderer's kind, or null before selection has resolved. */
+  kind: 'canvas2d' | 'webgl' | null;
   reset(): void;
 }
 
@@ -31,6 +43,7 @@ function createPaintCounters(): PaintCounters {
   const counters: PaintCounters = {
     staticPaints: 0,
     dynamicPaints: 0,
+    kind: null,
     reset() {
       counters.staticPaints = 0;
       counters.dynamicPaints = 0;
@@ -64,4 +77,14 @@ export function recordPaint(layer: 'static' | 'dynamic'): void {
   } else {
     counters.dynamicPaints += 1;
   }
+}
+
+/**
+ * Records which BoardRenderer implementation actually won selection, once
+ * `selectRenderer` resolves (see useCanvasLayers.ts). Not touched by
+ * `reset()`: it identifies the session's active pipeline, not a count of
+ * paint activity within it.
+ */
+export function setRendererKind(kind: 'canvas2d' | 'webgl'): void {
+  installPaintCounters().kind = kind;
 }

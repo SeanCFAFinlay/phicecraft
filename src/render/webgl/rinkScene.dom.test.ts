@@ -163,6 +163,33 @@ describe('buildBoardFixtures', () => {
     // Bench shapes, penalty/scorer shapes, glass stanchions.
     expect(graphics).toHaveLength(3);
   });
+
+  // Review finding (Task 5 round 1): buildBenches used to add each label
+  // INSIDE the loop but its shared Graphics (the rects + dividers) AFTER the
+  // loop, so the box fill painted over "HOME BENCH"/"AWAY BENCH" and the
+  // dividers struck through the glyphs - the opposite of the canvas source's
+  // order (rect -> stroke -> dividers -> fillText) and of the sibling
+  // buildPenaltyBoxes, which already had this right. A node-count assertion
+  // alone can't catch a z-order regression like that, so this locks in the
+  // actual child ORDER: each fixture's Graphics must precede its own label(s)
+  // so Pixi paints the labels on top.
+  it('paints each fixture group\'s Graphics before its own label(s), so labels stay on top', () => {
+    const fixtures = buildBoardFixtures();
+    const kinds = fixtures.children.map(child =>
+      child instanceof Text ? 'text' : child instanceof Graphics ? 'graphics' : 'other'
+    );
+
+    expect(kinds).toEqual([
+      'graphics', // benches: rects + dividers
+      'text', // HOME BENCH
+      'text', // AWAY BENCH
+      'graphics', // penalty boxes + scorer's table
+      'text', // PENALTY
+      'text', // SCORER
+      'text', // PENALTY
+      'graphics', // glass stanchions
+    ]);
+  });
 });
 
 describe('buildBoards', () => {

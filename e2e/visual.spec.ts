@@ -132,6 +132,15 @@ async function openFixture(page: Page, overrides: Partial<typeof FIXTURE> = {}):
       const paint = window.__phicecraftPaint;
       return !!paint && paint.staticPaints > 0 && paint.dynamicPaints > 0;
     });
+    // Paint counts alone can't tell a genuine WebGL capture from a silent
+    // Canvas2D degrade (the webgl2 probe or the chunk import can fail, and
+    // selectRenderer falls back to a Canvas2DRenderer that paints just fine).
+    // Without this, a future --update-snapshots run could write a Canvas2D
+    // screenshot straight into this WebGL-only baseline directory without
+    // anything failing first. `window.__phicecraftPaint.kind` (paintCounters.ts)
+    // records which BoardRenderer actually won selection.
+    const kind = await page.evaluate(() => window.__phicecraftPaint?.kind);
+    expect(kind, 'the active renderer for this capture').toBe('webgl');
   }
   // Let the sprite atlas settle onto its final frame.
   await page.waitForTimeout(600);
