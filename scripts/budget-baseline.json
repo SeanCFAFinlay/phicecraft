@@ -1,6 +1,6 @@
 {
-  "recordedAt": "2026-07-30",
-  "note": "Raised deliberately for the lazy PixiJS GPU renderer chunk (audit Phase 3). The budget sums every chunk; startup cost is unaffected — the chunk loads only when the GPU renderer is selected.",
-  "jsBytes": 922935,
+  "recordedAt": "2026-07-31",
+  "note": "Raised deliberately for the lazy PixiJS GPU renderer chunk (audit Phase 3, Tasks 4+6: renderer core + game scene). The budget sums every chunk; startup cost is unaffected — the chunk loads only when the GPU renderer is selected.",
+  "jsBytes": 1066885,
   "cssBytes": 29401
 }

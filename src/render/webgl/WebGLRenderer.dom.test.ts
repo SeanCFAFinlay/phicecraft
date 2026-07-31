@@ -30,6 +30,19 @@ vi.mock('./rinkScene', () => ({
   buildRinkScene: () => rinkSceneSpy,
 }));
 
+// Likewise, the dynamic (game) scene graph's own content is gameScene.ts's
+// own concern, covered by gameScene.dom.test.ts - stubbed out here for the
+// same reason rinkScene is: this file is about WebGLRenderer's ROUTING
+// decision (which pipeline drawDynamic reaches for), not the scene's pixels.
+const gameSceneRootSpy = { setFromMatrix: vi.fn() };
+const updateGameSceneSpy = vi.fn();
+const destroyGameSceneSpy = vi.fn();
+vi.mock('./gameScene', () => ({
+  buildGameScene: () => ({ root: gameSceneRootSpy }),
+  updateGameScene: (...args: unknown[]) => updateGameSceneSpy(...args),
+  destroyGameScene: (...args: unknown[]) => destroyGameSceneSpy(...args),
+}));
+
 // Likewise, the Canvas2D tabletop fallback's own drawing is
 // renderStatic.ts/RinkRenderer.ts's concern (already covered by their own
 // tests); this file only needs to know WHICH pipeline drawStatic() reaches
@@ -38,6 +51,15 @@ const drawStaticLayerSpy = vi.fn();
 vi.mock('@/components/canvas/renderStatic', () => ({
   drawStaticLayer: drawStaticLayerSpy,
   staticLayerKey: (input: { camera: unknown }) => JSON.stringify(input.camera),
+}));
+
+// drawDynamicLayer is the SAME tabletop pass-through primitive drawStaticLayer
+// is above - mocked for the same reason: this file asserts WebGLRenderer's
+// ROUTING decision (Task 6's shared `canvasFallback` predicate), not the
+// Canvas2D dynamic layer's own pixels (renderDynamic.ts has its own coverage).
+const drawDynamicLayerSpy = vi.fn();
+vi.mock('@/components/canvas/renderDynamic', () => ({
+  drawDynamicLayer: drawDynamicLayerSpy,
 }));
 
 vi.mock('pixi.js', () => {
@@ -82,6 +104,10 @@ beforeEach(() => {
   rinkSceneSpy.setFromMatrix.mockClear();
   rinkSceneSpy.destroy.mockClear();
   drawStaticLayerSpy.mockClear();
+  drawDynamicLayerSpy.mockClear();
+  gameSceneRootSpy.setFromMatrix.mockClear();
+  updateGameSceneSpy.mockClear();
+  destroyGameSceneSpy.mockClear();
   // jsdom has no real 2D canvas backend; stub just enough for the
   // pass-through buffer WebGLRenderer draws onto internally.
   HTMLCanvasElement.prototype.getContext = vi.fn(function (type: string) {
@@ -180,5 +206,91 @@ describe('WebGLRenderer.drawStatic — tabletop fallback', () => {
 
     expect(rinkSceneSpy.setFromMatrix).toHaveBeenCalledTimes(2);
     expect(drawStaticLayerSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Task 6: drawDynamic goes live. Asserts the SAME routing guarantee as
+// drawStatic above, through the SAME shared `canvasFallback` predicate - a
+// mixed WebGL/Canvas2D frame (one layer picking one pipeline, the other layer
+// picking the other for the same camera) must be impossible.
+describe('WebGLRenderer.drawDynamic — pipeline routing', () => {
+  function flatCamera() {
+    return { x: 0, y: 0, zoom: 1, rotation: 0, tilt: 0 };
+  }
+
+  function tabletopCamera() {
+    return { x: 0, y: 0, zoom: 1, rotation: 0, tilt: TABLETOP_MIN_TILT + 0.1 };
+  }
+
+  function dynamicInput(camera: ReturnType<typeof flatCamera>) {
+    return {
+      camera,
+      width: 800,
+      height: 400,
+      dpr: 1,
+      drill: { id: 'd', name: 'd', createdAt: 0, updatedAt: 0, players: [], skatePaths: [], events: [] },
+      positions: {},
+      playerFrames: {},
+      puck: null,
+      ghostTrails: { forEach: () => {} },
+      isPlaying: false,
+      suppressEditAffordances: false,
+      progress: 0,
+      selectedPlayerId: null,
+      selectedEventId: null,
+      passFromPlayerId: null,
+      movingPlayerId: null,
+      transientRoute: null,
+      draggedPlayer: null,
+      dragPreview: null,
+      passCandidates: null,
+      showDiagnostics: false,
+      reducedEffects: false,
+      quality: 'high' as const,
+    };
+  }
+
+  it('updates and renders the real Pixi game scene when tilt is at or below the tabletop threshold', async () => {
+    const renderer = new WebGLRenderer(host());
+    await renderer.whenReady();
+
+    renderer.drawDynamic(dynamicInput(flatCamera()));
+
+    expect(updateGameSceneSpy).toHaveBeenCalledTimes(1);
+    expect(gameSceneRootSpy.setFromMatrix).toHaveBeenCalledTimes(1);
+    expect(drawDynamicLayerSpy).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the Canvas2D pass-through, without touching the game scene, once tilt passes the threshold', async () => {
+    const renderer = new WebGLRenderer(host());
+    await renderer.whenReady();
+
+    renderer.drawDynamic(dynamicInput(tabletopCamera()));
+
+    expect(drawDynamicLayerSpy).toHaveBeenCalledTimes(1);
+    expect(updateGameSceneSpy).not.toHaveBeenCalled();
+    expect(gameSceneRootSpy.setFromMatrix).not.toHaveBeenCalled();
+  });
+
+  it('never disagrees with drawStatic for the SAME camera', async () => {
+    const renderer = new WebGLRenderer(host());
+    await renderer.whenReady();
+
+    for (const camera of [flatCamera(), tabletopCamera()]) {
+      drawStaticLayerSpy.mockClear();
+      drawDynamicLayerSpy.mockClear();
+      renderer.drawStatic({ camera, width: 800, height: 400, dpr: 1 });
+      renderer.drawDynamic(dynamicInput(camera));
+      expect(drawStaticLayerSpy.mock.calls.length > 0).toBe(drawDynamicLayerSpy.mock.calls.length > 0);
+    }
+  });
+
+  it('disposes the game scene along with both Pixi renderers', async () => {
+    const renderer = new WebGLRenderer(host());
+    await renderer.whenReady();
+
+    renderer.dispose();
+
+    expect(destroyGameSceneSpy).toHaveBeenCalledTimes(1);
   });
 });

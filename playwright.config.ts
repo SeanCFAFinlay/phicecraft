@@ -123,11 +123,10 @@ export default defineConfig({
       snapshotPathTemplate: `e2e/__screenshots__/{projectName}/{arg}{ext}`,
       use: { ...devices['Desktop Chrome'], viewport, hasTouch: viewport.width < 1024 },
     })),
-    // The WebGL renderer's own baseline (Phase 3 Task 5) - its own directory,
-    // its own capture. `visual.spec.ts` skips every case here except
-    // "flat rink, default view"; a later task grows this list alongside the
-    // dynamic-layer port instead of comparing pixels against the Canvas2D
-    // baseline (a different pipeline is expected to differ, deliberately).
+    // The WebGL renderer's own baseline (Phase 3 Task 5, grown to the full
+    // scenario set in Task 6 alongside the dynamic-layer port) - its own
+    // directory, its own capture, never diffed against the Canvas2D baseline
+    // (a different pipeline is expected to differ, deliberately).
     //
     // `npm run test:visual` runs this project in its OWN `playwright test`
     // invocation with `--workers=1`, after the Canvas2D visual projects

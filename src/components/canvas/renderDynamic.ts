@@ -39,6 +39,7 @@ import { drawDimmedPlayers, drawPassCandidates, type PassCandidateView } from '@
 import { cameraMatrix } from '@/utils/geometry';
 import { compileDrill } from '@/sim/compileDrill';
 import { getCompiledEventEndpoints } from '@/sim/sampleFrame';
+import type { RenderQuality } from '@/render/quality';
 
 export interface DragPreview {
   kind: 'pass' | 'shoot';
@@ -94,6 +95,15 @@ export interface DynamicLayerInput {
   passCandidates: { passerId: ID; candidates: PassCandidateView[] } | null;
   showDiagnostics: boolean;
   reducedEffects: boolean;
+  /**
+   * The auto-degrade tier from `useCanvasLayers` (perf-driven, orthogonal to
+   * the document's own `reducedEffects` setting above). Canvas2D ignores it -
+   * it never shed per-frame cost this way. The WebGL game scene
+   * (`render/webgl/gameScene.ts`) uses it to shed glow/shadow effects under
+   * sustained load: `'low'` drops them entirely, `'high'` alone enables the
+   * BlurFilter passes.
+   */
+  quality: RenderQuality;
 }
 
 /**

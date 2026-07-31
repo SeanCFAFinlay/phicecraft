@@ -10,33 +10,23 @@
 // docs/repair/PHICECRAFT_REPAIR_COMPLETION.md for why this project is run
 // separately from CI.
 //
-// `visual-webgl-shell` (Phase 3 Task 5) reuses this same file rather than a
-// duplicate: it opens the fixture with `?renderer=webgl` and keeps only
-// "flat rink, default view" - the WebGL rink scene's own baseline, in its own
-// directory (`e2e/__screenshots__/visual-webgl-shell`), never diffed against
-// the Canvas2D one above. Everything else in this file is skipped for that
-// project; a later task (the dynamic-layer port) grows the WebGL list.
+// `visual-webgl-shell` (Phase 3 Task 5, grown to the full scenario set in
+// Task 6 once the dynamic layer was ported) reuses this same file rather
+// than a duplicate: it opens the fixture with `?renderer=webgl` and captures
+// its OWN baseline for every scenario below, in its own directory
+// (`e2e/__screenshots__/visual-webgl-shell`), never diffed against the
+// Canvas2D one above - a different rendering pipeline is expected to differ
+// pixel-for-pixel, deliberately (see WebGLRenderer.ts / rinkScene.ts headers).
 // ============================================================================
 
 import { expect, test, type Page } from '@playwright/test';
 import { LINEUP, clickWorld, dismissFirstRunHint, dragWorld } from './support';
 
 const WEBGL_PROJECT = 'visual-webgl-shell';
-const WEBGL_ONLY_TEST = 'flat rink, default view';
 
 function isWebglProject(): boolean {
   return test.info().project.name === WEBGL_PROJECT;
 }
-
-// Playwright requires the first parameter to be an object-destructuring
-// pattern (it's how it detects which fixtures a hook needs) even when none
-// are used, which is exactly what `no-empty-pattern` flags.
-// eslint-disable-next-line no-empty-pattern
-test.beforeEach(async ({}, testInfo) => {
-  if (testInfo.project.name === WEBGL_PROJECT && testInfo.title !== WEBGL_ONLY_TEST) {
-    testInfo.skip();
-  }
-});
 
 /**
  * A fixed drill, written straight into storage, so nothing about the capture

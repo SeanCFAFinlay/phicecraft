@@ -11,11 +11,15 @@ import { effectiveDevicePixelRatio } from '@/camera/cameraMath';
 import type { BoardRenderer, RendererHost } from '@/render/BoardRenderer';
 import { recordPaint, setRendererKind } from '@/render/paintCounters';
 import { resolveRendererPreference, selectRenderer } from '@/render/selectRenderer';
+import type { RenderQuality } from '@/render/quality';
 
 /** Default `announce` when a caller has no live region to report through. */
 const NOOP_ANNOUNCE = (): void => {};
 
-export type RenderQuality = 'high' | 'medium' | 'low';
+// Re-exported for existing importers - the type itself now lives in
+// `@/render/quality` so the render/webgl layer can depend on it without
+// pulling in this React hook module.
+export type { RenderQuality };
 
 export interface CanvasLayers {
   containerRef: React.RefObject<HTMLDivElement>;

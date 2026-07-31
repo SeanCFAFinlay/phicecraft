@@ -66,6 +66,24 @@ export async function storedDrill(page: Page): Promise<Drill> {
   return first.document;
 }
 
+// ----------------------------------------------------------------------------
+// Renderer selection
+//
+// `RENDERER=webgl npm run test:e2e -- --project=flows ...` (Task 6, Phase 3)
+// runs the functional suites against the GPU pipeline instead of Canvas2D -
+// the same `?renderer=webgl` URL override `selectRenderer.ts` already reads,
+// just sourced from an env var so the SAME spec files exercise either
+// renderer without a second copy of each test. Functional assertions (button
+// clicks, `storedDrill()` state) are renderer-agnostic; only `openEditor`
+// needs to know which query string to open with and, when it's WebGL, to
+// wait on real paint activity and confirm the GPU pipeline actually won
+// selection rather than silently falling back to Canvas2D (the same
+// `window.__phicecraftPaint` gate `visual.spec.ts`/`webglTabletop.spec.ts`
+// already rely on).
+// ----------------------------------------------------------------------------
+
+const RENDERER_QUERY = process.env.RENDERER === 'webgl' ? '?renderer=webgl' : '';
+
 /**
  * Open the app with a clean local store.
  *
@@ -97,13 +115,28 @@ export async function openEditor(page: Page): Promise<void> {
     }
   });
 
-  await page.goto('/');
+  await page.goto(`/${RENDERER_QUERY}`);
   await expect(page.getByRole('application', { name: /hockey rink/i })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Editing tools' })).toBeVisible();
   // Wait for the initial save so the library is in a known state.
   await expect(page.getByRole('status', { name: /^Save status:/ })).toHaveAccessibleName(
     /Saved|Unsaved/
   );
+
+  if (RENDERER_QUERY) {
+    // selectRenderer's dynamic import + two Pixi renderers' own async init()
+    // land after the app-shell assertions above resolve - wait on real paint
+    // activity rather than a guessed delay (same gate visual.spec.ts uses).
+    await page.waitForFunction(() => {
+      const paint = window.__phicecraftPaint;
+      return !!paint && paint.staticPaints > 0 && paint.dynamicPaints > 0;
+    });
+    // Paint counts alone can't distinguish a genuine WebGL capture from a
+    // silent Canvas2D degrade (a failed webgl2 probe or chunk import) -
+    // window.__phicecraftPaint.kind records which BoardRenderer actually won.
+    const kind = await page.evaluate(() => window.__phicecraftPaint?.kind);
+    expect(kind, 'the active renderer for this session').toBe('webgl');
+  }
 }
 
 /**

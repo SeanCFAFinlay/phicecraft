@@ -120,6 +120,7 @@ export function CanvasSurface() {
       suppressEditAffordances: isEditingSuppressed(current),
       showDiagnostics: current.ui.showDiagnostics,
       reducedEffects: current.drill.settings?.reducedEffects ?? false,
+      quality: layers.quality,
     });
 
     layers.reportFrameTime(performance.now() - started);

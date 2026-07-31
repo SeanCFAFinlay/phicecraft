@@ -71,6 +71,7 @@ function dynamicInput(overrides: Partial<DynamicLayerInput> = {}): DynamicLayerI
     passCandidates: null,
     showDiagnostics: false,
     reducedEffects: false,
+    quality: 'high',
     ...overrides,
   };
 }
