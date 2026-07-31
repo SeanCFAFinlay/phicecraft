@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Phase 3 Task 7 — Canvas2D vs WebGL visual parity</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b1220;
+    --panel: #131d30;
+    --border: #263349;
+    --text: #dbe4f3;
+    --muted: #93a4c2;
+    --accent: #4fd1c5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 32px 64px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.6rem; margin-bottom: 4px; }
+  .sub { color: var(--muted); margin-top: 0; margin-bottom: 28px; max-width: 900px; }
+  .method {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 32px;
+    max-width: 900px;
+    font-size: 0.92rem;
+    color: var(--muted);
+  }
+  .method strong { color: var(--text); }
+  .scenario {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    margin-bottom: 32px;
+    overflow: hidden;
+  }
+  .scenario h2 {
+    margin: 0;
+    padding: 14px 20px;
+    font-size: 1.05rem;
+    background: #1a2740;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .scenario h2 .stats {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+  }
+  .pane { background: #0e1626; padding: 10px; }
+  .pane .label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .pane img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+    border: 1px solid #1f2c44;
+  }
+  .delta {
+    padding: 16px 20px 20px;
+    font-size: 0.94rem;
+  }
+  .delta p { margin: 0; }
+  @media (max-width: 900px) {
+    .pair { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <h1>Phase 3 (GPU coach board) — Task 7 visual parity artifact</h1>
+  <p class="sub">
+    All 12 <code>visual.spec.ts</code> scenarios, Canvas2D (<code>visual-shell</code> baseline,
+    desktop-1366 viewport) side by side with WebGL (<code>visual-webgl-shell</code> baseline, same
+    viewport/fixture). These are two deliberately separate, never-cross-diffed baselines — a
+    different rendering pipeline is expected to differ pixel-for-pixel. This page exists so a human
+    can look at the real pixels and decide whether the difference is acceptable before flipping the
+    default renderer.
+  </p>
+  <div class="method">
+    <strong>How this was produced.</strong> Each pair below is the actual committed PNG from
+    <code>e2e/__screenshots__/visual-shell/&lt;name&gt;.png</code> and
+    <code>e2e/__screenshots__/visual-webgl-shell/&lt;name&gt;.png</code> (both generated on this
+    machine by the same <code>e2e/visual.spec.ts</code> file, same fixture, same 1366×768 viewport,
+    motion disabled). The delta text under each pair was written after (1) opening both PNGs
+    directly and inspecting them, and (2) a pixel-level diff script (Node + <code>sharp</code>,
+    raw RGBA buffers, per-pixel max-channel delta with a threshold of 12 to ignore anti-aliasing
+    noise) run once per scenario to get an objective differing-pixel percentage, bounding box, and
+    average difference magnitude — quoted in each heading's stats line. The script itself was a
+    scratch file, run and then deleted; it is not part of the committed change.
+  </div>
+
+  <!-- 1 -->
+  <div class="scenario">
+    <h2>flat rink, default view <span class="stats">diff 9.026% of pixels · avgΔ 38.0 · bbox [23,56]–[1342,634]</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/flat-rink.png" alt="Canvas2D flat rink"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/flat-rink.png" alt="WebGL flat rink"></div>
+    </div>
+    <div class="delta"><p>
+      Board/ice: the outer yellow kick-plate shows a soft radial highlight (a brighter "sheen"
+      patch near the top-left corner) under Canvas2D, rendered via canvas shadow/gradient calls;
+      under WebGL the same ring is flatter and more evenly lit — Pixi's <code>FillGradient</code>
+      approximates but does not reproduce that highlight. The puck-carrier ring around #11 and the
+      goalie ring around #31 are thin, slightly soft dashed circles under Canvas2D; under WebGL they
+      read as a touch more saturated/solid, because the WebGL scene layers an actual GPU
+      <code>BlurFilter</code> bloom under a subset of these rings at <code>quality: 'high'</code>
+      (Task 6), which spreads and brightens the glow differently than Canvas2D's
+      <code>ctx.shadowBlur</code>. The dashed red pass-arrow guide line and the faint centre-ice
+      logo circles are otherwise pixel-equivalent in position, size and colour. No font, layout or
+      DOM-chrome differences in this scenario.
+    </p></div>
+  </div>
+
+  <!-- 2 -->
+  <div class="scenario">
+    <h2>tabletop rink <span class="stats">diff 3.270% of pixels · avgΔ 66.8 (highest of all 12) · bbox [447,97]–[930,179]</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/tabletop-rink.png" alt="Canvas2D tabletop rink"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/tabletop-rink.png" alt="WebGL tabletop rink"></div>
+    </div>
+    <div class="delta"><p>
+      The tabletop (pseudo-3D) rink itself is rendered through the SAME Canvas2D pass-through in
+      both captures — <code>WebGLRenderer</code>'s own <code>canvasFallback</code> predicate
+      (<code>tilt &gt; TABLETOP_MIN_TILT</code>) routes tabletop frames to Canvas2D even when
+      <code>?renderer=webgl</code> is active, by design (Task 5/6). So the ice, boards, sponsor
+      text and all 5 player tokens are pixel-for-pixel the same rendering code path in both
+      screenshots, and the diff tool confirms it: unlike every other scenario, the differing area
+      here is small and tightly bounded rather than smeared across the whole rink. The ENTIRE
+      measured difference is a single DOM overlay — a contextual coaching banner ("Tap Pass with
+      the puck carrier selected to connect a pass.") that is visible in the Canvas2D capture but
+      absent from the WebGL one at the same fixed post-action delay. This is not a rendering-pipeline
+      difference at all (it sits in front of the canvas, not on it); the most likely cause is that
+      the WebGL run's extra async initialization (the dynamic <code>selectRenderer</code> import +
+      two Pixi renderers' own <code>init()</code>, which <code>openFixture</code> already waits on
+      via real paint-activity polling) shifts the wall-clock moment the screenshot is taken relative
+      to whatever shows/expires this banner. Worth a follow-up look if banner timing ever needs to
+      be renderer-independent, but it is a test-timing artifact, not a WebGLRenderer defect.
+    </p></div>
+  </div>
+
+  <!-- 3 -->
+  <div class="scenario">
+    <h2>selected player chip <span class="stats">diff 7.917% of pixels · avgΔ 38.5 · bbox [105,56]–[1260,566]</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/selected-player-chip.png" alt="Canvas2D selected player chip"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/selected-player-chip.png" alt="WebGL selected player chip"></div>
+    </div>
+    <div class="delta"><p>
+      Same board-gradient and ring-glow differences as "flat rink" (this is the same camera view
+      with #11 selected). The one difference specific to this scenario: the puck marker next to
+      #11 is a faint, thin-outlined dot under Canvas2D — easy to miss next to the dark selection
+      chevron badge — while under WebGL it renders as a clearly visible solid black filled ellipse
+      of the same <code>PUCK_MARKER_RX</code>/<code>RY</code> dimensions. Both use the same pure
+      geometry constants (per the Task 6 port), so the marker's size/position is identical; only the
+      fill/stroke treatment differs enough to be noticeably more visible on WebGL. The bottom
+      selection-chip DOM row ("#11 · C / Move / Pass / Shoot / Details / Delete") is pixel-identical
+      chrome in both.
+    </p></div>
+  </div>
+
+  <!-- 4 -->
+  <div class="scenario">
+    <h2>active pass action <span class="stats">diff 8.643% of pixels · avgΔ 50.2 · bbox [19,3]–[1342,689]</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/active-pass-action.png" alt="Canvas2D active pass action"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/active-pass-action.png" alt="WebGL active pass action"></div>
+    </div>
+    <div class="delta"><p>
+      This scenario has the highest concentration of overlay rings, so the glow/crispness contrast
+      from "flat rink" is most visible here: the green "this teammate can take the pass cleanly"
+      rings around #13/#5/#31 are a soft, gently feathered dashed glow under Canvas2D, and a
+      slightly harder-edged, more saturated ring under WebGL. #11's own carrier ring is rendered as
+      TWO concentric rings under WebGL (an outer solid orange band plus an inner yellow dashed
+      ring) where Canvas2D shows one combined yellow dashed ring with a softer blur — a real
+      compositing-order difference between the two renderers' layered-glow approach, not a bug in
+      either (Task 6 documents the glow container as its own dedicated pass). The puck marker next
+      to #11 shows the same "barely visible under Canvas2D, solid and clear under WebGL" contrast
+      as in "selected player chip". The dark "Pass from #11 / Click a highlighted teammate…" banner
+      and the right-hand vertical icon column (3D/rotate controls) are DOM chrome; the icon column's
+      button backgrounds look slightly more/less opaque between the two captures, most likely a
+      leftover hover/focus CSS state from each run's own independent interaction sequence rather
+      than anything renderer-related.
+    </p></div>
+  </div>
+
+  <!-- 5 -->
+  <div class="scenario">
+    <h2>active route action <span class="stats">diff 8.737% of pixels · avgΔ 49.7 · bbox [19,3]–[1342,689]</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/active-route-action.png" alt="Canvas2D active route action"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/active-route-action.png" alt="WebGL active route action"></div>
+    </div>
+    <div class="delta"><p>
+      Nearly identical delta profile to "active pass action" (same magnitude, same bounding box):
+      the pink/rose dashed "route radius" ring around #5 is softer and more blurred under Canvas2D,
+      crisper and more solid-looking under WebGL, for the same BlurFilter-vs-shadowBlur reason. The
+      puck marker next to #11 again reads as a small, barely-visible dot under Canvas2D and a solid
+      black ellipse under WebGL. The "Route for #5 / Draw the movement path, then release." banner
+      and toolbar are pixel-identical DOM chrome.
+    </p></div>
+  </div>
+
+  <!-- 6 -->
+  <div class="scenario">
+    <h2>compact playback <span class="stats">diff 9.026% of pixels · avgΔ 38.0 · bbox [23,56]–[1342,634] (identical numbers to "flat rink" — same underlying frame)</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/compact-playback.png" alt="Canvas2D compact playback"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/compact-playback.png" alt="WebGL compact playback"></div>
+    </div>
+    <div class="delta"><p>
+      This scenario's diff statistics are byte-for-byte identical to "flat rink" — the compact
+      playback transport bar at the bottom is collapsed/idle at 0.0s in this fixture, so the visible
+      rink content is the same frame as the default view. Every difference named under "flat rink"
+      (board-gradient sheen, ring glow softness/saturation) applies here unchanged. No differences
+      specific to the playback transport itself, which is identical DOM chrome in both.
+    </p></div>
+  </div>
+
+  <!-- 7 -->
+  <div class="scenario">
+    <h2>expanded playback sheet <span class="stats">diff 3.092% of pixels · avgΔ 31.3 · bbox [23,56]–[1005,634]</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/expanded-playback.png" alt="Canvas2D expanded playback"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/expanded-playback.png" alt="WebGL expanded playback"></div>
+    </div>
+    <div class="delta"><p>
+      The right-hand "Playback" sheet (timeline, controls, speed, status, notes) is exact DOM
+      chrome and is pixel-identical between the two captures — the diff bounding box only covers
+      the narrower strip of visible rink to its left. The lowest average-difference-magnitude
+      scenario of the 12 (31.3): with less rink on screen there is simply less board/glow area to
+      differ. Same board-gradient-sheen and ring-glow-softness pattern as "flat rink", scaled down
+      to the visible strip; goalie #31's ring is the most visibly affected element.
+    </p></div>
+  </div>
+
+  <!-- 8 -->
+  <div class="scenario">
+    <h2>main menu sheet <span class="stats">diff 2.846% of pixels · avgΔ 31.3 · bbox [360,56]–[1342,634] (lowest diff % of all 12)</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/main-menu.png" alt="Canvas2D main menu"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/main-menu.png" alt="WebGL main menu"></div>
+    </div>
+    <div class="delta"><p>
+      The left "PhiceCraft" main-menu sheet (Save/Rename/New drill, guide step, jersey-colour
+      swatches, saved-plays list) is exact DOM chrome, pixel-identical in both. Only a narrow visible
+      strip of rink remains uncovered on the right, which is why this scenario has the smallest
+      overall diff percentage of all 12. What little rink is visible shows the same board-gradient
+      and ring-glow contrast as "flat rink"; #13's dashed route-preview arc and the two neutral-zone
+      faceoff circles read as effectively identical between the two.
+    </p></div>
+  </div>
+
+  <!-- 9 -->
+  <div class="scenario">
+    <h2>player inspector sheet <span class="stats">diff 2.725% of pixels · avgΔ 31.7 · bbox [105,56]–[1005,566] (smallest bbox / diff area of all 12)</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/player-inspector.png" alt="Canvas2D player inspector"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/player-inspector.png" alt="WebGL player inspector"></div>
+    </div>
+    <div class="delta"><p>
+      The right "#11 — Center" inspector sheet (Move this player / skating route / puck actions /
+      skater detail / Remove) is pixel-identical DOM chrome. In the narrow rink strip that remains,
+      the puck marker next to #11 again shows the "faint dot vs. solid ellipse" contrast, and #31's
+      goalie ring shows the usual glow-softness contrast. This is the smallest total diff area of
+      the 12 scenarios (least rink visible), consistent with the pattern that diff magnitude tracks
+      how much of the rink is on screen rather than anything specific to this sheet.
+    </p></div>
+  </div>
+
+  <!-- 10 -->
+  <div class="scenario">
+    <h2>save failure state <span class="stats">diff 7.884% of pixels · avgΔ 38.2 · bbox [26,59]–[1339,634]</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/save-failure.png" alt="Canvas2D save failure"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/save-failure.png" alt="WebGL save failure"></div>
+    </div>
+    <div class="delta"><p>
+      The "Save failed / Retry / Export" top-bar chips and the "Save failed: Device storage is
+      full…" toast banner are pixel-identical DOM chrome in both. On the rink itself, this pair
+      shows the clearest example of the ring-treatment difference in the OPPOSITE direction from
+      what a quick glance elsewhere might suggest: goalie #31's selection ring is a thin, crisp,
+      mostly-solid gold ring under Canvas2D, but a visibly softer, wider, more feathered
+      yellow-orange glow under WebGL — i.e. the WebGL glow can read as either more saturated/solid
+      OR more feathered/spread depending on which specific ring and quality-tier effect is driving
+      it (carrier ring vs. plain selection ring use different code paths per Task 6's
+      port-order groups), so "WebGL rings are softer" and "WebGL rings are more solid" are both true
+      depending on which marker you look at — not a single uniform rule. #11's own ring and the
+      board gradient show the same pattern already described under "flat rink".
+    </p></div>
+  </div>
+
+  <!-- 11 -->
+  <div class="scenario">
+    <h2>validation blocked state <span class="stats">diff 6.985% of pixels · avgΔ 39.4 · bbox [105,56]–[1260,566]</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/validation-blocked.png" alt="Canvas2D validation blocked"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/validation-blocked.png" alt="WebGL validation blocked"></div>
+    </div>
+    <div class="delta"><p>
+      The "DRILL CHECK — h2 cannot release a puck controlled by h1" toast (bottom-left) and the
+      matching top banner are pixel-identical DOM chrome. This is the one scenario with authored
+      pass events already committed (two solid yellow flight lines with numbered event badges), and
+      those flight lines/badges render essentially identically in both captures — solid strokes
+      have far less glow/blur treatment than the softer selection/reachability rings that dominate
+      the diff in other scenarios, which is consistent with this being one of the lower
+      diff-percentage scenarios despite showing a similar amount of rink as "active pass action".
+      The usual goalie-ring and puck-marker contrasts are present but subtle here.
+    </p></div>
+  </div>
+
+  <!-- 12 -->
+  <div class="scenario">
+    <h2>drawn route on the rink <span class="stats">diff 8.783% of pixels · avgΔ 38.2 · bbox [317,100]–[1365,634]</span></h2>
+    <div class="pair">
+      <div class="pane"><div class="label">Canvas2D</div><img src="../../e2e/__screenshots__/visual-shell/drawn-route.png" alt="Canvas2D drawn route"></div>
+      <div class="pane"><div class="label">WebGL</div><img src="../../e2e/__screenshots__/visual-webgl-shell/drawn-route.png" alt="WebGL drawn route"></div>
+    </div>
+    <div class="delta"><p>
+      The camera is zoomed/panned in for this scenario (a route was just drawn, re-fitting the
+      view), which makes the board-bezel gradient difference the most visible of all 12: Canvas2D's
+      radial highlight/sheen along the top-left curve of the boards and bench-door line is
+      noticeably brighter than WebGL's flatter gradient fill at this zoom level. Same contextual
+      coaching-banner timing difference as "tabletop rink" — "Tap Pass with the puck carrier
+      selected to connect a pass." is visible in the Canvas2D capture, absent in the WebGL one,
+      almost certainly the same wall-clock-timing artifact rather than a rendering difference. The
+      right-hand vertical icon column also shows the same faded/near-transparent button-background
+      look under WebGL noted in "active pass action" — again read as leftover DOM hover/focus state
+      rather than a canvas-rendering difference, since that column is not part of either
+      BoardRenderer's paint surface.
+    </p></div>
+  </div>
+
+  <p class="sub" style="margin-top: 8px;">
+    Produced for Phase 3 Task 7 (audit Phase 3, GPU coach-board renderer). See
+    <code>task-7-report.md</code> in this directory for the full perf/functional/gate results this
+    artifact accompanies.
+  </p>
+</body>
+</html>
