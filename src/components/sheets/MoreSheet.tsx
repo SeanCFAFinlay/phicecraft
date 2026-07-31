@@ -12,7 +12,9 @@
 import { Sheet } from '../a11y/Sheet';
 import { SheetItem, SheetSection } from './QuickSheets';
 import { useAppState, useCommands } from '@/hooks/useAppState';
-import type { FinishPolicy } from '@/core/types';
+import type { FinishPolicy, RendererPreference } from '@/core/types';
+import { DEFAULT_RENDERER_PREFERENCE } from '@/core/constants';
+import { readRendererPreference, writeRendererPreference } from '@/render/selectRenderer';
 import {
   ChartIcon,
   MagnetIcon,
@@ -22,6 +24,23 @@ import {
   SkateIcon,
   UndoIcon,
 } from '@/ui/icons';
+
+/**
+ * The experimental renderer toggle (Phase 3). Switching takes effect from the
+ * next full load, not live - swapping BoardRenderer implementations mid-
+ * session would mean tearing down and recreating both canvases, and a coach
+ * mid-drill should not have that happen invisibly - so this reloads the app
+ * immediately after persisting the choice, the same "explicit, not silent"
+ * contract UpdateBanner uses for its own reload.
+ */
+const RENDERERS: { pref: RendererPreference; label: string; detail: string }[] = [
+  { pref: 'canvas2d', label: 'Standard renderer', detail: 'Canvas 2D — the default, always available' },
+  {
+    pref: 'webgl',
+    label: 'GPU renderer (experimental)',
+    detail: 'PixiJS/WebGL — falls back to standard automatically if unsupported',
+  },
+];
 
 /**
  * How a drill can end. Only the shot option makes the app derive a puck
@@ -48,6 +67,7 @@ export function MoreSheet() {
   // belong here outside Build. Diagnostics is a display overlay, not a
   // mutation, and stays available in every mode.
   const isBuild = state.ui.mode === 'build';
+  const rendererPreference = readRendererPreference() ?? DEFAULT_RENDERER_PREFERENCE;
 
   const run = (action: () => unknown) => () => {
     close();
@@ -138,6 +158,28 @@ export function MoreSheet() {
           onClick={() => dispatch({ type: 'TOGGLE_DIAGNOSTICS' })}
         />
       </SheetSection>
+
+      {isBuild && (
+        <SheetSection title="Renderer (experimental)">
+          {RENDERERS.map(option => (
+            <SheetItem
+              key={option.pref}
+              icon={rendererPreference === option.pref ? '●' : '○'}
+              label={option.label}
+              detail={option.detail}
+              selected={rendererPreference === option.pref}
+              onClick={() => {
+                if (option.pref === rendererPreference) {
+                  close();
+                  return;
+                }
+                writeRendererPreference(option.pref);
+                window.location.reload();
+              }}
+            />
+          ))}
+        </SheetSection>
+      )}
     </Sheet>
   );
 }

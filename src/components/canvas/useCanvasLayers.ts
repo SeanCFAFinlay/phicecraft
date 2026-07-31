@@ -8,9 +8,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { effectiveDevicePixelRatio } from '@/camera/cameraMath';
-import type { BoardRenderer } from '@/render/BoardRenderer';
-import { Canvas2DRenderer } from '@/render/canvas2d/Canvas2DRenderer';
+import type { BoardRenderer, RendererHost } from '@/render/BoardRenderer';
 import { recordPaint } from '@/render/paintCounters';
+import { resolveRendererPreference, selectRenderer } from '@/render/selectRenderer';
+
+/** Default `announce` when a caller has no live region to report through. */
+const NOOP_ANNOUNCE = (): void => {};
 
 export type RenderQuality = 'high' | 'medium' | 'low';
 
@@ -39,7 +42,10 @@ const DEGRADE_AFTER = 30;
 /** How many consecutive comfortable frames before stepping back up. */
 const RECOVER_AFTER = 120;
 
-export function useCanvasLayers(onResize?: (width: number, height: number) => void): CanvasLayers {
+export function useCanvasLayers(
+  onResize?: (width: number, height: number) => void,
+  announce: (message: string) => void = NOOP_ANNOUNCE
+): CanvasLayers {
   const containerRef = useRef<HTMLDivElement>(null);
   const staticCanvasRef = useRef<HTMLCanvasElement>(null);
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,6 +59,12 @@ export function useCanvasLayers(onResize?: (width: number, height: number) => vo
   const rendererRef = useRef<BoardRenderer | null>(null);
   const getRenderer = useCallback(() => rendererRef.current, []);
 
+  // selectRenderer resolves asynchronously (it may dynamic-import the WebGL
+  // chunk), so by the time it settles, `size`/`dpr` from this render's
+  // closure may already be stale - these refs always read the latest values.
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+
   // The seam every renderer implementation reports through; recordPaint owns
   // the app's `window.__phicecraftPaint` counters (src/render/paintCounters.ts).
   const onPaint = useCallback(recordPaint, []);
@@ -61,6 +73,8 @@ export function useCanvasLayers(onResize?: (width: number, height: number) => vo
     typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
     quality
   );
+  const dprRef = useRef(dpr);
+  dprRef.current = dpr;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -82,21 +96,45 @@ export function useCanvasLayers(onResize?: (width: number, height: number) => vo
     return () => observer.disconnect();
   }, [onResize]);
 
-  // The renderer is constructed once both canvas elements exist. It lives in
-  // a ref, not in state or the memo below, so choosing (or later swapping)
-  // one never forces every subscriber of the memoized object to re-run.
+  // The renderer is selected (and, for WebGL, dynamic-imported) once both
+  // canvas elements exist, and lives in a ref, not in state or the memo
+  // below, so choosing (or later swapping) one never forces every subscriber
+  // of the memoized object to re-run.
+  //
+  // Selection is async, so nothing may acquire a context on either canvas
+  // before it resolves - a canvas that has ever had a context taken from it
+  // can never change type (see selectRenderer.ts). getRenderer() stays null
+  // until then; CanvasSurface's draw effects already tolerate that by
+  // skipping, so no frame is drawn before the choice is final.
   useEffect(() => {
     const staticCanvas = staticCanvasRef.current;
     const dynamicCanvas = dynamicCanvasRef.current;
     if (!staticCanvas || !dynamicCanvas) return;
 
-    const renderer = new Canvas2DRenderer({ staticCanvas, dynamicCanvas, onPaint });
-    rendererRef.current = renderer;
+    let cancelled = false;
+    const host: RendererHost = { staticCanvas, dynamicCanvas, onPaint };
+    const pref = resolveRendererPreference(window.location.search);
+
+    void selectRenderer(pref, host, announce).then(renderer => {
+      if (cancelled) {
+        renderer.dispose();
+        return;
+      }
+      rendererRef.current = renderer;
+      // The size/DPR effect below may already have run once with nothing to
+      // resize (the renderer did not exist yet); apply the latest known
+      // values now so the new renderer is never left at its native default.
+      if (sizeRef.current.width > 0 && sizeRef.current.height > 0) {
+        renderer.resize(sizeRef.current.width, sizeRef.current.height, dprRef.current);
+      }
+    });
+
     return () => {
-      renderer.dispose();
+      cancelled = true;
+      rendererRef.current?.dispose();
       rendererRef.current = null;
     };
-  }, [onPaint]);
+  }, [onPaint, announce]);
 
   // Apply the backing-store size whenever the layout size or DPR changes.
   useEffect(() => {

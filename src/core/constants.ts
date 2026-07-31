@@ -2,7 +2,7 @@
 // CONSTANTS - Fixed values for the hockey drill designer
 // ============================================================================
 
-import type { RinkDimensions, Camera, PlaybackState, UIState, SelectionState } from './types';
+import type { RinkDimensions, Camera, PlaybackState, UIState, SelectionState, RendererPreference } from './types';
 
 // ============================================================================
 // RINK DIMENSIONS
@@ -382,3 +382,14 @@ export const STORAGE_KEYS = {
   CURRENT_DRILL: 'phicecraft_current_drill',
   SETTINGS: 'phicecraft_settings',
 };
+
+/**
+ * Where the renderer toggle (Phase 3) persists its choice - a device
+ * capability, not drill data, so it lives outside STORAGE_KEYS' drill-document
+ * keys. Same dotted, guarded-localStorage idiom as
+ * `FirstRunHint.tsx`'s `phicecraft.firstRunHintDone`.
+ */
+export const RENDERER_PREFERENCE_STORAGE_KEY = 'phicecraft.renderer';
+
+/** No coach has opted into the experimental GPU renderer until they say so. */
+export const DEFAULT_RENDERER_PREFERENCE: RendererPreference = 'canvas2d';

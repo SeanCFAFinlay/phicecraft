@@ -447,6 +447,17 @@ export type SheetKind =
 /** The three product states. Only 'build' may mutate the document. */
 export type AppMode = 'build' | 'preview' | 'present';
 
+/**
+ * Which BoardRenderer implementation draws the two canvases (Phase 3).
+ *
+ * A device capability, not a drill property - it lives in localStorage
+ * (`RENDERER_PREFERENCE_STORAGE_KEY` in constants.ts), never in the document.
+ * `'webgl'` is best-effort: `selectRenderer` falls back to `'canvas2d'` at
+ * runtime whenever the GPU chunk fails to load or the browser has no
+ * `webgl2` context, regardless of which preference is stored here.
+ */
+export type RendererPreference = 'canvas2d' | 'webgl';
+
 export interface UIState {
   mode: AppMode;
   editorStep: 'setup' | 'movement' | 'puck' | 'review';

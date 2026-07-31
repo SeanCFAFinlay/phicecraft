@@ -1,6 +1,6 @@
 {
-  "recordedAt": "2026-07-26",
-  "note": "Raised deliberately for the 24-drill template catalogue and the library UI. The catalogue is a 33 KiB chunk and the library 11 KiB, both LAZY: the startup bundle went from 521 KiB back to 455 KiB when they were split out, so a coach who never opens the library does not pay for it. This budget sums every chunk, which is why the total still rose. Raise deliberately, in the same commit as the change that needs it.",
-  "jsBytes": 534528,
-  "cssBytes": 28979
+  "recordedAt": "2026-07-30",
+  "note": "Raised deliberately for the lazy PixiJS GPU renderer chunk (audit Phase 3). The budget sums every chunk; startup cost is unaffected — the chunk loads only when the GPU renderer is selected.",
+  "jsBytes": 922935,
+  "cssBytes": 29401
 }
