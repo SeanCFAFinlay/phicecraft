@@ -76,6 +76,23 @@ async function resetCounters(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Which `BoardRenderer` this session actually painted with (`canvas2d` or
+ * `webgl`) - read straight from the app-owned counters rather than the
+ * `RENDERER` env var, so a silent fallback would show up as `canvas2d` here
+ * even when the run was launched with `RENDERER=webgl`.
+ *
+ * This is what "parameterized run" means for this file: the same five specs
+ * run unmodified under either renderer (`RENDERER=webgl npx playwright test
+ * --project=perf` vs. the plain invocation) and the two runs' own artifacts
+ * (below) are kept apart by this value instead of one overwriting the other.
+ */
+async function rendererKind(page: Page): Promise<string> {
+  return page.evaluate(
+    () => (window as unknown as { __phicecraftPaint?: { kind?: string } }).__phicecraftPaint?.kind ?? 'canvas2d'
+  );
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test('a route drag does not put a React render on every pointer sample', async ({ page }) => {
@@ -136,6 +153,11 @@ test('a route drag does not put a React render on every pointer sample', async (
     afterCommit.staticPaints,
     'static rink repaints after the commit (a bounded re-fit, not a repaint per sample)'
   ).toBeLessThanOrEqual(2);
+
+  const kind = await rendererKind(page);
+  console.log(
+    `[perf:route-drag:${kind}] duringDrag=${JSON.stringify(duringDrag)} afterCommit.staticPaints=${afterCommit.staticPaints}`
+  );
 });
 
 test('a player drag writes the document once, not once per pointer sample', async ({ page }) => {
@@ -184,6 +206,9 @@ test('a player drag writes the document once, not once per pointer sample', asyn
 
   const after = await readUpdatedAt();
   expect(typeof after).toBe('number');
+
+  const kind = await rendererKind(page);
+  console.log(`[perf:player-drag:${kind}] duringCounters=${JSON.stringify(duringCounters)}`);
 });
 
 test('a full playback run does not render React per frame', async ({ page }) => {
@@ -228,17 +253,21 @@ test('a full playback run does not render React per frame', async ({ page }) => 
   expect(rafTicks, 'the browser offered animation frames').toBeGreaterThan(20);
   expect(counters.dynamicPaints / rafTicks, 'dynamic draws per available frame').toBeGreaterThan(0.6);
 
+  const kind = await rendererKind(page);
+  console.log(
+    `[perf:playback:${kind}] react=${counters.react} staticPaints=${counters.staticPaints} dynamicPaints=${counters.dynamicPaints} rafTicks=${rafTicks} ratio=${(counters.dynamicPaints / rafTicks).toFixed(3)}`
+  );
+
   await test.info().attach('playback-counters', {
-    body: JSON.stringify({ ...counters, rafTicks }, null, 2),
+    body: JSON.stringify({ ...counters, rafTicks, kind }, null, 2),
     contentType: 'application/json',
   });
 
-  await mkdir(OUTPUT_DIR, { recursive: true });
-  await writeFile(
-    path.join(OUTPUT_DIR, 'playback-counters.json'),
+  const record =
     JSON.stringify(
       {
         note: 'One full 8-second playback run, headless Chromium. reactCommits counts batched MutationObserver callbacks inside the shell, excluding canvases - approximately one per React commit.',
+        renderer: kind,
         reactCommits: counters.react,
         staticRinkRepaints: counters.staticPaints,
         dynamicFramesDrawn: counters.dynamicPaints,
@@ -246,9 +275,18 @@ test('a full playback run does not render React per frame', async ({ page }) => 
       },
       null,
       2
-    ) + '\n',
-    'utf8'
-  );
+    ) + '\n';
+
+  await mkdir(OUTPUT_DIR, { recursive: true });
+  // Named by renderer kind so a webgl run's numbers do not clobber a
+  // canvas2d run's - both are quoted in the Task 7 parity report. The plain
+  // `playback-counters.json` (no suffix) is kept in sync with the canvas2d
+  // (default-renderer) run only, since docs/repair/PHICECRAFT_REPAIR_COMPLETION.md
+  // links that exact filename from the pre-WebGL repair report.
+  await writeFile(path.join(OUTPUT_DIR, `playback-counters.${kind}.json`), record, 'utf8');
+  if (kind === 'canvas2d') {
+    await writeFile(path.join(OUTPUT_DIR, 'playback-counters.json'), record, 'utf8');
+  }
 });
 
 test('panning repaints the rink, proving the static layer is genuinely live', async ({ page }) => {
@@ -261,6 +299,9 @@ test('panning repaints the rink, proving the static layer is genuinely live', as
 
   const counters = await readCounters(page);
   expect(counters.staticPaints, 'the rink repaints when the camera moves').toBeGreaterThan(0);
+
+  const kind = await rendererKind(page);
+  console.log(`[perf:pan:${kind}] staticPaints=${counters.staticPaints}`);
 });
 
 test('the effective device pixel ratio is capped at 2', async ({ browser }) => {
@@ -277,6 +318,9 @@ test('the effective device pixel ratio is capped at 2', async ({ browser }) => {
   // on a line diagram.
   expect(ratio).toBeLessThanOrEqual(2);
   expect(ratio).toBeGreaterThan(1);
+
+  const kind = await rendererKind(page);
+  console.log(`[perf:dpr:${kind}] ratio=${ratio}`);
   await context.close();
 });
 

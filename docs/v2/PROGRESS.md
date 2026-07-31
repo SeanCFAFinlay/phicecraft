@@ -210,9 +210,127 @@ the zone view draws players at roughly 2.3x the size the original fit gave.
   stroke weight, `currentColor` throughout — so active, disabled and hover
   states now apply to the icon as well as the label.
 
-### Not started
+### Not started (at the time this section was written)
 
-PixiJS renderer.
+PixiJS renderer — see "Phase 3 — GPU coach board" below, completed in a
+later pass over this same phase.
+
+---
+
+## Phase 3 — GPU coach board 🔶 renderer complete, default flip pending a human call
+
+A second `BoardRenderer` implementation (PixiJS/WebGL) alongside the existing
+Canvas 2D one, built behind a runtime toggle rather than a replacement — the
+default stays Canvas 2D until a human looks at the parity artifact below and
+decides to flip it.
+
+### Abstraction
+
+`BoardRenderer` (`src/render/`) is the seam: `init`, `drawStatic` (rink,
+markings — repainted only when the camera moves), `drawDynamic` (players,
+routes, events, puck, overlays — repainted every interactive/playback frame),
+`dispose`. Canvas 2D (`src/render/canvas2d/`) was refactored to be the first
+implementation of this interface rather than the only renderer; WebGL
+(`src/render/webgl/`, PixiJS v8) is the second, with its own static rink scene
+and dynamic game scene (ghost trails, dash-tessellated skate paths with a
+dirty-key cache, events/flight lines, drag previews, dimmed/candidate players,
+atlas-sprite players with the same jersey-override vector fallback Canvas
+uses, edit handles, animated puck, coaches, diagnostics — all pooled, never
+recreated per frame). `window.__phicecraftPaint` carries app-owned
+static/dynamic paint counters plus a `kind: 'canvas2d' | 'webgl'` field so a
+renderer's identity is a runtime fact, not an assumption baked into a test.
+
+### Selection and fallback rules
+
+`selectRenderer` resolves, in order: the `?renderer=` URL query, then
+`localStorage`, then the built-in default (**`canvas2d`**). WebGL is a lazy
+chunk — it is only downloaded/initialized when actually selected — so every
+coach who never opts in pays nothing for it. If WebGL fails to initialize (no
+`webgl2` context, a partially-contaminated canvas, an init error), selection
+falls back to Canvas 2D safely rather than leaving a broken renderer live.
+
+### Tabletop delegation
+
+The pseudo-3D tabletop view (`tilt > TABLETOP_MIN_TILT`) always renders
+through Canvas 2D, even when WebGL is the active renderer for the flat board —
+a single hoisted `canvasFallback(camera)` predicate in `WebGLRenderer.ts` is
+the ONE place this threshold is decided, called by both `drawStatic` and
+`drawDynamic`, so a mixed WebGL/Canvas2D frame is impossible by construction.
+This is deliberate, not a gap: the tabletop's pseudo-3D pass has no payoff to
+port when audit Phase 5 replaces it with true 3D outright.
+
+### Budget
+
+Adding a full GPU rendering pipeline as a lazy chunk grew the production JS
+budget baseline (`scripts/budget-baseline.json`) twice, each raise dated,
+justified in the file's own `note` field, and reviewed: **922,935 → 1,061,375
+→ 1,066,885 bytes**. Both raises land entirely in the lazy WebGL chunk
+(431.99 KiB → 433.48 KiB compiled) — a coach who never selects WebGL still
+downloads the pre-Phase-3 startup bundle; the budget check simply sums every
+chunk, so the total rises even though nothing changes for the default path.
+
+### Parity results (Task 7)
+
+**Perf** (`e2e/perf.spec.ts`, the five app-owned-counter assertions,
+`npx playwright test --project=perf` run once with the default renderer and
+once with `RENDERER=webgl`, both against a real `npm run build`):
+
+| Assertion | Threshold | Canvas2D (measured) | WebGL (measured) |
+|---|---|---|---|
+| Route drag — React commits (60 samples) | < 60 | 0 | 0 |
+| Route drag — staticPaints during drag | == 0 | 0 | 0 |
+| Route drag — dynamicPaints during drag | > 0 | 120 | 120 |
+| Route drag — staticPaints after commit | ≤ 2 | 2 | 2 |
+| Player drag — dynamicPaints during drag | > 0 | 60 | 60 |
+| Player drag — React commits (60 samples) | < 20 | 0 | 0 |
+| Playback — React commits (full run) | ≤ 130 | 88 | 103 |
+| Playback — staticPaints | ≤ 1 | 0 | 0 |
+| Playback — dynamicPaints / rafTicks offered | > 0.6 | 91 / 103 = 0.883 | 447 / 470 = 0.951 |
+| Pan — staticPaints | > 0 | 15 | 15 |
+| DPR cap | ≤ 2 (and > 1) | 2 | 2 |
+
+Both renderers pass every threshold with margin. One incidental observation:
+headless Chromium offered roughly 4–5× more animation frames to the WebGL
+pipeline than to Canvas 2D in the same real-world playback window (470 vs. 103
+`rafTicks`) — the GPU path is not a bottleneck locally, if anything the
+opposite. Raw numbers vary a few percent run-to-run (documented in
+`perf.spec.ts` as headless rAF throttling being non-deterministic); the
+figures above are one recorded run, archived at
+`docs/repair/final/playback-counters.canvas2d.json` and
+`docs/repair/final/playback-counters.webgl.json`.
+
+**Functional e2e** (`RENDERER=webgl npm run test:e2e` — flows, pwa, library,
+puck-actions, line-shapes, mobile-flows, a11y, perf, all seven viewport
+projects, plus `webgl-tabletop`): 166/166 green under WebGL and 166/166 green
+under the default renderer. One transient failure was observed in a single
+run out of several full-matrix repeats under `RENDERER=webgl`
+(`line-shapes.spec.ts`'s route-handle-drag test) that did not reproduce in
+isolation or on two subsequent full runs — consistent with WebGL-context
+creation contention under this repo's own fully-parallel worker model (the
+same concern already documented for `visual-webgl-shell`, which runs
+`--workers=1` for exactly this reason), not a renderer parity defect.
+
+**Visual regression** (`npm run test:visual`): both projects green —
+`visual-shell`/`visual-phone-portrait`/`visual-phone-landscape` (36 Canvas2D
+scenarios) and `visual-webgl-shell` (12 WebGL scenarios), each against its
+own, never-cross-diffed baseline directory. A full side-by-side comparison of
+all 12 shared scenarios, with a per-scenario delta description written after
+inspecting the actual pixels, lives at
+`.superpowers/sdd/2026-07-30-phase3-gpu-renderer/task-7-visual-comparison.html`.
+In short: rendering-pipeline differences are subtle and expected (a softer
+canvas `shadowBlur` glow vs. a GPU `BlurFilter` bloom on selection/carrier
+rings, a flatter Pixi gradient on the board bezel vs. Canvas 2D's radial
+highlight, a more clearly visible solid puck marker under WebGL vs. a faint
+one under Canvas 2D) — nothing broken, nothing misleading, no missing
+content.
+
+### The default stays Canvas 2D
+
+**Deliberately.** Flipping it is a one-line change (`selectRenderer`'s default
+branch) plus swapping which baseline directory `visual-shell` points at — small
+enough that the review artifact above, not engineering effort, is the actual
+gate. This is left as a human decision with the comparison in hand, not
+something this task decides unilaterally.
 
 ---
 
