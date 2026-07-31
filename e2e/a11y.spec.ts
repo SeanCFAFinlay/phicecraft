@@ -25,6 +25,21 @@ interface AxeViolation {
 
 /** Run axe over the page and return only serious/critical violations. */
 async function seriousViolations(page: Page): Promise<AxeViolation[]> {
+  // Every surface here is reached right after a click that opens a dialog or
+  // sheet, which kicks off `sheet-enter`'s CSS animation/hover-state
+  // transitions. `reducedMotion: 'reduce'` (playwright.config.ts) collapses
+  // their DURATION to near-zero, but the browser still needs one style
+  // recalc/paint to reach the end state - axe's color-contrast check reads
+  // getComputedStyle synchronously and can catch a genuinely mid-transition,
+  // still-interpolating color if that recalc hasn't landed yet. This is more
+  // likely to be caught under the (now-default) WebGL renderer: nothing about
+  // the DOM/CSS differs, but the extra async work around WebGL selection
+  // shifts exactly when the click's own microtask queue drains relative to
+  // the animation's completion, without changing whether it FINISHES quickly.
+  // Waiting for the Web Animations API to report nothing in-flight makes this
+  // renderer-agnostic rather than trusting the reduced duration to have
+  // already been applied by the time this evaluates.
+  await page.waitForFunction(() => document.getAnimations().every(animation => animation.playState !== 'running'));
   await page.addScriptTag({ content: AXE_SOURCE });
   const results = await page.evaluate(async () => {
     // The canvas is a bitmap; its accessible alternative is the DOM shell

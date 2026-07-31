@@ -391,5 +391,13 @@ export const STORAGE_KEYS = {
  */
 export const RENDERER_PREFERENCE_STORAGE_KEY = 'phicecraft.renderer';
 
-/** No coach has opted into the experimental GPU renderer until they say so. */
-export const DEFAULT_RENDERER_PREFERENCE: RendererPreference = 'canvas2d';
+/**
+ * The default for a coach who has never chosen and passed no `?renderer=`
+ * override: WebGL (Phase 3's GPU renderer), flipped from Canvas 2D on
+ * 2026-07-31 after the parity/perf/visual gates went green and a human
+ * reviewed the side-by-side comparison artifact. `selectRenderer` still falls
+ * back to Canvas 2D safely if WebGL cannot initialize, and a coach who has
+ * explicitly stored `'canvas2d'` in localStorage keeps it - this constant only
+ * matters when nothing has been chosen yet.
+ */
+export const DEFAULT_RENDERER_PREFERENCE: RendererPreference = 'webgl';

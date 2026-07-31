@@ -26,20 +26,24 @@ import {
 } from '@/ui/icons';
 
 /**
- * The experimental renderer toggle (Phase 3). Switching takes effect from the
- * next full load, not live - swapping BoardRenderer implementations mid-
- * session would mean tearing down and recreating both canvases, and a coach
- * mid-drill should not have that happen invisibly - so this reloads the app
+ * The renderer toggle (Phase 3). Switching takes effect from the next full
+ * load, not live - swapping BoardRenderer implementations mid-session would
+ * mean tearing down and recreating both canvases, and a coach mid-drill
+ * should not have that happen invisibly - so this reloads the app
  * immediately after persisting the choice, the same "explicit, not silent"
  * contract UpdateBanner uses for its own reload.
+ *
+ * WebGL became the default on 2026-07-31 (see docs/v2/PROGRESS.md, Phase 3);
+ * Canvas 2D remains the always-available compatibility fallback, and
+ * `selectRenderer` drops to it automatically if WebGL cannot initialize.
  */
 const RENDERERS: { pref: RendererPreference; label: string; detail: string }[] = [
-  { pref: 'canvas2d', label: 'Standard renderer', detail: 'Canvas 2D — the default, always available' },
   {
     pref: 'webgl',
-    label: 'GPU renderer (experimental)',
-    detail: 'PixiJS/WebGL — falls back to standard automatically if unsupported',
+    label: 'GPU renderer',
+    detail: 'PixiJS/WebGL — the default, falls back to standard automatically if unsupported',
   },
+  { pref: 'canvas2d', label: 'Standard renderer', detail: 'Canvas 2D — the compatibility fallback' },
 ];
 
 /**
@@ -160,7 +164,7 @@ export function MoreSheet() {
       </SheetSection>
 
       {isBuild && (
-        <SheetSection title="Renderer (experimental)">
+        <SheetSection title="Renderer">
           {RENDERERS.map(option => (
             <SheetItem
               key={option.pref}

@@ -17,6 +17,15 @@
 // (`e2e/__screenshots__/visual-webgl-shell`), never diffed against the
 // Canvas2D one above - a different rendering pipeline is expected to differ
 // pixel-for-pixel, deliberately (see WebGLRenderer.ts / rinkScene.ts headers).
+//
+// The Canvas2D projects (`visual-shell`/`visual-phone-portrait`/
+// `visual-phone-landscape`) open the fixture with `?renderer=canvas2d`
+// explicitly for the same reason, since the app's own default flipped to
+// `webgl` on 2026-07-31 (docs/v2/PROGRESS.md, Phase 3): without the explicit
+// override these baselines would silently start capturing WebGL pixels
+// against a Canvas2D reference the moment the default changed. Pinning both
+// sides is what keeps `npm run test:visual` a meaningful check of "did either
+// pipeline's OWN pixels drift" rather than "did the flip drift the baseline".
 // ============================================================================
 
 import { expect, test, type Page } from '@playwright/test';
@@ -102,7 +111,13 @@ async function openFixture(page: Page, overrides: Partial<typeof FIXTURE> = {}):
   }, seeded);
 
   const webgl = isWebglProject();
-  await page.goto(webgl ? '/?renderer=webgl' : '/');
+  // Both branches pin an explicit `?renderer=` override rather than trusting
+  // "the default": relying on the app default for the Canvas2D side used to
+  // be safe when that default WAS canvas2d, but silently starts capturing
+  // WebGL pixels the moment the default changes underneath this file (see the
+  // file header). Pinning both sides means this spec's behaviour never
+  // depends on `selectRenderer`'s default at all.
+  await page.goto(webgl ? '/?renderer=webgl' : '/?renderer=canvas2d');
   await expect(page.getByRole('button', { name: /^Play name: Visual Fixture/ })).toBeVisible();
   // The fixture has a route but no puck events, so the first-run hint would
   // otherwise sit in the same top-of-rink lane as the tabletop toggle and the
@@ -110,28 +125,26 @@ async function openFixture(page: Page, overrides: Partial<typeof FIXTURE> = {}):
   // baseline should show the steady-state chrome, not a coach's first-run
   // nudge, so it is dismissed before anything is captured.
   await dismissFirstRunHint(page);
-  if (webgl) {
-    // `selectRenderer` dynamic-imports the WebGL chunk and waits on two Pixi
-    // renderers' own async `init()` before its first frame lands - a fixed
-    // timeout here was flaky under load (a screenshot taken before the first
-    // `drawStatic()`/`drawDynamic()` call landed captured a blank canvas).
-    // `window.__phicecraftPaint` (paintCounters.ts) is the same renderer-
-    // agnostic paint signal perf.spec.ts already relies on, so this waits on
-    // actual evidence of a first paint instead of guessing how long one takes.
-    await page.waitForFunction(() => {
-      const paint = window.__phicecraftPaint;
-      return !!paint && paint.staticPaints > 0 && paint.dynamicPaints > 0;
-    });
-    // Paint counts alone can't tell a genuine WebGL capture from a silent
-    // Canvas2D degrade (the webgl2 probe or the chunk import can fail, and
-    // selectRenderer falls back to a Canvas2DRenderer that paints just fine).
-    // Without this, a future --update-snapshots run could write a Canvas2D
-    // screenshot straight into this WebGL-only baseline directory without
-    // anything failing first. `window.__phicecraftPaint.kind` (paintCounters.ts)
-    // records which BoardRenderer actually won selection.
-    const kind = await page.evaluate(() => window.__phicecraftPaint?.kind);
-    expect(kind, 'the active renderer for this capture').toBe('webgl');
-  }
+  // `selectRenderer` dynamic-imports the WebGL chunk and waits on two Pixi
+  // renderers' own async `init()` before its first frame lands - a fixed
+  // timeout here was flaky under load (a screenshot taken before the first
+  // `drawStatic()`/`drawDynamic()` call landed captured a blank canvas).
+  // `window.__phicecraftPaint` (paintCounters.ts) is the same renderer-
+  // agnostic paint signal perf.spec.ts already relies on, so this waits on
+  // actual evidence of a first paint instead of guessing how long one takes.
+  await page.waitForFunction(() => {
+    const paint = window.__phicecraftPaint;
+    return !!paint && paint.staticPaints > 0 && paint.dynamicPaints > 0;
+  });
+  // Paint counts alone can't tell a genuine capture in the pinned renderer
+  // from a silent fallback (the webgl2 probe or the chunk import can fail,
+  // and selectRenderer falls back to Canvas2D, which paints just fine).
+  // Without this, a future --update-snapshots run could write the WRONG
+  // pipeline's screenshot straight into either baseline directory without
+  // anything failing first. `window.__phicecraftPaint.kind` (paintCounters.ts)
+  // records which BoardRenderer actually won selection.
+  const kind = await page.evaluate(() => window.__phicecraftPaint?.kind);
+  expect(kind, 'the active renderer for this capture').toBe(webgl ? 'webgl' : 'canvas2d');
   // Let the sprite atlas settle onto its final frame.
   await page.waitForTimeout(600);
 }

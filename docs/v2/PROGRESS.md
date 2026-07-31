@@ -217,12 +217,13 @@ later pass over this same phase.
 
 ---
 
-## Phase 3 — GPU coach board 🔶 renderer complete, default flip pending a human call
+## Phase 3 — GPU coach board ✅ renderer complete, WebGL is now the default
 
 A second `BoardRenderer` implementation (PixiJS/WebGL) alongside the existing
-Canvas 2D one, built behind a runtime toggle rather than a replacement — the
-default stays Canvas 2D until a human looks at the parity artifact below and
-decides to flip it.
+Canvas 2D one, built behind a runtime toggle rather than a replacement. The
+default flipped from Canvas 2D to WebGL on **2026-07-31** — a human decision,
+made after reviewing the parity artifact below (see "The default is now
+WebGL" at the end of this section for the record of that call).
 
 ### Abstraction
 
@@ -243,14 +244,20 @@ renderer's identity is a runtime fact, not an assumption baked into a test.
 ### Selection and fallback rules
 
 `selectRenderer` resolves, in order: the `?renderer=` URL query, then
-`localStorage`, then the built-in default (**`canvas2d`**). WebGL is a lazy
-chunk — it is only parsed/executed when actually selected, so a coach who
-never opts in pays no startup cost for it. This is not the same as never
-downloading it: `public/sw.js` precaches every chunk the build manifest lists,
-including this one, in the background for offline availability, whether or
-not the coach has ever selected WebGL. If WebGL fails to initialize (no
-`webgl2` context, a partially-contaminated canvas, an init error), selection
-falls back to Canvas 2D safely rather than leaving a broken renderer live.
+`localStorage`, then the built-in default — **`webgl`** as of 2026-07-31
+(previously `canvas2d`). A coach who has explicitly stored `canvas2d` in
+`localStorage` keeps that choice; the default only applies when nothing is
+stored and no URL override is present. WebGL is a lazy chunk — it is only
+parsed/executed when actually selected, so a coach who has never had a
+renderer resolve to WebGL (an explicit `canvas2d` choice, or a fallback
+already recorded from a previous session) pays no startup cost for it. This is
+not the same as never downloading it: `public/sw.js` precaches every chunk the
+build manifest lists, including this one, in the background for offline
+availability, whether or not the coach's session ever selects WebGL. If WebGL
+fails to initialize (no `webgl2` context, a partially-contaminated canvas, an
+init error), selection falls back to Canvas 2D safely rather than leaving a
+broken renderer live — this fallback story is completely unchanged by the
+default flip below.
 
 ### Tabletop delegation
 
@@ -327,13 +334,61 @@ highlight, a more clearly visible solid puck marker under WebGL vs. a faint
 one under Canvas 2D) — nothing broken, nothing misleading, no missing
 content.
 
-### The default stays Canvas 2D
+### The default is now WebGL (2026-07-31)
 
-**Deliberately.** Flipping it is a one-line change (`selectRenderer`'s default
-branch) plus swapping which baseline directory `visual-shell` points at — small
-enough that the review artifact above, not engineering effort, is the actual
-gate. This is left as a human decision with the comparison in hand, not
-something this task decides unilaterally.
+**Human decision, comparison artifact reviewed.** With every parity, perf and
+visual gate above green, a human reviewed the side-by-side comparison artifact
+(`.superpowers/sdd/2026-07-30-phase3-gpu-renderer/task-7-visual-comparison.html`)
+and made the call to flip the default. The engineering change itself was
+exactly as small as anticipated: `DEFAULT_RENDERER_PREFERENCE`
+(`src/core/constants.ts`) changed from `'canvas2d'` to `'webgl'`, plus pinning
+the Canvas2D visual projects (`visual-shell`/`visual-phone-portrait`/
+`visual-phone-landscape`) to an explicit `?renderer=canvas2d` in
+`e2e/visual.spec.ts` so they keep capturing against their existing baselines
+instead of silently starting to capture WebGL pixels — zero baseline churn,
+confirmed by a `test:visual` run against the pre-existing screenshots.
+
+**The fallback story is unchanged.** `selectRenderer` still falls back to
+Canvas 2D safely on any WebGL failure (no `webgl2`, a partially-contaminated
+canvas, an init error), and a coach who has explicitly chosen `canvas2d` in
+`localStorage` keeps that choice — the new default only governs a session that
+has never chosen and passed no `?renderer=` override. The `RENDERER` env var
+plumbing in `e2e/support.ts` now accepts `canvas2d` as well as `webgl`, so
+either path stays independently measurable
+(`RENDERER=canvas2d npm run test:e2e` / `--project=perf`) going forward.
+
+**Two things the flip's own gate run surfaced, neither a renderer-parity
+regression:**
+
+1. **GPU-context contention, confirmed and mitigated.** Running the full
+   functional matrix locally with every project defaulting to WebGL (one real
+   or headless-software GL context per test) at this repo's previous uncapped
+   worker count produced a handful of scattered failures across different
+   projects (`flows`, `puck-actions`, `line-shapes`, `viewport-*`) that never
+   reproduced in isolation or across repeated capped-worker runs — the same
+   contention class already documented above for `visual-webgl-shell`/
+   `webgl-tabletop`'s own `--workers=1` invocations, now visible more broadly
+   because WebGL is the default rather than an opt-in. `playwright.config.ts`
+   now caps local workers to 2 (matching CI's existing cap) whenever a run
+   might resolve to WebGL, and is exempt for `RENDERER=canvas2d` runs (nothing
+   to contend over). Confirmed clean across repeated full-matrix runs after
+   the cap.
+2. **A pre-existing, renderer-independent accessibility defect, exposed but
+   not introduced by the flip.** `e2e/a11y.spec.ts`'s "event inspector" and
+   "rename dialog" checks intermittently flag a real WCAG AA color-contrast
+   failure (measured ~2.35:1 against a 4.5:1 minimum) on the dimmed/disabled
+   candidate-chip styling (`text-white/55` on `bg-white/5`, shared by
+   `EventInspector.tsx` and `PlayerInspector.tsx`). Confirmed this predates
+   this task entirely — it reproduces identically on stock `master` under an
+   explicit `RENDERER=webgl` run, and the flagged element's computed style is
+   byte-identical under either renderer. It surfaces more often now only
+   because WebGL's slower, async startup shifts the a11y suite's scan later
+   relative to the rest of the page settling, exactly the kind of timing gap
+   `RENDERER=canvas2d`'s fast, synchronous startup was masking before. Left
+   unfixed here deliberately: the styling is shared with surfaces this same
+   task's visual baselines cover, so changing it risks the baseline churn this
+   flip is explicitly supposed to avoid. Tracked as a follow-up, not a
+   renderer-flip regression.
 
 ---
 

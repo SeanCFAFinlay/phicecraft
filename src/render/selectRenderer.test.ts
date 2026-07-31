@@ -4,7 +4,9 @@
 // Three things are under test:
 //
 //   1. resolveRendererPreference's precedence: URL `?renderer=` override beats
-//      the persisted device setting beats the `canvas2d` default.
+//      the persisted device setting beats the `webgl` default (flipped from
+//      `canvas2d` 2026-07-31 - a coach who has explicitly persisted
+//      `canvas2d` keeps it; the default only applies with nothing stored).
 //   2. selectRenderer's WebGL fallback: import failure OR a missing `webgl2`
 //      context both fall back to Canvas2D and tell the coach why via the
 //      announcer. The import is tried FIRST — a canvas that has never had a
@@ -77,12 +79,18 @@ describe('resolveRendererPreference', () => {
     vi.unstubAllGlobals();
   });
 
-  it('defaults to canvas2d with no URL override and nothing persisted', async () => {
+  it('defaults to webgl with no URL override and nothing persisted', async () => {
     const { resolveRendererPreference } = await import('./selectRenderer');
+    expect(resolveRendererPreference('')).toBe('webgl');
+  });
+
+  it('a persisted canvas2d setting is used when there is no URL override (explicit choice beats the webgl default)', async () => {
+    const { resolveRendererPreference, writeRendererPreference } = await import('./selectRenderer');
+    writeRendererPreference('canvas2d');
     expect(resolveRendererPreference('')).toBe('canvas2d');
   });
 
-  it('a persisted setting is used when there is no URL override', async () => {
+  it('a persisted webgl setting is used when there is no URL override', async () => {
     const { resolveRendererPreference, writeRendererPreference } = await import('./selectRenderer');
     writeRendererPreference('webgl');
     expect(resolveRendererPreference('')).toBe('webgl');
@@ -90,13 +98,13 @@ describe('resolveRendererPreference', () => {
 
   it('the URL override wins over a persisted setting', async () => {
     const { resolveRendererPreference, writeRendererPreference } = await import('./selectRenderer');
-    writeRendererPreference('canvas2d');
-    expect(resolveRendererPreference('?renderer=webgl')).toBe('webgl');
+    writeRendererPreference('webgl');
+    expect(resolveRendererPreference('?renderer=canvas2d')).toBe('canvas2d');
   });
 
-  it('ignores an unrecognized URL override', async () => {
+  it('ignores an unrecognized URL override and falls back to the persisted/default resolution', async () => {
     const { resolveRendererPreference } = await import('./selectRenderer');
-    expect(resolveRendererPreference('?renderer=bogus')).toBe('canvas2d');
+    expect(resolveRendererPreference('?renderer=bogus')).toBe('webgl');
   });
 });
 

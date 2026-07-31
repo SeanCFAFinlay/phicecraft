@@ -70,19 +70,29 @@ export async function storedDrill(page: Page): Promise<Drill> {
 // Renderer selection
 //
 // `RENDERER=webgl npm run test:e2e -- --project=flows ...` (Task 6, Phase 3)
-// runs the functional suites against the GPU pipeline instead of Canvas2D -
-// the same `?renderer=webgl` URL override `selectRenderer.ts` already reads,
-// just sourced from an env var so the SAME spec files exercise either
-// renderer without a second copy of each test. Functional assertions (button
-// clicks, `storedDrill()` state) are renderer-agnostic; only `openEditor`
-// needs to know which query string to open with and, when it's WebGL, to
-// wait on real paint activity and confirm the GPU pipeline actually won
-// selection rather than silently falling back to Canvas2D (the same
+// runs the functional suites against the GPU pipeline instead of the
+// (now-fallback) Canvas2D one - the same `?renderer=webgl` URL override
+// `selectRenderer.ts` already reads, just sourced from an env var so the SAME
+// spec files exercise either renderer without a second copy of each test.
+// `RENDERER=canvas2d` is the mirror image: since the app default flipped to
+// `webgl` (2026-07-31), pinning the legacy path for a measurement run needs
+// its own explicit override too, rather than relying on "the default" to mean
+// Canvas2D. Functional assertions (button clicks, `storedDrill()` state) are
+// renderer-agnostic; only `openEditor` needs to know which query string to
+// open with, to wait on real paint activity before returning control to the
+// spec (every run now goes through selectRenderer's genuinely async path,
+// default or not - see the comment on the wait itself below), and, whenever a
+// renderer was explicitly requested, to confirm THAT renderer actually won
+// selection rather than silently falling back (the same
 // `window.__phicecraftPaint` gate `visual.spec.ts`/`webglTabletop.spec.ts`
-// already rely on).
+// already rely on) - a default (unset `RENDERER`) run intentionally skips
+// only that last assertion, since a silent WebGL->Canvas2D fallback there is
+// the documented, acceptable fallback story, not a test failure.
 // ----------------------------------------------------------------------------
 
-const RENDERER_QUERY = process.env.RENDERER === 'webgl' ? '?renderer=webgl' : '';
+const REQUESTED_RENDERER =
+  process.env.RENDERER === 'webgl' || process.env.RENDERER === 'canvas2d' ? process.env.RENDERER : null;
+const RENDERER_QUERY = REQUESTED_RENDERER ? `?renderer=${REQUESTED_RENDERER}` : '';
 
 /**
  * Open the app with a clean local store.
@@ -123,19 +133,33 @@ export async function openEditor(page: Page): Promise<void> {
     /Saved|Unsaved/
   );
 
-  if (RENDERER_QUERY) {
-    // selectRenderer's dynamic import + two Pixi renderers' own async init()
-    // land after the app-shell assertions above resolve - wait on real paint
-    // activity rather than a guessed delay (same gate visual.spec.ts uses).
-    await page.waitForFunction(() => {
-      const paint = window.__phicecraftPaint;
-      return !!paint && paint.staticPaints > 0 && paint.dynamicPaints > 0;
-    });
-    // Paint counts alone can't distinguish a genuine WebGL capture from a
-    // silent Canvas2D degrade (a failed webgl2 probe or chunk import) -
-    // window.__phicecraftPaint.kind records which BoardRenderer actually won.
+  // selectRenderer's dynamic import + two Pixi renderers' own async init()
+  // land after the app-shell assertions above resolve - wait on real paint
+  // activity rather than a guessed delay (same gate visual.spec.ts uses).
+  // This wait is unconditional, not gated on `REQUESTED_RENDERER`: with WebGL
+  // now the app's own default (2026-07-31), a DEFAULT run (no `RENDERER` env
+  // set) resolves through the same async chunk-import + Pixi-init path as an
+  // explicit `RENDERER=webgl` run, so a spec that started interacting with
+  // the board before that settled - fine when the default was the
+  // synchronous Canvas2D path - could race a still-initializing board here
+  // too (observed live: an a11y spec's click landing before selection
+  // finished produced a spurious color-contrast violation on an unrelated,
+  // still-transitioning element).
+  await page.waitForFunction(() => {
+    const paint = window.__phicecraftPaint;
+    return !!paint && paint.staticPaints > 0 && paint.dynamicPaints > 0;
+  });
+
+  if (REQUESTED_RENDERER) {
+    // Paint counts alone can't distinguish a genuine capture in the requested
+    // renderer from a silent fallback (a failed webgl2 probe or chunk import
+    // falls WebGL back to Canvas2D) - window.__phicecraftPaint.kind records
+    // which BoardRenderer actually won, and it must match what was asked for.
+    // A default (unset `RENDERER`) run intentionally skips this assertion:
+    // a silent WebGL->Canvas2D fallback there is the documented, acceptable
+    // fallback story, not a test failure.
     const kind = await page.evaluate(() => window.__phicecraftPaint?.kind);
-    expect(kind, 'the active renderer for this session').toBe('webgl');
+    expect(kind, 'the active renderer for this session').toBe(REQUESTED_RENDERER);
   }
 }
 

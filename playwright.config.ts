@@ -22,12 +22,29 @@ export const VIEWPORTS = {
   'desktop-1366': { width: 1366, height: 768 },
 } as const;
 
+// WebGL became the default renderer on 2026-07-31 (docs/v2/PROGRESS.md,
+// Phase 3), so a DEFAULT local run (no `RENDERER` env set) now creates a real
+// (or headless-software) WebGL2 context per test, same as an explicit
+// `RENDERER=webgl` run always did. Running the full functional matrix at this
+// repo's previous uncapped local worker count (one Chromium instance per CPU
+// core) creates enough concurrent GPU-context-creation contention to
+// occasionally miss this suite's own timeouts - reproduced locally as a
+// handful of scattered, non-reproducing-in-isolation failures across
+// different projects (flows, puck-actions, line-shapes, viewport-*) on
+// consecutive full runs, the same class already documented for
+// `visual-webgl-shell`/`webgl-tabletop`'s own `--workers=1` invocations.
+// Capping local workers to match CI's own cap eliminated it across repeated
+// full-matrix runs. `RENDERER=canvas2d` runs are exempt: Canvas2D never opens
+// a GPU context, so there is nothing to contend over and no reason to give up
+// the parallelism.
+const LOCAL_WORKERS = process.env.RENDERER === 'canvas2d' ? undefined : 2;
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  workers: process.env.CI ? 2 : LOCAL_WORKERS,
   reporter: process.env.CI
     ? [['html', { open: 'never' }], ['list']]
     : [['list']],

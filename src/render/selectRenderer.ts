@@ -5,9 +5,14 @@
 //
 // Resolution order: an explicit `?renderer=` URL override always wins (for
 // support and debugging), then the persisted device setting, then the
-// `canvas2d` default. The setting lives in localStorage, NOT the drill
-// document - it describes what this device can render, not the drill - using
-// the same guarded-try/catch idiom as FirstRunHint's `firstRunHintDone` flag.
+// `webgl` default (flipped from `canvas2d` on 2026-07-31, after Phase 3's
+// parity/perf/visual gates went green and a human reviewed the comparison
+// artifact - see docs/v2/PROGRESS.md). The setting lives in localStorage, NOT
+// the drill document - it describes what this device can render, not the
+// drill - using the same guarded-try/catch idiom as FirstRunHint's
+// `firstRunHintDone` flag. A coach who has explicitly stored `'canvas2d'`
+// keeps it: the default only applies when nothing is stored and no URL
+// override is present.
 //
 // selectRenderer's WebGL branch dynamic-imports its chunk lazily: a coach who
 // never opts in never PARSES OR EXECUTES PixiJS, so it costs them nothing at
