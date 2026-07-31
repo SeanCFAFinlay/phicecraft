@@ -58,6 +58,17 @@ export function useCanvasLayers(
 
   const rendererRef = useRef<BoardRenderer | null>(null);
   const getRenderer = useCallback(() => rendererRef.current, []);
+  // Bumped once the async-selected renderer becomes ready (see the effect
+  // below). rendererRef itself is a ref specifically so most updates never
+  // force a re-render (see the comment there) - but the FIRST time a
+  // renderer arrives, nothing else is guaranteed to re-render this component
+  // any time soon. CanvasSurface's draw effect has no dependency array (it
+  // runs after every commit), so without this, a coach could be looking at a
+  // fully-initialized renderer that has simply never been asked to draw -
+  // rare with Canvas2D's synchronous construction, but real with WebGL's
+  // multi-hundred-millisecond dynamic import + two GPU context inits, where
+  // the window with nothing else re-rendering is much wider.
+  const [, forceRerenderOnRendererReady] = useState(0);
 
   // selectRenderer resolves asynchronously (it may dynamic-import the WebGL
   // chunk), so by the time it settles, `size`/`dpr` from this render's
@@ -127,6 +138,10 @@ export function useCanvasLayers(
       if (sizeRef.current.width > 0 && sizeRef.current.height > 0) {
         renderer.resize(sizeRef.current.width, sizeRef.current.height, dprRef.current);
       }
+      // Guarantee at least one render commits after the renderer is ready,
+      // so CanvasSurface's draw effect is guaranteed to run at least once
+      // with a non-null getRenderer() (see the comment on the state above).
+      forceRerenderOnRendererReady(n => n + 1);
     });
 
     return () => {

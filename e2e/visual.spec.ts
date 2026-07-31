@@ -9,10 +9,34 @@
 // the ones generated on the machine the repair was done on. See
 // docs/repair/PHICECRAFT_REPAIR_COMPLETION.md for why this project is run
 // separately from CI.
+//
+// `visual-webgl-shell` (Phase 3 Task 5) reuses this same file rather than a
+// duplicate: it opens the fixture with `?renderer=webgl` and keeps only
+// "flat rink, default view" - the WebGL rink scene's own baseline, in its own
+// directory (`e2e/__screenshots__/visual-webgl-shell`), never diffed against
+// the Canvas2D one above. Everything else in this file is skipped for that
+// project; a later task (the dynamic-layer port) grows the WebGL list.
 // ============================================================================
 
 import { expect, test, type Page } from '@playwright/test';
 import { LINEUP, clickWorld, dismissFirstRunHint, dragWorld } from './support';
+
+const WEBGL_PROJECT = 'visual-webgl-shell';
+const WEBGL_ONLY_TEST = 'flat rink, default view';
+
+function isWebglProject(): boolean {
+  return test.info().project.name === WEBGL_PROJECT;
+}
+
+// Playwright requires the first parameter to be an object-destructuring
+// pattern (it's how it detects which fixtures a hook needs) even when none
+// are used, which is exactly what `no-empty-pattern` flags.
+// eslint-disable-next-line no-empty-pattern
+test.beforeEach(async ({}, testInfo) => {
+  if (testInfo.project.name === WEBGL_PROJECT && testInfo.title !== WEBGL_ONLY_TEST) {
+    testInfo.skip();
+  }
+});
 
 /**
  * A fixed drill, written straight into storage, so nothing about the capture
@@ -87,7 +111,8 @@ async function openFixture(page: Page, overrides: Partial<typeof FIXTURE> = {}):
     };
   }, seeded);
 
-  await page.goto('/');
+  const webgl = isWebglProject();
+  await page.goto(webgl ? '/?renderer=webgl' : '/');
   await expect(page.getByRole('button', { name: /^Play name: Visual Fixture/ })).toBeVisible();
   // The fixture has a route but no puck events, so the first-run hint would
   // otherwise sit in the same top-of-rink lane as the tabletop toggle and the
@@ -95,7 +120,20 @@ async function openFixture(page: Page, overrides: Partial<typeof FIXTURE> = {}):
   // baseline should show the steady-state chrome, not a coach's first-run
   // nudge, so it is dismissed before anything is captured.
   await dismissFirstRunHint(page);
-  // Let the sprite atlas and the first paint settle.
+  if (webgl) {
+    // `selectRenderer` dynamic-imports the WebGL chunk and waits on two Pixi
+    // renderers' own async `init()` before its first frame lands - a fixed
+    // timeout here was flaky under load (a screenshot taken before the first
+    // `drawStatic()`/`drawDynamic()` call landed captured a blank canvas).
+    // `window.__phicecraftPaint` (paintCounters.ts) is the same renderer-
+    // agnostic paint signal perf.spec.ts already relies on, so this waits on
+    // actual evidence of a first paint instead of guessing how long one takes.
+    await page.waitForFunction(() => {
+      const paint = window.__phicecraftPaint;
+      return !!paint && paint.staticPaints > 0 && paint.dynamicPaints > 0;
+    });
+  }
+  // Let the sprite atlas settle onto its final frame.
   await page.waitForTimeout(600);
 }
 

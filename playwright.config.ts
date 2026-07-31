@@ -123,6 +123,26 @@ export default defineConfig({
       snapshotPathTemplate: `e2e/__screenshots__/{projectName}/{arg}{ext}`,
       use: { ...devices['Desktop Chrome'], viewport, hasTouch: viewport.width < 1024 },
     })),
+    // The WebGL renderer's own baseline (Phase 3 Task 5) - its own directory,
+    // its own capture. `visual.spec.ts` skips every case here except
+    // "flat rink, default view"; a later task grows this list alongside the
+    // dynamic-layer port instead of comparing pixels against the Canvas2D
+    // baseline (a different pipeline is expected to differ, deliberately).
+    //
+    // `npm run test:visual` runs this project in its OWN `playwright test`
+    // invocation with `--workers=1`, after the Canvas2D visual projects
+    // finish: real GPU context creation (even the software one headless
+    // Chromium falls back to) is expensive enough that launching several
+    // Chromium instances at once starves it - under contention the async
+    // WebGL init this test waits on (`selectRenderer`'s dynamic import + two
+    // Pixi renderers' own `init()`) can miss the test timeout entirely rather
+    // than merely running slower.
+    {
+      name: 'visual-webgl-shell',
+      testMatch: /visual\.spec\.ts/,
+      snapshotPathTemplate: `e2e/__screenshots__/{projectName}/{arg}{ext}`,
+      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
+    },
     {
       name: 'perf',
       testMatch: /perf\.spec\.ts/,

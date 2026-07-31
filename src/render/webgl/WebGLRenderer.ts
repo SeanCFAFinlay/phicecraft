@@ -1,32 +1,48 @@
 // ============================================================================
-// WEBGL RENDERER (skeleton)
+// WEBGL RENDERER
 //
 // The second BoardRenderer implementation, behind Task 4's experimental
-// toggle. It exists to prove the GPU pipeline is wired end-to-end - a Pixi
-// renderer per canvas, resized and disposed exactly like Canvas2DRenderer -
-// without yet delegating any drawing to Pixi display objects. That is later
-// phase 3 work.
-//
-// For now, every draw call still runs the exact same Canvas2D pure functions
-// (drawStaticLayer / drawDynamicLayer) that Canvas2DRenderer uses, but against
-// a detached, in-memory 2D canvas rather than the real one - the real canvas
-// already has a `webgl2` context (a canvas that has ever had a context taken
-// from it can never change type, so it can never go back to `2d`). That
-// buffer's pixels are then uploaded to the GPU as a texture and blitted onto
-// the real canvas by Pixi. Visually this is byte-for-byte the Canvas2D
-// renderer; only the pipeline underneath has changed, which is what makes
-// flipping the toggle safe on day one.
-//
-// No PIXI.Application and no ticker here, by design (see Task 4's brief):
-// draws stay synchronous, driven by the same rAF-triggered effects
+// toggle. A Pixi renderer per canvas, resized and disposed exactly like
+// Canvas2DRenderer, with no PIXI.Application and no ticker (see Task 4's
+// brief): draws stay synchronous, driven by the same rAF-triggered effects
 // CanvasSurface already runs, so Pixi's own scheduler never gets a chance to
 // fight it.
+//
+// Static layer (Task 5): the flat rink is a real Pixi scene graph
+// (`rinkScene.ts`), built once and re-rendered every frame under a camera
+// transform (`container.setFromMatrix`) - see `drawStatic` below.
+//
+// Tabletop fallback: the raised-boards "spin around" arena is Canvas2D-only
+// (`rinkScene.ts` never modelled it - see its header) and, once a canvas has
+// been handed a `webgl2` context, it can never yield a `2d` one again, so
+// Canvas2D can never draw straight onto `host.staticCanvas` again either. The
+// brief poses this as a choice between two DOM-level workarounds (swap in a
+// second, hidden pair of `2d` canvases, or swap the whole BoardRenderer
+// instance out for a session). Both would touch CanvasSurface's pointer
+// handlers, which are wired to the specific `dynamicCanvas` element the app
+// mounted (`useCanvasLayers.ts`) - swapping or hiding that element mid-session
+// risks silently detaching gestures from hit-testing, which is exactly the
+// contract this task must not break.
+//
+// This renderer instead reuses the pass-through buffer/sprite pipeline Task 4
+// already built (still the dynamic layer's only pipeline, and now also the
+// static layer's tabletop-only one): `drawStaticLayer` - the SAME Canvas2D
+// function `Canvas2DRenderer` calls, `elevated` arena and all - draws onto the
+// buffer canvas, which was never locked to any context and is happy to stay
+// `2d` forever; its pixels are uploaded to the GPU as a texture and blitted
+// onto the real, permanently-`webgl2` canvas by Pixi. No DOM node changes
+// identity, so every pointer handler keeps pointing at the same element it
+// always has. The flat rink (the common case) still renders as a native Pixi
+// scene; only the tabletop range of `camera.tilt` takes this path.
 // ============================================================================
 
-import { WebGLRenderer as PixiWebGLRenderer, Sprite, Texture } from 'pixi.js';
+import { WebGLRenderer as PixiWebGLRenderer, Sprite, Texture, Matrix, type Container } from 'pixi.js';
 import type { BoardRenderer, RendererHost } from '@/render/BoardRenderer';
 import { drawStaticLayer, staticLayerKey, type StaticLayerInput } from '@/components/canvas/renderStatic';
 import { drawDynamicLayer, type DynamicLayerInput } from '@/components/canvas/renderDynamic';
+import { TABLETOP_MIN_TILT } from '@/core/constants';
+import { cameraMatrix } from '@/utils/geometry';
+import { buildRinkScene } from './rinkScene';
 
 interface PassThroughLayer {
   renderer: PixiWebGLRenderer;
@@ -51,7 +67,15 @@ async function buildLayer(canvas: HTMLCanvasElement): Promise<PassThroughLayer> 
   const renderer = new PixiWebGLRenderer();
   // resolution 1: the buffer is resized to the exact device-pixel dimensions
   // Canvas2DRenderer would use, so nothing here needs its own DPR scaling.
-  await renderer.init({ canvas, backgroundAlpha: 0, antialias: false, resolution: 1 });
+  //
+  // preserveDrawingBuffer: true - without it, WebGL is free to clear the
+  // drawing buffer after the browser composites a frame. There is no ticker
+  // here (draws are synchronous, driven only by actual camera/key changes -
+  // see the file header), so the static layer in particular can sit for a
+  // long time between `render()` calls; without this flag the browser's next
+  // composite would show a blank canvas even though nothing was ever told to
+  // clear it.
+  await renderer.init({ canvas, backgroundAlpha: 0, antialias: false, resolution: 1, preserveDrawingBuffer: true });
 
   const sprite = new Sprite(Texture.from(buffer));
   return { renderer, buffer, bufferCtx, sprite };
@@ -63,6 +87,8 @@ export class WebGLRenderer implements BoardRenderer {
   private lastStaticKey = '';
   private staticLayer: PassThroughLayer | null = null;
   private dynamicLayer: PassThroughLayer | null = null;
+  /** Built once; re-rendered every frame under the camera transform. Tabletop frames bypass it entirely. */
+  private readonly rinkScene: Container = buildRinkScene();
   private readonly readyPromise: Promise<void>;
 
   constructor(private readonly host: RendererHost) {
@@ -116,9 +142,19 @@ export class WebGLRenderer implements BoardRenderer {
     if (key === this.lastStaticKey) return;
     this.lastStaticKey = key;
 
-    drawStaticLayer(layer.bufferCtx, input);
-    layer.sprite.texture.source.update();
-    layer.renderer.render(layer.sprite);
+    const tilt = input.camera.tilt ?? 0;
+    if (tilt > TABLETOP_MIN_TILT) {
+      // Tabletop: canvasFallback path (see file header) - the exact same
+      // Canvas2D draw Canvas2DRenderer would do, blitted onto the real,
+      // permanently-webgl2 canvas via the pass-through buffer/sprite.
+      drawStaticLayer(layer.bufferCtx, input);
+      layer.sprite.texture.source.update();
+      layer.renderer.render(layer.sprite);
+    } else {
+      const m = cameraMatrix(input.camera);
+      this.rinkScene.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.e, m.f));
+      layer.renderer.render(this.rinkScene);
+    }
     this.host.onPaint('static');
   }
 
@@ -152,5 +188,6 @@ export class WebGLRenderer implements BoardRenderer {
     this.dynamicLayer?.renderer.destroy();
     this.staticLayer = null;
     this.dynamicLayer = null;
+    this.rinkScene.destroy({ children: true });
   }
 }
