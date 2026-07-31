@@ -13,8 +13,8 @@
 // re-deriving them - see gameScene.ts's file header for the fuller rationale.
 // ============================================================================
 
-import { Container, Graphics, Text, type TextStyleOptions } from 'pixi.js';
-import type { AnimatedPuck, DrillEvent, ID, Player, PlaybackPlayerFrame, Point, SkatePath } from '@/core/types';
+import { Container, FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
+import type { AnimatedPuck, CoachMarker, DrillEvent, ID, Player, PlaybackPlayerFrame, Point, SkatePath } from '@/core/types';
 import type { DragPreview, DynamicLayerInput } from '@/components/canvas/renderDynamic';
 import type { PassCandidateView } from '@/canvas/PassOverlay';
 import type { CatchQuality } from '@/editor/passing/passTargetService';
@@ -76,6 +76,82 @@ function effectsEnabled(quality: RenderQuality): boolean {
 }
 
 // ----------------------------------------------------------------------------
+// Coaches — the FIRST flat-board group, matching Canvas's paint position
+// (renderDynamic.ts draws `drawCoachTopDown` before ghost trails/skate
+// paths/everything else, so the play always draws over a coach marker, not
+// under it). Only the pure `PLAYER_RADIUS` constant `CoachRenderer.ts` itself
+// builds on is reused - `drawCoachTopDown` has no other pure helper to share
+// (it is a self-contained Canvas 2D painter, same as `drawArenaCoaches`'s
+// tabletop counterpart, which stays covered by the Canvas2D pass-through).
+//
+// SIMPLIFICATION (documented, same spirit as the player vector fallback):
+// a jacket disc, a toque band, a face, a beard blob and a clipboard tab -
+// not a hand-port of `CoachRenderer.ts`'s exact bezier beard/moustache/eye
+// shapes or its drop-shadow (no BlurFilter outside the dedicated glow
+// container, per the brief's rule). The flat view never marks a coach
+// selected (`renderDynamic.ts` always passes `isSelected: false`), so no
+// selection ring is ported either - there is nothing to port, not a gap.
+// ----------------------------------------------------------------------------
+
+const COACH_RADIUS = PLAYER_RADIUS * 1.28;
+
+export interface CoachToken {
+  container: Container;
+  body: Graphics;
+  label: Text;
+}
+
+const COACH_LABEL_STYLE: TextStyleOptions = {
+  fontSize: Math.max(6, COACH_RADIUS * 0.42),
+  fontWeight: '700',
+  fontFamily: 'Arial, sans-serif',
+  fill: 'rgba(230, 240, 248, 0.9)',
+};
+
+export function createCoachToken(): CoachToken {
+  const container = new Container({ label: 'coach' });
+  const body = new Graphics();
+  const label = new Text({ text: 'COACH', resolution: 2, style: COACH_LABEL_STYLE });
+  label.anchor.set(0.5, 0);
+  label.position.set(0, COACH_RADIUS + 2);
+  container.addChild(body, label);
+  return { container, body, label };
+}
+
+function drawCoachBody(g: Graphics): void {
+  const r = COACH_RADIUS;
+  g.clear();
+
+  const jacket = new FillGradient({
+    end: { x: 0, y: 1 },
+    colorStops: [
+      { offset: 0, color: '#33475f' },
+      { offset: 1, color: '#141d28' },
+    ],
+  });
+  g.circle(0, 0, r).fill(jacket);
+
+  // Toque band across the top of the head.
+  g.roundRect(-r * 0.62, -r * 0.62, r * 1.24, r * 0.5, r * 0.22).fill('#b5313b');
+  // Face.
+  g.ellipse(0, r * 0.06, r * 0.52, r * 0.5).fill('#e7b48c');
+  // Beard covering the lower face.
+  g.ellipse(0, r * 0.28, r * 0.5, r * 0.32).fill('#6f4a2c');
+  // Clipboard tucked to the side.
+  g.roundRect(r * 0.5, -r * 0.2, r * 0.5, r * 0.66, 2).fill('#d9c38a').stroke({ color: '#141d28', width: 1 });
+}
+
+export function updateCoaches(pool: TokenPool<CoachToken>, coaches: CoachMarker[]): void {
+  pool.begin();
+  for (const coach of coaches) {
+    const token = pool.get(coach.id);
+    token.container.position.set(coach.x, coach.y);
+    drawCoachBody(token.body);
+  }
+  pool.end();
+}
+
+// ----------------------------------------------------------------------------
 // Ghost trails — one polyline per player, no per-segment allocation.
 // ----------------------------------------------------------------------------
 
@@ -122,13 +198,83 @@ function drawSkateLine(g: Graphics, line: Point[], color: number, quality: Rende
   }
 }
 
-export function updateSkatePaths(pool: GraphicsKeyedPool, paths: SkatePath[], quality: RenderQuality): void {
+/**
+ * What `updateSkatePaths` last drew a path's Graphics FROM. A route's
+ * `points` array is a plain reference in this app's immutable-update
+ * architecture (same assumption `gameScene.ts`'s own `compiledFor` cache and
+ * `renderDynamic.ts`'s `compiledFor` already make): it only changes identity
+ * when an author edits that specific route, never on an unrelated re-render
+ * (camera pan, playback tick, dragging a different player, ...). Comparing
+ * by reference - not deep-equality - is what makes this cache nearly free to
+ * check.
+ */
+interface SkatePathCacheEntry {
+  points: SkatePath['points'];
+  shape: SkatePath['shape'];
+  quality: RenderQuality;
+  color: number;
+}
+
+/**
+ * Per-scene state for `updateSkatePaths`'s dirty-check (see below) - owned
+ * by `gameScene.ts`, opaque to it. One `createSkatePathCache()` per
+ * `GameScene` instance; sharing one across scenes (e.g. a module-level map)
+ * would leak stale cache hits between them (concretely: between tests, or a
+ * disposed-and-rebuilt renderer).
+ */
+export interface SkatePathCache {
+  readonly entries: Map<string, SkatePathCacheEntry>;
+}
+
+export function createSkatePathCache(): SkatePathCache {
+  return { entries: new Map() };
+}
+
+/**
+ * Skate paths only change on an author edit, yet this used to fully
+ * re-tessellate (`expandCurve` -> dash tessellation -> ~200 fresh Point
+ * allocations -> a full Graphics clear+redraw) on EVERY frame this group
+ * runs, including every playback tick and every camera pan where the path
+ * itself never changed. The cache below makes an unchanged path's cost a
+ * single Map lookup plus a `pool.touch()` (mark-visible only, no redraw) -
+ * see the perf note on `dashedLine.ts`'s tessellation for why this group was
+ * worth the dedicated cache rather than a cheaper micro-optimization.
+ */
+export function updateSkatePaths(
+  pool: GraphicsKeyedPool,
+  cache: SkatePathCache,
+  paths: SkatePath[],
+  quality: RenderQuality
+): void {
   pool.begin();
+  const present = new Set<string>();
+
   for (const path of paths) {
-    const g = pool.get(path.id);
+    present.add(path.id);
     const color = path.team === 'home' ? rgb(215, 48, 58) : rgb(48, 128, 255);
-    drawSkateLine(g, expandCurve(path.points, path.shape ?? 'spline'), color, quality);
+    const shape = path.shape ?? 'spline';
+    const cached = cache.entries.get(path.id);
+    const unchanged =
+      !!cached &&
+      cached.points === path.points &&
+      cached.shape === shape &&
+      cached.quality === quality &&
+      cached.color === color;
+
+    if (unchanged && pool.touch(path.id)) continue;
+
+    const g = pool.get(path.id);
+    drawSkateLine(g, expandCurve(path.points, shape), color, quality);
+    cache.entries.set(path.id, { points: path.points, shape, quality, color });
   }
+
+  // Drop cache entries for paths no longer authored, so a deleted route's
+  // entry cannot linger indefinitely (ids are never reused, but an
+  // unbounded map over a very long session is still worth avoiding).
+  for (const key of cache.entries.keys()) {
+    if (!present.has(key)) cache.entries.delete(key);
+  }
+
   pool.end();
 }
 

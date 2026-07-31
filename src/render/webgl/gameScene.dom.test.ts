@@ -13,7 +13,8 @@
 // stub is unused here but kept for parity/safety.
 // ============================================================================
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Graphics } from 'pixi.js';
 import { buildGameScene, destroyGameScene, updateGameScene } from './gameScene';
 import { giveAndGoRegressionDrill } from '@/fixtures/giveAndGo.v1';
 import { EMPTY_TRAILS } from '@/playback/playbackFrame';
@@ -74,10 +75,15 @@ const BASE_INPUT: DynamicLayerInput = {
 describe('buildGameScene', () => {
   it('builds one child per port-order group, all present from the start', () => {
     const scene = buildGameScene();
-    // ghost trails, skate paths, transient route, events, drag preview (+label),
-    // pass-from highlight, dimmed players, players, pass candidates, edit
-    // handles, animated puck, diagnostics, glow.
-    expect(scene.root.children.length).toBe(14);
+    // coaches, ghost trails, skate paths, transient route, events, drag
+    // preview (+label), pass-from highlight, dimmed players, players, pass
+    // candidates, edit handles, animated puck, diagnostics, glow.
+    expect(scene.root.children.length).toBe(15);
+  });
+
+  it('draws coaches as the FIRST group, matching renderDynamic.ts\'s paint order', () => {
+    const scene = buildGameScene();
+    expect(scene.root.children[0].label).toBe('coaches');
   });
 });
 
@@ -129,6 +135,73 @@ describe('updateGameScene', () => {
     const before = [...skatePathsContainer.children];
     updateGameScene(scene, BASE_INPUT);
     expect(skatePathsContainer.children).toEqual(before);
+  });
+
+  it('caches skate-path tessellation: an unchanged path (same drill, same points reference) does zero redraw work on the next frame', () => {
+    const scene = buildGameScene();
+    updateGameScene(scene, BASE_INPUT);
+    const skatePathsContainer = scene.root.children.find(child => child.label === 'skate-paths')!;
+    const pathGraphic = skatePathsContainer.children[0] as Graphics;
+    const clearSpy = vi.spyOn(pathGraphic, 'clear');
+
+    // Same `drill` reference as BASE_INPUT, so every path's `.points` array
+    // is the SAME object - the cache should skip re-tessellation entirely.
+    updateGameScene(scene, BASE_INPUT);
+
+    expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it('re-tessellates a skate path once its points array reference actually changes (an author edit)', () => {
+    const scene = buildGameScene();
+    updateGameScene(scene, BASE_INPUT);
+    const skatePathsContainer = scene.root.children.find(child => child.label === 'skate-paths')!;
+    const pathGraphic = skatePathsContainer.children[0] as Graphics;
+    const clearSpy = vi.spyOn(pathGraphic, 'clear');
+
+    const editedDrill = {
+      ...giveAndGoRegressionDrill,
+      skatePaths: giveAndGoRegressionDrill.skatePaths.map((path, index) =>
+        index === 0 ? { ...path, points: path.points.map(point => ({ ...point })) } : path
+      ),
+    };
+    updateGameScene(scene, { ...BASE_INPUT, drill: editedDrill });
+
+    expect(clearSpy).toHaveBeenCalled();
+  });
+
+  it('creates one coach token per drill.coaches entry, drawn before ghost trails/skate paths/everything else', () => {
+    const scene = buildGameScene();
+    const withCoach = { ...giveAndGoRegressionDrill, coaches: [{ id: 'c1', x: 200, y: 50, name: 'Coach' }] };
+    updateGameScene(scene, { ...BASE_INPUT, drill: withCoach });
+
+    const coachesContainer = scene.root.children.find(child => child.label === 'coaches')!;
+    expect(coachesContainer.children).toHaveLength(1);
+    expect(coachesContainer.children[0].position.x).toBe(200);
+    expect(coachesContainer.children[0].position.y).toBe(50);
+  });
+
+  it('reuses (never recreates) coach tokens across frames, hiding rather than removing one no longer authored', () => {
+    const scene = buildGameScene();
+    const withCoach = {
+      ...giveAndGoRegressionDrill,
+      coaches: [{ id: 'c1', x: 200, y: 50 }, { id: 'c2', x: 300, y: 60 }],
+    };
+    updateGameScene(scene, { ...BASE_INPUT, drill: withCoach });
+    const coachesContainer = scene.root.children.find(child => child.label === 'coaches')!;
+    const initialTokens = [...coachesContainer.children];
+
+    const oneCoach = { ...giveAndGoRegressionDrill, coaches: [withCoach.coaches[0]] };
+    updateGameScene(scene, { ...BASE_INPUT, drill: oneCoach });
+
+    expect(coachesContainer.children).toEqual(initialTokens);
+    expect(coachesContainer.children.filter(child => child.visible)).toHaveLength(1);
+  });
+
+  it('draws no coaches when the drill has none (coaches is optional on Drill)', () => {
+    const scene = buildGameScene();
+    updateGameScene(scene, BASE_INPUT); // giveAndGoRegressionDrill has no `coaches` field
+    const coachesContainer = scene.root.children.find(child => child.label === 'coaches')!;
+    expect(coachesContainer.children.filter(child => child.visible)).toHaveLength(0);
   });
 
   it("'low' quality hides the glow container; 'high' shows it", () => {

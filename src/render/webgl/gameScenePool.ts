@@ -30,6 +30,25 @@ export class GraphicsKeyedPool {
     return g;
   }
 
+  /**
+   * Marks `key` seen/visible this frame WITHOUT clearing its Graphics -
+   * for a caller that has its OWN dirty-check and already determined the
+   * existing draw commands are still correct (e.g. `updateSkatePaths`'s
+   * per-path tessellation cache), so the redraw - and whatever expensive
+   * geometry produced it - can be skipped entirely this frame.
+   *
+   * Returns the existing Graphics, or `undefined` if this key was never
+   * created (the caller must fall back to `get`, which creates one).
+   */
+  touch(key: string): Graphics | undefined {
+    const g = this.items.get(key);
+    if (g) {
+      g.visible = true;
+      this.seen.add(key);
+    }
+    return g;
+  }
+
   begin(): void {
     this.seen.clear();
   }

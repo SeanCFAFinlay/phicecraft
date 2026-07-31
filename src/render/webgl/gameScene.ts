@@ -19,17 +19,20 @@
 // (via gameScenePlayers.ts), `CONTROL_HANDLE_RADIUS`/`ADD_HANDLE_RADIUS`.
 //
 // Per-frame allocation discipline: every repeating group (skate paths,
-// events, pass candidates, players, edit handles, ghost trails) is backed by
-// a keyed pool that reuses its Graphics/Container across frames - `.clear()`
-// and redraw, never destroy/recreate (Task 3's ghost-trail fix, extended
-// here to the rest of the dynamic layer).
+// events, pass candidates, players, edit handles, ghost trails, coaches) is
+// backed by a keyed pool that reuses its Graphics/Container across frames -
+// `.clear()` and redraw, never destroy/recreate (Task 3's ghost-trail fix,
+// extended here to the rest of the dynamic layer). Skate paths additionally
+// carry their own dirty-key cache (`gameSceneOverlays.ts`'s
+// `SkatePathCache`), since content only changes on an author edit but this
+// group used to fully re-tessellate every frame regardless.
 //
-// OUT OF SCOPE (deliberately, per the brief's enumerated port order, which
-// does not list coaches): `drill.coaches` are not drawn on the flat board by
-// this scene. They stay covered by the Canvas2D pass-through for the
-// TABLETOP camera range (WebGLRenderer's `canvasFallback` branch), but a flat
-// board with coach markers drawn under `?renderer=webgl` will not show them
-// yet - a known, intentional gap, not a silent drop.
+// Coaches: drawn as the FIRST group (`coachesContainer`), matching
+// `renderDynamic.ts`'s paint order (`drawCoachTopDown` runs before ghost
+// trails/skate paths/everything else) - the flat board is never missing a
+// coach marker under `?renderer=webgl`. The TABLETOP camera range still
+// covers coaches through the Canvas2D pass-through (`WebGLRenderer`'s
+// `canvasFallback` branch); this scene never runs for that range at all.
 // ============================================================================
 
 import { BlurFilter, Container, Graphics, Text } from 'pixi.js';
@@ -44,8 +47,11 @@ import { getPlayerHeadingAtProgress } from '@/engine/playback';
 import { createPlayerToken, updatePlayerToken, type PlayerToken, type PlayerVisualOptions } from './gameScenePlayers';
 import { GraphicsKeyedPool, TokenPool } from './gameScenePool';
 import {
+  createCoachToken,
   createEventToken,
+  createSkatePathCache,
   updateAnimatedPuck,
+  updateCoaches,
   updateDiagnostics,
   updateDimmedPlayers,
   updateDragPreview,
@@ -57,7 +63,9 @@ import {
   updatePassFromHighlight,
   updateSkatePaths,
   updateTransientRoute,
+  type CoachToken,
   type EventToken,
+  type SkatePathCache,
 } from './gameSceneOverlays';
 
 // ----------------------------------------------------------------------------
@@ -69,10 +77,13 @@ export interface GameScene {
 }
 
 interface InternalGameScene extends GameScene {
+  coachesContainer: Container;
+  coachesPool: TokenPool<CoachToken>;
   ghostTrailsContainer: Container;
   ghostTrailsPool: GraphicsKeyedPool;
   skatePathsContainer: Container;
   skatePathsPool: GraphicsKeyedPool;
+  skatePathCache: SkatePathCache;
   transientRoute: Graphics;
   eventsContainer: Container;
   eventsPool: TokenPool<EventToken>;
@@ -99,6 +110,7 @@ interface InternalGameScene extends GameScene {
 export function buildGameScene(): GameScene {
   const root = new Container({ label: 'game-scene' });
 
+  const coachesContainer = new Container({ label: 'coaches' });
   const ghostTrailsContainer = new Container({ label: 'ghost-trails' });
   const skatePathsContainer = new Container({ label: 'skate-paths' });
   const transientRoute = new Graphics({ label: 'transient-route' });
@@ -120,6 +132,7 @@ export function buildGameScene(): GameScene {
   glowContainer.addChild(glow);
 
   root.addChild(
+    coachesContainer,
     ghostTrailsContainer,
     skatePathsContainer,
     transientRoute,
@@ -138,10 +151,13 @@ export function buildGameScene(): GameScene {
 
   const scene: InternalGameScene = {
     root,
+    coachesContainer,
+    coachesPool: new TokenPool(coachesContainer, createCoachToken),
     ghostTrailsContainer,
     ghostTrailsPool: new GraphicsKeyedPool(ghostTrailsContainer),
     skatePathsContainer,
     skatePathsPool: new GraphicsKeyedPool(skatePathsContainer),
+    skatePathCache: createSkatePathCache(),
     transientRoute,
     eventsContainer,
     eventsPool: new TokenPool(eventsContainer, createEventToken),
@@ -196,8 +212,9 @@ export function updateGameScene(scene: GameScene, input: DynamicLayerInput): voi
   const players = resolvePlayers(input);
   const scrubbing = Object.keys(input.positions).length > 0;
 
+  updateCoaches(s.coachesPool, drill.coaches ?? []);
   updateGhostTrails(s.ghostTrailsPool, input, players);
-  updateSkatePaths(s.skatePathsPool, drill.skatePaths, input.quality);
+  updateSkatePaths(s.skatePathsPool, s.skatePathCache, drill.skatePaths, input.quality);
   updateTransientRoute(s.transientRoute, input.transientRoute, drill.players);
 
   const compiled = compiledFor(s, drill);
@@ -253,7 +270,6 @@ export function updateGameScene(scene: GameScene, input: DynamicLayerInput): voi
       showRouteHandle: player.id === input.selectedPlayerId && !scrubbing && !input.isPlaying,
       isPreparingReceive: input.puck?.state === 'in_flight' && input.puck.intendedReceiverId === player.id,
       playbackFrame: scrubbing || input.isPlaying ? input.playerFrames[player.id] : undefined,
-      reducedEffects: input.reducedEffects,
       trackedPuck: input.puck,
       jersey: player.team === 'home' ? jerseys.home : jerseys.away,
       screenRotation: input.camera.rotation ?? 0,

@@ -11,8 +11,14 @@
 // vector fallback here is a simplified silhouette - a jersey-coloured body,
 // a helmet, and a stick to the blade - not a hand-port of every equipment
 // polygon in SkaterRenderer.ts/GoalieRenderer.ts (laces, cage bars, glove
-// stitching, ...). It reuses the SAME pure `deriveSkaterPose`/
-// `getSkaterPalette` functions, so colours, heading and the custom-jersey ->
+// stitching, ...), and it does not port `SkaterEffects.ts`'s stride/skid
+// mark - the only thing Canvas's `reducedEffects` flag ever gated, which is
+// why that field was dropped from `PlayerVisualOptions` rather than wired:
+// there is nothing left for it to gate. It reuses the SAME pure
+// `getSkaterPalette` function (colours) and the SAME heading rule Canvas
+// applies per role - `effectiveHeading` below matches SkaterRenderer.ts for
+// skaters (`frame.heading`) and GoalieRenderer.ts's puck-tracking
+// `trackedHeading` for goalies - so heading and the custom-jersey ->
 // vector-fallback RULE are identical to Canvas; only the equipment's visual
 // fidelity is reduced. The atlas sprite path (the common case - a custom
 // jersey colour is the exception) is unaffected and reads the same texture
@@ -27,7 +33,6 @@
 import { Container, Graphics, Sprite, Text, Texture, type TextStyleOptions } from 'pixi.js';
 import type { AnimatedPuck, Player, PlaybackPlayerFrame } from '@/core/types';
 import { PLAYER_RADIUS, GOALIE_RING_OFFSET, ROUTE_HANDLE_OFFSET, ROUTE_HANDLE_RADIUS } from '@/core/constants';
-import { deriveSkaterPose } from '@/canvas/skater/SkaterPose';
 import { getSkaterPalette, type SkaterPalette } from '@/canvas/skater/skaterPalette';
 import { getBladePosition } from '@/sim/skaterMotor';
 import { HOCKEY_SPRITES } from '@/canvas/HockeySpriteAtlas';
@@ -46,7 +51,13 @@ export interface PlayerVisualOptions {
   showRouteHandle: boolean;
   isPreparingReceive: boolean;
   playbackFrame?: PlaybackPlayerFrame;
-  reducedEffects: boolean;
+  /**
+   * A goalie tracks the puck's direction rather than the route/idle heading,
+   * whenever one is visible - matching GoalieRenderer.ts's `trackedHeading`
+   * (`ctx.rotate(trackedHeading)` there rotates the WHOLE goalie body, not
+   * just the puck marker). `undefined`/invisible falls back to the frame's
+   * own heading, same as a skater.
+   */
   trackedPuck?: AnimatedPuck | null;
   jersey?: string;
   screenRotation: number;
@@ -114,8 +125,8 @@ export function createPlayerToken(): PlayerToken {
   const ringMoving = new Graphics();
   const goalieRing = new Graphics();
   const preparingReceive = new Graphics();
-  const carrierRing = new Graphics();
-  const puck = new Graphics();
+  const carrierRing = new Graphics({ label: 'carrier-ring' });
+  const puck = new Graphics({ label: 'puck-marker' });
   const routeHandle = new Container();
   const routeHandleGraphic = new Graphics();
   routeHandle.addChild(routeHandleGraphic);
@@ -207,13 +218,22 @@ function drawPuckMarkerGraphic(g: Graphics, heading: number): void {
   g.rotation = heading;
 }
 
+/**
+ * `isPuckHolder` (the current possession-chain holder) and `showInitialPuck`
+ * (a brand-new drill's authored `hasPuck` flag, before any events exist) are
+ * both "this player carries the puck right now" - Canvas combines them the
+ * same way (PlayerRenderer.ts: `isPuckHolder: isPuckHolder || showInitialPuck`).
+ * Reading `isPuckHolder` alone silently dropped the puck marker for the
+ * default brand-new-drill state (one player, zero events).
+ */
 function updateCarrierAndPuck(
   token: PlayerToken,
   player: Player,
   frame: PlaybackPlayerFrame,
-  options: PlayerVisualOptions
+  options: PlayerVisualOptions,
+  heading: number
 ): void {
-  const isCarrying = options.isPuckHolder;
+  const isCarrying = options.isPuckHolder || options.showInitialPuck;
   token.carrierRing.clear();
   token.puck.clear();
   if (!isCarrying) return;
@@ -221,7 +241,7 @@ function updateCarrierAndPuck(
   token.carrierRing.circle(0, 0, PLAYER_RADIUS + 5).stroke({ color: 0xffd60a, alpha: 1, width: 2.4 });
   const blade = { x: frame.bladePosition.x - player.x, y: frame.bladePosition.y - player.y };
   token.puck.position.set(blade.x, blade.y);
-  drawPuckMarkerGraphic(token.puck, frame.heading);
+  drawPuckMarkerGraphic(token.puck, heading);
 }
 
 function updateRouteHandle(token: PlayerToken, options: PlayerVisualOptions): void {
@@ -233,6 +253,20 @@ function updateRouteHandle(token: PlayerToken, options: PlayerVisualOptions): vo
     .circle(0, 0, ROUTE_HANDLE_RADIUS)
     .fill({ color: 0x051823, alpha: 0.96 })
     .stroke({ color: 0x00c8f0, width: 2 });
+}
+
+/**
+ * The rotation the body/number/puck all share this frame: a goalie tracks
+ * the puck's direction whenever one is visible, exactly like
+ * GoalieRenderer.ts's `trackedHeading` (`Math.atan2(puck.y - player.y,
+ * puck.x - player.x)`); everyone else (and a goalie with no visible puck)
+ * uses the frame's own heading, same as `deriveSkaterPose(frame).heading`.
+ */
+function effectiveHeading(isGoalie: boolean, player: Player, frame: PlaybackPlayerFrame, trackedPuck?: AnimatedPuck | null): number {
+  if (isGoalie && trackedPuck?.visible) {
+    return Math.atan2(trackedPuck.y - player.y, trackedPuck.x - player.x);
+  }
+  return frame.heading;
 }
 
 /** Local-space blade point: the SAME rotation `SkaterRenderer.ts`'s private `localPoint` applies, so the stick still ends on the authoritative puck socket. */
@@ -293,18 +327,18 @@ function effectsEnabled(quality: RenderQuality): boolean {
 
 export function updatePlayerToken(token: PlayerToken, { player, options, quality }: UpdatePlayerTokenArgs): void {
   const frame = options.playbackFrame ?? designFrame(player, options.heading);
-  const pose = deriveSkaterPose(frame);
   const isGoalie = player.role === 'G';
   const palette = getSkaterPalette(player.team, options.jersey);
   const r = PLAYER_RADIUS * 1.12;
+  const heading = effectiveHeading(isGoalie, player, frame, options.trackedPuck);
 
   token.container.position.set(player.x, player.y);
-  token.bodyGroup.rotation = pose.heading;
+  token.bodyGroup.rotation = heading;
 
   updateRings(token, player, options);
   updateGoalieRing(token, player);
   updateRouteHandle(token, options);
-  updateCarrierAndPuck(token, player, frame, options);
+  updateCarrierAndPuck(token, player, frame, options, heading);
 
   const blade = localBlade(player, frame);
 
@@ -348,5 +382,5 @@ export function updatePlayerToken(token: PlayerToken, { player, options, quality
   }
 
   token.number.text = player.number;
-  token.number.rotation = -pose.heading - options.screenRotation;
+  token.number.rotation = -heading - options.screenRotation;
 }
