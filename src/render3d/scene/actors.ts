@@ -26,6 +26,33 @@ const SKATE_TIME_SCALE_MIN = 0.2;
 const SKATE_TIME_SCALE_MAX = 2.5;
 
 /**
+ * Above this fraction of the full timeline, a progress delta reads as a loop
+ * wrap/jump (e.g. the playhead resetting from ~1 back to ~0) rather than a
+ * real forward/backward scrub, and is treated as a zero-dt tick instead.
+ */
+const PROGRESS_WRAP_THRESHOLD = 0.5;
+
+/**
+ * The dt Board3D.tsx feeds every `Actor.update` each frame, derived from the
+ * playback PROGRESS delta (not wall-clock time) scaled by clip duration - see
+ * Board3D's module header: scrubbing the timeline must move the stride
+ * exactly as far as playing it would.
+ *
+ * The delta is signed on purpose: a backward scrub is a legitimate reverse
+ * delta and must play the stride backward through `mixer.update`, not freeze
+ * it. The one exception is a loop wrap - progress jumping from near 1 back to
+ * near 0 (or vice versa) - which is not a real scrub and would otherwise spin
+ * the rig through most of the clip in a single frame; that case is detected
+ * by `|delta| > PROGRESS_WRAP_THRESHOLD` and reported as dt = 0 (a no-op
+ * tick) instead.
+ */
+export function resolveMixerDelta(progress: number, lastProgress: number, durationSeconds: number): number {
+  const progressDelta = progress - lastProgress;
+  if (Math.abs(progressDelta) > PROGRESS_WRAP_THRESHOLD) return 0;
+  return progressDelta * durationSeconds;
+}
+
+/**
  * Pants are not a jersey-tinted garment in this presentation: every actor
  * wears the same neutral pair, matching the existing tabletop 2D piece
  * (`src/canvas/PlayerRenderer.ts`'s `drawStandingPlayer`, `pants = '#182432'`).
@@ -71,7 +98,11 @@ function skateTimeScale(speed: number): number {
  */
 export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): Actor {
   const root = gltf.scene;
-  tintActorMaterials(root, { jersey: opts.jersey, accent: opts.accent, pants: PANTS_COLOR });
+  const tintedMaterials = tintActorMaterials(root, {
+    jersey: opts.jersey,
+    accent: opts.accent,
+    pants: PANTS_COLOR,
+  });
 
   const mixer = new THREE.AnimationMixer(root);
   const clipName = opts.kind === 'goalie' ? 'goalie_idle' : 'skate';
@@ -104,6 +135,11 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
     dispose() {
       mixer.stopAllAction();
       mixer.uncacheRoot(root);
+      // Only the per-actor tint clones are this actor's own to dispose - the
+      // mesh geometries and every untinted named material (skin/white/dark/
+      // steel/stick) are shared with the module-scope cached GLTF (and every
+      // other actor cloned from it) and must survive this actor's disposal.
+      for (const material of tintedMaterials) material.dispose();
     },
   };
 }

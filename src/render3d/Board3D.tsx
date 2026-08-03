@@ -24,7 +24,7 @@
 // URL twice returns the same in-flight/resolved promise.
 // ============================================================================
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useAppState } from '@/hooks/useAppState';
@@ -33,9 +33,17 @@ import type { RenderQuality } from '@/render/quality';
 import type { Drill, ID, Point } from '@/core/types';
 import { jerseyColor } from '@/core/types';
 import { orbitFromCamera } from './orbit';
+import { RINK_SCALE } from './worldMap';
 import { buildArena } from './scene/buildArena';
 import { createIceTexture } from './scene/iceTexture';
-import { createActor, createCoachMarker, createPuck, type Actor, type MarkerActor } from './scene/actors';
+import {
+  createActor,
+  createCoachMarker,
+  createPuck,
+  resolveMixerDelta,
+  type Actor,
+  type MarkerActor,
+} from './scene/actors';
 import { loadModel } from './modelCache';
 
 /** Same cap the 2D canvas path applies (useCanvasLayers.ts) - a 3x/4x phone gains nothing past this. */
@@ -45,6 +53,13 @@ const CAMERA_NEAR = 0.1;
 const CAMERA_FAR = 500;
 /** Every non-goalie skater's accent trim - white, matching the 2D palette's `trim` colour for both teams (`skaterPalette.ts`). */
 const ACCENT_COLOR = '#ffffff';
+/**
+ * How far in front of the holder (world metres, along their heading) the
+ * carried puck renders when no `frame.puck` position exists yet - matches
+ * the 2D convention (`PlayerRenderer.ts`: `bladeX + bodyR * 0.35`) so the
+ * puck sits outside the actor's silhouette instead of inside/occluded by it.
+ */
+const CARRIED_PUCK_OFFSET_METERS = 0.45;
 
 export interface Board3DProps {
   /**
@@ -75,6 +90,16 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
 
   const sceneRef = useRef<THREE.Scene | null>(null);
   const renderRef = useRef<() => void>(() => {});
+  // Bumped every time the renderer effect below (re)creates the
+  // THREE.Scene - included in the actor effect's deps so it re-runs and
+  // re-reads `sceneRef.current` instead of going on adding actors to a scene
+  // object the renderer effect has already torn down. A no-op today: quality
+  // is hard-coded (see `Board3DProps.quality`'s own doc comment) so the
+  // renderer effect's deps `[cameraStore, quality]` never change post-mount
+  // and the scene is built exactly once. Task 6 wires live quality into this
+  // component, at which point a quality change would recreate the scene
+  // without this and silently orphan every actor under the stale one.
+  const [sceneEpoch, setSceneEpoch] = useState(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -94,6 +119,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const arena = buildArena(iceTexture.canvas, { quality });
     scene.add(arena.root);
     sceneRef.current = scene;
+    setSceneEpoch(epoch => epoch + 1);
 
     const perspectiveCamera = new THREE.PerspectiveCamera(
       CAMERA_FOV_DEGREES,
@@ -163,6 +189,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   // --------------------------------------------------------------------------
   // Actors - skaters, goalies, coaches, the puck. Rebuilt whenever `drill`
   // changes identity; repainted synchronously on every playback frame.
+  // `sceneEpoch` is in the deps purely so this effect re-runs and re-reads
+  // `sceneRef.current` whenever the renderer effect (re)creates the scene -
+  // see `sceneEpoch`'s own doc comment above.
   // --------------------------------------------------------------------------
 
   useEffect(() => {
@@ -184,6 +213,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     // time - see the module header: scrubbing the timeline must move the
     // stride exactly as far as playing it would, and a paused rAF clock
     // still needs frame N+1 to render at a real dt of >0 relative to frame N.
+    // The delta is signed: a backward scrub is a legitimate reverse delta
+    // and must play the stride backward, not freeze it - `resolveMixerDelta`
+    // only zeroes it out across a loop-wrap jump (see its own doc comment).
     let lastProgress = playback.getFrame().progress;
 
     const disposeActors = () => {
@@ -204,13 +236,28 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       const frame = playback.getFrame();
       if (frame.puck) return { x: frame.puck.x, y: frame.puck.y };
 
-      // Before the drill's first puck action `frame.puck` is null (see
-      // sampleFrame.ts) - the puck sits at the initial carrier's stick
-      // blade, the same gap `PlayerRenderer.ts`'s `showInitialPuck` covers
-      // for the flat 2D view.
+      // `frame.puck` is null here because the live frame is `EMPTY_FRAME`
+      // (playback.setDrill -> reset(), PlaybackStore.ts) - i.e. right after
+      // tilting in or after a drill/edit swap, before the first real seek -
+      // NOT "before the drill's first puck action" as this comment used to
+      // claim: `samplePuck` (sampleFrame.ts) seeds possession from
+      // `hasPuck` immediately, so `frame.puck` is non-null in every real
+      // seeked frame, including frame 0.
+      //
+      // The holder's own actor is not necessarily rendered yet either in
+      // this state (`frame.playerFrames` is `{}`), so there is no heading to
+      // read - default to 0, the same fallback `Actor.update` itself uses
+      // for a missing frame. Offset forward of the holder along that
+      // heading so the puck renders outside the actor's silhouette instead
+      // of inside/occluded by it, mirroring the 2D convention
+      // (`PlayerRenderer.ts`: `bladeX + bodyR * 0.35`).
       const holder = drillRef.current.players.find(player => player.hasPuck);
       if (!holder) return null;
-      return frame.playerFrames[holder.id]?.bladePosition ?? { x: holder.x, y: holder.y };
+      const holderFrame = frame.playerFrames[holder.id];
+      const pos = holderFrame?.bladePosition ?? { x: holder.x, y: holder.y };
+      const heading = holderFrame?.heading ?? 0;
+      const offset = CARRIED_PUCK_OFFSET_METERS / RINK_SCALE;
+      return { x: pos.x + Math.cos(heading) * offset, y: pos.y + Math.sin(heading) * offset };
     };
 
     /**
@@ -224,7 +271,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
      */
     const renderFrame = () => {
       const frame = playback.getFrame();
-      const dt = Math.max(0, frame.progress - lastProgress) * frame.durationSeconds;
+      const dt = resolveMixerDelta(frame.progress, lastProgress, frame.durationSeconds);
       lastProgress = frame.progress;
 
       const drill = drillRef.current;
@@ -292,7 +339,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       puckActor.dispose();
       scene.remove(actorGroup);
     };
-  }, [playback, state.drill]);
+  }, [playback, state.drill, sceneEpoch]);
 
   return (
     <div
