@@ -68,7 +68,7 @@ const KICKPLATE_HEIGHT = 0.15;
 const GLASS_TINT = 0xdcf3ff;
 
 /** How thick the extruded board/glass wall reads, in world units (~1 real-world foot). */
-const WALL_THICKNESS = 0.3;
+export const WALL_THICKNESS = 0.3;
 
 /** Traces a rounded rectangle, centred at the origin, onto `target` (a `Shape` or a `Path` - both share this drawing API). */
 function traceRoundedRect(target: THREE.Path, width: number, height: number, radius: number): void {
@@ -99,7 +99,7 @@ function traceRoundedRect(target: THREE.Path, width: number, height: number, rad
  * outline, inset by the wall thickness - makes `ExtrudeGeometry` extrude only
  * the ring between the two outlines, i.e. an actual hollow wall.
  */
-function roundedRectWallShape(width: number, height: number, radius: number): THREE.Shape {
+export function roundedRectWallShape(width: number, height: number, radius: number): THREE.Shape {
   const shape = new THREE.Shape();
   traceRoundedRect(shape, width, height, radius);
 

@@ -16,10 +16,21 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { RINK } from '@/core/constants';
 import { RINK_SCALE } from '../worldMap';
-import { buildArena } from './buildArena';
+import { buildArena, roundedRectWallShape, WALL_THICKNESS } from './buildArena';
 
 const ICE_WIDTH = RINK.width * RINK_SCALE;
 const ICE_HEIGHT = RINK.height * RINK_SCALE;
+const CORNER_RADIUS = RINK.cornerRadius * RINK_SCALE;
+
+/** Bounding extent (width, height) of a traced outline, sampled as points. */
+function extentOf(points: THREE.Vector2[]): { width: number; height: number } {
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  return {
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+}
 
 function fakeIceCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
@@ -135,6 +146,29 @@ describe('buildArena', () => {
       });
       expect(colors).toContain(0xf5f8fb); // drawBoards' white cap rail
       expect(colors).toContain(0xf2c94c); // drawBoards' gold accent stripe
+    });
+  });
+
+  describe('roundedRectWallShape', () => {
+    // Regression guard for the solid-slab ExtrudeGeometry bug this task
+    // fixed (see buildArena.ts's doc comment on roundedRectWallShape): a
+    // holeless Shape extrudes its whole interior as a solid, opaque block,
+    // not a wall standing on the rink's outline. The Box3/instanceof
+    // assertions in the 'boards' suite above can't tell the two apart, since
+    // the outer footprint is identical either way — only the hole proves the
+    // wall is actually hollow.
+    it('has exactly one hole', () => {
+      const shape = roundedRectWallShape(ICE_WIDTH, ICE_HEIGHT, CORNER_RADIUS);
+      expect(shape.holes.length).toBe(1);
+    });
+
+    it('insets the hole by WALL_THICKNESS on every side of the outer outline', () => {
+      const shape = roundedRectWallShape(ICE_WIDTH, ICE_HEIGHT, CORNER_RADIUS);
+      const outer = extentOf(shape.getPoints());
+      const hole = extentOf(shape.holes[0].getPoints());
+
+      expect(hole.width).toBeCloseTo(outer.width - 2 * WALL_THICKNESS, 3);
+      expect(hole.height).toBeCloseTo(outer.height - 2 * WALL_THICKNESS, 3);
     });
   });
 
