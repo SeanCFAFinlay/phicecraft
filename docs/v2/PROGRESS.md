@@ -601,7 +601,11 @@ a gap in the renderer. Equipment silhouettes on the models. Live quality-tier
 wiring for Board3D (still a fixed `'high'` prop rather than reading
 `useCanvasLayers.ts`'s computed tier). `ARENA`/`ARENA_ADS` orphaned constants
 and dead `.arena-stage` CSS rules from the deletion (confirmed inert,
-cheap follow-up, not done here).
+cheap follow-up, not done here). `playwright.config.ts`'s `LOCAL_WORKERS`
+canvas2d exemption ("nothing to contend over") needs re-examining — a
+canvas2d e2e run at this box's uncapped local concurrency crashed 51 tests
+with raw worker process exits, clean again at `--workers=2` (see the comment
+at `LOCAL_WORKERS`'s definition for the full finding).
 
 ---
 

@@ -37,6 +37,21 @@ export const VIEWPORTS = {
 // full-matrix runs. `RENDERER=canvas2d` runs are exempt: Canvas2D never opens
 // a GPU context, so there is nothing to contend over and no reason to give up
 // the parallelism.
+//
+// FOLLOW-UP (Phase 4 Task 7, 2026-08-03): that exemption's rationale needs
+// re-examining. A `RENDERER=canvas2d npm run test:e2e` run at this box's
+// default (uncapped) local worker count crashed 51 of 165 functional tests
+// with `Error: worker process exited unexpectedly (code=3221225794,
+// signal=null)` - a raw Chromium process crash, not a WebGL-context-creation
+// failure, so "nothing to contend over" does not hold on this machine.
+// Re-running the SAME suite with an explicit `--workers=2` passed clean
+// (165/165), isolating the cause to concurrency/resource pressure in
+// general, independent of GPU-context use. Not fixed here (no behavior
+// change - this is a comment-only note): removing the canvas2d exemption
+// entirely is a real policy call for whoever owns this config, not a
+// docs/register task's to make unilaterally. See
+// `.superpowers/sdd/2026-08-03-phase4-true3d/task-7-report.md` for the full
+// before/after run output.
 const LOCAL_WORKERS = process.env.RENDERER === 'canvas2d' ? undefined : 2;
 
 export default defineConfig({
