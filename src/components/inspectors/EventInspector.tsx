@@ -89,7 +89,7 @@ export function EventInspector() {
                   className={`touch-target rounded-xl border px-2 py-2 text-left ${
                     (event.shape ?? 'spline') === option.shape
                       ? 'border-app-gold bg-app-gold/15 text-app-gold'
-                      : 'border-app-border bg-white/5 text-white/55'
+                      : 'border-app-border bg-white/5 text-white/75'
                   }`}
                 >
                   <span className="block text-[13px] font-bold">{option.label}</span>
@@ -156,7 +156,7 @@ export function EventInspector() {
                     className={`touch-target rounded-xl border px-2 py-2 text-[12px] font-bold ${
                       event.catchResult === option.value
                         ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200'
-                        : 'border-app-border bg-white/5 text-white/55'
+                        : 'border-app-border bg-white/5 text-white/75'
                     }`}
                   >
                     {option.label}
@@ -177,7 +177,7 @@ export function EventInspector() {
                   className={`touch-target rounded-xl border px-1 py-2 text-[12px] font-black ${
                     player.id === event.toPlayerId
                       ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200'
-                      : 'border-app-border bg-white/5 text-white/55'
+                      : 'border-app-border bg-white/5 text-white/75'
                   }`}
                 >
                   #{player.number}
@@ -205,7 +205,7 @@ export function EventInspector() {
                   className={`touch-target rounded-xl border px-2 py-2 text-[12px] font-bold capitalize ${
                     event.result === result
                       ? 'border-app-orange/60 bg-app-orange/15 text-app-orange'
-                      : 'border-app-border bg-white/5 text-white/55'
+                      : 'border-app-border bg-white/5 text-white/75'
                   }`}
                 >
                   {result ?? 'auto'}

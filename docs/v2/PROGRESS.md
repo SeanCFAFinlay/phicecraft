@@ -373,22 +373,60 @@ regression:**
    might resolve to WebGL, and is exempt for `RENDERER=canvas2d` runs (nothing
    to contend over). Confirmed clean across repeated full-matrix runs after
    the cap.
-2. **A pre-existing, renderer-independent accessibility defect, exposed but
-   not introduced by the flip.** `e2e/a11y.spec.ts`'s "event inspector" and
-   "rename dialog" checks intermittently flag a real WCAG AA color-contrast
-   failure (measured ~2.35:1 against a 4.5:1 minimum) on the dimmed/disabled
-   candidate-chip styling (`text-white/55` on `bg-white/5`, shared by
-   `EventInspector.tsx` and `PlayerInspector.tsx`). Confirmed this predates
-   this task entirely — it reproduces identically on stock `master` under an
-   explicit `RENDERER=webgl` run, and the flagged element's computed style is
-   byte-identical under either renderer. It surfaces more often now only
-   because WebGL's slower, async startup shifts the a11y suite's scan later
-   relative to the rest of the page settling, exactly the kind of timing gap
-   `RENDERER=canvas2d`'s fast, synchronous startup was masking before. Left
-   unfixed here deliberately: the styling is shared with surfaces this same
-   task's visual baselines cover, so changing it risks the baseline churn this
-   flip is explicitly supposed to avoid. Tracked as a follow-up, not a
-   renderer-flip regression.
+2. **A pre-existing, renderer-independent accessibility defect — RESOLVED
+   2026-08-03.** `e2e/a11y.spec.ts`'s "event inspector" and "rename dialog"
+   checks intermittently flagged a WCAG AA color-contrast failure on the
+   dimmed/disabled candidate-chip styling (`text-white/55` on `bg-white/5`,
+   shared by `EventInspector.tsx` and `PlayerInspector.tsx`). Root-caused
+   this time, not just re-confirmed:
+   - **The number was real but not the whole story.** Axe reported
+     `fgColor #4f5154` / `bgColor #0c121b` → **2.35:1** on a captured failing
+     run, matching the number this doc already had. But the chip's actual
+     *steady-state* composited colors — `text-white/55` (rgba(255,255,255,.55))
+     over `bg-white/5` (rgba(255,255,255,.05)) over the sheet panel
+     (`rgba(5,14,24,0.98)`) over `--app-bg` (`#06101a`) — resolve to
+     foreground `rgb(148,152,156)` on background `rgb(17.5,26,35.5)`, a
+     **6.04:1** ratio that already clears AA on its own. The low reading only
+     ever appeared while the sheet's own entrance transition
+     (`.sheet-enter` / `@keyframes sheet-in`, `opacity: 0 → 1`) was still
+     resolving: `document.getAnimations()[…].playState` can read anything
+     but `'running'` for one tick before the Web Animations engine has
+     actually pinned the animation's start time, so the existing
+     `waitForFunction` guard could pass while the whole dialog subtree was
+     still compositing at a fraction of full opacity — dimming foreground
+     *and* background together and dragging the effective ratio down,
+     independent of renderer (confirmed byte-identical either way, as this
+     doc already noted) but surfaced more often by WebGL's slower startup
+     shifting exactly when the click's microtask queue drains relative to
+     that ~0ms (reduced-motion-collapsed) animation.
+   - **Fix, two parts:**
+     1. `text-white/55` → `text-white/75` at all 6 shared chip sites
+        (`EventInspector.tsx` ×4, `PlayerInspector.tsx` ×2) — steady-state
+        contrast **10.21:1** against the same `rgb(17.5,26,35.5)` chip
+        background, roughly 2.3× the old margin. The dimmed-vs-active
+        hierarchy still reads: unselected chips are translucent white on a
+        near-invisible tint, selected chips are solid saturated color
+        (`text-app-cyan`, `text-app-gold`, `text-emerald-200`,
+        `text-app-orange`) on a visibly tinted background — the contrast
+        *between the two states* barely narrows, since both moved from
+        "clearly muted" to "muted but comfortably legible."
+     2. `e2e/a11y.spec.ts`'s `seriousViolations()` now also waits for every
+        `.sheet-enter` element's `getComputedStyle(...).opacity` to actually
+        read `'1'`, not just for `getAnimations()` to stop reporting
+        `'running'` — closing the specific gap above rather than papering
+        over it with a fixed delay.
+   - Raising the steady-state ratio alone was tested and was **not**
+     sufficient — at `text-white/75` with no test-wait change, the same
+     transitional dip still reproduced (5/20 runs, ratio 3.52:1, same
+     `bgColor #0c121b`), confirming the margin bump and the wait-precision
+     fix both mattered here, not just one.
+   - Verified: 25 consecutive `--project=a11y` runs clean (default WebGL
+     renderer) after both changes, vs. reproducible failures before. Full
+     `npm run test:visual` (all four visual projects) passes unchanged, run
+     twice — neither committed baseline (`player-inspector.png`'s only
+     inspector scenario) actually renders these chips in a dimmed state (its
+     inspected player has no drawn route), so no baseline regeneration was
+     needed, confirmed rather than assumed.
 
 ---
 

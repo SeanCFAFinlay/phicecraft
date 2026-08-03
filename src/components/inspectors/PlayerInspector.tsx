@@ -100,7 +100,7 @@ export function PlayerInspector() {
                     className={`touch-target rounded-xl border px-2 py-2 text-left ${
                       (route.shape ?? 'spline') === option.shape
                         ? 'border-app-cyan bg-app-cyan/15 text-app-cyan'
-                        : 'border-app-border bg-white/5 text-white/55'
+                        : 'border-app-border bg-white/5 text-white/75'
                     }`}
                   >
                     <span className="block text-[13px] font-bold">{option.label}</span>
@@ -139,7 +139,7 @@ export function PlayerInspector() {
                     className={`touch-target rounded-xl border px-1 py-2 text-[12px] font-bold capitalize ${
                       (route.mode ?? 'skate') === mode
                         ? 'border-app-cyan bg-app-cyan/15 text-app-cyan'
-                        : 'border-app-border bg-white/5 text-white/55'
+                        : 'border-app-border bg-white/5 text-white/75'
                     }`}
                   >
                     {mode}

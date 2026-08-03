@@ -40,6 +40,18 @@ async function seriousViolations(page: Page): Promise<AxeViolation[]> {
   // renderer-agnostic rather than trusting the reduced duration to have
   // already been applied by the time this evaluates.
   await page.waitForFunction(() => document.getAnimations().every(animation => animation.playState !== 'running'));
+  // A freshly-mounted `.sheet-enter` dialog can still be at the very start of
+  // its (reduced-motion-collapsed) opacity keyframe the instant the above
+  // resolves: the animation's `playState` can read 'running' one tick before
+  // the Web Animations engine has actually established its start time, so a
+  // check keyed only on playState can pass while the element is still
+  // genuinely transparent-ish. Waiting on the concrete end value directly
+  // (rather than trusting playState) closes that gap.
+  await page.waitForFunction(() =>
+    Array.from(document.querySelectorAll('.sheet-enter')).every(
+      element => getComputedStyle(element).opacity === '1'
+    )
+  );
   await page.addScriptTag({ content: AXE_SOURCE });
   const results = await page.evaluate(async () => {
     // The canvas is a bitmap; its accessible alternative is the DOM shell
