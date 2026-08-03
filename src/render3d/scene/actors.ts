@@ -15,6 +15,7 @@ import type { PlaybackPlayerFrame, Point } from '@/core/types';
 import { clamp } from '@/utils/geometry';
 import { headingToYaw, rinkToWorld } from '../worldMap';
 import { tintActorMaterials } from './tintMaterials';
+import { CLIP_FADE_SECONDS, isMovementClip, selectClipName } from './clipSelector';
 
 /** Rink-units/second at which the `skate` clip plays at its authored (1x) speed. */
 export const REFERENCE_SKATE_SPEED = 120;
@@ -33,6 +34,19 @@ const SKATE_TIME_SCALE_MAX = 2.5;
 const PROGRESS_WRAP_THRESHOLD = 0.5;
 
 /**
+ * Whether a progress delta reads as a loop wrap/jump rather than a real
+ * scrub - the same test `resolveMixerDelta` uses to zero out its returned
+ * delta, exposed separately so Board3D.tsx can tell `Actor.update` "this
+ * tick is a wrap" even though the resolved dt (correctly) comes out as a
+ * plain 0, indistinguishable on its own from a genuinely paused (real dt-0)
+ * tick. Actors need that distinction: a pause mid-crossfade must hold the
+ * blend, but a wrap must snap it - see `Actor.update`'s `wrapped` param.
+ */
+export function isProgressWrap(progress: number, lastProgress: number): boolean {
+  return Math.abs(progress - lastProgress) > PROGRESS_WRAP_THRESHOLD;
+}
+
+/**
  * The dt Board3D.tsx feeds every `Actor.update` each frame, derived from the
  * playback PROGRESS delta (not wall-clock time) scaled by clip duration - see
  * Board3D's module header: scrubbing the timeline must move the stride
@@ -43,13 +57,11 @@ const PROGRESS_WRAP_THRESHOLD = 0.5;
  * it. The one exception is a loop wrap - progress jumping from near 1 back to
  * near 0 (or vice versa) - which is not a real scrub and would otherwise spin
  * the rig through most of the clip in a single frame; that case is detected
- * by `|delta| > PROGRESS_WRAP_THRESHOLD` and reported as dt = 0 (a no-op
- * tick) instead.
+ * by `isProgressWrap` and reported as dt = 0 (a no-op tick) instead.
  */
 export function resolveMixerDelta(progress: number, lastProgress: number, durationSeconds: number): number {
-  const progressDelta = progress - lastProgress;
-  if (Math.abs(progressDelta) > PROGRESS_WRAP_THRESHOLD) return 0;
-  return progressDelta * durationSeconds;
+  if (isProgressWrap(progress, lastProgress)) return 0;
+  return (progress - lastProgress) * durationSeconds;
 }
 
 /**
@@ -72,7 +84,13 @@ export interface CreateActorOptions {
 
 export interface Actor {
   root: THREE.Object3D;
-  update(pos: Point, frame: PlaybackPlayerFrame | undefined, dt: number): void;
+  /**
+   * `wrapped` defaults to false so every pre-existing call site (and every
+   * pre-existing test) that only ever knew about `dt` keeps compiling and
+   * behaving identically - see `isProgressWrap`'s doc comment for why a
+   * separate boolean is needed alongside `dt` at all.
+   */
+  update(pos: Point, frame: PlaybackPlayerFrame | undefined, dt: number, wrapped?: boolean): void;
   dispose(): void;
 }
 
@@ -91,10 +109,30 @@ function skateTimeScale(speed: number): number {
   return clamp(speed / REFERENCE_SKATE_SPEED, SKATE_TIME_SCALE_MIN, SKATE_TIME_SCALE_MAX);
 }
 
+/** One named clip's live `THREE.AnimationAction`, plus its clip (for `.duration`), lazily created per actor. */
+interface ClipEntry {
+  name: string;
+  clip: THREE.AnimationClip;
+  action: THREE.AnimationAction;
+}
+
 /**
  * One skater or goalie: an already-cloned GLTF scene graph (Board3D.tsx does
  * the `SkeletonUtils.clone()` before calling this), tinted to this actor's
  * own jersey/accent, and advanced every frame by `update`.
+ *
+ * Clip selection/cross-fading: every named clip this actor has ever needed
+ * gets its own `THREE.AnimationAction`, created once and left `.play()`-ing
+ * forever - only its `weight` (baseline influence) and `enabled` flag turn
+ * it on or off. Switching clips is therefore never "stop one, start
+ * another"; it is `THREE.AnimationAction.crossFadeTo`, which ramps the
+ * outgoing action's weight 1->0 and the incoming one's 0->1 using the
+ * mixer's OWN accumulated time - i.e. driven by exactly the same
+ * `dt` this module already receives from `resolveMixerDelta` (progress
+ * derived, never wall-clock), with no extra timer of this module's own.
+ * That is also why a paused timeline (dt = 0) correctly holds a crossfade
+ * mid-blend rather than snapping or continuing it - three.js has nothing
+ * new to advance.
  */
 export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): Actor {
   const root = gltf.scene;
@@ -105,31 +143,81 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
   });
 
   const mixer = new THREE.AnimationMixer(root);
-  const clipName = opts.kind === 'goalie' ? 'goalie_idle' : 'skate';
-  const clip = findClip(gltf.animations, clipName);
-  const action = clip ? mixer.clipAction(clip) : null;
-  action?.play();
+  const availableClipNames = new Set(gltf.animations.map(c => c.name));
+  const entriesByName = new Map<string, ClipEntry>();
+
+  /** Creates (once) and plays the action for `name`, or returns the existing one. `undefined` only if this model has no clips at all. */
+  function getOrCreateEntry(name: string): ClipEntry | undefined {
+    const existing = entriesByName.get(name);
+    if (existing) return existing;
+    const clip = findClip(gltf.animations, name);
+    if (!clip) return undefined;
+    const action = mixer.clipAction(clip);
+    action.play();
+    // Silent until this entry is explicitly activated (below) - a freshly
+    // authored action must never contribute before it is chosen.
+    action.weight = 0;
+    const entry: ClipEntry = { name, clip, action };
+    entriesByName.set(name, entry);
+    return entry;
+  }
+
+  /** Makes `entry` a full (weight 1) contributor - the crossfade/snap target, or the very first clip at creation. */
+  function activate(entry: ClipEntry): void {
+    entry.action.enabled = true;
+    entry.action.weight = 1;
+  }
+
+  /** Wrap/jump: cancel any in-flight fade and land on exactly one clip, no lingering blend (design requirement 2). */
+  function snapTo(targetName: string): void {
+    for (const entry of entriesByName.values()) {
+      entry.action.stopFading();
+      const isTarget = entry.name === targetName;
+      entry.action.enabled = isTarget;
+      entry.action.weight = isTarget ? 1 : 0;
+    }
+  }
+
+  /** This entry's speed rule (design requirement 3): movement clips speed-scale + freeze; everything else plays at a flat 1x. */
+  function applyClipRules(entry: ClipEntry, frame: PlaybackPlayerFrame | undefined): void {
+    if (opts.kind === 'goalie' || !isMovementClip(entry.name)) {
+      entry.action.timeScale = 1;
+      return;
+    }
+    const speed = frame?.speed ?? 0;
+    if (speed < SKATE_FREEZE_SPEED) {
+      entry.action.timeScale = 0;
+      entry.action.time = entry.clip.duration * SKATE_FROZEN_POSE_FRACTION;
+    } else {
+      entry.action.timeScale = skateTimeScale(speed);
+    }
+  }
+
+  let currentClipName = selectClipName(opts.kind, undefined, availableClipNames);
+  const initialEntry = getOrCreateEntry(currentClipName);
+  if (initialEntry) activate(initialEntry);
 
   return {
     root,
-    update(pos, frame, dt) {
+    update(pos, frame, dt, wrapped = false) {
       const world = rinkToWorld(pos);
       root.position.set(world.x, world.y, world.z);
       root.rotation.y = headingToYaw(frame?.heading ?? 0);
 
-      if (!action || !clip) return;
+      const nextClipName = selectClipName(opts.kind, frame, availableClipNames);
+      const nextEntry = getOrCreateEntry(nextClipName);
+      if (!nextEntry) return; // No clips on this model at all - position/rotation only, same as before this change.
 
-      if (opts.kind === 'goalie') {
-        action.timeScale = 1;
-      } else {
-        const speed = frame?.speed ?? 0;
-        if (speed < SKATE_FREEZE_SPEED) {
-          action.timeScale = 0;
-          action.time = clip.duration * SKATE_FROZEN_POSE_FRACTION;
-        } else {
-          action.timeScale = skateTimeScale(speed);
-        }
+      if (wrapped) {
+        snapTo(nextClipName);
+      } else if (nextClipName !== currentClipName) {
+        const currentEntry = entriesByName.get(currentClipName);
+        activate(nextEntry);
+        currentEntry?.action.crossFadeTo(nextEntry.action, CLIP_FADE_SECONDS, false);
       }
+      currentClipName = nextClipName;
+
+      for (const entry of entriesByName.values()) applyClipRules(entry, frame);
       mixer.update(dt);
     },
     dispose() {

@@ -40,6 +40,7 @@ import {
   createActor,
   createCoachMarker,
   createPuck,
+  isProgressWrap,
   resolveMixerDelta,
   type Actor,
   type MarkerActor,
@@ -320,6 +321,12 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
      */
     const renderFrame = () => {
       const frame = playback.getFrame();
+      // `wrapped` is the same test `resolveMixerDelta` used internally to
+      // zero out `dt` on a loop wrap, computed again here because a wrapped
+      // dt=0 and a genuinely-paused dt=0 must be told apart downstream: a
+      // pause should hold a clip crossfade mid-blend, a wrap should snap it
+      // (see actors.ts's `isProgressWrap` doc comment).
+      const wrapped = isProgressWrap(frame.progress, lastProgress);
       const dt = resolveMixerDelta(frame.progress, lastProgress, frame.durationSeconds);
       lastProgress = frame.progress;
 
@@ -328,7 +335,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         const actor = skaterActors.get(player.id);
         if (!actor) continue;
         const pos = frame.positions[player.id] ?? { x: player.x, y: player.y };
-        actor.update(pos, frame.playerFrames[player.id], dt);
+        actor.update(pos, frame.playerFrames[player.id], dt, wrapped);
       }
 
       for (const coach of drill.coaches ?? []) {
