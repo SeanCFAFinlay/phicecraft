@@ -7,9 +7,7 @@
 // of the rink size.
 // ============================================================================
 
-import { RINK, RINK_MARKS as M, COLORS, FT, ARENA, ARENA_ADS } from '@/core/constants';
-import type { Camera, Point } from '@/core/types';
-import { cameraMatrix, applyAffine } from '@/utils/geometry';
+import { RINK, RINK_MARKS as M, COLORS, FT } from '@/core/constants';
 
 /**
  * Draw a rounded rectangle path
@@ -466,40 +464,28 @@ function drawCenterLine(ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
-export interface DrawRinkOptions {
-  /**
-   * When the tabletop arena is being rendered, the raised boards and floor slab
-   * are drawn separately in screen space, so the flat drop-shadow and flat
-   * board stack are suppressed to avoid doubling up on the ice edge.
-   */
-  elevated?: boolean;
-}
-
 /**
  * Draw the complete hockey rink
  */
-export function drawRink(ctx: CanvasRenderingContext2D, opts: DrawRinkOptions = {}): void {
+export function drawRink(ctx: CanvasRenderingContext2D): void {
   const { x: rx, y: ry, width: rw, height: rh, cornerRadius: cr, centerX, centerY } = RINK;
-  const elevated = opts.elevated ?? false;
 
-  if (!elevated) {
-    // Arena-floor depth beneath the boards. These broad silhouettes remain
-    // readable at every zoom level and make the ice feel physically seated in
-    // the building rather than pasted onto a flat canvas.
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-    ctx.shadowBlur = 34;
-    ctx.shadowOffsetY = 18;
-    roundedRectPath(ctx, rx - 10, ry - 10, rw + 20, rh + 20, cr + 10);
-    ctx.fillStyle = '#07121c';
-    ctx.fill();
-    ctx.restore();
+  // Arena-floor depth beneath the boards. These broad silhouettes remain
+  // readable at every zoom level and make the ice feel physically seated in
+  // the building rather than pasted onto a flat canvas.
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+  ctx.shadowBlur = 34;
+  ctx.shadowOffsetY = 18;
+  roundedRectPath(ctx, rx - 10, ry - 10, rw + 20, rh + 20, cr + 10);
+  ctx.fillStyle = '#07121c';
+  ctx.fill();
+  ctx.restore();
 
-    ctx.strokeStyle = 'rgba(19, 210, 255, 0.18)';
-    ctx.lineWidth = 12;
-    roundedRectPath(ctx, rx - 7, ry - 7, rw + 14, rh + 14, cr + 7);
-    ctx.stroke();
-  }
+  ctx.strokeStyle = 'rgba(19, 210, 255, 0.18)';
+  ctx.lineWidth = 12;
+  roundedRectPath(ctx, rx - 7, ry - 7, rw + 14, rh + 14, cr + 7);
+  ctx.stroke();
 
   roundedRectPath(ctx, rx, ry, rw, rh, cr);
   ctx.save();
@@ -610,268 +596,37 @@ export function drawRink(ctx: CanvasRenderingContext2D, opts: DrawRinkOptions = 
   ctx.restore();
 
   // --- Boards ------------------------------------------------------------
-  if (elevated) {
-    // The raised boards are drawn separately in screen space; on the ground
-    // plane we only need a crisp inner rim so the ice edge stays defined.
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
-    ctx.lineWidth = 3;
-    roundedRectPath(ctx, rx + 1, ry + 1, rw - 2, rh - 2, Math.max(0, cr - 1));
-    ctx.stroke();
-  } else {
-    // Boards, kick plate, cap rail and glass are separated into material layers.
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.lineWidth = 13;
-    roundedRectPath(ctx, rx, ry, rw, rh, cr);
-    ctx.stroke();
-    ctx.strokeStyle = '#f5f8fb';
-    ctx.lineWidth = 8;
-    roundedRectPath(ctx, rx, ry, rw, rh, cr);
-    ctx.stroke();
-    ctx.strokeStyle = '#f2c94c';
-    ctx.lineWidth = 2.2;
-    roundedRectPath(ctx, rx + 2, ry + 2, rw - 4, rh - 4, Math.max(0, cr - 2));
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(94, 211, 255, 0.72)';
-    ctx.lineWidth = 2;
-    roundedRectPath(ctx, rx, ry, rw, rh, cr);
-    ctx.stroke();
+  // Boards, kick plate, cap rail and glass are separated into material layers.
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.lineWidth = 13;
+  roundedRectPath(ctx, rx, ry, rw, rh, cr);
+  ctx.stroke();
+  ctx.strokeStyle = '#f5f8fb';
+  ctx.lineWidth = 8;
+  roundedRectPath(ctx, rx, ry, rw, rh, cr);
+  ctx.stroke();
+  ctx.strokeStyle = '#f2c94c';
+  ctx.lineWidth = 2.2;
+  roundedRectPath(ctx, rx + 2, ry + 2, rw - 4, rh - 4, Math.max(0, cr - 2));
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(94, 211, 255, 0.72)';
+  ctx.lineWidth = 2;
+  roundedRectPath(ctx, rx, ry, rw, rh, cr);
+  ctx.stroke();
 
-    // Glass edge and steel stanchion rail outside the boards.
-    ctx.strokeStyle = 'rgba(157, 224, 247, .42)';
-    ctx.lineWidth = 3.2;
-    roundedRectPath(ctx, rx - 5, ry - 5, rw + 10, rh + 10, cr + 5);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(235, 250, 255, .72)';
-    ctx.lineWidth = 0.9;
-    roundedRectPath(ctx, rx - 6.5, ry - 6.5, rw + 13, rh + 13, cr + 6.5);
-    ctx.stroke();
+  // Glass edge and steel stanchion rail outside the boards.
+  ctx.strokeStyle = 'rgba(157, 224, 247, .42)';
+  ctx.lineWidth = 3.2;
+  roundedRectPath(ctx, rx - 5, ry - 5, rw + 10, rh + 10, cr + 5);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(235, 250, 255, .72)';
+  ctx.lineWidth = 0.9;
+  roundedRectPath(ctx, rx - 6.5, ry - 6.5, rw + 13, rh + 13, cr + 6.5);
+  ctx.stroke();
 
-    drawBoardFixtures(ctx);
-  }
+  drawBoardFixtures(ctx);
 
   // Goals sit on top of the boards clip so the mesh stays crisp.
   drawGoal(ctx, RINK.goalLineLeftX, 1);
   drawGoal(ctx, RINK.goalLineRightX, -1);
-}
-
-// ============================================================================
-// TABLETOP ARENA (raised boards, glass and floor slab)
-//
-// Everything below draws in *screen space* (the caller leaves the canvas in the
-// device-pixel transform). Ground points are projected through the camera
-// matrix and raised by a screen-space height, giving the extruded, spin-around
-// "table hockey" look without leaving the 2D canvas.
-// ============================================================================
-
-/** Sample a rounded-rectangle outline into a closed world-space polyline. */
-function roundedRectOutline(
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-  cornerSteps = 9
-): Point[] {
-  const pts: Point[] = [];
-  const rr = Math.min(r, w / 2, h / 2);
-  // Corner centres, walked clockwise from the top-left.
-  const corners: { cx: number; cy: number; start: number }[] = [
-    { cx: x + rr, cy: y + rr, start: Math.PI }, // top-left
-    { cx: x + w - rr, cy: y + rr, start: -Math.PI / 2 }, // top-right
-    { cx: x + w - rr, cy: y + h - rr, start: 0 }, // bottom-right
-    { cx: x + rr, cy: y + h - rr, start: Math.PI / 2 }, // bottom-left
-  ];
-  for (const { cx, cy, start } of corners) {
-    for (let i = 0; i <= cornerSteps; i++) {
-      const a = start + (Math.PI / 2) * (i / cornerSteps);
-      pts.push({ x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr });
-    }
-  }
-  return pts;
-}
-
-interface ArenaView {
-  camera: Camera;
-  dpr: number;
-}
-
-function tabletopLift(camera: Camera): number {
-  return Math.sin(camera.tilt ?? 0);
-}
-
-function polygonPath(ctx: CanvasRenderingContext2D, pts: Point[]): void {
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-  ctx.closePath();
-}
-
-/**
- * The dark floor slab the whole sheet sits on, plus its soft contact shadow -
- * the "model on a white desk" base from the reference render.
- */
-export function drawArenaBase(ctx: CanvasRenderingContext2D, view: ArenaView): void {
-  const { camera, dpr } = view;
-  const lift = tabletopLift(camera);
-  if (lift <= 0) return;
-
-  const m = cameraMatrix(camera);
-  const marginFt = 9 * FT;
-  const baseH = ARENA.baseThicknessFt * FT * camera.zoom * lift;
-
-  const outline = roundedRectOutline(
-    RINK.x - marginFt,
-    RINK.y - marginFt,
-    RINK.width + marginFt * 2,
-    RINK.height + marginFt * 2,
-    RINK.cornerRadius + marginFt
-  );
-  const top = outline.map(p => applyAffine(m, p.x, p.y));
-  const bottom = top.map(p => ({ x: p.x, y: p.y + baseH }));
-
-  ctx.save();
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  // Soft contact shadow on the "desk".
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = 40 * Math.min(camera.zoom, 1.4);
-  ctx.shadowOffsetY = 26 * lift;
-  polygonPath(ctx, bottom);
-  ctx.fillStyle = '#0b1016';
-  ctx.fill();
-  ctx.restore();
-
-  // Slab thickness (the visible side of the base).
-  polygonPath(ctx, bottom);
-  ctx.fillStyle = '#05080c';
-  ctx.fill();
-
-  // Slab top surface.
-  const g = ctx.createLinearGradient(0, top[0].y - baseH, 0, bottom[0].y + baseH);
-  g.addColorStop(0, '#12202e');
-  g.addColorStop(1, '#0a121b');
-  polygonPath(ctx, top);
-  ctx.fillStyle = g;
-  ctx.fill();
-
-  ctx.restore();
-}
-
-/**
- * The raised boards, wrap-around advertising and glass. Drawn in two passes:
- * `far` (behind the play) before the skaters, `near` (in front) after them, so
- * depth reads correctly as the rink is spun.
- */
-export function drawArenaWalls(
-  ctx: CanvasRenderingContext2D,
-  view: ArenaView,
-  pass: 'far' | 'near'
-): void {
-  const { camera, dpr } = view;
-  const lift = tabletopLift(camera);
-  if (lift <= 0) return;
-
-  const m = cameraMatrix(camera);
-  const zoom = camera.zoom;
-  const boardH = ARENA.boardHeightFt * FT * zoom * lift;
-  const glassH = ARENA.glassHeightFt * FT * zoom * lift;
-
-  const outline = roundedRectOutline(RINK.x, RINK.y, RINK.width, RINK.height, RINK.cornerRadius, 11);
-  const ground = outline.map(p => applyAffine(m, p.x, p.y));
-  const center = applyAffine(m, RINK.centerX, RINK.centerY);
-  const N = ground.length;
-
-  // Assign each vertex to an advertising panel by walking the perimeter, so a
-  // brand spans several segments instead of flickering per edge.
-  const panelWorldLen = 26 * FT;
-  const panelOf: number[] = [];
-  {
-    let acc = 0;
-    for (let i = 0; i < N; i++) {
-      const a = outline[i];
-      const b = outline[(i + 1) % N];
-      panelOf[i] = Math.floor(acc / panelWorldLen);
-      acc += Math.hypot(b.x - a.x, b.y - a.y);
-    }
-  }
-
-  ctx.save();
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.lineJoin = 'round';
-
-  let lastLabelPanel = -1;
-
-  for (let i = 0; i < N; i++) {
-    const a = ground[i];
-    const b = ground[(i + 1) % N];
-    const midY = (a.y + b.y) / 2;
-    const isNear = midY >= center.y;
-    if (pass === 'far' && isNear) continue;
-    if (pass === 'near' && !isNear) continue;
-
-    const aBoard = { x: a.x, y: a.y - boardH };
-    const bBoard = { x: b.x, y: b.y - boardH };
-    const aGlass = { x: a.x, y: a.y - boardH - glassH };
-    const bGlass = { x: b.x, y: b.y - boardH - glassH };
-
-    const ad = ARENA_ADS[panelOf[i] % ARENA_ADS.length];
-    const segLen = Math.hypot(b.x - a.x, b.y - a.y);
-
-    // Glass panel: faint, cool, translucent - just enough to read as plexi.
-    polygonPath(ctx, [aBoard, bBoard, bGlass, aGlass]);
-    ctx.fillStyle = isNear ? 'rgba(150, 205, 230, 0.14)' : 'rgba(150, 205, 230, 0.22)';
-    ctx.fill();
-
-    // Board face carrying the advertising band.
-    polygonPath(ctx, [a, b, bBoard, aBoard]);
-    ctx.fillStyle = ad.bg;
-    ctx.fill();
-    // Vertical shading so the boards feel cylindrical around the corners.
-    const shade = ctx.createLinearGradient(0, a.y, 0, aBoard.y);
-    shade.addColorStop(0, 'rgba(0,0,0,0.28)');
-    shade.addColorStop(0.5, 'rgba(255,255,255,0.06)');
-    shade.addColorStop(1, 'rgba(0,0,0,0.14)');
-    polygonPath(ctx, [a, b, bBoard, aBoard]);
-    ctx.fillStyle = shade;
-    ctx.fill();
-
-    // Blue cap rail sitting on top of the boards.
-    ctx.strokeStyle = '#1d4ed8';
-    ctx.lineWidth = Math.max(1.6, 2.4 * zoom * (0.6 + 0.4 * lift));
-    ctx.beginPath();
-    ctx.moveTo(aBoard.x, aBoard.y);
-    ctx.lineTo(bBoard.x, bBoard.y);
-    ctx.stroke();
-
-    // Glass top edge highlight.
-    ctx.strokeStyle = 'rgba(226, 245, 255, 0.5)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(aGlass.x, aGlass.y);
-    ctx.lineTo(bGlass.x, bGlass.y);
-    ctx.stroke();
-
-    // Brand text, once per panel, only where the board faces us enough to read.
-    if (panelOf[i] !== lastLabelPanel && segLen > 14) {
-      lastLabelPanel = panelOf[i];
-      const cxp = (a.x + b.x) / 2;
-      const cyp = (a.y + b.y) / 2 - boardH * 0.5;
-      let ang = Math.atan2(b.y - a.y, b.x - a.x);
-      if (ang > Math.PI / 2) ang -= Math.PI;
-      if (ang < -Math.PI / 2) ang += Math.PI;
-      ctx.save();
-      ctx.translate(cxp, cyp);
-      ctx.rotate(ang);
-      ctx.fillStyle = ad.fg;
-      const fs = Math.max(6, boardH * 0.5);
-      ctx.font = `700 ${fs}px Arial, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(ad.label, 0, 0);
-      ctx.restore();
-    }
-  }
-
-  ctx.restore();
 }

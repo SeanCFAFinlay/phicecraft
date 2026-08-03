@@ -30,9 +30,11 @@
 // Coaches: drawn as the FIRST group (`coachesContainer`), matching
 // `renderDynamic.ts`'s paint order (`drawCoachTopDown` runs before ghost
 // trails/skate paths/everything else) - the flat board is never missing a
-// coach marker under `?renderer=webgl`. The TABLETOP camera range still
-// covers coaches through the Canvas2D pass-through (`WebGLRenderer`'s
-// `canvasFallback` branch); this scene never runs for that range at all.
+// coach marker under `?renderer=webgl`. This scene runs unconditionally now
+// (Phase 4 Task 6 deleted the tabletop pseudo-3D pass this used to bypass via
+// `WebGLRenderer`'s `canvasFallback` branch) - `camera.tilt` never routes
+// anywhere else; the true-3D tabletop presentation (`src/render3d/`) is a
+// separate mount entirely, swapped in by AppShell instead of this renderer.
 // ============================================================================
 
 import { BlurFilter, Container, Graphics, Text } from 'pixi.js';

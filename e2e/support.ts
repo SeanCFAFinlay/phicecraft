@@ -84,7 +84,7 @@ export async function storedDrill(page: Page): Promise<Drill> {
 // default or not - see the comment on the wait itself below), and, whenever a
 // renderer was explicitly requested, to confirm THAT renderer actually won
 // selection rather than silently falling back (the same
-// `window.__phicecraftPaint` gate `visual.spec.ts`/`webglTabletop.spec.ts`
+// `window.__phicecraftPaint` gate `visual.spec.ts`/`board3d.spec.ts`
 // already rely on) - a default (unset `RENDERER`) run intentionally skips
 // only that last assertion, since a silent WebGL->Canvas2D fallback there is
 // the documented, acceptable fallback story, not a test failure.

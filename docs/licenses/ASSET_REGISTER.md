@@ -5,8 +5,9 @@ font, sound, 3D model and piece of drill content that ships must appear here
 with a provenance and a licence. **An asset that is not in this register is not
 cleared to ship.**
 
-Status: **incomplete.** The rows below cover what is in the repository today.
-The gaps are listed at the end and are release blockers, not paperwork.
+Status: **complete.** The rows below cover what is in the repository today.
+The Open Blockers list at the end is empty — every gap previously tracked
+there has been resolved.
 
 ---
 
@@ -14,7 +15,7 @@ The gaps are listed at the end and are release blockers, not paperwork.
 
 | Asset | Origin | Licence | Status |
 |---|---|---|---|
-| `arena-overhead.webp` | Unverified — inherited from an earlier commit | **Unknown** | ⛔ **Blocker, reduced.** No longer used behind the editor (§8.2) — only behind the tabletop presentation view. Provenance must still be established or the file replaced before release. |
+| ~~`arena-overhead.webp`~~ | Unverified — inherited from an earlier commit | **Unknown** | ✅ **Removed — replaced by the true-3D presentation (Phase 4).** The tabletop view no longer draws a photographic backdrop; Board3D (`src/render3d/`) renders a real ice/boards/glass/arena-floor scene, and the CSS stage behind it is a first-party gradient (`src/styles/index.css`). The file and its `assets-src/` source are deleted. |
 | `hockey-sprite-atlas.webp` | First-party — baked from the repo's own GLB models by `scripts/bake-sprites.mjs` | Owned | ✅ Clear. `assets-src/hockey-sprite-atlas.png` (the optimizer's source) is a deterministic render of `hockey_player.glb`/`hockey_goalie.glb` (see the "3D assets" table below) — orthographic top-down captures, jersey-tinted per team, composited into the four `HOCKEY_SPRITES` regions (`src/canvas/HockeySpriteAtlas.ts`). The old unknown-provenance photographic source (`hockey-sprite-atlas-source.png`) is deleted. |
 | PH logo | First-party (PhiceCraft) | Owned | ✅ Clear |
 
@@ -55,9 +56,12 @@ rows here as they land.
 
 ## Open blockers
 
-1. **`arena-overhead.webp` provenance is unknown.** It is now confined to the
-   tabletop presentation view rather than sitting behind every edit, but it
-   still ships. Establish provenance or replace it.
+**None.** Every blocker previously tracked here is resolved:
+
+1. ~~`arena-overhead.webp` provenance is unknown.~~ Resolved: Phase 4 Task 6
+   deleted the file (and its `assets-src/` source) along with the pseudo-3D
+   tabletop pass it backed — the tabletop view is now the true-3D
+   presentation (`src/render3d/`), which needs no photographic asset at all.
 2. ~~Sprite-atlas source images have unknown provenance.~~ Resolved: Phase 4
    Task 2 replaced them with a first-party bake (`scripts/bake-sprites.mjs`)
    from the repo's own GLB models; the old source PNG is deleted and the

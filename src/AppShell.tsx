@@ -79,22 +79,6 @@ const DiagnosticsOverlay = lazy(() =>
 // below actually mounts it.
 const Board3D = lazy(loadBoard3D);
 
-/**
- * TODO(phase4-task6): remove this flag.
- *
- * The plan (Phase 4 Task 6) deletes the old pseudo-3D tabletop path
- * (CanvasSurface's Canvas2D-pass-through arena) and makes Board3D the
- * unconditional renderer once tilt crosses TABLETOP_MIN_TILT. Until that
- * lands, the tabletop tilt switch (ViewControls' 3D button) must keep
- * mounting the OLD path, because e2e's `webgl-tabletop` project
- * (webglTabletop.spec.ts) drives that toggle and asserts on the Canvas2D
- * pass-through's pixels - swapping in the still-empty Board3D shell there
- * would break that spec now instead of at Task 6, where it is meant to be
- * rewritten. Tasks 4-5 dev-check the new path with `?board3d` in the URL;
- * Task 6 removes this gate entirely.
- */
-const BOARD3D_ENABLED = new URLSearchParams(location.search).has('board3d');
-
 export function AppShell() {
   const { state, dispatch } = useAppState();
   const { importPreviews } = useAppServices();
@@ -141,7 +125,7 @@ export function AppShell() {
       {mode !== 'present' && <TopStrip />}
 
       <main className="relative min-h-0 flex-1 overflow-hidden bg-[#0a1520]">
-        {is3D && BOARD3D_ENABLED ? (
+        {is3D ? (
           // The fallback is CanvasSurface itself, not a spinner: the lazy
           // chunk load must never blank the board a coach is already looking
           // at mid-tilt-animation - see loadBoard3D.ts.

@@ -45,6 +45,7 @@ import {
   type MarkerActor,
 } from './scene/actors';
 import { loadModel } from './modelCache';
+import { markBoard3DActorsBuilt, recordBoard3DFrame } from './board3dCounters';
 
 /** Same cap the 2D canvas path applies (useCanvasLayers.ts) - a 3x/4x phone gains nothing past this. */
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -105,13 +106,28 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const container = containerRef.current;
     if (!container) return;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // preserveDrawingBuffer: this renderer has no ticker - like WebGLRenderer
+    // (the 2D pipeline's Pixi renderer, src/render/webgl/WebGLRenderer.ts),
+    // it only calls render() on an actual camera change or playback frame
+    // tick, so it can sit for a long time between draws (e.g. a static camera
+    // with no route authored). Without this flag the browser is free to
+    // clear the drawing buffer after compositing a frame; a caller reading
+    // the canvas back afterward (e2e/board3d.spec.ts's pixel sample, a
+    // `toHaveScreenshot()` capture) could see it go blank even though nothing
+    // ever told it to clear - see WebGLRenderer.ts's own comment on the same
+    // flag for the worked-out reasoning.
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO));
     renderer.shadowMap.enabled = quality === 'high';
     // Transparent: the scene sits over the container's own CSS gradient
     // (`.board3d-stage`, src/styles/index.css) around the arena floor's own
     // edges, rather than a solid clear.
     renderer.setClearColor(0x000000, 0);
+    // A stable hook for e2e (board3d.spec.ts) and the "tabletop rink" visual
+    // baseline to find this canvas by, independent of DOM order - unlike the
+    // flat 2D pair, there is exactly one of these and it is the only canvas
+    // mounted while the 3D view is active.
+    renderer.domElement.setAttribute('data-board3d', '');
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -150,6 +166,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const render = () => {
       applyOrbit();
       renderer.render(scene, perspectiveCamera);
+      recordBoard3DFrame();
     };
     renderRef.current = render;
 
@@ -326,6 +343,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       // `renderFrame`'s own doc comment for why this cannot just be
       // `renderRef.current()`.
       renderFrame();
+      markBoard3DActorsBuilt();
     };
 
     void buildActors();

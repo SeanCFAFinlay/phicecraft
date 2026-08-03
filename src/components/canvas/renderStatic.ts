@@ -2,13 +2,12 @@
 // STATIC RINK LAYER
 //
 // Arena, ice, boards and markings. Redrawn only when the viewport, camera,
-// quality, theme, or tabletop view changes - never for a playback frame and
-// never for a pointer move.
+// quality or theme changes - never for a playback frame and never for a
+// pointer move.
 // ============================================================================
 
 import type { Camera } from '@/core/types';
-import { TABLETOP_MIN_TILT } from '@/core/constants';
-import { drawArenaBase, drawArenaWalls, drawRink } from '@/canvas/RinkRenderer';
+import { drawRink } from '@/canvas/RinkRenderer';
 import { cameraMatrix } from '@/utils/geometry';
 
 export interface StaticLayerInput {
@@ -41,17 +40,10 @@ export function drawStaticLayer(ctx: CanvasRenderingContext2D, input: StaticLaye
   // the regulation playing surface.
   ctx.clearRect(0, 0, width, height);
 
-  const tabletop = (camera.tilt ?? 0) > TABLETOP_MIN_TILT;
-
-  if (tabletop) {
-    drawArenaBase(ctx, { camera, dpr });
-    drawArenaWalls(ctx, { camera, dpr }, 'far');
-  }
-
   const matrix = cameraMatrix(camera);
   ctx.save();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
-  drawRink(ctx, { elevated: tabletop });
+  drawRink(ctx);
   ctx.restore();
 }

@@ -159,6 +159,17 @@ test('flat rink, default view', async ({ page }) => {
 test('tabletop rink', async ({ page }) => {
   await openFixture(page);
   await page.getByRole('button', { name: /tabletop 3D view/ }).click();
+  // The tabletop view is now the true-3D presentation (Board3D, Phase 4 Task
+  // 6): a fixed timeout alone races the async GLB load - `framesRendered`
+  // can tick from the bare arena/camera before the actor set (skaters,
+  // goalie, puck) is actually in the scene (see Board3D.tsx's
+  // buildActors/renderFrame ordering note and board3dCounters.ts's header).
+  // Wait on both signals so the capture below is of the fully-populated
+  // scene, not a race-dependent partial one.
+  await page.waitForFunction(() => {
+    const counters = window.__phicecraftBoard3d;
+    return !!counters && counters.framesRendered > 0 && counters.actorsBuilt;
+  });
   await page.waitForTimeout(600);
   await expect(page).toHaveScreenshot('tabletop-rink.png', SHOT_OPTIONS);
 });

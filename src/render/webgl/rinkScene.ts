@@ -1,16 +1,18 @@
 // ============================================================================
 // RINK SCENE — WebGL static scene graph
 //
-// Builds the flat rink ONCE as a Pixi scene graph, mirroring `drawRink`'s
-// non-elevated path (`src/canvas/RinkRenderer.ts`) feature-group by feature-
-// group: ice surface, zone tints, the centre-ice crest, line markings, board
-// fixtures, the boards themselves, and the goals. `WebGLRenderer` re-renders
-// this SAME graph every frame under a camera transform
-// (`container.setFromMatrix`); nothing here is rebuilt per frame.
+// Builds the flat rink ONCE as a Pixi scene graph, mirroring `drawRink`
+// (`src/canvas/RinkRenderer.ts`) feature-group by feature-group: ice surface,
+// zone tints, the centre-ice crest, line markings, board fixtures, the boards
+// themselves, and the goals. `WebGLRenderer` re-renders this SAME graph every
+// frame under a camera transform (`container.setFromMatrix`); nothing here is
+// rebuilt per frame.
 //
-// The tabletop arena (`drawArenaBase` / `drawArenaWalls`, the raised-boards
-// "spin around" view) is NOT ported — see WebGLRenderer's canvasFallback path,
-// which reuses the existing Canvas2D functions for that camera range instead.
+// The old pseudo-3D tabletop arena (raised boards, glass and floor slab,
+// spun around by hand) is gone entirely (Phase 4 Task 6) - this scene runs
+// unconditionally now, for every `camera.tilt`. The true-3D tabletop
+// presentation (`src/render3d/`) is a separate mount, swapped in by AppShell
+// in place of this renderer once tilted; it never touches this scene graph.
 //
 // Deliberately trimmed from the Canvas2D original, since neither is in the
 // brief's enumerated feature groups and both are canvas-only effects with no

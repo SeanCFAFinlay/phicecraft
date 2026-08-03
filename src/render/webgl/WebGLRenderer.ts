@@ -1,100 +1,58 @@
 // ============================================================================
 // WEBGL RENDERER
 //
-// The second BoardRenderer implementation, behind Task 4's experimental
-// toggle. A Pixi renderer per canvas, resized and disposed exactly like
-// Canvas2DRenderer, with no PIXI.Application and no ticker (see Task 4's
-// brief): draws stay synchronous, driven by the same rAF-triggered effects
-// CanvasSurface already runs, so Pixi's own scheduler never gets a chance to
-// fight it.
+// The second BoardRenderer implementation. A Pixi renderer per canvas,
+// resized and disposed exactly like Canvas2DRenderer, with no PIXI.Application
+// and no ticker: draws stay synchronous, driven by the same rAF-triggered
+// effects CanvasSurface already runs, so Pixi's own scheduler never gets a
+// chance to fight it.
 //
-// Static layer (Task 5): the flat rink is a real Pixi scene graph
-// (`rinkScene.ts`), built once and re-rendered every frame under a camera
-// transform (`container.setFromMatrix`) - see `drawStatic` below.
+// Static layer: the flat rink is a real Pixi scene graph (`rinkScene.ts`),
+// built once and re-rendered every frame under a camera transform
+// (`container.setFromMatrix`).
 //
-// Tabletop fallback: the raised-boards "spin around" arena is Canvas2D-only
-// (`rinkScene.ts` never modelled it - see its header) and, once a canvas has
-// been handed a `webgl2` context, it can never yield a `2d` one again, so
-// Canvas2D can never draw straight onto `host.staticCanvas` again either. The
-// brief poses this as a choice between two DOM-level workarounds (swap in a
-// second, hidden pair of `2d` canvases, or swap the whole BoardRenderer
-// instance out for a session). Both would touch CanvasSurface's pointer
-// handlers, which are wired to the specific `dynamicCanvas` element the app
-// mounted (`useCanvasLayers.ts`) - swapping or hiding that element mid-session
-// risks silently detaching gestures from hit-testing, which is exactly the
-// contract this task must not break.
+// Dynamic layer: the game scene (`gameScene.ts`) is built once and updated in
+// place every frame from the same `DynamicLayerInput` the Canvas2D path
+// reads, mirroring its paint order group by group.
 //
-// This renderer instead reuses the pass-through buffer/sprite pipeline Task 4
-// already built (still the dynamic layer's only pipeline, and now also the
-// static layer's tabletop-only one): `drawStaticLayer` - the SAME Canvas2D
-// function `Canvas2DRenderer` calls, `elevated` arena and all - draws onto the
-// buffer canvas, which was never locked to any context and is happy to stay
-// `2d` forever; its pixels are uploaded to the GPU as a texture and blitted
-// onto the real, permanently-`webgl2` canvas by Pixi. No DOM node changes
-// identity, so every pointer handler keeps pointing at the same element it
-// always has. The flat rink (the common case) still renders as a native Pixi
-// scene; only the tabletop range of `camera.tilt` takes this path.
+// Phase 4 Task 6 removed the tabletop pseudo-3D pass entirely (the raised-
+// boards "spin around" arena that used to live behind `camera.tilt` on this
+// same static/dynamic pair, rendered via a Canvas2D pass-through buffer
+// blitted onto the canvas as a texture): true 3D (`src/render3d/Board3D.tsx`)
+// is now the unconditional tabletop presentation, mounted by AppShell instead
+// of this renderer once tilted. `drawStatic`/`drawDynamic` below are
+// therefore unconditionally Pixi - camera.tilt never routes anywhere else.
 // ============================================================================
 
-import { WebGLRenderer as PixiWebGLRenderer, Sprite, Texture, Matrix, type Container } from 'pixi.js';
+import { WebGLRenderer as PixiWebGLRenderer, Matrix, type Container } from 'pixi.js';
 import type { BoardRenderer, RendererHost } from '@/render/BoardRenderer';
-import { drawStaticLayer, staticLayerKey, type StaticLayerInput } from '@/components/canvas/renderStatic';
-import { drawDynamicLayer, type DynamicLayerInput } from '@/components/canvas/renderDynamic';
-import { TABLETOP_MIN_TILT } from '@/core/constants';
+import { staticLayerKey, type StaticLayerInput } from '@/components/canvas/renderStatic';
+import type { DynamicLayerInput } from '@/components/canvas/renderDynamic';
 import { cameraMatrix } from '@/utils/geometry';
 import { buildRinkScene } from './rinkScene';
 import { buildGameScene, destroyGameScene, updateGameScene, type GameScene } from './gameScene';
 
 /**
- * Whether `camera` is in the tabletop range that both layers must route to
- * the Canvas2D pass-through pipeline instead of their own Pixi scene.
- *
- * Hoisted so `drawStatic` and `drawDynamic` can never disagree (review
- * finding, deferred from Task 5): before this, `drawStatic` derived
- * `tilt > TABLETOP_MIN_TILT` inline and `drawDynamic` had no equivalent
- * check at all - a renderer whose two layers picked different pipelines for
- * the same frame (one Pixi, one Canvas2D-blitted) would be a real, visible
- * inconsistency, not just a style nit.
+ * `preserveDrawingBuffer` (review finding, carried forward from Task 5):
+ * without it, WebGL is free to clear the drawing buffer after the browser
+ * composites a frame. There is no ticker here (draws are synchronous, driven
+ * only by actual camera/key changes - see the file header), so the STATIC
+ * layer in particular can sit for a long time between `render()` calls;
+ * without this flag the browser's next composite would show a blank canvas
+ * even though nothing was ever told to clear it. The DYNAMIC layer has no
+ * such gap - it repaints on every playback frame and every authoring change
+ * up to 60x/s (see BoardRenderer.ts) - so it pays preservation's real
+ * per-frame cost (the driver keeps last frame's buffer around instead of
+ * discarding it) for no benefit; only the static layer opts in.
  */
-function canvasFallback(camera: StaticLayerInput['camera']): boolean {
-  return (camera.tilt ?? 0) > TABLETOP_MIN_TILT;
-}
-
-interface PassThroughLayer {
-  renderer: PixiWebGLRenderer;
-  /**
-   * Never attached to the DOM. The pure Canvas2D draw functions target this
-   * buffer; its pixels are what the sprite below uploads to the GPU.
-   */
-  buffer: HTMLCanvasElement;
-  bufferCtx: CanvasRenderingContext2D;
-  sprite: Sprite;
-}
-
-async function buildLayer(canvas: HTMLCanvasElement, preserveDrawingBuffer: boolean): Promise<PassThroughLayer> {
-  const buffer = document.createElement('canvas');
-  buffer.width = canvas.width || 1;
-  buffer.height = canvas.height || 1;
-  const bufferCtx = buffer.getContext('2d');
-  if (!bufferCtx) {
-    throw new Error('2d context unavailable for the WebGL renderer pass-through buffer');
-  }
-
+async function buildRenderer(
+  canvas: HTMLCanvasElement,
+  preserveDrawingBuffer: boolean
+): Promise<PixiWebGLRenderer> {
   const renderer = new PixiWebGLRenderer();
-  // resolution 1: the buffer is resized to the exact device-pixel dimensions
-  // Canvas2DRenderer would use, so nothing here needs its own DPR scaling.
-  //
-  // preserveDrawingBuffer (review finding, deferred from Task 5): without it,
-  // WebGL is free to clear the drawing buffer after the browser composites a
-  // frame. There is no ticker here (draws are synchronous, driven only by
-  // actual camera/key changes - see the file header), so the STATIC layer in
-  // particular can sit for a long time between `render()` calls; without this
-  // flag the browser's next composite would show a blank canvas even though
-  // nothing was ever told to clear it. The DYNAMIC layer has no such gap - it
-  // repaints on every playback frame and every authoring change up to 60x/s
-  // (see BoardRenderer.ts) - so it pays preservation's real per-frame cost
-  // (the driver keeps last frame's buffer around instead of discarding it)
-  // for no benefit; only the static layer opts in.
+  // resolution 1: the canvas is resized to the exact device-pixel dimensions
+  // Canvas2DRenderer would use (see `resize` below), so nothing here needs
+  // its own DPR scaling.
   await renderer.init({
     canvas,
     backgroundAlpha: 0,
@@ -102,20 +60,18 @@ async function buildLayer(canvas: HTMLCanvasElement, preserveDrawingBuffer: bool
     resolution: 1,
     preserveDrawingBuffer,
   });
-
-  const sprite = new Sprite(Texture.from(buffer));
-  return { renderer, buffer, bufferCtx, sprite };
+  return renderer;
 }
 
 export class WebGLRenderer implements BoardRenderer {
   readonly kind = 'webgl' as const;
 
   private lastStaticKey = '';
-  private staticLayer: PassThroughLayer | null = null;
-  private dynamicLayer: PassThroughLayer | null = null;
-  /** Built once; re-rendered every frame under the camera transform. Tabletop frames bypass it entirely. */
+  private staticRenderer: PixiWebGLRenderer | null = null;
+  private dynamicRenderer: PixiWebGLRenderer | null = null;
+  /** Built once; re-rendered every frame under the camera transform. */
   private readonly rinkScene: Container = buildRinkScene();
-  /** Built once; updated in place every frame (Task 6). Tabletop frames bypass it entirely, same as `rinkScene`. */
+  /** Built once; updated in place every frame. */
   private readonly gameScene: GameScene = buildGameScene();
   private readonly readyPromise: Promise<void>;
 
@@ -136,12 +92,12 @@ export class WebGLRenderer implements BoardRenderer {
     // holds the host, can detect that and warn accurately instead of
     // silently handing the coach a Canvas2DRenderer that can't draw it.
     const [staticResult, dynamicResult] = await Promise.allSettled([
-      buildLayer(this.host.staticCanvas, true),
-      buildLayer(this.host.dynamicCanvas, false),
+      buildRenderer(this.host.staticCanvas, true),
+      buildRenderer(this.host.dynamicCanvas, false),
     ]);
 
-    if (staticResult.status === 'fulfilled') this.staticLayer = staticResult.value;
-    if (dynamicResult.status === 'fulfilled') this.dynamicLayer = dynamicResult.value;
+    if (staticResult.status === 'fulfilled') this.staticRenderer = staticResult.value;
+    if (dynamicResult.status === 'fulfilled') this.dynamicRenderer = dynamicResult.value;
 
     if (staticResult.status === 'rejected' || dynamicResult.status === 'rejected') {
       this.dispose();
@@ -163,69 +119,47 @@ export class WebGLRenderer implements BoardRenderer {
   }
 
   drawStatic(input: StaticLayerInput): void {
-    const layer = this.staticLayer;
-    if (!layer) return;
+    const renderer = this.staticRenderer;
+    if (!renderer) return;
 
     const key = staticLayerKey(input);
     if (key === this.lastStaticKey) return;
     this.lastStaticKey = key;
 
-    if (canvasFallback(input.camera)) {
-      // Tabletop: canvasFallback path (see file header) - the exact same
-      // Canvas2D draw Canvas2DRenderer would do, blitted onto the real,
-      // permanently-webgl2 canvas via the pass-through buffer/sprite.
-      drawStaticLayer(layer.bufferCtx, input);
-      layer.sprite.texture.source.update();
-      layer.renderer.render(layer.sprite);
-    } else {
-      const m = cameraMatrix(input.camera);
-      this.rinkScene.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.e, m.f));
-      layer.renderer.render(this.rinkScene);
-    }
+    const m = cameraMatrix(input.camera);
+    this.rinkScene.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.e, m.f));
+    renderer.render(this.rinkScene);
     this.host.onPaint('static');
   }
 
   drawDynamic(input: DynamicLayerInput): void {
-    const layer = this.dynamicLayer;
-    if (!layer) return;
+    const renderer = this.dynamicRenderer;
+    if (!renderer) return;
 
-    if (canvasFallback(input.camera)) {
-      // Tabletop: same pass-through pipeline as drawStatic, and gated by the
-      // SAME shared `canvasFallback` predicate - the two layers can never
-      // pick different pipelines for the same frame (deferred review finding
-      // from Task 5).
-      drawDynamicLayer(layer.bufferCtx, input);
-      layer.sprite.texture.source.update();
-      layer.renderer.render(layer.sprite);
-    } else {
-      updateGameScene(this.gameScene, input);
-      const m = cameraMatrix(input.camera);
-      this.gameScene.root.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.e, m.f));
-      layer.renderer.render(this.gameScene.root);
-    }
+    updateGameScene(this.gameScene, input);
+    const m = cameraMatrix(input.camera);
+    this.gameScene.root.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.e, m.f));
+    renderer.render(this.gameScene.root);
     this.host.onPaint('dynamic');
   }
 
   resize(width: number, height: number, dpr: number): void {
-    for (const [canvas, layer] of [
-      [this.host.staticCanvas, this.staticLayer],
-      [this.host.dynamicCanvas, this.dynamicLayer],
+    for (const [canvas, renderer] of [
+      [this.host.staticCanvas, this.staticRenderer],
+      [this.host.dynamicCanvas, this.dynamicRenderer],
     ] as const) {
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
-      if (!layer) continue;
-      // Both the real (webgl2) canvas and the pass-through buffer are kept at
-      // the same device-pixel size Canvas2DRenderer would use.
-      layer.renderer.resize(width, height, dpr);
-      layer.sprite.texture.source.resize(width, height, dpr);
+      if (!renderer) continue;
+      renderer.resize(width, height, dpr);
     }
   }
 
   dispose(): void {
-    this.staticLayer?.renderer.destroy();
-    this.dynamicLayer?.renderer.destroy();
-    this.staticLayer = null;
-    this.dynamicLayer = null;
+    this.staticRenderer?.destroy();
+    this.dynamicRenderer?.destroy();
+    this.staticRenderer = null;
+    this.dynamicRenderer = null;
     this.rinkScene.destroy({ children: true });
     destroyGameScene(this.gameScene);
   }

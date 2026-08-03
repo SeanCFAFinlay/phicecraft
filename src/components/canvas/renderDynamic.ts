@@ -19,10 +19,9 @@ import type {
 } from '@/core/types';
 import { jerseyColor } from '@/core/types';
 import type { GhostTrailsSource } from '@/playback/playbackFrame';
-import { RINK, TABLETOP_MIN_TILT } from '@/core/constants';
-import { drawArenaWalls } from '@/canvas/RinkRenderer';
-import { drawArenaPlayers, drawPlayers } from '@/canvas/PlayerRenderer';
-import { drawArenaCoaches, drawCoachTopDown } from '@/canvas/CoachRenderer';
+import { RINK } from '@/core/constants';
+import { drawPlayers } from '@/canvas/PlayerRenderer';
+import { drawCoachTopDown } from '@/canvas/CoachRenderer';
 import { drawMechanicsDiagnostics } from '@/canvas/DiagnosticsRenderer';
 import {
   drawAnimatedPuck,
@@ -127,7 +126,6 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
 
-  const tabletop = (camera.tilt ?? 0) > TABLETOP_MIN_TILT;
   const matrix = cameraMatrix(camera);
   const coaches: CoachMarker[] = drill.coaches ?? [];
 
@@ -135,11 +133,7 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
 
-  // Coaches sit on the ice under the play. In the tabletop view they stand up
-  // as pieces (drawn later, in screen space); here they are the flat marker.
-  if (!tabletop) {
-    for (const coach of coaches) drawCoachTopDown(ctx, coach, false);
-  }
+  for (const coach of coaches) drawCoachTopDown(ctx, coach, false);
 
   // While playing or scrubbing, players render at their interpolated
   // positions. The drill itself is never touched.
@@ -215,15 +209,14 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
       home: jerseyColor('home', drill.settings),
       away: jerseyColor('away', drill.settings),
     },
-    // The board turns to fit an upright phone; the numbers must not turn with
-    // it. In the tabletop the pieces are drawn in screen space anyway.
-    screenRotation: tabletop ? 0 : camera.rotation ?? 0,
+    // The board turns to fit an upright phone; the numbers must not turn with it.
+    screenRotation: camera.rotation ?? 0,
   };
 
   // Dim before the players are drawn, light after, so the ring sits on top of
   // the token rather than under the fade.
   const passCandidates = input.passCandidates;
-  if (!tabletop && passCandidates) {
+  if (passCandidates) {
     drawDimmedPlayers(
       ctx,
       players,
@@ -232,11 +225,9 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
     );
   }
 
-  if (!tabletop) {
-    drawPlayers(ctx, players, drill.events, playerOptions);
-  }
+  drawPlayers(ctx, players, drill.events, playerOptions);
 
-  if (!tabletop && passCandidates) {
+  if (passCandidates) {
     drawPassCandidates(
       ctx,
       passCandidates.candidates,
@@ -267,17 +258,6 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   }
 
   ctx.restore();
-
-  if (tabletop) {
-    const jerseys = {
-      home: jerseyColor('home', drill.settings),
-      away: jerseyColor('away', drill.settings),
-    };
-    drawArenaPlayers(ctx, { camera, dpr }, players, drill.events, playerOptions, jerseys);
-    drawArenaCoaches(ctx, { camera, dpr }, coaches, null);
-    // Near boards/glass sit in front of the skaters closest to the camera.
-    drawArenaWalls(ctx, { camera, dpr }, 'near');
-  }
 
   void width;
   void height;

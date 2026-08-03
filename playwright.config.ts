@@ -32,7 +32,7 @@ export const VIEWPORTS = {
 // handful of scattered, non-reproducing-in-isolation failures across
 // different projects (flows, puck-actions, line-shapes, viewport-*) on
 // consecutive full runs, the same class already documented for
-// `visual-webgl-shell`/`webgl-tabletop`'s own `--workers=1` invocations.
+// `visual-webgl-shell`/`board3d`'s own `--workers=1` invocations.
 // Capping local workers to match CI's own cap eliminated it across repeated
 // full-matrix runs. `RENDERER=canvas2d` runs are exempt: Canvas2D never opens
 // a GPU context, so there is nothing to contend over and no reason to give up
@@ -159,14 +159,16 @@ export default defineConfig({
       snapshotPathTemplate: `e2e/__screenshots__/{projectName}/{arg}{ext}`,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
     },
-    // The binding "tabletop MUST still work with the GPU toggle on"
-    // requirement (Phase 3 Task 5, review round 1) - a real Chromium tab with
-    // `?renderer=webgl`, no screenshot baseline. Grouped with the other
-    // functional projects (not the visual ones): it asserts on paint counters
-    // and pixel content, not on layout pixels that drift per platform.
+    // True 3D is the unconditional tabletop presentation (Phase 4 Task 6) -
+    // a real Chromium tab, no screenshot baseline (that's visual.spec.ts's
+    // 'tabletop rink' scenario). Grouped with the other functional projects,
+    // not the visual ones: it asserts on the Board3D mount/unmount contract,
+    // its own readiness counters and pixel content, not on layout pixels that
+    // drift per platform. Same real-GPU-context rationale as the pseudo-3D
+    // project this replaces: run with its own `--workers=1` invocation.
     {
-      name: 'webgl-tabletop',
-      testMatch: /webglTabletop\.spec\.ts/,
+      name: 'board3d',
+      testMatch: /board3d\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] },
     },
     {

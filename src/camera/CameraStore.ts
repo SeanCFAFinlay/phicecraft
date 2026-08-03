@@ -9,7 +9,7 @@
 // ============================================================================
 
 import type { Camera } from '@/core/types';
-import { DEFAULT_CAMERA } from '@/core/constants';
+import { DEFAULT_CAMERA, TABLETOP_MIN_TILT } from '@/core/constants';
 import {
   autoBoardRotation,
   BOARD_ROTATION_HORIZONTAL,
@@ -112,7 +112,7 @@ export class CameraStore {
 
   /** True while the board is tilted into the tabletop view. */
   private isTabletop(camera: Camera): boolean {
-    return (camera.tilt ?? 0) > 0.01;
+    return (camera.tilt ?? 0) > TABLETOP_MIN_TILT;
   }
 
   /**

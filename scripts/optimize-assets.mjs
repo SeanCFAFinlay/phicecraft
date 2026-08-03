@@ -36,16 +36,6 @@ const TARGETS = [
     budgetBytes: 50 * 1024,
   },
   {
-    source: 'arena-overhead.png',
-    output: 'arena-overhead.webp',
-    // A full-bleed CSS background behind a dark scrim; 1600px wide is past
-    // the point where more resolution is visible through the overlay.
-    resize: { width: 1600, withoutEnlargement: true },
-    format: 'webp',
-    options: { quality: 72, effort: 6 },
-    budgetBytes: 350 * 1024,
-  },
-  {
     source: 'hockey-sprite-atlas.png',
     output: 'hockey-sprite-atlas.webp',
     // Sprites are drawn at roughly 1:1; halving the atlas would soften them,
