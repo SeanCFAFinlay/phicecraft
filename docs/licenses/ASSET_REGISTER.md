@@ -31,6 +31,7 @@ there has been resolved.
 | Asset | Origin | Licence | Status |
 |---|---|---|---|
 | Toolbar and sheet icons | First-party SVG (`src/ui/icons.tsx`) | Owned | ✅ Clear. Previously Unicode emoji, which render differently per operating system, carry no consistent optical weight and cannot inherit the interface's own colour. |
+| App icon / favicon (`public/hockey-icon.svg`) | First-party SVG, hand-authored (a rink oval, centre line and faceoff dot) | Owned | ✅ Clear. Referenced by `index.html`'s `<link rel="icon">` and both icon entries in `public/manifest.webmanifest` (`any` and `maskable`) — the same file serves the browser tab and the installed PWA icon. |
 | Typography | System font stack | N/A | ✅ Clear |
 
 ## Drill content

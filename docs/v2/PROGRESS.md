@@ -392,17 +392,216 @@ regression:**
 
 ---
 
-## Phase 4 — True 3D presentation ⛔ blocked on assets
+## Phase 4 — True 3D presentation ✅ done
 
-The renderer, the animation-state mapping from sampled mechanics, the quality
-tiers and the 2D fallback are all codeable here. **The models are not.** The
-spec requires licensed GLB skater and goalie models with hockey equipment
-silhouettes and roughly thirteen animation clips. Those have to be bought,
-commissioned or authored in a DCC tool; they cannot be produced from this
-environment.
+The original blocker stood on a real constraint: the spec called for
+**licensed** GLB skater and goalie models with hockey-equipment silhouettes and
+roughly thirteen animation clips, and licensed/commissioned assets cannot be
+produced from this environment. What shipped instead is a **deliberate
+descope, made by the human owner on 2026-08-03**: first-party models,
+authored by the project owner in Blender rather than bought or licensed, with
+**two** animation clips (`skate`, `goalie_idle`) plus procedural
+heading/timeScale in place of the other eleven. Nothing here is a workaround
+standing in for the spec's asset count — it is a smaller, owned asset set the
+renderer was built to use honestly, with the pipeline's own extension point
+named below so a future clip is additive, not a rewrite.
 
-Recommended split: build the renderer against a placeholder rig, and treat model
-procurement as a parallel track with its own budget.
+### Model provenance
+
+`public/assets/models/hockey_player.glb` (skater, `skate` clip) and
+`hockey_goalie.glb` (goalie, `goalie_idle` clip) are rigged, single-skin
+glTF 2.0 binaries with eight solid-colour materials (jersey/accent/pants/
+skin/white/dark/steel/stick) — no third-party textures, no purchased or
+scraped geometry. Both were authored in Blender by the project owner; the
+`.blend` sources live in `assets-src/models/` (`hockey_player.blend`,
+`hockey_goalie.blend`), outside `public/` so they are never shipped.
+`docs/licenses/ASSET_REGISTER.md`'s "3D assets" table carries both rows as
+Owned/Clear.
+
+### The bake pipeline
+
+`scripts/bake-sprites.mjs` regenerates the 2D board's sprite atlas from these
+SAME two GLBs, rather than from a separately-maintained photographic source.
+It launches a headless Playwright Chromium tab, serves three.js + the
+GLTFLoader addon + the two GLBs from a virtual `https://bake.local/` origin
+(no real network involved), tints each model's `jersey`/`accent` materials
+per team, poses it at a fixed clip-sample time, frames it with an
+orthographic top-down camera and renders a transparent PNG — once per
+(model, team) pair, four renders in total. `sharp` then composites each
+render into `assets-src/hockey-sprite-atlas.png` at the exact region rect and
+anchor pixel `HOCKEY_SPRITES` (`src/canvas/HockeySpriteAtlas.ts`) already
+defines, so the atlas **contract stays byte-identical** and no consumer
+(`SkaterRenderer`/`GoalieRenderer`, `spriteAtlas.ts`) needed to change. Every
+input to a render (sample time, lights, camera, tint hex) is a fixed literal,
+and the script has its own `--verify-determinism` mode that runs the full
+pipeline twice and asserts the two atlases are byte-identical. Run
+`node scripts/bake-sprites.mjs` after a model edit, then
+`npm run assets:optimize` to regenerate the shipped webp.
+
+### Board3D architecture
+
+`src/render3d/Board3D.tsx` is the presentation: a real `THREE.WebGLRenderer`
+mounted only while the tabletop tilt is engaged, built from the same
+`PlaybackFrame` stream the 2D board already reads.
+
+- **Frame stream, not wall-clock**: `resolveMixerDelta` (`scene/actors.ts`)
+  derives each `AnimationMixer.update(dt)` call from the playback PROGRESS
+  delta × clip duration, not real time — so scrubbing the timeline moves a
+  skater's stride exactly as far as playing it would, in either direction. A
+  loop-wrap jump (progress resetting from ~1 back to ~0) is detected and
+  reported as `dt = 0` rather than spinning the rig through most of the clip
+  in one frame.
+- **Camera mapping**: `orbitFromCamera` (`src/render3d/orbit.ts`) turns the
+  2D tabletop camera (rotation/tilt/zoom — still the one CameraStore the flat
+  and 3D views share) into azimuth/polar/distance/target for the three.js
+  orbit camera. The target is **not** a naive `rinkToWorld(camera.x,
+  camera.y)` — `camera.x`/`camera.y` are the translation terms of the 2D
+  affine `cameraMatrix`, a screen-pixel-space quantity, not a rink point.
+  The real fix (carried forward from Task 3 into Task 4) inverts that affine
+  properly: `screenToWorld(viewport.width / 2, viewport.height / 2, camera)`
+  recovers the rink point currently sitting at screen centre, and orbiting
+  around `rinkToWorld` of THAT point keeps a 2D pan → tilt-into-3D
+  transition visually continuous.
+- **Quality tiers**: `buildArena`'s boards/lights (`scene/buildArena.ts`)
+  cast/receive shadows only at `quality === 'high'` (a 2048×2048 shadow map
+  at that tier, none below it) — the same tier `useCanvasLayers.ts` computes
+  for the 2D renderer. The DPR cap (`Math.min(devicePixelRatio, 2)`) matches
+  the 2D canvas path's own cap.
+  - `Board3DProps.quality` still defaults to `'high'` rather than reading the
+    live 2D tier — a known, disclosed gap from Task 4/5, not closed by this
+    task (out of Task 7's scope; noted again under Concerns in the Task 7
+    report).
+- **Chunk preload before the tilt animates**: entering 3D loads Board3D's
+  lazy chunk (three.js + its GLB models, ~640 KB minified) and **awaits** it
+  in `ViewControls.tsx`'s `toggle3D` *before* animating `camera.tilt` past
+  `TABLETOP_MIN_TILT`. Tilt alone is what flips `AppShell`'s `is3D` and
+  swaps `CanvasSurface` for `<Suspense><Board3D/></Suspense>` — animating the
+  tilt first would open a real window, the length of the chunk fetch, where
+  the flat board has already unmounted and Board3D's Suspense fallback
+  (itself a fresh `CanvasSurface`) would render at an already-past-threshold
+  tilt. Awaiting first means the chunk is already resolved by the time
+  `is3D` can go true, so that fallback is never actually reached on a real
+  tilt-in.
+- **Two-effect lifecycle**: the renderer/arena/camera effect runs once per
+  mount; a second effect owns the actor set (skaters, goalies, coach
+  markers, the puck) and rebuilds it whenever the drill's identity changes,
+  repainting synchronously on every playback frame without re-subscribing to
+  the frame stream on every edit.
+
+### Animation: two clips shipped, the extension point named
+
+Every actor resolves its clip through `findClip` in `scene/actors.ts`:
+`clipName = kind === 'goalie' ? 'goalie_idle' : 'skate'`, looked up via
+`THREE.AnimationClip.findByName(animations, name)`. A skater's `skate` clip
+is time-scaled from sampled speed (`skateTimeScale`, clamped 0.2×–2.5× against
+a `REFERENCE_SKATE_SPEED` of 120 rink-units/second) and freezes to a fixed
+athletic-stance pose fraction below `SKATE_FREEZE_SPEED` rather than
+crawling in slow motion; a goalie's `goalie_idle` always plays at 1×.
+Heading comes from `headingToYaw(frame.heading)`, procedural rather than a
+clip. **The pipeline accepts more clips later with no restructuring**: a new
+named clip in the same GLB, referenced by name, is picked up by `findClip`
+the moment `clipName` (or a richer per-action clip table replacing today's
+two-way conditional) resolves to it — nothing about the mixer, the dt
+derivation or the actor lifecycle changes. The eleven clips the original spec
+asked for (stride variations, stops, pivots, goalie saves, etc.) remain
+descoped, by the same 2026-08-03 decision, not by a technical limitation of
+this extension point.
+
+### The pseudo-3D pass: deleted, not degraded
+
+Before this phase, tilting the tabletop past `TABLETOP_MIN_TILT` rendered a
+Canvas2D/PixiJS "pseudo-3D" pass: `RinkRenderer.ts`'s raised-boards arena
+(`drawArenaBase`/`drawArenaWalls`, the `elevated` `drawRink` branch),
+`PlayerRenderer.ts`/`CoachRenderer.ts`'s standing-piece renderers
+(`drawArenaPlayers`/`drawStandingPlayer`/`drawArenaCoaches`), and
+`WebGLRenderer.ts`'s canvas-blit fallback that let the GPU path share that
+same 2D pass. All of it — over 650 lines across those files — is deleted.
+`drawStaticLayer`/`drawDynamicLayer` are now unconditionally the flat draw at
+every tilt; `WebGLRenderer.drawStatic`/`drawDynamic` are unconditionally the
+Pixi path. The tabletop toggle's behavior changed atomically, in one task,
+from "flip to a flatter, hand-drawn approximation of depth" to "flip to
+Board3D, a real three.js scene" — there was never a session where the
+tabletop showed neither. The one asset that pass depended on,
+`arena-overhead.webp` (unknown-provenance photographic backdrop) and its
+`assets-src/arena-overhead.png` source, is deleted with it; `.arena-stage`'s
+CSS background is now a first-party gradient
+(`radial-gradient(120% 90% at 50% 12%, #2b3a4d 0%, #16202c 58%, #0d141d
+100%)`). The gesture code that only ever served the deleted pass (`'orbit'`
+as a `Gesture` variant, its handling in `GestureStateMachine.ts`,
+`CanvasSurface`'s `isTabletop` gesture-context field) was confirmed
+unreachable and deleted alongside it.
+
+### Budget
+
+The lazy three.js chunk (Board3D + three + the GLTFLoader/SkeletonUtils
+addons) raised the JS budget baseline once, in Task 3, from a real
+`npm run build`: **1,066,885 → 1,554,130 bytes** (CSS 29,401 → 29,536),
+recorded in `scripts/budget-baseline.json` with that reasoning in the file's
+own `note` field. As with the two Phase 3 raises before it, the budget check
+sums every chunk, so the total rose even though the chunk is lazy — it is
+only fetched once a coach actually taps into the 3D view. No further raise
+was needed for Tasks 4–7: Task 6's deletions net-*reduced* JS/CSS (the
+pseudo-3D pass removed), and this task (7) made no renderer changes at all.
+A real `npm run build && npm run check:budgets` run at the end of this task
+measured **production JS 1,691,356 bytes / CSS 29,253 bytes** — under the
+15%-over-baseline budget-check threshold with margin, and CSS is actually
+*below* the recorded baseline.
+
+### The asset register: blocker-free, verified by a real file walk
+
+`docs/licenses/ASSET_REGISTER.md` states "complete" with an empty Open
+Blockers list. Task 7 re-walked every file actually shipped under `public/`
+against the register (see the Task 7 report for the full audit) and found
+one real gap: **`public/hockey-icon.svg`** — the app's favicon and PWA icon
+(referenced from both `index.html`'s `<link rel="icon">` and
+`manifest.webmanifest`'s two icon entries) — had no register row. Fixed in
+this task by adding it to the "Icons and type" table (first-party,
+hand-authored, Owned/Clear). Every other shipped file under `public/`
+(`hockey-sprite-atlas.webp`, the two `.glb` models, `ph-logo.webp`,
+`manifest.webmanifest`, `sw.js`) already had accurate coverage or is
+first-party code/config outside the register's declared scope (images,
+textures, icons, fonts, sounds, 3D models, drill content).
+
+### Stills
+
+Three real screenshots of the true-3D view, captured with Playwright against
+a production build, waiting on Board3D's own readiness signals
+(`window.__phicecraftBoard3d`: `framesRendered > 0 && actorsBuilt`) rather
+than a fixed delay, live in `docs/v2/phase4-3d-stills/`:
+
+- [`01-flat-entry-tilt-in.png`](phase4-3d-stills/01-flat-entry-tilt-in.png) —
+  full-ice framing, immediately after tilting in from the flat board, before
+  playback starts.
+- [`02-mid-playback.png`](phase4-3d-stills/02-mid-playback.png) — mid-run,
+  players spread across the ice, mid-stride.
+- [`03-goalie-close-up.png`](phase4-3d-stills/03-goalie-close-up.png) — the
+  defensive-zone framing (`camera.zoomToZone('defensive')`, applied in 2D
+  before re-entering 3D so the orbit target lands there), close on the
+  goalie's end.
+
+### Full gate matrix (Task 7, real runs)
+
+| Gate | Result |
+|---|---|
+| `npm run typecheck` | Clean |
+| `npm run lint` (`--max-warnings 0`) | Clean |
+| `npm test` | **1515/1515** passed, 63 files |
+| `npm run build && npm run check:budgets` | Build succeeds; all budgets pass — runtime images 48.6 KiB (budget 1 MiB), logo 4.0 KiB (budget 50 KiB), production JS 1,691,356 B, production CSS 29,253 B |
+| `npm run test:e2e` (default, WebGL) | **166/166** passed (165 functional + `board3d`) |
+| `RENDERER=canvas2d npm run test:e2e` | **166/166** passed (165 functional + `board3d`) — the first attempt at the functional matrix crashed 51 tests with `worker process exited unexpectedly` under this box's default full-parallel worker count for Canvas2D (the same class of environmental Chromium resource contention already documented for Phase 3's WebGL runs); re-run with `--workers=2` passed clean, 165/165 + 1/1 |
+| `npm run test:visual` (all four projects) | **48/48** passed (36 Canvas2D-side + 12 WebGL-side) |
+| perf project, both renderers | WebGL: `react=104 dynamicPaints=487 rafTicks=513 ratio=0.949`; Canvas2D: `react=103 dynamicPaints=150 rafTicks=180 ratio=0.833` — both inside this suite's own thresholds (`react ≤ 130`, `ratio > 0.6`); route-drag/player-drag/pan/DPR assertions identical between renderers (120/2, 60, 15, DPR 2) |
+
+### What remains descoped
+
+The ~13-clip animation set the original spec called for (stride variants,
+stops, pivots, crossovers, goalie saves/pushes, etc.) beyond the two shipped
+(`skate`, `goalie_idle`) — a deliberate, human-made descope (2026-08-03), not
+a gap in the renderer. Equipment silhouettes on the models. Live quality-tier
+wiring for Board3D (still a fixed `'high'` prop rather than reading
+`useCanvasLayers.ts`'s computed tier). `ARENA`/`ARENA_ADS` orphaned constants
+and dead `.arena-stage` CSS rules from the deletion (confirmed inert,
+cheap follow-up, not done here).
 
 ---
 
@@ -535,6 +734,13 @@ Stated so no acceptance criterion is silently marked green:
 
 - **Real-device testing** on iPhone-class, compact 320px, tablet and mid-range
   Android hardware. Playwright viewport emulation is not the same claim.
-- **3D memory, load time and frame rate on actual phones.**
-- **Any 3D asset production.**
+- **3D memory, load time and frame rate on actual phones.** Phase 4's Board3D
+  gate matrix runs headless-Chromium-only (this environment cannot drive real
+  GPU hardware); the perf numbers recorded there are a same-machine
+  Canvas2D/WebGL comparison, not a device benchmark.
+- **Further 3D asset production** (equipment silhouettes, the ~13-clip
+  animation set beyond the two shipped). The two GLB models and their two
+  clips that DID ship (Phase 4) were authored by the project owner in
+  Blender, outside this environment, then committed to the repo — this
+  environment still cannot itself model, rig or animate a 3D asset.
 - **Cloud sync**, which needs a backend that does not exist.
