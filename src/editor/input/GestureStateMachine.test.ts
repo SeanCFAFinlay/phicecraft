@@ -129,7 +129,6 @@ beforeEach(() => {
   context = {
     camera: { ...DEFAULT_CAMERA },
     isPlaying: false,
-    isTabletop: false,
     holdToMoveEnabled: true,
     selectedId: null,
     armedMovePlayerId: null,
@@ -509,7 +508,7 @@ describe('camera gestures on empty ice', () => {
     expect(handlers.onPanOrOrbit).toHaveBeenCalled();
   });
 
-  it('pans when flat', () => {
+  it('pans on a drag over empty ice', () => {
     const machine = build();
     machine.pointerDown(touch(1, 100, 100));
     machine.pointerMove(touch(1, 150, 130));
@@ -518,17 +517,6 @@ describe('camera gestures on empty ice', () => {
     expect(handlers.onPanOrOrbit).toHaveBeenCalledWith(
       expect.objectContaining({ x: DEFAULT_CAMERA.x + 50, y: DEFAULT_CAMERA.y + 30 })
     );
-  });
-
-  it('orbits when the tabletop is tilted', () => {
-    context.isTabletop = true;
-    const machine = build();
-    machine.pointerDown(touch(1, 100, 100));
-    machine.pointerMove(touch(1, 200, 100));
-    scheduler.flushFrames();
-
-    const camera = handlers.onPanOrOrbit.mock.calls.at(-1)![0];
-    expect(camera.rotation).toBeCloseTo(0.6, 5);
   });
 });
 

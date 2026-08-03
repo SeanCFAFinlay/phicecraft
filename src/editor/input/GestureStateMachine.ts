@@ -8,7 +8,7 @@
 // ============================================================================
 
 import type { Camera, ID, Point } from '@/core/types';
-import { HOLD_DURATION, MOVE_THRESHOLD, TABLETOP_MAX_TILT } from '@/core/constants';
+import { HOLD_DURATION, MOVE_THRESHOLD } from '@/core/constants';
 import { distance } from '@/utils/geometry';
 import { PointerRegistry } from './PointerRegistry';
 import type {
@@ -148,7 +148,7 @@ export class GestureStateMachine {
       return;
     }
 
-    if (this.gesture.kind === 'pan' || this.gesture.kind === 'orbit') {
+    if (this.gesture.kind === 'pan') {
       this.pendingMove = sample.position;
       this.requestFrame();
       return;
@@ -224,7 +224,6 @@ export class GestureStateMachine {
         break;
 
       case 'pan':
-      case 'orbit':
       case 'idle':
         break;
     }
@@ -298,10 +297,9 @@ export class GestureStateMachine {
 
     switch (target.kind) {
       case 'empty':
-        // Only now is this a camera gesture: flat ice pans, a tilted
-        // tabletop orbits.
+        // Only now is this a camera gesture: a drag on empty ice pans.
         this.gesture = {
-          kind: context.isTabletop ? 'orbit' : 'pan',
+          kind: 'pan',
           startPointer: origin,
           startCamera: { ...context.camera },
         };
@@ -442,17 +440,6 @@ export class GestureStateMachine {
           y: gesture.startCamera.y + (position.y - gesture.startPointer.y),
         });
         return;
-
-      case 'orbit': {
-        const dx = position.x - gesture.startPointer.x;
-        const dy = position.y - gesture.startPointer.y;
-        handlers.onPanOrOrbit({
-          ...gesture.startCamera,
-          rotation: (gesture.startCamera.rotation ?? 0) + dx * 0.006,
-          tilt: Math.max(0, Math.min(TABLETOP_MAX_TILT, (gesture.startCamera.tilt ?? 0) - dy * 0.005)),
-        });
-        return;
-      }
 
       case 'move-player':
         handlers.onPlayerMove(gesture.playerId, hitTester.toWorld(position));

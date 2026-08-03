@@ -14,6 +14,7 @@ import {
   MIN_ZOOM,
   RINK,
   TABLETOP_MAX_TILT,
+  TABLETOP_MIN_TILT,
 } from '@/core/constants';
 import { clamp } from '@/utils/geometry';
 
@@ -194,7 +195,7 @@ export function zoomAt(camera: Camera, factor: number, screenPoint: { x: number;
  */
 export function cameraForZone(zone: Zone, viewport: Viewport, camera: Camera): Camera {
   const region = rinkRegion(zone);
-  const isTabletop = (camera.tilt ?? 0) > 0.01;
+  const isTabletop = (camera.tilt ?? 0) > TABLETOP_MIN_TILT;
   const base = isTabletop ? camera : { ...camera, rotation: autoBoardRotation(viewport, region) };
 
   return fitRegionCamera(region, viewport, base);

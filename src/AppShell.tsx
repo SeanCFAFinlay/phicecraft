@@ -126,9 +126,16 @@ export function AppShell() {
 
       <main className="relative min-h-0 flex-1 overflow-hidden bg-[#0a1520]">
         {is3D ? (
-          // The fallback is CanvasSurface itself, not a spinner: the lazy
-          // chunk load must never blank the board a coach is already looking
-          // at mid-tilt-animation - see loadBoard3D.ts.
+          // `is3D` only flips once ViewControls' toggle has already AWAITED
+          // `loadBoard3D()` (see ViewControls.tsx's own header) - so by the
+          // time this branch is reached on a real tilt-in, the chunk is
+          // already resolved and this Suspense practically never actually
+          // suspends. The fallback is CanvasSurface itself anyway, not a
+          // spinner, as a last-resort safety net for the one remaining sliver
+          // it could still matter: a caller that sets `camera.tilt` past
+          // TABLETOP_MIN_TILT some OTHER way (bypassing ViewControls' guard) -
+          // a fresh CanvasSurface mounted there is a correct instant of the
+          // already-loaded flat 2D board, not a blank one.
           <Suspense fallback={<CanvasSurface />}>
             <Board3D />
           </Suspense>

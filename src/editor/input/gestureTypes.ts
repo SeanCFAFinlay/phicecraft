@@ -15,7 +15,6 @@ export type Gesture =
   | { kind: 'idle' }
   | { kind: 'pinch'; startDistance: number; startMidpoint: Point; startCamera: Camera }
   | { kind: 'pan'; startPointer: Point; startCamera: Camera }
-  | { kind: 'orbit'; startPointer: Point; startCamera: Camera }
   | { kind: 'press'; target: PressTarget; startPointer: Point; moved: boolean }
   | { kind: 'move-player'; playerId: ID }
   | { kind: 'move-coach'; coachId: ID }
@@ -80,6 +79,14 @@ export interface GestureHandlers {
   onEventHandleDrag(eventId: ID, part: EventHandlePart, index: number, world: Point): void;
   onEditGestureEnd(): void;
 
+  /**
+   * A drag on empty ice. Named for a tabletop-orbit gesture this state
+   * machine no longer produces (Phase 4 Task 6 - the tabletop is now the
+   * true-3D presentation, mounted separately, with its own orbit camera
+   * unrelated to this pointer machine) - kept as `onPanOrOrbit` rather than
+   * renamed to avoid touching every implementer/mock of this interface for a
+   * cosmetic rename with no behaviour change.
+   */
   onPanOrOrbit(camera: Camera): void;
   onPinch(camera: Camera): void;
 
@@ -93,8 +100,6 @@ export interface GestureContext {
    * read-only): authoring gestures are suspended either way.
    */
   isPlaying: boolean;
-  /** The tabletop view orbits instead of panning on empty ice. */
-  isTabletop: boolean;
   /** Hold-to-move is an expert shortcut and can be switched off. */
   holdToMoveEnabled: boolean;
   /** The id currently selected, for second-tap detection. */

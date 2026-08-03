@@ -22,7 +22,7 @@ import { GestureStateMachine } from '@/editor/input/GestureStateMachine';
 import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input/gestureTypes';
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { EMPTY_TRAILS } from '@/playback/playbackFrame';
-import { RINK, TABLETOP_MIN_TILT, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
+import { RINK, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
 import { distance, screenToWorld } from '@/utils/geometry';
 import { authoredEvents, getAimedNetTarget } from '@/engine/puck';
 import {
@@ -481,7 +481,6 @@ export function CanvasSurface() {
       getContext: () => ({
         camera: camera.camera,
         isPlaying: isEditingSuppressed(stateRef.current),
-        isTabletop: (camera.camera.tilt ?? 0) > TABLETOP_MIN_TILT,
         holdToMoveEnabled: true,
         selectedId:
           stateRef.current.selection.selectedPlayerId ?? stateRef.current.selection.selectedEventId,
@@ -537,17 +536,16 @@ export function CanvasSurface() {
     return () => canvas.removeEventListener('wheel', onWheel);
   }, [camera, layers.dynamicCanvasRef]);
 
-  // The arena photograph is presentation dressing, not an editing surface.
-  const isTabletopView = (camera.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
-
   return (
-    // The arena photograph is presentation dressing, not an editing surface:
-    // behind a flat board it makes the rink look like a miniature inside a
-    // picture. It stays for the tabletop, which IS the presentation view.
-    <div
-      ref={layers.containerRef}
-      className={`${isTabletopView ? 'arena-stage' : 'board-stage'} absolute inset-0 overflow-hidden`}
-    >
+    // CanvasSurface only ever mounts flat now: `is3D` (AppShell.tsx) and
+    // ViewControls' toggle both gate entry into the tabletop tilt range on
+    // Board3D having already loaded (see ViewControls.tsx's header) before
+    // `camera.tilt` ever crosses TABLETOP_MIN_TILT, so this component cannot
+    // legitimately observe a tabletop tilt while mounted - `.arena-stage`
+    // (the old pseudo-3D pass's backdrop, src/styles/index.css) has no live
+    // caller left and is intentionally not referenced here.
+    <div ref={layers.containerRef} className="board-stage absolute inset-0 overflow-hidden">
+
       <canvas ref={layers.staticCanvasRef} className="absolute inset-0 block" aria-hidden="true" />
       <canvas
         ref={layers.dynamicCanvasRef}
