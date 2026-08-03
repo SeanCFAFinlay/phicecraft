@@ -78,6 +78,12 @@ This is implemented in two files:
    racing ahead. A loop wrap/jump (`isProgressWrap`) instead snaps straight
    to the target clip (`stopFading()` + direct weight assignment): a fade
    must never linger across a loop boundary.
+   One authoring caveat: if `frame.action` flips faster than the 0.15 s fade
+   (e.g. a rapid deke sequence), three.js reschedules the in-flight fade from
+   a hardcoded weight of 1 or 0 — not the live blended weight — producing a
+   visible weight pop. It self-heals and cannot wedge, but avoid authoring
+   drills whose action windows are shorter than the fade if the pop bothers
+   you.
 3. Every clip loops (`THREE.LoopRepeat`, the three.js default) — including
    `pass`/`shot`/`stop`, which AUTHORING_CLIPS.md originally suggested as
    `LoopOnce` + `clampWhenFinished`. That would need extra state ("has this
