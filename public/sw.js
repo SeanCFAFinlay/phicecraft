@@ -46,6 +46,17 @@ const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/hockey-icon.svg'];
 const BUILD_MANIFESTS = ['/.vite/manifest.json', '/manifest.json'];
 
 /**
+ * Files that ship from `public/` verbatim rather than through Vite's build
+ * pipeline. Vite copies them unhashed, so they never appear as an `entry` in
+ * the manifest read below — without this list the two rigged GLBs would
+ * silently drop out of precache and the 3D view would need network on every
+ * cold start, defeating the "works offline" claim this file exists to keep
+ * honest. Add a line here whenever a new file is added straight to `public/`
+ * that the app needs available offline.
+ */
+const STATIC_ASSETS = ['/assets/models/hockey_player.glb', '/assets/models/hockey_goalie.glb'];
+
+/**
  * Every file this build produced: entry chunks, lazy chunks and stylesheets.
  *
  * Lazy chunks matter as much as the entry: without them a coach in an arena
@@ -53,6 +64,7 @@ const BUILD_MANIFESTS = ['/.vite/manifest.json', '/manifest.json'];
  * failure because half the product silently disappears.
  */
 async function buildAssets() {
+  const urls = new Set(STATIC_ASSETS);
   for (const path of BUILD_MANIFESTS) {
     try {
       const response = await fetch(path, { cache: 'no-cache' });
@@ -60,19 +72,23 @@ async function buildAssets() {
       const manifest = await response.json();
       // The web app manifest lives at a similar path and is not this; it has
       // no chunk entries, so it yields nothing and the next path is tried.
-      const urls = new Set();
+      const manifestUrls = new Set();
       for (const entry of Object.values(manifest)) {
         if (!entry || typeof entry !== 'object') continue;
-        if (entry.file) urls.add(`/${entry.file}`);
-        for (const css of entry.css ?? []) urls.add(`/${css}`);
-        for (const asset of entry.assets ?? []) urls.add(`/${asset}`);
+        if (entry.file) manifestUrls.add(`/${entry.file}`);
+        for (const css of entry.css ?? []) manifestUrls.add(`/${css}`);
+        for (const asset of entry.assets ?? []) manifestUrls.add(`/${asset}`);
       }
-      if (urls.size > 0) return [...urls];
+      if (manifestUrls.size > 0) {
+        for (const url of manifestUrls) urls.add(url);
+        return [...urls];
+      }
     } catch {
       /* try the next path */
     }
   }
-  return [];
+  // No manifest found: still precache the static list rather than nothing.
+  return [...urls];
 }
 
 self.addEventListener('install', event => {

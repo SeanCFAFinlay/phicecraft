@@ -41,9 +41,15 @@ The gaps are listed at the end and are release blockers, not paperwork.
 
 ## 3D assets
 
-None in the repository. Everything Phase 4 needs — skater and goalie GLB
-models, equipment, animation clips — must be bought, commissioned or authored,
-and each item recorded here with its licence before it ships.
+| Asset | Origin | Licence | Status |
+|---|---|---|---|
+| `hockey_player.glb` (skater, `skate` animation) | First-party (PhiceCraft) — authored in Blender by the project owner (sources in `assets-src/models/`) | Owned | ✅ Clear |
+| `hockey_goalie.glb` (goalie, `goalie_idle` animation) | First-party (PhiceCraft) — authored in Blender by the project owner (sources in `assets-src/models/`) | Owned | ✅ Clear |
+
+Both are rigged, single-skin glTF 2.0 binaries with eight solid-colour
+materials (jersey/accent/pants/skin/white/dark/steel/stick) — no third-party
+textures. Equipment and further animation clips remain to be authored; add
+rows here as they land.
 
 ---
 
@@ -54,7 +60,9 @@ and each item recorded here with its licence before it ships.
    still ships. Establish provenance or replace it.
 2. **Sprite-atlas source images have unknown provenance.** Phase 3's renderer
    replacement should delete them; until then they ship.
-3. **No 3D asset licences**, because there are no 3D assets yet.
+3. ~~No 3D asset licences.~~ Resolved: the skater and goalie GLBs are
+   first-party, Blender-authored by the project owner, and recorded in the
+   "3D assets" table above.
 4. ~~Template content not authored.~~ Resolved: the 24-template catalogue is
    authored first-party in `src/data/templates/` and registered above.
 
