@@ -15,6 +15,9 @@
 import { Suspense, lazy, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useAppServices, useAppState } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
+import { useCameraSnapshot } from '@/playback/usePlaybackSnapshot';
+import { TABLETOP_MIN_TILT } from '@/core/constants';
+import { loadBoard3D } from '@/render3d/loadBoard3D';
 import { CanvasSurface } from '@/components/canvas/CanvasSurface';
 import { TopStrip } from '@/components/shell/TopStrip';
 import { ContextTray } from '@/components/shell/ContextTray';
@@ -71,11 +74,37 @@ const DiagnosticsOverlay = lazy(() =>
   import('@/components/DiagnosticsOverlay').then(module => ({ default: module.DiagnosticsOverlay }))
 );
 
+// The true-3D presentation (Phase 4). A coach who never tilts into 3D never
+// parses or executes three.js: this chunk is not requested until the render
+// below actually mounts it.
+const Board3D = lazy(loadBoard3D);
+
+/**
+ * TODO(phase4-task6): remove this flag.
+ *
+ * The plan (Phase 4 Task 6) deletes the old pseudo-3D tabletop path
+ * (CanvasSurface's Canvas2D-pass-through arena) and makes Board3D the
+ * unconditional renderer once tilt crosses TABLETOP_MIN_TILT. Until that
+ * lands, the tabletop tilt switch (ViewControls' 3D button) must keep
+ * mounting the OLD path, because e2e's `webgl-tabletop` project
+ * (webglTabletop.spec.ts) drives that toggle and asserts on the Canvas2D
+ * pass-through's pixels - swapping in the still-empty Board3D shell there
+ * would break that spec now instead of at Task 6, where it is meant to be
+ * rewritten. Tasks 4-5 dev-check the new path with `?board3d` in the URL;
+ * Task 6 removes this gate entirely.
+ */
+const BOARD3D_ENABLED = new URLSearchParams(location.search).has('board3d');
+
 export function AppShell() {
   const { state, dispatch } = useAppState();
   const { importPreviews } = useAppServices();
   const { camera } = useEditorRuntime();
   const { isDesktop, isPhone, isCompactLandscape } = useResponsive();
+  // Same threshold ViewControls uses to label its own toggle button - see
+  // that component for why the store, not a local ref, is the source of
+  // truth for "which view is this".
+  const cameraSnapshot = useCameraSnapshot(camera);
+  const is3D = (cameraSnapshot.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
 
   // A full sheet on a phone shows the players too small to place accurately,
   // so a drill opens framed on the offensive zone instead - full ice stays
@@ -112,7 +141,16 @@ export function AppShell() {
       {mode !== 'present' && <TopStrip />}
 
       <main className="relative min-h-0 flex-1 overflow-hidden bg-[#0a1520]">
-        <CanvasSurface />
+        {is3D && BOARD3D_ENABLED ? (
+          // The fallback is CanvasSurface itself, not a spinner: the lazy
+          // chunk load must never blank the board a coach is already looking
+          // at mid-tilt-animation - see loadBoard3D.ts.
+          <Suspense fallback={<CanvasSurface />}>
+            <Board3D />
+          </Suspense>
+        ) : (
+          <CanvasSurface />
+        )}
 
         {mode !== 'present' && <ActionChip />}
         {mode === 'build' && <FirstRunHint />}

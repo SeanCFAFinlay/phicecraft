@@ -175,6 +175,23 @@
     );
   }
 
+  /*
+   * The true-3D presentation stage (Phase 4, behind the temporary `?board3d`
+   * flag - see AppShell.tsx). Board3D's WebGLRenderer clears to transparent
+   * so this first-party gradient shows through behind the scene, the same
+   * relationship `.board-stage` has with the flat 2D canvas. Task 6 builds
+   * the real arena floor/backdrop in the 3D scene itself; this stays a plain
+   * gradient (no photograph) until then.
+   */
+  .board3d-stage {
+    background-color: #03080e;
+    background-image: radial-gradient(
+      ellipse at 50% 38%,
+      rgba(20, 52, 78, 0.5) 0%,
+      rgba(3, 8, 14, 0.94) 78%
+    );
+  }
+
   .arena-stage {
     background-color: #03080e;
     background-image:
