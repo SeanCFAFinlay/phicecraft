@@ -5,7 +5,9 @@
 import { describe, it, expect } from 'vitest';
 import { orbitFromCamera, BASE_DISTANCE } from './orbit';
 import { rinkToWorld } from './worldMap';
-import { DEFAULT_CAMERA, RINK, TABLETOP_DEFAULT_TILT } from '@/core/constants';
+import { DEFAULT_CAMERA, TABLETOP_DEFAULT_TILT } from '@/core/constants';
+import { calculateFitCamera } from '@/camera/cameraMath';
+import { cameraMatrix, applyAffine } from '@/utils/geometry';
 import type { Camera } from '@/core/types';
 
 const VIEWPORT_16_9 = { width: 1600, height: 900 };
@@ -56,15 +58,46 @@ describe('orbitFromCamera', () => {
     expect(atTwo).toBeCloseTo(atOne / 2, 10);
   });
 
-  it('targets rinkToWorld(camera.x, camera.y)', () => {
-    const camera: Camera = { ...DEFAULT_CAMERA, x: 12, y: -7 };
+  // Worked example (a): the default fitted camera centres the WHOLE rink in
+  // the viewport, so the rink point under screen centre is centre ice itself
+  // - the orbit target should be the world origin, regardless of viewport
+  // size or aspect.
+  it('targets centre ice (the world origin) for the default fitted camera', () => {
+    const camera = calculateFitCamera(VIEWPORT_16_9);
     const { target } = orbitFromCamera(camera, VIEWPORT_16_9);
-    expect(target).toEqual(rinkToWorld({ x: 12, y: -7 }));
+    expect(target.x).toBeCloseTo(0, 9);
+    expect(target.y).toBeCloseTo(0, 9);
+    expect(target.z).toBeCloseTo(0, 9);
   });
 
-  it('targets the world origin when camera.x/y sit on centre ice', () => {
-    const camera: Camera = { ...DEFAULT_CAMERA, x: RINK.centerX, y: RINK.centerY };
+  // Worked example (b): a camera panned so an arbitrary rink point sits at
+  // screen centre. The panned camera is built by using `cameraMatrix`/
+  // `applyAffine` themselves (the exact functions `orbitFromCamera` now
+  // inverts via `screenToWorld`) to measure the pan needed, rather than
+  // hand-deriving a closed-form camera.x/y - so this test cannot silently
+  // drift from the real math the way the old, circular assertions did.
+  it('targets rinkToWorld(p) when the camera is panned so rink point p sits at screen centre', () => {
+    const rinkPoint = { x: 750, y: 212.5 };
+    const screenCentre = { x: VIEWPORT_16_9.width / 2, y: VIEWPORT_16_9.height / 2 };
+
+    const base: Camera = { ...DEFAULT_CAMERA, x: 0, y: 0 };
+    const screenUnderBase = applyAffine(cameraMatrix(base), rinkPoint.x, rinkPoint.y);
+    const camera: Camera = {
+      ...base,
+      x: base.x + (screenCentre.x - screenUnderBase.x),
+      y: base.y + (screenCentre.y - screenUnderBase.y),
+    };
+
+    // Confirm the constructed camera really does put rinkPoint at screen
+    // centre before using it to exercise orbitFromCamera.
+    const check = applyAffine(cameraMatrix(camera), rinkPoint.x, rinkPoint.y);
+    expect(check.x).toBeCloseTo(screenCentre.x, 9);
+    expect(check.y).toBeCloseTo(screenCentre.y, 9);
+
     const { target } = orbitFromCamera(camera, VIEWPORT_16_9);
-    expect(target).toEqual({ x: 0, y: 0, z: 0 });
+    const expected = rinkToWorld(rinkPoint);
+    expect(target.x).toBeCloseTo(expected.x, 9);
+    expect(target.y).toBeCloseTo(expected.y, 9);
+    expect(target.z).toBeCloseTo(expected.z, 9);
   });
 });

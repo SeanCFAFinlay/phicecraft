@@ -10,7 +10,7 @@
 
 import type { Camera } from '@/core/types';
 import type { Viewport } from '@/camera/cameraMath';
-import { clamp } from '@/utils/geometry';
+import { clamp, screenToWorld } from '@/utils/geometry';
 import { rinkToWorld } from './worldMap';
 
 /**
@@ -43,19 +43,29 @@ export interface Orbit {
 }
 
 /**
- * Reserved for aspect-ratio-aware framing in a later task (Task 4/5): the
- * distance formula below is deliberately viewport-independent for now (see
- * the brief), but the signature already carries the viewport so callers do
- * not change again once that lands.
+ * The distance formula below is deliberately viewport-independent (see the
+ * brief) - only `target` reads `viewport`, to find the rink point that sits
+ * at screen centre (see below).
  */
 export function orbitFromCamera(camera: Camera, viewport: Viewport): Orbit {
-  void viewport;
-
   const azimuth = camera.rotation ?? 0;
   const tilt = camera.tilt ?? 0;
   const polar = clamp(Math.PI / 2 - tilt * TILT_TO_POLAR, POLAR_MIN, Math.PI / 2 - POLAR_MAX_MARGIN);
   const distance = BASE_DISTANCE / camera.zoom;
-  const target = rinkToWorld({ x: camera.x, y: camera.y });
+
+  // `camera.x`/`camera.y` are the TRANSLATION TERMS of the 2D affine
+  // `cameraMatrix` (screen-pixel space, entangled with zoom/rotation/tilt) -
+  // NOT a rink-space point, so `rinkToWorld(camera.x, camera.y)` (the
+  // previous formula here) was a unit error. What Board3D actually wants to
+  // orbit around is the rink point a coach currently sees at the centre of
+  // their screen, i.e. the inverse image of the viewport's centre under
+  // `cameraMatrix(camera)`. `screenToWorld` already IS that inverse (it is
+  // `invertAffine(cameraMatrix(camera), sx, sy)`, with a fast path for the
+  // untilted/unrotated case) - reusing it here keeps this in lockstep with
+  // the 2D hit-testing that already inverts the same matrix, and keeps a 2D
+  // pan -> tilt-into-3D transition visually continuous.
+  const screenCentreRinkPoint = screenToWorld(viewport.width / 2, viewport.height / 2, camera);
+  const target = rinkToWorld(screenCentreRinkPoint);
 
   return { azimuth, polar, distance, target };
 }
