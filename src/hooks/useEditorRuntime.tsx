@@ -22,6 +22,7 @@ import type { CameraStore } from '@/camera/CameraStore';
 import type { PlaybackStore } from '@/playback/PlaybackStore';
 import { PlaybackController } from '@/playback/PlaybackController';
 import type { HoldProgressStore, HoldProgressSnapshot } from '@/ui/HoldProgressStore';
+import type { QualityStore } from '@/render/qualityStore';
 import { useAppState } from './useAppState';
 
 // ----------------------------------------------------------------------------
@@ -31,6 +32,8 @@ export interface EditorRuntime {
   playback: PlaybackStore;
   controller: PlaybackController;
   holdProgress: HoldProgressStore;
+  /** The auto-degrade render-quality tier, shared by the 2D canvas path and Board3D. */
+  quality: QualityStore;
 }
 
 const RuntimeContext = createContext<EditorRuntime | null>(null);
@@ -68,6 +71,7 @@ export function EditorRuntimeProvider({ children }: { children: ReactNode }) {
       camera: services.camera,
       playback: services.playback,
       holdProgress: services.holdProgress,
+      quality: services.quality,
       controller,
     };
   }, [services, dispatch, commands]);

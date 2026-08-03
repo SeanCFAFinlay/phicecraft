@@ -53,6 +53,18 @@ materials (jersey/accent/pants/skin/white/dark/steel/stick) — no third-party
 textures. Equipment and further animation clips remain to be authored; add
 rows here as they land.
 
+**Re-exporting either file in place is a cache trap.** `public/sw.js`'s
+`STATIC_ASSETS` list precaches these two GLBs (and the 2D sprite atlas) with a
+cache-first policy that keeps them **forever** — a build never emits a new
+filename for a `public/`-verbatim asset the way a hashed Vite chunk does. A
+coach with the app already installed will keep the OLD bytes at the SAME URL
+indefinitely. If you re-export/re-bake either GLB (a fixed material name, a
+new animation clip, a rigging change), you must ALSO either rename the file
+(and update `MODEL_URLS` in `src/render3d/modelAssets.ts` to match) or bump
+`sw.js`'s `VERSION`/change some other cached byte so the service worker's own
+install step re-fetches it — a same-name overwrite with no code change never
+reaches an already-installed client.
+
 ---
 
 ## Open blockers

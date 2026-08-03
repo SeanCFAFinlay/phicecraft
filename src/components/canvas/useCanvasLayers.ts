@@ -6,12 +6,13 @@
 // ResizeObserver live here so the surface component does not.
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { effectiveDevicePixelRatio } from '@/camera/cameraMath';
 import type { BoardRenderer, RendererHost } from '@/render/BoardRenderer';
 import { recordPaint, setRendererKind } from '@/render/paintCounters';
 import { resolveRendererPreference, selectRenderer } from '@/render/selectRenderer';
 import type { RenderQuality } from '@/render/quality';
+import type { QualityStore } from '@/render/qualityStore';
 
 /** Default `announce` when a caller has no live region to report through. */
 const NOOP_ANNOUNCE = (): void => {};
@@ -39,14 +40,8 @@ export interface CanvasLayers {
   getRenderer: () => BoardRenderer | null;
 }
 
-/** Frames above this are over the 60fps budget with no headroom to spare. */
-const FRAME_BUDGET_MS = 16.7;
-/** How many consecutive over-budget frames before dropping a quality step. */
-const DEGRADE_AFTER = 30;
-/** How many consecutive comfortable frames before stepping back up. */
-const RECOVER_AFTER = 120;
-
 export function useCanvasLayers(
+  qualityStore: QualityStore,
   onResize?: (width: number, height: number) => void,
   announce: (message: string) => void = NOOP_ANNOUNCE
 ): CanvasLayers {
@@ -55,10 +50,10 @@ export function useCanvasLayers(
   const dynamicCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [quality, setQuality] = useState<RenderQuality>('high');
-
-  const overBudget = useRef(0);
-  const underBudget = useRef(0);
+  // Shared with Board3D (the true-3D presentation) through AppServices/
+  // EditorRuntime, rather than component-local state - see qualityStore.ts's
+  // own header for why one live tier matters across a 2D<->3D remount.
+  const quality = useSyncExternalStore(qualityStore.subscribe, qualityStore.getSnapshot, qualityStore.getSnapshot);
 
   const rendererRef = useRef<BoardRenderer | null>(null);
   const getRenderer = useCallback(() => rendererRef.current, []);
@@ -167,23 +162,10 @@ export function useCanvasLayers(
     rendererRef.current?.resize(size.width, size.height, dpr);
   }, [size, dpr]);
 
-  const reportFrameTime = useCallback((ms: number) => {
-    if (ms > FRAME_BUDGET_MS) {
-      overBudget.current += 1;
-      underBudget.current = 0;
-    } else {
-      underBudget.current += 1;
-      overBudget.current = 0;
-    }
-
-    if (overBudget.current >= DEGRADE_AFTER) {
-      overBudget.current = 0;
-      setQuality(current => (current === 'high' ? 'medium' : 'low'));
-    } else if (underBudget.current >= RECOVER_AFTER) {
-      underBudget.current = 0;
-      setQuality(current => (current === 'low' ? 'medium' : 'high'));
-    }
-  }, []);
+  const reportFrameTime = useCallback(
+    (ms: number) => qualityStore.reportFrameTime(ms),
+    [qualityStore]
+  );
 
   // Memoized: this object is a dependency of the draw callbacks, which are in
   // turn dependencies of subscriptions. A fresh object every render would

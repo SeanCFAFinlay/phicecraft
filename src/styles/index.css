@@ -176,12 +176,12 @@
   }
 
   /*
-   * The true-3D presentation stage (Phase 4, behind the temporary `?board3d`
-   * flag - see AppShell.tsx). Board3D's WebGLRenderer clears to transparent
-   * so this first-party gradient shows through behind the scene, the same
-   * relationship `.board-stage` has with the flat 2D canvas. Task 6 builds
-   * the real arena floor/backdrop in the 3D scene itself; this stays a plain
-   * gradient (no photograph) until then.
+   * The true-3D presentation stage (Phase 4 - AppShell.tsx mounts Board3D
+   * here unconditionally once the camera tilts into tabletop range).
+   * Board3D's WebGLRenderer clears to transparent so this first-party
+   * gradient shows through behind the scene (the arena floor/boards/glass
+   * themselves are built in the 3D scene by `buildArena`), the same
+   * relationship `.board-stage` has with the flat 2D canvas.
    */
   .board3d-stage {
     background-color: #03080e;
@@ -190,21 +190,6 @@
       rgba(20, 52, 78, 0.5) 0%,
       rgba(3, 8, 14, 0.94) 78%
     );
-  }
-
-  .arena-stage {
-    background-color: #03080e;
-    background-image: radial-gradient(120% 90% at 50% 12%, #2b3a4d 0%, #16202c 58%, #0d141d 100%);
-    box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.8);
-  }
-
-  .arena-stage::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: repeating-linear-gradient(90deg, transparent 0 79px, rgba(85, 210, 255, 0.025) 80px);
-    mix-blend-mode: screen;
   }
 
   /* A chip that must stay readable over the animated rink. */

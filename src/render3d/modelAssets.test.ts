@@ -68,4 +68,17 @@ describe.each([
     expect(json.skins?.length).toBe(1);
     expect(json.animations?.map(a => a.name)).toContain(animation);
   });
+
+  it('has the jersey/accent/pants materials tintActorMaterials.ts recolours per actor', () => {
+    const buffer = readFileSync(absolutePath);
+    const { json } = parseGlb(buffer);
+    const materialNames = json.materials?.map(m => m.name) ?? [];
+
+    // These three names are the exact keys `tintActorMaterials` (scene/
+    // tintMaterials.ts) matches on to clone-and-recolour per actor; a
+    // re-export that renames or drops one would silently stop tinting that
+    // part instead of failing anywhere obvious - every actor would render in
+    // the GLB's baked default colour.
+    expect(materialNames).toEqual(expect.arrayContaining(['jersey', 'accent', 'pants']));
+  });
 });

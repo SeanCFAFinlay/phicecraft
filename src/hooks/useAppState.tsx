@@ -31,6 +31,7 @@ import { ImportPreviewStore } from '@/ui/ImportPreviewStore';
 import { HoldProgressStore } from '@/ui/HoldProgressStore';
 import { CameraStore } from '@/camera/CameraStore';
 import { PlaybackStore } from '@/playback/PlaybackStore';
+import { QualityStore } from '@/render/qualityStore';
 import { downloadTextFile } from '@/ui/download';
 import { generateId } from '@/utils/id';
 
@@ -48,6 +49,8 @@ export interface AppServices {
   camera: CameraStore;
   playback: PlaybackStore;
   holdProgress: HoldProgressStore;
+  /** The auto-degrade render-quality tier, shared by the 2D canvas path and Board3D. */
+  quality: QualityStore;
 }
 
 interface AppContextValue {
@@ -90,6 +93,7 @@ export function AppProvider({ children, services, now, autoInitialize = true }: 
       camera: services?.camera ?? new CameraStore(),
       playback: services?.playback ?? new PlaybackStore(),
       holdProgress: services?.holdProgress ?? new HoldProgressStore(),
+      quality: services?.quality ?? new QualityStore(),
     }),
     [
       services?.repository,
@@ -100,6 +104,7 @@ export function AppProvider({ children, services, now, autoInitialize = true }: 
       services?.camera,
       services?.playback,
       services?.holdProgress,
+      services?.quality,
     ]
   );
 

@@ -19,6 +19,7 @@ import { ImportPreviewStore } from '@/ui/ImportPreviewStore';
 import { CameraStore } from '@/camera/CameraStore';
 import { PlaybackStore } from '@/playback/PlaybackStore';
 import { HoldProgressStore } from '@/ui/HoldProgressStore';
+import { QualityStore } from '@/render/qualityStore';
 import { flush, installFakeLocalStorage, pointer, setViewport, VIEWPORTS } from '@/test/utils';
 import { createNewDrill } from '@/engine/drill';
 import { __resetValidationCaches } from '@/editor/useDrillValidation';
@@ -40,6 +41,7 @@ function buildServices(): AppServices {
     camera: new CameraStore(),
     playback: new PlaybackStore(),
     holdProgress: new HoldProgressStore(),
+    quality: new QualityStore(),
   };
 }
 

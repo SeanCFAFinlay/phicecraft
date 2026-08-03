@@ -13,6 +13,7 @@
 // ============================================================================
 
 import { Suspense, lazy, useEffect, useRef, useSyncExternalStore } from 'react';
+import type { RenderQuality } from '@/render/quality';
 import { useAppServices, useAppState } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { useCameraSnapshot } from '@/playback/usePlaybackSnapshot';
@@ -82,13 +83,22 @@ const Board3D = lazy(loadBoard3D);
 export function AppShell() {
   const { state, dispatch } = useAppState();
   const { importPreviews } = useAppServices();
-  const { camera } = useEditorRuntime();
+  const { camera, quality: qualityStore } = useEditorRuntime();
   const { isDesktop, isPhone, isCompactLandscape } = useResponsive();
   // Same threshold ViewControls uses to label its own toggle button - see
   // that component for why the store, not a local ref, is the source of
   // truth for "which view is this".
   const cameraSnapshot = useCameraSnapshot(camera);
   const is3D = (cameraSnapshot.camera.tilt ?? 0) > TABLETOP_MIN_TILT;
+  // The SAME auto-degrade tier the 2D canvas path computes from its own
+  // frame times (qualityStore.ts) - Board3D reads it live rather than
+  // hard-coding 'high', so a phone that has already degraded on the flat
+  // board does not restart at full shadow-mapped quality on tilting in.
+  const quality: RenderQuality = useSyncExternalStore(
+    qualityStore.subscribe,
+    qualityStore.getSnapshot,
+    qualityStore.getSnapshot
+  );
 
   // A full sheet on a phone shows the players too small to place accurately,
   // so a drill opens framed on the offensive zone instead - full ice stays
@@ -137,7 +147,7 @@ export function AppShell() {
           // a fresh CanvasSurface mounted there is a correct instant of the
           // already-loaded flat 2D board, not a blank one.
           <Suspense fallback={<CanvasSurface />}>
-            <Board3D />
+            <Board3D quality={quality} />
           </Suspense>
         ) : (
           <CanvasSurface />

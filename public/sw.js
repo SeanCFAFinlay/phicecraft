@@ -53,6 +53,20 @@ const BUILD_MANIFESTS = ['/.vite/manifest.json', '/manifest.json'];
  * cold start, defeating the "works offline" claim this file exists to keep
  * honest. Add a line here whenever a new file is added straight to `public/`
  * that the app needs available offline.
+ *
+ * CACHED FOREVER, BY URL, WITH NO HASH IN THE NAME: `isAsset`'s fetch
+ * handler below is cache-first for anything under `/assets/`, and these
+ * filenames never change build to build the way a hashed chunk's does. If
+ * you re-export one of these GLBs (or the sprite atlas) with the SAME
+ * filename - a fixed material name, a new bake - an already-installed
+ * client keeps serving the OLD bytes indefinitely: nothing here or in the
+ * manifest changes, so `VERSION` (stamped from the build manifest, see
+ * scripts/stamp-sw.mjs) never moves and this worker never reinstalls. Either
+ * rename the file (and update `MODEL_URLS`/the atlas path in source) or
+ * ship some other change alongside it so the build manifest - and therefore
+ * `VERSION` - actually differs. See docs/licenses/ASSET_REGISTER.md's "3D
+ * assets" section for the same warning, kept next to the asset provenance
+ * record a future editor is more likely to read first.
  */
 const STATIC_ASSETS = ['/assets/models/hockey_player.glb', '/assets/models/hockey_goalie.glb'];
 

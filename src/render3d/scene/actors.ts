@@ -145,8 +145,12 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
 }
 
 // ----------------------------------------------------------------------------
-// Coaches — no GLB. A plain capsule body on a disc base, in the same neutral
-// grey as the 2D coach token's colourway (`src/canvas/CoachRenderer.ts`).
+// Coaches — no GLB. A plain capsule body on a disc base, in a flat neutral
+// grey per the brief - NOT a match for the 2D coach token, which is a
+// detailed bearded-man illustration with its own jacket/skin/beard/toque
+// palette (`src/canvas/CoachRenderer.ts`); this presentation has no GLB coach
+// model to render instead, and a plain marker was the brief-mandated
+// placeholder rather than an attempt to mirror the 2D token's colourway.
 // ----------------------------------------------------------------------------
 
 const COACH_COLOR = '#e5e7eb';

@@ -24,10 +24,10 @@
 // URL twice returns the same in-flight/resolved promise.
 // ============================================================================
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
-import { useAppState } from '@/hooks/useAppState';
+import { useAppState, useAppServices } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import type { RenderQuality } from '@/render/quality';
 import type { Drill, ID, Point } from '@/core/types';
@@ -46,6 +46,13 @@ import {
 } from './scene/actors';
 import { loadModel } from './modelCache';
 import { markBoard3DActorsBuilt, recordBoard3DFrame } from './board3dCounters';
+import {
+  pointerDistance,
+  rotationFromDrag,
+  zoomFromPinch,
+  zoomFromWheel,
+  type PointerPoint,
+} from './orbitGestures';
 
 /** Same cap the 2D canvas path applies (useCanvasLayers.ts) - a 3x/4x phone gains nothing past this. */
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -65,11 +72,11 @@ const CARRIED_PUCK_OFFSET_METERS = 0.45;
 export interface Board3DProps {
   /**
    * Gates the arena's shadow-casting light (see `buildArena`'s option of the
-   * same name). Defaulted rather than read from the live render-quality tier
-   * useCanvasLayers.ts computes for the 2D path - wiring that through is
-   * Task 6's job once Board3D takes over as the unconditional 3D renderer;
-   * until then this only ever mounts as the 3D preview behind the `?board3d`
-   * flag, so a fixed 'high' keeps this task's scope to the arena and actors.
+   * same name). AppShell.tsx reads the live auto-degrade tier
+   * (`qualityStore.ts` - shared with the 2D canvas path, see its own header)
+   * and passes it here on every mount. The 'high' default only matters for a
+   * caller that mounts Board3D directly without going through AppShell (a
+   * unit test, a future Storybook-style harness).
    */
   quality?: RenderQuality;
 }
@@ -77,6 +84,7 @@ export interface Board3DProps {
 export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   const { camera: cameraStore, playback } = useEditorRuntime();
   const { state } = useAppState();
+  const { announcer } = useAppServices();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // The actor effect reads the CURRENT drill every frame (60x/second while
@@ -94,12 +102,12 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   // Bumped every time the renderer effect below (re)creates the
   // THREE.Scene - included in the actor effect's deps so it re-runs and
   // re-reads `sceneRef.current` instead of going on adding actors to a scene
-  // object the renderer effect has already torn down. A no-op today: quality
-  // is hard-coded (see `Board3DProps.quality`'s own doc comment) so the
-  // renderer effect's deps `[cameraStore, quality]` never change post-mount
-  // and the scene is built exactly once. Task 6 wires live quality into this
-  // component, at which point a quality change would recreate the scene
-  // without this and silently orphan every actor under the stale one.
+  // object the renderer effect has already torn down. Load-bearing now that
+  // `quality` is a live prop (AppShell.tsx reads the shared auto-degrade
+  // tier - see `Board3DProps.quality`'s own doc comment): the renderer
+  // effect's deps are `[cameraStore, quality]`, so a quality change tears
+  // down and rebuilds the whole scene, and without this the actor effect
+  // would keep adding to the torn-down scene object instead of the new one.
   const [sceneEpoch, setSceneEpoch] = useState(0);
 
   useEffect(() => {
@@ -190,11 +198,35 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const unsubscribe = cameraStore.subscribe(render);
     render();
 
+    // A lost-then-restored WebGL context (a mobile GPU reclaiming memory
+    // from a backgrounded tab, a driver reset) leaves every buffer/texture
+    // three.js uploaded gone, but fires no render of its own - without this,
+    // the canvas stays blank until SOME other event happens to trigger a
+    // camera change or playback frame. `render` re-issues the same draw
+    // calls three.js already re-uploads resources for on `contextrestored`
+    // internally, so nothing else needs to be rebuilt here.
+    const onContextRestored = () => render();
+    renderer.domElement.addEventListener('webglcontextrestored', onContextRestored);
+
     return () => {
       unsubscribe();
       resizeObserver.disconnect();
+      renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
       container.removeChild(renderer.domElement);
       renderer.dispose();
+      // `dispose()` frees GPU resources but does NOT release the WebGL
+      // context itself - repeatedly toggling 2D<->3D (or a quality change,
+      // which tears down and rebuilds this same effect) would otherwise
+      // accumulate live contexts until the browser's per-page limit is hit
+      // and new ones silently fail to acquire one. `forceContextLoss` can
+      // throw if the context is already lost (e.g. the tab backgrounded it
+      // first) - harmless, since the goal (no live context left behind) is
+      // already met in that case.
+      try {
+        renderer.forceContextLoss();
+      } catch {
+        /* already lost - nothing left to release */
+      }
       arena.dispose();
       iceTexture.dispose();
       scene.clear();
@@ -311,10 +343,24 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     };
 
     const buildActors = async () => {
-      const [skaterModel, goalieModel] = await Promise.all([
-        loadModel('skater'),
-        loadModel('goalie'),
-      ]);
+      let skaterModel: Awaited<ReturnType<typeof loadModel>>;
+      let goalieModel: Awaited<ReturnType<typeof loadModel>>;
+      try {
+        [skaterModel, goalieModel] = await Promise.all([loadModel('skater'), loadModel('goalie')]);
+      } catch (error) {
+        // A GLB fetch failure (offline with the app shell cached but the
+        // model asset not, a dropped connection) must not leave a silent
+        // empty arena for the rest of the session - modelCache.ts's own
+        // rejection handling makes a LATER attempt (a fresh drill swap, a
+        // future mount) retry rather than staying poisoned, but this mount
+        // still has nothing to show for it, so it says so and leaves the
+        // static arena visible rather than pretending nothing happened.
+        if (!cancelled) {
+          console.warn('phicecraft: Board3D actor models failed to load', error);
+          announcer.announce('3D players unavailable; the rink stays visible');
+        }
+        return;
+      }
       if (cancelled) return;
 
       const drill = drillRef.current;
@@ -357,7 +403,112 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       puckActor.dispose();
       scene.remove(actorGroup);
     };
-  }, [playback, state.drill, sceneEpoch]);
+  }, [playback, state.drill, sceneEpoch, announcer]);
+
+  // --------------------------------------------------------------------------
+  // Orbit gestures - drag to spin, wheel/pinch to zoom. View-only: nothing
+  // here selects a player or edits the drill (that stays CanvasSurface's
+  // job - see the `aria-hidden` div below); it only ever writes `rotation`
+  // or `zoom` onto the SAME camera store the flat 2D board and ViewControls
+  // already share, via `setCamera({...camera, ...})` - so it never derives
+  // or overwrites `tilt`, which is what keeps this view tabletop at all (see
+  // `orbitGestures.ts`'s own header). The pure math lives there so it is
+  // unit-testable without a DOM; this is just the imperative pointer/wheel
+  // plumbing, the same split CanvasSurface.tsx uses for its own wheel/pinch.
+  // --------------------------------------------------------------------------
+
+  const pointersRef = useRef(new Map<number, PointerPoint>());
+  const dragRef = useRef<{ pointerId: number; startX: number; startRotation: number } | null>(null);
+  const pinchRef = useRef<{ startDistance: number; startZoom: number } | null>(null);
+
+  const beginPinchFromCurrentPointers = useCallback(() => {
+    const points = [...pointersRef.current.values()];
+    if (points.length < 2) return;
+    dragRef.current = null;
+    pinchRef.current = {
+      startDistance: pointerDistance(points[0], points[1]),
+      startZoom: cameraStore.camera.zoom,
+    };
+  }, [cameraStore]);
+
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (pointersRef.current.size >= 2) {
+        beginPinchFromCurrentPointers();
+        return;
+      }
+
+      pinchRef.current = null;
+      dragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startRotation: cameraStore.camera.rotation ?? 0,
+      };
+    },
+    [cameraStore, beginPinchFromCurrentPointers]
+  );
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!pointersRef.current.has(event.pointerId)) return;
+      pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      const pinch = pinchRef.current;
+      if (pinch && pointersRef.current.size >= 2) {
+        const [a, b] = [...pointersRef.current.values()];
+        const zoom = zoomFromPinch(pinch.startZoom, pinch.startDistance, pointerDistance(a, b));
+        cameraStore.setCamera({ ...cameraStore.camera, zoom });
+        return;
+      }
+
+      const drag = dragRef.current;
+      if (drag && drag.pointerId === event.pointerId) {
+        const rotation = rotationFromDrag(drag.startRotation, event.clientX - drag.startX);
+        cameraStore.setCamera({ ...cameraStore.camera, rotation });
+      }
+    },
+    [cameraStore]
+  );
+
+  /** Shared by pointerup/pointercancel: drop the finger, and resume whatever gesture the remaining fingers (if any) imply. */
+  const endPointer = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      pointersRef.current.delete(event.pointerId);
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+
+      if (pointersRef.current.size >= 2) {
+        beginPinchFromCurrentPointers();
+        return;
+      }
+
+      pinchRef.current = null;
+      const remaining = [...pointersRef.current.entries()][0];
+      dragRef.current = remaining
+        ? { pointerId: remaining[0], startX: remaining[1].x, startRotation: cameraStore.camera.rotation ?? 0 }
+        : null;
+    },
+    [cameraStore, beginPinchFromCurrentPointers]
+  );
+
+  // Native, not React's onWheel: React's synthetic wheel listener is passive
+  // and cannot preventDefault, so the page would scroll while zooming - the
+  // same reason CanvasSurface.tsx's own wheel handler is a native listener.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const zoom = zoomFromWheel(cameraStore.camera.zoom, event.deltaY);
+      cameraStore.setCamera({ ...cameraStore.camera, zoom });
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, [cameraStore]);
 
   return (
     <div
@@ -365,8 +516,13 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       className="board3d-stage absolute inset-0 overflow-hidden"
       // Editing affordances (selection, drag, route handles) are a later
       // task's job - this task is view-only, so nothing here is interactive
-      // or informative for a screen reader today.
+      // or informative for a screen reader today. The pointer handlers below
+      // only ever orbit/zoom the camera - see the section header above.
       aria-hidden="true"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endPointer}
+      onPointerCancel={endPointer}
     />
   );
 }

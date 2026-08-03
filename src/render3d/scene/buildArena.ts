@@ -22,10 +22,11 @@ import { RINK_SCALE } from '../worldMap';
 export interface BuildArenaOptions {
   /**
    * Shadows are the one part of this scene expensive enough to gate on
-   * quality (same tier `useCanvasLayers.ts` computes for the 2D path).
-   * Task 5/6 wires Board3D's live tier through to this option; until then it
-   * defaults to 'high' so a coach who has not tilted into 3D yet (where
-   * Board3D is not even mounted) never pays for a lower-quality first paint.
+   * quality (the same tier `qualityStore.ts` computes, shared by the 2D path
+   * and Board3D - see `AppShell.tsx`, which reads it live and passes it down
+   * as `Board3DProps.quality`). Defaults to 'high' only as a safety net for a
+   * caller that mounts `buildArena` directly (e.g. a unit test) without going
+   * through Board3D's own prop.
    */
   quality?: RenderQuality;
 }

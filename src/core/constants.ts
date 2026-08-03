@@ -127,51 +127,24 @@ export const WHEEL_ZOOM_SENSITIVITY = 0.0015;
 export const FIT_PADDING = 16; // Screen pixels of margin around the rink
 
 // ============================================================================
-// TABLETOP (PSEUDO-3D) VIEW
+// TABLETOP (TRUE 3D) VIEW
 //
 // The rink can be leaned back and spun so the boards read as raised walls,
-// like a physical table-hockey model. All of this is affine (rotate + vertical
-// foreshorten), so hit-testing stays exact and a tilt of 0 is byte-for-byte the
-// old flat diagram.
+// like a physical table-hockey model. Below TABLETOP_MIN_TILT the camera is
+// still the flat 2D diagram's own affine rotate/tilt (hit-testing stays
+// exact, and a tilt of 0 is byte-for-byte the old flat diagram); above it,
+// `rotation`/`tilt`/`zoom` are instead read by `orbit.ts` and rendered by
+// Board3D (`src/render3d/Board3D.tsx`), a real three.js scene, not an affine
+// trick on the flat canvas - the "pseudo-3D" tabletop pass these constants
+// used to feed was deleted with Phase 4.
 // ============================================================================
 
-/** Below this tilt we render the flat diagram; above it the arena is built. */
+/** Below this tilt CanvasSurface renders the flat diagram; above it, AppShell mounts Board3D instead. */
 export const TABLETOP_MIN_TILT = 0.04;
 /** The angle the "3D" button snaps to (about 55° of lean). */
 export const TABLETOP_DEFAULT_TILT = 0.95;
 /** Never let the sheet lean so far it becomes an unreadable sliver. */
 export const TABLETOP_MAX_TILT = 1.32; // ~75°
-
-/** Board / glass heights in feet, raised in screen space off the ice edge. */
-export const ARENA = {
-  boardHeightFt: 3.5,
-  glassHeightFt: 6,
-  baseThicknessFt: 5,
-};
-
-/**
- * Perimeter board panels, cycled around the boards.
- *
- * These are FIRST-PARTY and generic on purpose. The panels used to read
- * TOSHIBA, Coca-Cola, BAUER, SKODA, NIKE, Zepter, TISSOT and OMEGA - real
- * marks belonging to real companies, hard-coded into a product intended for
- * sale. That is a licensing exposure rather than a styling preference, and no
- * amount of "it is only decoration" changes who owns the trademark.
- *
- * Anything added here must be PhiceCraft branding or a neutral placeholder. If
- * real sponsors are ever sold, they belong in drill data with a signed
- * agreement recorded in `docs/licenses/ASSET_REGISTER.md`, not in source.
- */
-export const ARENA_ADS: { label: string; bg: string; fg: string }[] = [
-  { label: 'PHICECRAFT', bg: '#f4f6f8', fg: '#0b2b45' },
-  { label: 'TRAIN · PLAY · IMPROVE', bg: '#0b2b45', fg: '#ffffff' },
-  { label: 'PH HOCKEY', bg: '#123a8f', fg: '#ffffff' },
-  { label: 'SPONSOR', bg: '#f4f6f8', fg: '#111820' },
-  { label: 'PHICECRAFT', bg: '#111820', fg: '#f2c94c' },
-  { label: 'YOUR CLUB HERE', bg: '#0a5c36', fg: '#ffffff' },
-  { label: 'PH', bg: '#f4f6f8', fg: '#d1122e' },
-  { label: 'SPONSOR', bg: '#0b2b45', fg: '#7fd4ff' },
-];
 
 // ============================================================================
 // PLAYBACK

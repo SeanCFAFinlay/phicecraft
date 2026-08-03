@@ -51,7 +51,7 @@ function isEditingSuppressed(state: AppState): boolean {
 export function CanvasSurface() {
   const { state, commands } = useAppState();
   const { announcer } = useAppServices();
-  const { camera, playback, holdProgress } = useEditorRuntime();
+  const { camera, playback, holdProgress, quality: qualityStore } = useEditorRuntime();
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -66,7 +66,7 @@ export function CanvasSurface() {
   // inside the hook, so useCanvasLayers stays a plain canvas/DOM concern -
   // this is the one line that couples renderer selection to the app's live
   // region (see selectRenderer.ts's fallback announcement).
-  const layers = useCanvasLayers(onResize, announcer.announce);
+  const layers = useCanvasLayers(qualityStore, onResize, announcer.announce);
   const hitTester = useHitTesting({ getState, camera, playback });
 
   // Transient render inputs that must not become React state.
