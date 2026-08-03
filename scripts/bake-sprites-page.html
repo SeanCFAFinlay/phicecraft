@@ -1,0 +1,280 @@
+<!doctype html>
+<!--
+============================================================================
+BAKE HARNESS PAGE
+
+Loaded by scripts/bake-sprites.mjs inside a headless Playwright Chromium tab
+under the virtual origin https://bake.local/, which page.route intercepts
+entirely (see the node script for the exact file mapping) - nothing here
+touches the network.
+
+`window.bake(spec)` renders one sprite variant (a single team/model
+combination) with an orthographic top-down camera and returns a transparent
+PNG data URL. The node side calls it four times (skater x2 teams, goalie x2
+teams) and composites the results into the atlas with sharp - this page never
+touches the atlas layout itself, only a single centred render per call.
+
+Framing is two-pass. Three.js has no cheap way to get the true on-screen
+extent of a POSED SkinnedMesh from the CPU side: Box3.setFromObject reads
+static geometry positions transformed by matrixWorld, which does not reflect
+GPU skin deformation - it is always the bind (T-)pose's box, regardless of
+what the AnimationMixer is doing. The T-pose is also a poor proxy for that
+extent (arms spread wide, legs together - the widest pose an artist tends to
+rig from is often not what a mid-stride skate frame or an idle goalie crouch
+actually needs). So pass 1 renders small with a deliberately generous
+frustum, measures the alpha-covered pixel bounds of THAT render, and pass 2
+reframes a tight orthographic frustum from the measurement before the real,
+full-resolution render. This is pose-agnostic by construction: it works the
+same whether the clip has the arms tucked in or the stick swung wide.
+============================================================================
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>bake-sprites harness</title>
+    <script type="importmap">
+      { "imports": { "three": "/three.module.js", "three/addons/": "/addons/" } }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+      const loader = new GLTFLoader();
+
+      /** Centre of `box` on the ground plane: (centre-x, min-y, centre-z) - the "skate contact centroid". */
+      function groundTarget(box) {
+        const centre = box.getCenter(new THREE.Vector3());
+        return new THREE.Vector3(centre.x, box.min.y, centre.z);
+      }
+
+      /** The largest single-axis extent of `box` (its own diagonal-free "radius" upper bound). */
+      function boxRadius(box) {
+        return box.getSize(new THREE.Vector3()).length() / 2;
+      }
+
+      /**
+       * Renders `scene` through an orthographic camera aimed at `target` from
+       * `direction` (a unit vector, world-space) with the given (possibly
+       * asymmetric) frustum bounds, at `width`x`height` pixels. Returns the
+       * canvas (so the caller can read it back) and the renderer, which the
+       * caller must dispose.
+       */
+      function renderOrtho(scene, target, direction, frustum, width, height, opaque) {
+        const camera = new THREE.OrthographicCamera(frustum.left, frustum.right, frustum.top, frustum.bottom, 0.01, 100);
+        camera.position.copy(target).addScaledVector(direction, 10);
+        camera.up.set(0, 0, -1);
+        camera.lookAt(target);
+        camera.updateProjectionMatrix();
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const renderer = new THREE.WebGLRenderer({
+          canvas,
+          alpha: true,
+          antialias: true,
+          preserveDrawingBuffer: true,
+        });
+        renderer.setSize(width, height, false);
+        renderer.setPixelRatio(1);
+        renderer.setClearColor(opaque ? 0x224466 : 0x000000, opaque ? 1 : 0);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.render(scene, camera);
+        return { canvas, renderer };
+      }
+
+      /**
+       * The pixel bounds (inclusive) of every pixel in `canvas` with alpha
+       * above a small noise floor, or `null` if none. `canvas` must have been
+       * rendered with `preserveDrawingBuffer: true`.
+       */
+      function alphaPixelBounds(canvas) {
+        const probe = document.createElement('canvas');
+        probe.width = canvas.width;
+        probe.height = canvas.height;
+        const ctx = probe.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(canvas, 0, 0);
+        const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        let minX = width;
+        let maxX = -1;
+        let minY = height;
+        let maxY = -1;
+        const ALPHA_FLOOR = 12; // out of 255; ignores faint AA fringe noise
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const alpha = data[(y * width + x) * 4 + 3];
+            if (alpha <= ALPHA_FLOOR) continue;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
+        return maxX < 0 ? null : { minX, maxX, minY, maxY, width, height };
+      }
+
+      /**
+       * Renders one baked sprite variant and returns { dataUrl, width, height }.
+       *
+       * `spec` fields:
+       *  - modelUrl: '/models/hockey_player.glb' | '/models/hockey_goalie.glb'
+       *  - clipName: 'skate' | 'goalie_idle'
+       *  - sampleFraction: 0..1, fraction of the clip's duration to sample
+       *  - jerseyHex / accentHex: colours applied to the `jersey`/`accent` materials
+       *  - canvasWidth / canvasHeight: final render resolution in pixels
+       *  - tiltDeg: degrees the camera tilts off a pure vertical (0 = straight down)
+       *  - yawDeg: camera azimuth around the world Y axis, degrees
+       *  - fillFraction: target fraction of the frame the posed model occupies
+       *    after the measured (pass 2) reframe
+       */
+      window.bake = async function bake(spec) {
+        const {
+          modelUrl,
+          clipName,
+          sampleFraction,
+          jerseyHex,
+          accentHex,
+          canvasWidth,
+          canvasHeight,
+          tiltDeg,
+          yawDeg,
+          fillFraction,
+        } = spec;
+
+        const gltf = await loader.loadAsync(modelUrl);
+        const root = gltf.scene;
+        root.updateMatrixWorld(true);
+
+        // The rest (T-)pose bounding box gives the ground target (the brief's
+        // "skate contact centroid", read from the box's centre-x/z) and a
+        // rough radius for pass 1's deliberately loose probe frustum. It is
+        // NOT used to size the final frame - see the file header.
+        const restBox = new THREE.Box3().setFromObject(root);
+        const target = groundTarget(restBox);
+        const looseRadius = boxRadius(restBox) * 1.6;
+
+        // Tint the named materials. Every other material (pants/skin/white/
+        // dark/steel/stick) keeps its authored colour.
+        root.traverse(object => {
+          if (!object.isMesh || !object.material) return;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          for (const material of materials) {
+            if (material.name === 'jersey') material.color.set(jerseyHex);
+            else if (material.name === 'accent') material.color.set(accentHex);
+          }
+        });
+
+        // Pose: play the named clip and park the mixer at a fixed sample time -
+        // no rAF loop, so the same spec always yields the same pose.
+        const clip = THREE.AnimationClip.findByName(gltf.animations, clipName);
+        if (!clip) throw new Error(`clip not found: ${clipName}`);
+        const mixer = new THREE.AnimationMixer(root);
+        mixer.clipAction(clip).play();
+        mixer.setTime(clip.duration * sampleFraction);
+        root.updateMatrixWorld(true);
+
+        const scene = new THREE.Scene();
+        scene.add(root);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+        const key = new THREE.DirectionalLight(0xffffff, 0.9);
+        key.position.set(target.x + 1.4, target.y + 3.2, target.z + 1.6);
+        key.target.position.copy(target);
+        scene.add(key, key.target);
+
+        // Camera direction: orthographic, looking down the world -Y axis with
+        // a slight tilt (`tiltDeg`) so the stick and stride read as more than
+        // a flat silhouette, and an azimuth (`yawDeg`) chosen for a readable
+        // angle. Fixed for both passes - only the frustum size changes.
+        const elevation = THREE.MathUtils.degToRad(90 - tiltDeg);
+        const azimuth = THREE.MathUtils.degToRad(yawDeg);
+        const direction = new THREE.Vector3(
+          Math.cos(elevation) * Math.sin(azimuth),
+          Math.sin(elevation),
+          Math.cos(elevation) * Math.cos(azimuth)
+        ).normalize();
+
+        // Pass 1: loose, square, low-res probe, symmetric about `target`
+        // (camera-space (0,0) always IS `target`, by construction of
+        // lookAt). `looseRadius` comfortably contains the posed model
+        // regardless of how far the animation strays from the T-pose used to
+        // derive it (1.6x margin).
+        const PROBE_SIZE = 320;
+        const probeFrustum = { left: -looseRadius, right: looseRadius, top: looseRadius, bottom: -looseRadius };
+        const probe = renderOrtho(scene, target, direction, probeFrustum, PROBE_SIZE, PROBE_SIZE, false);
+        const bounds = alphaPixelBounds(probe.canvas);
+        probe.renderer.dispose();
+        if (!bounds) throw new Error('bake: pass-1 probe render was fully transparent - nothing to measure');
+
+        // Convert the measured pixel bounds back to camera-space bounds. Row 0
+        // is the top of the frame, i.e. camera-space +Y (`top`); column 0 is
+        // camera-space -X (`left`) - the same convention the probe frustum
+        // itself used.
+        const unitsPerPixel = (2 * looseRadius) / PROBE_SIZE;
+        const rawLeft = -looseRadius + bounds.minX * unitsPerPixel;
+        const rawRight = -looseRadius + (bounds.maxX + 1) * unitsPerPixel;
+        const rawTop = looseRadius - bounds.minY * unitsPerPixel;
+        const rawBottom = looseRadius - (bounds.maxY + 1) * unitsPerPixel;
+
+        // Pass 2: a TIGHT, generally ASYMMETRIC frustum around the measured
+        // silhouette (not around `target` - the model's silhouette is not
+        // usually centred on its own ground-contact point, e.g. a stick
+        // reaching out to one side), expanded by `fillFraction` and then
+        // aspect-matched to the canvas by growing whichever axis is short -
+        // both growths keep the model's own measured centre fixed, not
+        // `target`, so the crop stays tight on every side.
+        const centreX = (rawLeft + rawRight) / 2;
+        const centreY = (rawTop + rawBottom) / 2;
+        let halfW = (rawRight - rawLeft) / 2 / fillFraction;
+        let halfH = (rawTop - rawBottom) / 2 / fillFraction;
+        const aspect = canvasWidth / canvasHeight;
+        if (halfW / halfH > aspect) halfH = halfW / aspect;
+        else halfW = halfH * aspect;
+
+        const frustum = {
+          left: centreX - halfW,
+          right: centreX + halfW,
+          top: centreY + halfH,
+          bottom: centreY - halfH,
+        };
+
+        // Where `target` (camera-space (0,0), always) lands in the FINAL
+        // canvas's pixel grid - generally not the centre, now that the
+        // frustum is asymmetric. This is the pixel the node side must align
+        // to the atlas region's anchor pixel when it composites.
+        const anchorPxX = ((0 - frustum.left) / (frustum.right - frustum.left)) * canvasWidth;
+        const anchorPxY = ((frustum.top - 0) / (frustum.top - frustum.bottom)) * canvasHeight;
+
+        if (window.__BAKE_DEBUG__) {
+          console.log(
+            'probe bounds', JSON.stringify(bounds),
+            'raw LRTB', rawLeft, rawRight, rawTop, rawBottom,
+            'frustum', JSON.stringify(frustum),
+            'anchorPx', anchorPxX, anchorPxY
+          );
+        }
+
+        // The real, transparent render - always. Debug gets its own EXTRA pass
+        // with an opaque background so a human can see it in a PNG viewer;
+        // that snapshot must never be what actually ships, so it is never the
+        // same render call as this one.
+        const final = renderOrtho(scene, target, direction, frustum, canvasWidth, canvasHeight, false);
+        const dataUrl = final.canvas.toDataURL('image/png');
+        final.renderer.dispose();
+
+        let debugDataUrl;
+        if (window.__BAKE_DEBUG__) {
+          const debugRender = renderOrtho(scene, target, direction, frustum, canvasWidth, canvasHeight, true);
+          debugDataUrl = debugRender.canvas.toDataURL('image/png');
+          debugRender.renderer.dispose();
+        }
+
+        return { dataUrl, debugDataUrl, width: canvasWidth, height: canvasHeight, anchorPxX, anchorPxY };
+      };
+
+      window.__bakeReady = true;
+    </script>
+  </body>
+</html>

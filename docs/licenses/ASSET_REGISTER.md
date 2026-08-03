@@ -15,7 +15,7 @@ The gaps are listed at the end and are release blockers, not paperwork.
 | Asset | Origin | Licence | Status |
 |---|---|---|---|
 | `arena-overhead.webp` | Unverified — inherited from an earlier commit | **Unknown** | ⛔ **Blocker, reduced.** No longer used behind the editor (§8.2) — only behind the tabletop presentation view. Provenance must still be established or the file replaced before release. |
-| `hockey-sprites` atlas source images | Unverified — inherited | **Unknown** | ⛔ **Blocker.** These are photographic-looking skater/goalie crops. Phase 3 replaces them with a first-party token system, which resolves this by deletion. |
+| `hockey-sprite-atlas.webp` | First-party — baked from the repo's own GLB models by `scripts/bake-sprites.mjs` | Owned | ✅ Clear. `assets-src/hockey-sprite-atlas.png` (the optimizer's source) is a deterministic render of `hockey_player.glb`/`hockey_goalie.glb` (see the "3D assets" table below) — orthographic top-down captures, jersey-tinted per team, composited into the four `HOCKEY_SPRITES` regions (`src/canvas/HockeySpriteAtlas.ts`). The old unknown-provenance photographic source (`hockey-sprite-atlas-source.png`) is deleted. |
 | PH logo | First-party (PhiceCraft) | Owned | ✅ Clear |
 
 ## Rink and board content
@@ -58,8 +58,10 @@ rows here as they land.
 1. **`arena-overhead.webp` provenance is unknown.** It is now confined to the
    tabletop presentation view rather than sitting behind every edit, but it
    still ships. Establish provenance or replace it.
-2. **Sprite-atlas source images have unknown provenance.** Phase 3's renderer
-   replacement should delete them; until then they ship.
+2. ~~Sprite-atlas source images have unknown provenance.~~ Resolved: Phase 4
+   Task 2 replaced them with a first-party bake (`scripts/bake-sprites.mjs`)
+   from the repo's own GLB models; the old source PNG is deleted and the
+   register row above updated.
 3. ~~No 3D asset licences.~~ Resolved: the skater and goalie GLBs are
    first-party, Blender-authored by the project owner, and recorded in the
    "3D assets" table above.
