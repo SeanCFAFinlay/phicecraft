@@ -97,6 +97,15 @@ export interface Actor {
    * separate boolean is needed alongside `dt` at all.
    */
   update(pos: Point, frame: PlaybackPlayerFrame | undefined, dt: number, wrapped?: boolean): void;
+  /**
+   * Flips `castShadow` on every mesh this actor owns - a correctness seam
+   * for a quality-tier change, not the main path: Board3D.tsx currently
+   * rebuilds the whole scene (and every actor with it) on a quality change
+   * via `sceneEpoch`, so each fresh actor already gets the right value at
+   * construction. Kept and tested regardless per the brief, since a future
+   * caller that flips tiers without a full rebuild needs it to already work.
+   */
+  setShadows(enabled: boolean): void;
   dispose(): void;
 }
 
@@ -109,6 +118,19 @@ export interface MarkerActor {
 
 function findClip(animations: THREE.AnimationClip[], name: string): THREE.AnimationClip | undefined {
   return THREE.AnimationClip.findByName(animations, name) ?? animations[0];
+}
+
+/**
+ * Sets `castShadow` on every `THREE.Mesh` under `root` - never the number
+ * sprite (a `THREE.Sprite`, not a `THREE.Mesh`, so `instanceof THREE.Mesh`
+ * naturally skips it without any name-based exclusion) - see `createActor`'s
+ * own `setShadows` doc comment for why this is exposed as a standalone flip
+ * rather than only ever run once at construction.
+ */
+function setActorMeshShadows(root: THREE.Object3D, enabled: boolean): void {
+  root.traverse(node => {
+    if (node instanceof THREE.Mesh) node.castShadow = enabled;
+  });
 }
 
 function skateTimeScale(speed: number): number {
@@ -153,6 +175,12 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
   // chip and the model out of sync (see numberSprite.ts's own header).
   const numberSprite = createNumberSprite(opts.number, { jersey: opts.jersey }, opts.quality);
   root.add(numberSprite.sprite);
+
+  // Shadows are the one part of an actor expensive enough to gate on
+  // quality, mirroring `buildArena.ts`'s own boards/light gating - see
+  // `setActorMeshShadows`'s doc comment for why the number sprite is never
+  // touched.
+  setActorMeshShadows(root, opts.quality === 'high');
 
   const mixer = new THREE.AnimationMixer(root);
   const availableClipNames = new Set(gltf.animations.map(c => c.name));
@@ -232,6 +260,9 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
       for (const entry of entriesByName.values()) applyClipRules(entry, frame);
       mixer.update(dt);
     },
+    setShadows(enabled) {
+      setActorMeshShadows(root, enabled);
+    },
     dispose() {
       mixer.stopAllAction();
       mixer.uncacheRoot(root);
@@ -262,18 +293,27 @@ const COACH_CAPSULE_LENGTH = 1.1;
 const COACH_DISC_RADIUS = 0.62;
 const COACH_DISC_HEIGHT = 0.06;
 
-export function createCoachMarker(): MarkerActor {
+/**
+ * `quality` gates `castShadow` the same way `buildArena.ts`'s boards and
+ * `createActor`'s skaters/goalies do - a coach marker is small but still a
+ * real solid in the scene, so it reads inconsistently against shadowed
+ * skaters/puck if left out at 'high'.
+ */
+export function createCoachMarker(quality: RenderQuality): MarkerActor {
+  const castShadow = quality === 'high';
   const material = new THREE.MeshStandardMaterial({ color: COACH_COLOR, roughness: 0.7 });
 
   const capsuleGeometry = new THREE.CapsuleGeometry(COACH_CAPSULE_RADIUS, COACH_CAPSULE_LENGTH, 4, 12);
   const capsule = new THREE.Mesh(capsuleGeometry, material);
   capsule.name = 'coach-capsule';
   capsule.position.y = COACH_DISC_HEIGHT + COACH_CAPSULE_LENGTH / 2 + COACH_CAPSULE_RADIUS;
+  capsule.castShadow = castShadow;
 
   const discGeometry = new THREE.CylinderGeometry(COACH_DISC_RADIUS, COACH_DISC_RADIUS, COACH_DISC_HEIGHT, 24);
   const disc = new THREE.Mesh(discGeometry, material);
   disc.name = 'coach-disc';
   disc.position.y = COACH_DISC_HEIGHT / 2;
+  disc.castShadow = castShadow;
 
   const root = new THREE.Group();
   root.name = 'coach';
@@ -306,11 +346,13 @@ const PUCK_RADIUS = 0.114;
 const PUCK_HEIGHT = 0.03;
 const PUCK_COLOR = '#111418';
 
-export function createPuck(): MarkerActor {
+/** `quality` gates `castShadow` - see `createCoachMarker`'s own doc comment. */
+export function createPuck(quality: RenderQuality): MarkerActor {
   const geometry = new THREE.CylinderGeometry(PUCK_RADIUS, PUCK_RADIUS, PUCK_HEIGHT, 24);
   const material = new THREE.MeshStandardMaterial({ color: PUCK_COLOR, roughness: 0.5 });
   const root = new THREE.Mesh(geometry, material);
   root.name = 'puck';
+  root.castShadow = quality === 'high';
 
   return {
     root,

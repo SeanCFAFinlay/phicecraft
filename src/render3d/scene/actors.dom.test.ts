@@ -593,9 +593,68 @@ describe('createActor - scrub-backward during a cross-fade stays deterministic',
   });
 });
 
+describe('createActor - shadows', () => {
+  it('casts shadows on every mesh at high quality', () => {
+    const actor = createActor(buildFakeGltf('skate'), {
+      kind: 'skater',
+      jersey: '#e63946',
+      accent: '#ffffff',
+      number: '9',
+      quality: 'high',
+    });
+
+    const mesh = actor.root.getObjectByName('Body') as THREE.Mesh;
+    expect(mesh.castShadow).toBe(true);
+  });
+
+  it.each(['medium', 'low'] as const)('does not cast shadows at %s quality', quality => {
+    const actor = createActor(buildFakeGltf('skate'), {
+      kind: 'skater',
+      jersey: '#e63946',
+      accent: '#ffffff',
+      number: '9',
+      quality,
+    });
+
+    const mesh = actor.root.getObjectByName('Body') as THREE.Mesh;
+    expect(mesh.castShadow).toBe(false);
+  });
+
+  it('never sets castShadow on the number sprite, even at high quality', () => {
+    const actor = createActor(buildFakeGltf('skate'), {
+      kind: 'skater',
+      jersey: '#e63946',
+      accent: '#ffffff',
+      number: '9',
+      quality: 'high',
+    });
+
+    const sprite = actor.root.getObjectByName('number-sprite') as THREE.Sprite;
+    expect(sprite.castShadow).toBe(false);
+  });
+
+  it('setShadows flips castShadow on every mesh for a tier change without rebuilding the actor', () => {
+    const actor = createActor(buildFakeGltf('skate'), {
+      kind: 'skater',
+      jersey: '#e63946',
+      accent: '#ffffff',
+      number: '9',
+      quality: 'low',
+    });
+    const mesh = actor.root.getObjectByName('Body') as THREE.Mesh;
+    expect(mesh.castShadow).toBe(false);
+
+    actor.setShadows(true);
+    expect(mesh.castShadow).toBe(true);
+
+    actor.setShadows(false);
+    expect(mesh.castShadow).toBe(false);
+  });
+});
+
 describe('createCoachMarker', () => {
   it('builds a capsule + disc marker positioned via rinkToWorld', () => {
-    const marker = createCoachMarker();
+    const marker = createCoachMarker('high');
     const pos = { x: RINK.centerX + 10, y: RINK.centerY + 5 };
 
     marker.setPosition(pos);
@@ -606,11 +665,21 @@ describe('createCoachMarker', () => {
     expect(marker.root.getObjectByName('coach-capsule')).toBeInstanceOf(THREE.Mesh);
     expect(marker.root.getObjectByName('coach-disc')).toBeInstanceOf(THREE.Mesh);
   });
+
+  it('casts shadows only at high quality', () => {
+    const highMarker = createCoachMarker('high');
+    const capsuleHigh = highMarker.root.getObjectByName('coach-capsule') as THREE.Mesh;
+    expect(capsuleHigh.castShadow).toBe(true);
+
+    const lowMarker = createCoachMarker('low');
+    const capsuleLow = lowMarker.root.getObjectByName('coach-capsule') as THREE.Mesh;
+    expect(capsuleLow.castShadow).toBe(false);
+  });
 });
 
 describe('createPuck', () => {
   it('builds a small dark cylinder positioned via rinkToWorld', () => {
-    const puck = createPuck();
+    const puck = createPuck('high');
 
     puck.setPosition(CENTER_ICE);
 
@@ -618,5 +687,13 @@ describe('createPuck', () => {
     expect(puck.root.position.x).toBeCloseTo(world.x, 10);
     expect(puck.root.position.z).toBeCloseTo(world.z, 10);
     expect((puck.root as THREE.Mesh).geometry).toBeInstanceOf(THREE.CylinderGeometry);
+  });
+
+  it('casts shadows only at high quality', () => {
+    const puckHigh = createPuck('high');
+    expect((puckHigh.root as THREE.Mesh).castShadow).toBe(true);
+
+    const puckLow = createPuck('low');
+    expect((puckLow.root as THREE.Mesh).castShadow).toBe(false);
   });
 });

@@ -260,7 +260,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
 
     const skaterActors = new Map<ID, Actor>();
     const coachMarkers = new Map<ID, MarkerActor>();
-    const puckActor = createPuck();
+    const puckActor = createPuck(quality);
     puckActor.root.visible = false;
     actorGroup.add(puckActor.root);
 
@@ -394,7 +394,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       }
 
       for (const coach of drill.coaches ?? []) {
-        const marker = createCoachMarker();
+        const marker = createCoachMarker(quality);
         actorGroup.add(marker.root);
         coachMarkers.set(coach.id, marker);
       }
