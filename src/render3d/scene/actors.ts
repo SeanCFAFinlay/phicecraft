@@ -12,10 +12,12 @@
 
 import * as THREE from 'three';
 import type { PlaybackPlayerFrame, Point } from '@/core/types';
+import type { RenderQuality } from '@/render/quality';
 import { clamp } from '@/utils/geometry';
 import { headingToYaw, rinkToWorld } from '../worldMap';
 import { tintActorMaterials } from './tintMaterials';
 import { CLIP_FADE_SECONDS, isMovementClip, selectClipName } from './clipSelector';
+import { createNumberSprite } from './numberSprite';
 
 /** Rink-units/second at which the `skate` clip plays at its authored (1x) speed. */
 export const REFERENCE_SKATE_SPEED = 120;
@@ -80,6 +82,10 @@ export interface CreateActorOptions {
   kind: 'skater' | 'goalie';
   jersey: string;
   accent: string;
+  /** Jersey number drawn on the over-the-head billboard - see `createNumberSprite`. */
+  number: string;
+  /** Texture resolution for the number billboard - see `createNumberSprite`'s own quality-tier doc comment. */
+  quality: RenderQuality;
 }
 
 export interface Actor {
@@ -141,6 +147,12 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
     accent: opts.accent,
     pants: PANTS_COLOR,
   });
+
+  // Reuses the SAME jersey colour string just tinted onto the model above -
+  // not a separate palette lookup - so a jersey recolour can never leave the
+  // chip and the model out of sync (see numberSprite.ts's own header).
+  const numberSprite = createNumberSprite(opts.number, { jersey: opts.jersey }, opts.quality);
+  root.add(numberSprite.sprite);
 
   const mixer = new THREE.AnimationMixer(root);
   const availableClipNames = new Set(gltf.animations.map(c => c.name));
@@ -228,6 +240,9 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
       // steel/stick) are shared with the module-scope cached GLTF (and every
       // other actor cloned from it) and must survive this actor's disposal.
       for (const material of tintedMaterials) material.dispose();
+      // The number sprite's canvas/texture/material are this actor's own -
+      // never shared - so they are always safe (and required) to dispose here.
+      numberSprite.dispose();
     },
   };
 }

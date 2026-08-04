@@ -241,7 +241,12 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   // changes identity; repainted synchronously on every playback frame.
   // `sceneEpoch` is in the deps purely so this effect re-runs and re-reads
   // `sceneRef.current` whenever the renderer effect (re)creates the scene -
-  // see `sceneEpoch`'s own doc comment above.
+  // see `sceneEpoch`'s own doc comment above. `quality` is also a direct dep:
+  // `createActor` reads it to size each actor's jersey-number sprite texture
+  // (numberSprite.ts) - a quality change always arrives alongside a
+  // `sceneEpoch` bump (the renderer effect's own deps are `[cameraStore,
+  // quality]`), but naming it here too keeps this effect's actual data
+  // dependency honest for exhaustive-deps and any future reader.
   // --------------------------------------------------------------------------
 
   useEffect(() => {
@@ -380,6 +385,8 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
             kind: player.role === 'G' ? 'goalie' : 'skater',
             jersey: jerseyColor(player.team, drill.settings),
             accent: ACCENT_COLOR,
+            number: player.number,
+            quality,
           }
         );
         actorGroup.add(actor.root);
@@ -410,7 +417,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       puckActor.dispose();
       scene.remove(actorGroup);
     };
-  }, [playback, state.drill, sceneEpoch, announcer]);
+  }, [playback, state.drill, sceneEpoch, announcer, quality]);
 
   // --------------------------------------------------------------------------
   // Orbit gestures - drag to spin, wheel/pinch to zoom. View-only: nothing

@@ -115,6 +115,8 @@ describe('createActor - position and yaw', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
     const pos = { x: RINK.centerX + 50, y: RINK.centerY - 20 };
 
@@ -132,6 +134,8 @@ describe('createActor - position and yaw', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     actor.update(CENTER_ICE, undefined, 0);
@@ -146,6 +150,8 @@ describe('createActor - skater clip timeScale', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     actor.update(CENTER_ICE, playerFrame({ speed: REFERENCE_SKATE_SPEED }), CLIP_DURATION * 0.5);
@@ -158,6 +164,8 @@ describe('createActor - skater clip timeScale', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     // 10x the reference speed would ask for timeScale 10 - clamped to 2.5.
@@ -172,6 +180,8 @@ describe('createActor - skater clip timeScale', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     // speed 5 is above the freeze floor (4) but far under the reference
@@ -186,6 +196,8 @@ describe('createActor - skater clip timeScale', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     actor.update(CENTER_ICE, playerFrame({ speed: 3.9 }), 0);
@@ -201,6 +213,8 @@ describe('createActor - skater clip timeScale', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     actor.update(CENTER_ICE, undefined, 1);
@@ -215,6 +229,8 @@ describe('createActor - goalie clip', () => {
       kind: 'goalie',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     // Speed 0 would freeze a skater - a goalie must still advance at 1x.
@@ -230,11 +246,15 @@ describe('createActor - material tinting', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
     const actorB = createActor(buildFakeGltf('skate'), {
       kind: 'skater',
       jersey: '#2f80ed',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     const meshA = actorA.root.getObjectByName('Body') as THREE.Mesh;
@@ -248,12 +268,55 @@ describe('createActor - material tinting', () => {
   });
 });
 
+describe('createActor - number sprite', () => {
+  it('attaches a THREE.Sprite named "number-sprite" to the actor root, over the head', () => {
+    const actor = createActor(buildFakeGltf('skate'), {
+      kind: 'skater',
+      jersey: '#e63946',
+      accent: '#ffffff',
+      number: '27',
+      quality: 'high',
+    });
+
+    const sprite = actor.root.getObjectByName('number-sprite');
+    expect(sprite).toBeInstanceOf(THREE.Sprite);
+    expect(sprite?.position.y).toBeCloseTo(2.05, 5);
+  });
+
+  it('gives two actors distinct number-sprite instances, never sharing a texture', () => {
+    const actorA = createActor(buildFakeGltf('skate'), {
+      kind: 'skater',
+      jersey: '#e63946',
+      accent: '#ffffff',
+      number: '9',
+      quality: 'high',
+    });
+    const actorB = createActor(buildFakeGltf('skate'), {
+      kind: 'skater',
+      jersey: '#2f80ed',
+      accent: '#ffffff',
+      number: '27',
+      quality: 'high',
+    });
+
+    const spriteA = actorA.root.getObjectByName('number-sprite') as THREE.Sprite;
+    const spriteB = actorB.root.getObjectByName('number-sprite') as THREE.Sprite;
+    expect(spriteA).not.toBe(spriteB);
+    expect(spriteA.material).not.toBe(spriteB.material);
+    expect((spriteA.material as THREE.SpriteMaterial).map).not.toBe(
+      (spriteB.material as THREE.SpriteMaterial).map
+    );
+  });
+});
+
 describe('createActor - dispose', () => {
   it('disposes the per-actor cloned tint materials (jersey/accent/pants) but leaves the shared, untinted one alone', () => {
     const actor = createActor(buildFakeGltf('skate'), {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     const mesh = actor.root.getObjectByName('Body') as THREE.Mesh;
@@ -273,6 +336,27 @@ describe('createActor - dispose', () => {
     // Geometry is shared with the module-scope cached GLTF - must never be
     // disposed by a single actor.
     expect(geometryDisposeSpy).not.toHaveBeenCalled();
+  });
+
+  it('disposes the number sprite\'s own texture and material', () => {
+    const actor = createActor(buildFakeGltf('skate'), {
+      kind: 'skater',
+      jersey: '#e63946',
+      accent: '#ffffff',
+      number: '9',
+      quality: 'high',
+    });
+
+    const sprite = actor.root.getObjectByName('number-sprite') as THREE.Sprite;
+    const material = sprite.material as THREE.SpriteMaterial;
+    const texture = material.map as THREE.CanvasTexture;
+    const textureDisposeSpy = vi.spyOn(texture, 'dispose');
+    const materialDisposeSpy = vi.spyOn(material, 'dispose');
+
+    actor.dispose();
+
+    expect(textureDisposeSpy).toHaveBeenCalledTimes(1);
+    expect(materialDisposeSpy).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -306,6 +390,8 @@ describe('createActor - reverse scrub (negative dt) through the real AnimationMi
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     // Scrub forward to the clip's midpoint first (timeScale 1x at the
@@ -324,6 +410,8 @@ describe('createActor - reverse scrub (negative dt) through the real AnimationMi
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     actor.update(CENTER_ICE, playerFrame({ speed: REFERENCE_SKATE_SPEED }), CLIP_DURATION * 0.5);
@@ -345,6 +433,8 @@ describe("createActor - fallback chain end-to-end (zero drift with today's singl
         kind: 'skater',
         jersey: '#e63946',
         accent: '#ffffff',
+        number: '9',
+        quality: 'high',
       });
 
       // Same assertion as "plays at 1x at the reference speed" above, just
@@ -364,6 +454,8 @@ describe('createActor - clip cross-fade on action change', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     // Tick 1: frame.action = 'stride' matches the actor's initial guess (an
@@ -396,6 +488,8 @@ describe('createActor - wrap snaps an in-flight cross-fade', () => {
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     // Establish 'stride' 0.4s into its ramp, then begin a fade to 'pass'
@@ -431,6 +525,8 @@ describe('createActor - movement vs non-movement timeScale rules on future clips
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     actor.update(CENTER_ICE, playerFrame({ action: 'stride', speed: 3.9 }), 0);
@@ -446,6 +542,8 @@ describe('createActor - movement vs non-movement timeScale rules on future clips
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     // Tick 1 (dt=0) just moves 'pass' into the current-clip slot; tick 2's
@@ -469,6 +567,8 @@ describe('createActor - scrub-backward during a cross-fade stays deterministic',
       kind: 'skater',
       jersey: '#e63946',
       accent: '#ffffff',
+      number: '9',
+      quality: 'high',
     });
 
     actor.update(CENTER_ICE, playerFrame({ action: 'stride', speed: REFERENCE_SKATE_SPEED }), CLIP_DURATION * 0.5);
