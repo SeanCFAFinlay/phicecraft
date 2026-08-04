@@ -181,6 +181,53 @@ describe('ghost trails', () => {
   });
 });
 
+describe('puck trail', () => {
+  it('accumulates the puck position only while playing, alongside the player trails', () => {
+    store.setDrill(drillWithRoute());
+    store.setPlaying(true);
+    store.seek(0.25);
+    store.seek(0.5);
+    expect(store.puckTrail.read('puck').length).toBeGreaterThan(0);
+
+    const scrubbing = new PlaybackStore();
+    scrubbing.setDrill(drillWithRoute());
+    scrubbing.seek(0.5);
+    expect(scrubbing.puckTrail.entries()).toEqual([]);
+  });
+
+  it('does not accumulate when the frame has no puck (no carrier, no puck event yet)', () => {
+    const drill = buildDrill({
+      players: [buildPlayer({ id: 'a', x: 0, y: 0 }), buildPlayer({ id: 'b', x: 100, y: 0 })],
+    });
+    store.setDrill(drill);
+    store.setPlaying(true);
+    store.seek(0.5);
+    expect(store.getFrame().puck).toBeNull();
+    expect(store.puckTrail.entries()).toEqual([]);
+  });
+
+  it('is cleared on reset, the same place player trails clear', () => {
+    store.setDrill(drillWithRoute());
+    store.setPlaying(true);
+    store.seek(0.5);
+    expect(store.puckTrail.entries().length).toBeGreaterThan(0);
+
+    store.reset();
+    expect(store.puckTrail.entries()).toEqual([]);
+    expect(store.trails.entries()).toEqual([]);
+  });
+
+  it('is cleared whenever playback starts, the same place player trails clear', () => {
+    store.setDrill(drillWithRoute());
+    store.setPlaying(true);
+    store.seek(0.5);
+    expect(store.puckTrail.entries().length).toBeGreaterThan(0);
+
+    store.setPlaying(true);
+    expect(store.puckTrail.entries()).toEqual([]);
+  });
+});
+
 describe('reset and document changes', () => {
   it('resets back to a clean slate', () => {
     store.setDrill(drillWithRoute());

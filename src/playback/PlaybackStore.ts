@@ -11,6 +11,9 @@ import type { Drill, ID, Point } from '@/core/types';
 import { GHOST_TRAIL_MAX_LENGTH } from '@/core/constants';
 import { EMPTY_FRAME, GhostTrailBuffer, derivePlaybackFrame, type PlaybackFrame } from './playbackFrame';
 
+/** The single synthetic key `puckTrail` is stored/read under - see its own doc comment on the field below. */
+export const PUCK_TRAIL_KEY = 'puck';
+
 /** What React is allowed to see. Deliberately small and low-frequency. */
 export interface PlaybackDisplaySnapshot {
   /** Progress rounded to 1%, so a panel re-renders ~100 times per play, not 60/s. */
@@ -38,6 +41,15 @@ export class PlaybackStore {
   };
 
   readonly trails = new GhostTrailBuffer(GHOST_TRAIL_MAX_LENGTH);
+  /**
+   * The puck's own trail, mirroring `trails`' exact lifecycle (same
+   * `seek`/`setPlaying`/`reset` sites) so scrub/reset semantics can never
+   * diverge between the two - see this class's own header. Keyed by a
+   * single synthetic id (`PUCK_TRAIL_KEY`) since there is only ever one
+   * puck, in the same `GhostTrailBuffer` shape the 3D renderer already
+   * knows how to read (`puckTrail.ts`).
+   */
+  readonly puckTrail = new GhostTrailBuffer(GHOST_TRAIL_MAX_LENGTH);
 
   // --------------------------------------------------------------------------
   // Subscriptions
@@ -80,6 +92,7 @@ export class PlaybackStore {
     this.playing = playing;
     if (!playing) return;
     this.trails.clear();
+    this.puckTrail.clear();
   }
 
   /**
@@ -98,6 +111,11 @@ export class PlaybackStore {
         const hasRoute = this.drill.skatePaths.some(route => route.ownerId === player.id);
         if (hasRoute) this.trails.push(player.id, frame.positions[player.id]);
       }
+      // `frame.puck` is `visible` in every branch that produces one at all
+      // (see `samplePuck`/`resolvePuckState`, sampleFrame.ts) - the explicit
+      // check documents the same contract the 3D puck actor itself relies on
+      // rather than assuming "non-null implies visible" silently.
+      if (frame.puck?.visible) this.puckTrail.push(PUCK_TRAIL_KEY, frame.puck);
     }
 
     for (const listener of this.frameListeners) listener();
@@ -127,6 +145,7 @@ export class PlaybackStore {
   reset(): void {
     this.frame = EMPTY_FRAME;
     this.trails.clear();
+    this.puckTrail.clear();
     this.display = { progressPercent: 0, durationSeconds: 0, lifecycle: 'ready', firedEventCount: 0 };
     for (const listener of this.frameListeners) listener();
     for (const listener of this.displayListeners) listener();

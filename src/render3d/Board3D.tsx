@@ -32,6 +32,7 @@ import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import type { RenderQuality } from '@/render/quality';
 import type { Drill, ID, Point } from '@/core/types';
 import { jerseyColor } from '@/core/types';
+import { PUCK_TRAIL_KEY } from '@/playback/PlaybackStore';
 import { orbitFromCamera } from './orbit';
 import { RINK_SCALE } from './worldMap';
 import { buildArena } from './scene/buildArena';
@@ -45,6 +46,7 @@ import {
   type Actor,
   type MarkerActor,
 } from './scene/actors';
+import { createPuckTrail } from './scene/puckTrail';
 import { loadModel } from './modelCache';
 import { markBoard3DActorsBuilt, recordBoard3DFrame } from './board3dCounters';
 import {
@@ -264,6 +266,15 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     puckActor.root.visible = false;
     actorGroup.add(puckActor.root);
 
+    // Built ONCE per effect run (like `puckActor` above), then only ever
+    // `update()`d in `renderFrame` below - a preallocated BufferGeometry, no
+    // per-frame allocation (see puckTrail.ts's own header). Reads the SAME
+    // `PlaybackStore.puckTrail` buffer accumulated in `PlaybackStore.seek`
+    // alongside the player `trails` the 2D board reads - the 2D board itself
+    // never touches this buffer, so it stays completely unaffected.
+    const puckTrail = createPuckTrail();
+    actorGroup.add(puckTrail.line);
+
     // dt for the mixers is a PROGRESS delta times duration, not wall-clock
     // time - see the module header: scrubbing the timeline must move the
     // stride exactly as far as playing it would, and a paused rAF clock
@@ -351,6 +362,8 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       puckActor.root.visible = puckPosition !== null;
       if (puckPosition) puckActor.setPosition(puckPosition);
 
+      puckTrail.update(playback.puckTrail.read(PUCK_TRAIL_KEY));
+
       renderRef.current();
     };
 
@@ -415,6 +428,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       unsubscribeFrames();
       disposeActors();
       puckActor.dispose();
+      puckTrail.dispose();
       scene.remove(actorGroup);
     };
   }, [playback, state.drill, sceneEpoch, announcer, quality]);
