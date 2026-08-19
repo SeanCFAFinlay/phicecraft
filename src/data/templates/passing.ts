@@ -192,7 +192,12 @@ export const fourDotWarmUp: DrillTemplate = template({
   ],
   puck: {
     from: 'd1',
-    actions: [pass('d1', 'd2'), pass('d2', 'd3'), pass('d3', 'd4'), pass('d4', 'd1')],
+    actions: [
+      pass('d1', 'd2', { flightSeconds: 1.6 }),
+      pass('d2', 'd3', { flightSeconds: 0.9 }),
+      pass('d3', 'd4', { flightSeconds: 1.6 }),
+      pass('d4', 'd1', { flightSeconds: 0.9 }),
+    ],
   },
   finishPolicy: 'loop',
 });

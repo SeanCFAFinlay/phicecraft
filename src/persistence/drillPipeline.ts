@@ -373,6 +373,7 @@ export function normalizeDrillCandidate(
   const rawRoutes = asArray(candidate.skatePaths);
   const rawEvents = asArray(candidate.events);
   const rawCoaches = asArray(candidate.coaches);
+  const initialPuck = asPoint(candidate.initialPuck);
 
   if (!Array.isArray(candidate.players) && candidate.players != null) {
     warnings.push('players was not an array and was replaced with an empty list.');
@@ -382,6 +383,9 @@ export function normalizeDrillCandidate(
   }
   if (!Array.isArray(candidate.skatePaths) && candidate.skatePaths != null) {
     warnings.push('skatePaths was not an array and was replaced with an empty list.');
+  }
+  if (candidate.initialPuck != null && !initialPuck) {
+    warnings.push('initialPuck had non-finite coordinates and was dropped.');
   }
 
   const players = rawPlayers
@@ -425,6 +429,7 @@ export function normalizeDrillCandidate(
     createdAt,
     updatedAt: asFiniteNumber(candidate.updatedAt, createdAt),
     players,
+    ...(initialPuck ? { initialPuck } : {}),
     skatePaths,
     events,
     coaches,
@@ -496,10 +501,16 @@ export function validateDrillDocument(drill: unknown): DocumentValidation {
   const events = asArray(drill.events).filter(isPlainObject);
   const routes = asArray(drill.skatePaths).filter(isPlainObject);
 
+  const initialPuck = asPoint(drill.initialPuck);
+  if (drill.initialPuck != null && !initialPuck) errors.push('Initial puck position is invalid');
+
   // A drill with no players yet is a legitimate empty board, not an error.
-  // Once anyone is on the ice, exactly one of them starts with the puck.
+  // Once anyone is on the ice, the puck starts either with exactly one player
+  // or loose at a recorded point, never both.
   const carriers = players.filter(player => player.hasPuck === true);
-  if (players.length > 0 && carriers.length === 0) {
+  if (initialPuck && carriers.length > 0) {
+    errors.push('Multiple initial puck sources');
+  } else if (!initialPuck && players.length > 0 && carriers.length === 0) {
     errors.push('No initial puck carrier');
   } else if (carriers.length > 1) {
     errors.push('Multiple initial puck carriers');
@@ -543,7 +554,7 @@ export function validateDrillDocument(drill: unknown): DocumentValidation {
 /**
  * Make a normalized drill valid with the smallest possible change: drop
  * dangling references, deduplicate IDs, and guarantee exactly one initial
- * puck carrier. Content is never invented beyond that.
+ * puck source. Content is never invented beyond that.
  */
 export function repairDrillDocument(drill: Drill, generateId: () => ID): Drill {
   const seenPlayerIds = new Set<ID>();
@@ -554,8 +565,11 @@ export function repairDrillDocument(drill: Drill, generateId: () => ID): Drill {
   });
 
   const carriers = players.filter(player => player.hasPuck);
+  const initialPuck = drill.initialPuck ? { ...drill.initialPuck } : undefined;
   let withCarrier = players;
-  if (carriers.length === 0 && players.length > 0) {
+  if (initialPuck) {
+    withCarrier = players.map(player => player.hasPuck ? { ...player, hasPuck: false } : player);
+  } else if (carriers.length === 0 && players.length > 0) {
     withCarrier = players.map((player, index) => ({ ...player, hasPuck: index === 0 }));
   } else if (carriers.length > 1) {
     let assigned = false;
@@ -603,6 +617,7 @@ export function repairDrillDocument(drill: Drill, generateId: () => ID): Drill {
     ...drill,
     schemaVersion: CURRENT_DRILL_SCHEMA_VERSION,
     players: withCarrier,
+    ...(initialPuck ? { initialPuck } : { initialPuck: undefined }),
     skatePaths,
     events,
     coaches: drill.coaches ?? [],
@@ -676,6 +691,7 @@ export function remapImportedDrill(
     createdAt: now,
     updatedAt: now,
     players,
+    ...(drill.initialPuck ? { initialPuck: { ...drill.initialPuck } } : {}),
     coaches,
     skatePaths,
     events,

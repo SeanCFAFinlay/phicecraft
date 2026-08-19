@@ -169,6 +169,7 @@ export const DrillSchema = z.object({
   createdAt: finiteNumber,
   updatedAt: finiteNumber,
   players: z.array(PlayerSchema).max(IMPORT_LIMITS.maxPlayersPerDrill),
+  initialPuck: PointSchema.optional(),
   skatePaths: z.array(SkatePathSchema).max(IMPORT_LIMITS.maxRoutesPerDrill),
   events: z.array(DrillEventSchema).max(IMPORT_LIMITS.maxEventsPerDrill),
   coaches: z.array(CoachSchema).max(IMPORT_LIMITS.maxCoachesPerDrill),

@@ -13,6 +13,7 @@ import type {
   PassEvent,
   Player,
   PlayerRole,
+  Point,
   ShotEvent,
   SkatePath,
   Team,
@@ -92,6 +93,7 @@ export interface BuildDrillOptions {
   id?: string;
   name?: string;
   players?: Player[];
+  initialPuck?: Point;
   skatePaths?: SkatePath[];
   events?: DrillEvent[];
   coaches?: CoachMarker[];
@@ -116,6 +118,7 @@ export function buildDrill(options: BuildDrillOptions = {}): Drill {
     createdAt: options.createdAt ?? FIXED_NOW,
     updatedAt: options.updatedAt ?? FIXED_NOW,
     players,
+    ...(options.initialPuck ? { initialPuck: { ...options.initialPuck } } : {}),
     skatePaths: options.skatePaths ?? [],
     events: options.events ?? [],
     coaches: options.coaches ?? [],

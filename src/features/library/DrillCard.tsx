@@ -92,6 +92,8 @@ export function DrillCard({ entry, onOpen, onToggleFavourite, onUse }: DrillCard
           alt=""
           width={THUMB.width}
           height={THUMB.height}
+          loading="lazy"
+          decoding="async"
           className="mt-2 w-full rounded-xl border border-app-border bg-white"
         />
       )}

@@ -267,6 +267,22 @@ describe('SET_PUCK_CARRIER', () => {
     expect(state.drill.players.filter(p => p.hasPuck).map(p => p.id)).toEqual(['b']);
   });
 
+  it('replaces a loose-puck start with the selected carrier', () => {
+    const base = stateWithPlayers();
+    const loose: AppState = {
+      ...base,
+      drill: {
+        ...base.drill,
+        players: base.drill.players.map(item => ({ ...item, hasPuck: false })),
+        initialPuck: { x: 40, y: 50 },
+      },
+    };
+    const state = appReducer(loose, { type: 'SET_PUCK_CARRIER', id: 'b' });
+
+    expect(state.drill.initialPuck).toBeUndefined();
+    expect(state.drill.players.filter(item => item.hasPuck).map(item => item.id)).toEqual(['b']);
+  });
+
   it('is rejected once events exist, since possession is then derived', () => {
     const withEvent = appReducer(stateWithPlayers(), {
       type: 'ADD_PASS',

@@ -14,6 +14,8 @@ import { projectToV2 } from '@/domain/v3/projectToV2';
 import { compileDrill } from '@/sim/compileDrill';
 import { sampleFrame } from '@/sim/sampleFrame';
 import { RINK } from '@/core/constants';
+import { validateDrillMechanics } from '@/engine/drillValidation';
+import { distance } from '@/utils/geometry';
 
 describe('every template', () => {
   for (const item of DRILL_TEMPLATES) {
@@ -82,6 +84,13 @@ describe('every template', () => {
             expect(Number.isFinite(player.position.y), `t=${step / 10}`).toBe(true);
           }
         }
+      });
+
+      it('passes the same blocking checks as the editor Play button', () => {
+        const { drill } = projectToV2(item.document);
+        const blocking = validateDrillMechanics(drill).filter(issue => issue.severity === 'error');
+
+        expect(blocking, JSON.stringify(blocking, null, 1)).toEqual([]);
       });
 
       it('only asks for a finishing shot when it means it', () => {
@@ -177,5 +186,49 @@ describe('the catalogue', () => {
     for (const { id, document } of DRILL_TEMPLATES) {
       expect(document.groups, `template ${id}`).toEqual([]);
     }
+  });
+});
+
+describe('Puck Race to Possession outcome', () => {
+  it('executes a dump-in, a two-player chase, a winning pickup, a net drive, and a shot', () => {
+    const item = findTemplate('tpl-puck-race');
+    expect(item).not.toBeNull();
+
+    const { drill } = projectToV2(item!.document);
+    expect(drill.events.map(event => event.type)).toEqual(['dump', 'pickup', 'shot']);
+    expect(drill.settings?.finishPolicy).toBe('finish-with-shot');
+
+    const compiled = compileDrill(drill);
+    const [dumpEvent, pickupEvent, shotEvent] = compiled.events;
+    const dumpTarget = dumpEvent.source.toPoint;
+    const start = sampleFrame(compiled, 0);
+    const chase = sampleFrame(compiled, 2.4);
+
+    // Both racers have left together and materially closed on the dumped puck.
+    for (const playerId of ['r1', 'r2']) {
+      expect(chase.players[playerId].routeProgress).toBeGreaterThan(0.2);
+      expect(distance(chase.players[playerId].position, dumpTarget)).toBeLessThan(
+        distance(start.players[playerId].position, dumpTarget)
+      );
+    }
+    expect(sampleFrame(compiled, dumpEvent.arrivalSeconds).puck?.state).toBe('loose');
+
+    const afterPickup = sampleFrame(compiled, pickupEvent.arrivalSeconds + 0.01);
+    expect(afterPickup.puck).toMatchObject({ state: 'possessed', carrierId: 'r1' });
+    expect(afterPickup.eventExecutions[1]).toMatchObject({
+      status: 'completed',
+      outcome: 'recovered',
+    });
+
+    // The winner carries away from the corner toward the net before releasing.
+    const beforeShot = sampleFrame(compiled, shotEvent.departureSeconds - 0.01);
+    expect(beforeShot.puck).toMatchObject({ state: 'possessed', carrierId: 'r1' });
+    expect(beforeShot.players.r1.position.y).toBeGreaterThan(afterPickup.players.r1.position.y);
+    expect(beforeShot.players.r1.position.x).toBeGreaterThan(800);
+
+    const finished = sampleFrame(compiled, compiled.durationSeconds);
+    expect(finished.eventExecutions[2].status).toBe('completed');
+    expect(finished.eventExecutions[2].outcome).toMatch(/goal|save|rebound|wide|post/);
+    expect(finished.eventExecutions.every(execution => execution.status !== 'blocked')).toBe(true);
   });
 });
