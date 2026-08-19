@@ -80,6 +80,7 @@ function ensureSingleCarrier(players: Player[]): Player[] {
 function createUndoSnapshot(drill: Drill): UndoSnapshot {
   return structuredClone({
     players: drill.players,
+    initialPuck: drill.initialPuck,
     skatePaths: drill.skatePaths,
     events: drill.events,
     coaches: drill.coaches ?? [],
@@ -91,6 +92,7 @@ function applySnapshot(state: AppState, snapshot: UndoSnapshot): Drill {
   return {
     ...state.drill,
     players: snapshot.players,
+    initialPuck: snapshot.initialPuck,
     skatePaths: snapshot.skatePaths,
     events: snapshot.events,
     coaches: snapshot.coaches ?? [],
@@ -288,7 +290,7 @@ function reduce(state: AppState, action: AppAction): AppState {
       // Removing the initial carrier would leave the drill with no puck at all,
       // so hand it to whoever is left.
       const hasCarrier = players.some(p => p.hasPuck);
-      const withPuck = hasCarrier || players.length === 0
+      const withPuck = hasCarrier || players.length === 0 || state.drill.initialPuck
         ? players
         : players.map((p, i) => ({ ...p, hasPuck: i === 0 }));
 
@@ -452,6 +454,7 @@ function reduce(state: AppState, action: AppAction): AppState {
         ...state,
         drill: {
           ...state.drill,
+          initialPuck: undefined,
           players: state.drill.players.map(p => ({ ...p, hasPuck: p.id === action.id })),
           updatedAt: Date.now(),
         },
@@ -592,6 +595,7 @@ function reduce(state: AppState, action: AppAction): AppState {
         ...state,
         drill: {
           ...state.drill,
+          initialPuck: undefined,
           events: [],
           players: ensureSingleCarrier(state.drill.players),
           updatedAt: Date.now(),
@@ -618,6 +622,7 @@ function reduce(state: AppState, action: AppAction): AppState {
         drill: {
           ...state.drill,
           players: createDefaultPlayers(),
+          initialPuck: undefined,
           skatePaths: [],
           events: [],
           coaches: [],

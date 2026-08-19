@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { authoredEvents } from '@/engine/puck';
 import { appReducer, createInitialState } from './state';
-import type { AppAction, AppState, PassEvent, Player, SkatePath, Toast } from './types';
+import type { AppAction, AppState, PassEvent, PickupEvent, Player, SkatePath, Toast } from './types';
 
 function run(state: AppState, ...actions: AppAction[]): AppState {
   return actions.reduce(appReducer, state);
@@ -93,6 +93,35 @@ describe('CLEAR_PUCK_ACTIONS', () => {
       { type: 'CLEAR_PUCK_ACTIONS' }
     );
     expect(state.drill.players.filter(p => p.hasPuck)).toHaveLength(1);
+  });
+
+  it('turns a loose-puck start back into one carrier and restores it on undo', () => {
+    const base = stateWithPlayers();
+    const pickup: PickupEvent = {
+      id: 'pickup-a',
+      type: 'pickup',
+      fromPlayerId: 'a',
+      fromPoint: { x: 20, y: 20 },
+      toPoint: { x: 20, y: 20 },
+      team: 'home',
+    };
+    const loose: AppState = {
+      ...base,
+      drill: {
+        ...base.drill,
+        players: base.drill.players.map(item => ({ ...item, hasPuck: false })),
+        initialPuck: { x: 20, y: 20 },
+        events: [pickup],
+      },
+    };
+
+    const cleared = appReducer(loose, { type: 'CLEAR_PUCK_ACTIONS' });
+    expect(cleared.drill.initialPuck).toBeUndefined();
+    expect(cleared.drill.players.filter(item => item.hasPuck)).toHaveLength(1);
+
+    const undone = appReducer(cleared, { type: 'POP_UNDO' });
+    expect(undone.drill.initialPuck).toEqual({ x: 20, y: 20 });
+    expect(undone.drill.players.some(item => item.hasPuck)).toBe(false);
   });
 
   it('keeps the carrier who already had it rather than resetting to the first player', () => {

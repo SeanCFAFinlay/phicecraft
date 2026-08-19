@@ -9,50 +9,69 @@
 // misrepresents what the coach is teaching.
 // ============================================================================
 
-import { RINK_LANDMARKS as L, coneLine, gear, pass, pickup, route, shot, skater, template } from './builder';
+import { RINK_LANDMARKS as L, coneLine, dump, gear, pass, pickup, route, shot, skater, template } from './builder';
 import type { DrillTemplate } from './builder';
 
 export const puckRaceToPossession: DrillTemplate = template({
   id: 'tpl-puck-race',
   title: 'Puck Race to Possession',
   summary:
-    'Two players start level, race to a loose puck in the corner, and the winner has to come out with it.',
+    'Two players start level, chase a dump-in to the corner, and the winner attacks the net for a shot.',
   categories: ['small-area-game', 'battle', 'conditioning'],
   tags: ['race', 'battle', 'corner'],
   ageBands: ['u9', 'u11', 'u13'],
   skillLevel: 'developing',
   rinkArea: 'quarter',
   durationMinutes: 6,
-  equipmentSummary: ['pucks'],
+  goalieCount: 1,
+  equipmentSummary: ['pucks', 'net'],
   setupNotes: [
-    'Two players on the goal line, one puck spotted in the corner.',
-    'Coach calls go; the winner must carry it out past the dots.',
+    'Two players start level above the right blue line with a goalie in the net.',
+    'Player 9 dumps the puck into the corner; both players release and race to it.',
+    'The winner protects the puck out of the corner and attacks the net for a shot.',
   ],
   coachingPoints: [
     'First three strides decide the race - stay low.',
     'Arrive with your body between the puck and your opponent.',
-    'Protect it out of the corner, do not turn back into pressure.',
+    'Protect it out of the corner, then get your feet and puck pointed at the net.',
+    'The losing player stays in the play and applies back pressure through the shot.',
   ],
-  progressions: ['Start both players facing the boards.'],
-  variations: ['Winner must complete a pass instead of carrying it out.'],
+  progressions: ['Start both players facing the boards.', 'Let the losing player defend live after the pickup.'],
+  variations: ['Coach varies the dump location so players have to read the puck.'],
   actors: [
-    skater('r1', 'home', '9', { x: 120, y: 180 }),
-    skater('r2', 'away', '9', { x: 120, y: 250 }),
+    skater('r1', 'home', '9', { x: 610, y: 180 }),
+    skater('r2', 'away', '4', { x: 610, y: 250 }, 'D'),
+    { kind: 'goalie' as const, id: 'rg', team: 'away' as const, number: '30', position: { x: 920, y: L.centreY } },
   ],
   routes: [
     route('r1', [
-      { x: 120, y: 180 },
-      { x: 90, y: 90 },
-      { x: 190, y: 110 },
+      { x: 610, y: 180 },
+      { x: 740, y: 125 },
+      { x: 860, y: 75 },
+      { x: 900, y: 60 },
+      { x: 900, y: 110 },
+      { x: 875, y: 165 },
+      { x: 835, y: 205 },
     ]),
     route('r2', [
-      { x: 120, y: 250 },
-      { x: 100, y: 130 },
-      { x: 200, y: 140 },
+      { x: 610, y: 250 },
+      { x: 740, y: 145 },
+      { x: 855, y: 90 },
+      { x: 845, y: 130 },
+      { x: 825, y: 165 },
+      { x: 800, y: 195 },
     ]),
   ],
-  puck: { from: 'r1', actions: [pickup('r1', { at: 1.8 })] },
-  finishPolicy: 'finish-with-possession',
+  puck: {
+    from: 'r1',
+    actions: [
+      dump('r1', { x: 850, y: 100 }, { at: 0.25, flightSeconds: 0.95 }),
+      pickup('r1', { at: 3.1, flightSeconds: 0.3, target: { x: 900, y: 82 } }),
+      shot('r1', { at: 5.25, flightSeconds: 0.65, target: { x: L.goalLineRight, y: L.centreY - 18 } }),
+    ],
+  },
+  finishPolicy: 'finish-with-shot',
+  durationSeconds: 6.2,
 });
 
 export const cornerHalfWall2v1: DrillTemplate = template({
@@ -337,7 +356,10 @@ export const threeOnThreeRace: DrillTemplate = template({
       { x: 530, y: 212 },
     ]),
   ],
-  puck: { from: 'g1', actions: [pickup('g1', { at: 2.4 }), pass('g1', 'g2', { at: 3.4 })] },
+  puck: {
+    from: { x: L.centreX, y: L.centreY },
+    actions: [pickup('g1', { at: 2.4 }), pass('g1', 'g2', { at: 3.4 })],
+  },
   finishPolicy: 'finish-with-possession',
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FT, RINK } from '@/core/constants';
 import { giveAndGoRegressionDrill } from '@/fixtures/giveAndGo.v1';
+import { buildDrill, buildPlayer } from '@/test/builders';
 import { fiveManCornerRetrievalDrill } from '@/fixtures/fiveManCornerRetrieval.v1';
 import { fiveManCrossCornerDrill } from '@/fixtures/fiveManCrossCorner.v1';
 import { fiveManLowHighDrill } from '@/fixtures/fiveManLowHigh.v1';
@@ -22,6 +23,38 @@ import {
 } from './authoring';
 
 describe('deterministic hockey simulation', () => {
+  it('starts from a loose puck and completes an authored pickup', () => {
+    const loose = { x: 200, y: 180 };
+    const drill = buildDrill({
+      players: [buildPlayer({ id: 'p1', x: loose.x, y: loose.y, hasPuck: false })],
+      initialPuck: loose,
+      events: [
+        {
+          id: 'pickup-1',
+          type: 'pickup',
+          fromPlayerId: 'p1',
+          fromPoint: loose,
+          toPoint: loose,
+          team: 'home',
+          at: 0.1,
+          arrivalAt: 0.2,
+        },
+      ],
+      settings: {
+        assistance: 'standard',
+        recovery: 'authored',
+        timeLimitSeconds: 8,
+        reducedEffects: false,
+      },
+    });
+    const compiled = compileDrill(drill);
+
+    expect(sampleFrame(compiled, 0).puck).toMatchObject({ state: 'loose', x: loose.x, y: loose.y });
+    const afterPickup = sampleFrame(compiled, 2);
+    expect(afterPickup.puck?.carrierId).toBe('p1');
+    expect(afterPickup.eventExecutions[0]).toMatchObject({ status: 'completed', outcome: 'recovered' });
+  });
+
   it('accelerates, cruises, and stops each skater from route distance', () => {
     const compiled = compileDrill(giveAndGoRegressionDrill);
     const early = sampleFrame(compiled, 0.25).players.p13;

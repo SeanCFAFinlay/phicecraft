@@ -271,6 +271,8 @@ export function projectionLosses(document: DrillDocumentV3): ProjectionLoss[] {
  */
 export function projectToV2(document: DrillDocumentV3): ProjectionResult {
   const carrierId = initialCarrierId(document);
+  const initialSource = firstTrack(document)?.initialSource;
+  const initialPuck = initialSource?.kind === 'loose' ? { ...initialSource.at } : undefined;
 
   const players: Player[] = document.actors
     .map(toPlayer)
@@ -330,12 +332,13 @@ export function projectToV2(document: DrillDocumentV3): ProjectionResult {
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
     players,
+    ...(initialPuck ? { initialPuck } : {}),
     skatePaths,
     events,
     coaches,
     settings: {
       assistance: 'standard',
-      recovery: 'nearest-teammate',
+      recovery: initialPuck ? 'authored' : 'nearest-teammate',
       timeLimitSeconds: duration,
       reducedEffects: document.presentation.reducedEffects,
       jerseys: { ...document.presentation.jerseys },

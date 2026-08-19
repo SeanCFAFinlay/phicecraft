@@ -43,6 +43,18 @@ describe('normalizeDrillCandidate', () => {
     expect(drill.schemaVersion).toBe(CURRENT_DRILL_SCHEMA_VERSION);
   });
 
+  it('preserves a finite loose-puck start and drops an invalid one', () => {
+    const valid = normalizeDrillCandidate({ initialPuck: { x: 125, y: 210 } }, { now: FIXED_NOW });
+    expect(valid.drill.initialPuck).toEqual({ x: 125, y: 210 });
+
+    const invalid = normalizeDrillCandidate(
+      { initialPuck: { x: Number.NaN, y: 210 } },
+      { now: FIXED_NOW }
+    );
+    expect(invalid.drill.initialPuck).toBeUndefined();
+    expect(invalid.warnings).toContain('initialPuck had non-finite coordinates and was dropped.');
+  });
+
   it('replaces null arrays and reports it', () => {
     const { drill, warnings } = normalizeDrillCandidate(
       { players: null, events: null, skatePaths: null },
@@ -212,6 +224,18 @@ describe('validateDrillDocument', () => {
     expect(validateDrillDocument(buildDrill({ players: [] })).valid).toBe(true);
   });
 
+  it('accepts one loose puck as the initial source and rejects two sources', () => {
+    const players = [buildPlayer({ id: 'a', hasPuck: false })];
+    const loose = buildDrill({ players, initialPuck: { x: 140, y: 180 } });
+    expect(validateDrillDocument(loose).valid).toBe(true);
+
+    const duplicated = buildDrill({
+      players: [buildPlayer({ id: 'a', hasPuck: true })],
+      initialPuck: { x: 140, y: 180 },
+    });
+    expect(validateDrillDocument(duplicated).errors).toContain('Multiple initial puck sources');
+  });
+
   it('reports both zero and multiple puck carriers once players exist', () => {
     const none = buildDrill({ players: [buildPlayer({ id: 'a' })] });
     expect(validateDrillDocument(none).errors).toContain('No initial puck carrier');
@@ -233,6 +257,15 @@ describe('repairDrillDocument', () => {
       ids
     );
     expect(repaired.players.filter(player => player.hasPuck)).toHaveLength(1);
+  });
+
+  it('keeps a loose initial puck and clears competing carrier flags', () => {
+    const repaired = repairDrillDocument(
+      buildDrill({ initialPuck: { x: 140, y: 180 } }),
+      sequentialIds('fresh')
+    );
+    expect(repaired.initialPuck).toEqual({ x: 140, y: 180 });
+    expect(repaired.players.some(player => player.hasPuck)).toBe(false);
   });
 
   it('drops dangling routes and events', () => {
@@ -316,6 +349,18 @@ describe('remapImportedDrill', () => {
     expect(remapped.settings).not.toBe(drill.settings);
     remapped.settings!.reducedEffects = true;
     expect(drill.settings!.reducedEffects).toBe(false);
+  });
+
+  it('preserves a loose puck without sharing its point object', () => {
+    const drill = buildDrill({
+      players: [buildPlayer({ id: 'p1', hasPuck: false })],
+      initialPuck: { x: 140, y: 180 },
+    });
+    const remapped = remapImportedDrill(drill, sequentialIds('new'), FIXED_NOW);
+
+    expect(remapped.initialPuck).toEqual(drill.initialPuck);
+    expect(remapped.initialPuck).not.toBe(drill.initialPuck);
+    expect(validateDrillDocument(remapped).valid).toBe(true);
   });
 
   it('stamps fresh timestamps', () => {

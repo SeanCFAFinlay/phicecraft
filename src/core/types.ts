@@ -212,6 +212,8 @@ export interface Drill {
   createdAt: number;
   updatedAt: number;
   players: Player[];
+  /** A puck that starts loose on the ice instead of on a player's stick. */
+  initialPuck?: Point;
   skatePaths: SkatePath[];
   events: DrillEvent[];
   /** Non-playing coach markers. Optional for backward compatibility. */
@@ -473,6 +475,7 @@ export interface UIState {
  */
 export interface UndoSnapshot {
   players: Player[];
+  initialPuck?: Point;
   skatePaths: SkatePath[];
   events: DrillEvent[];
   coaches: CoachMarker[];

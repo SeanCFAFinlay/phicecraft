@@ -19,6 +19,13 @@ async function openLibrary(page: Page) {
 
 const cards = (page: Page) => page.getByRole('article');
 
+async function waitForSaved(page: Page) {
+  await expect(page.getByRole('status', { name: /^Save status:/ })).toHaveAccessibleName(
+    'Save status: Saved',
+    { timeout: 20_000 }
+  );
+}
+
 test.beforeEach(async ({ page }) => {
   await openEditor(page);
 });
@@ -181,5 +188,52 @@ test('every card carries a diagram of the drill', async ({ page }) => {
     node => (node as HTMLImageElement).naturalWidth
   );
   expect(rendered).toBeGreaterThan(100);
+
+  // Previews decode lazily, but the next one is ready when the coach scrolls
+  // it into view rather than leaving a blank card at the bottom of the list.
+  const lastCard = cards(page).last();
+  await lastCard.scrollIntoViewIfNeeded();
+  const lastImage = lastCard.locator('img');
+  await expect.poll(() => lastImage.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(100);
+  await expect(lastImage).toHaveAttribute('loading', 'lazy');
+});
+
+test('the repaired passing and loose-puck drills all start playback', async ({ page }) => {
+  for (const title of ['Four-Dot Quick Warm-Up', 'Puck Race to Possession', '3v3 Race Game']) {
+    await openLibrary(page);
+    await page.getByRole('searchbox', { name: 'Search drills' }).fill(title);
+    const card = cards(page).filter({ hasText: title });
+    await expect(card).toHaveCount(1);
+    await card.getByRole('button', { name: 'Use drill' }).click();
+    await waitForSaved(page);
+
+    await page.getByRole('button', { name: 'Play drill' }).click();
+    await expect(page.getByRole('button', { name: 'Stop playback' })).toBeVisible();
+    await page.getByRole('button', { name: 'Stop playback' }).click();
+  }
+});
+
+test('the puck race remains editable, saved, and outcome-complete after reload', async ({ page }) => {
+  await openLibrary(page);
+  await page.getByRole('searchbox', { name: 'Search drills' }).fill('Puck Race to Possession');
+  await cards(page).first().getByRole('button', { name: 'Use drill' }).click();
+  await waitForSaved(page);
+
+  await page.getByRole('button', { name: /^Play name:/ }).click();
+  const rename = page.getByRole('dialog', { name: 'Rename this play' });
+  await rename.getByRole('textbox', { name: 'Play name' }).fill('Puck Race — Reviewed');
+  await rename.getByRole('button', { name: 'Save name' }).click();
+  await waitForSaved(page);
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: /^Play name: Puck Race — Reviewed/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Play drill' }).click();
+  await expect(page.getByRole('button', { name: 'Stop playback' })).toBeVisible();
+  await expect(page.getByText('success', { exact: true })).toBeVisible({ timeout: 10_000 });
+
+  await page.getByRole('button', { name: 'Expand playback controls' }).click();
+  const playback = page.getByRole('dialog', { name: 'Playback' });
+  await expect(playback).toContainText('Lifecycle: success');
+  await expect(playback).not.toContainText('Route contains');
 });
 

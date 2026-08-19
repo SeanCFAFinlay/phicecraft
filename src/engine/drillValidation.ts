@@ -12,8 +12,9 @@ export interface MechanicsIssue {
 export function validateDrillMechanics(drill: Drill): MechanicsIssue[] {
   const issues: MechanicsIssue[] = [];
   const carriers = drill.players.filter(player => player.hasPuck);
-  if (carriers.length !== 1) {
-    issues.push({ severity: 'error', message: 'Choose exactly one initial puck carrier.' });
+  const initialSourceCount = carriers.length + (drill.initialPuck ? 1 : 0);
+  if (initialSourceCount !== 1) {
+    issues.push({ severity: 'error', message: 'Choose exactly one initial puck source.' });
   }
   const compiled = compileDrill(drill);
   for (const [playerId, route] of compiled.routes) {

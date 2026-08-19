@@ -80,6 +80,16 @@ export function CanvasSurface() {
     const started = performance.now();
     const current = stateRef.current;
     const frame = playback.getFrame();
+    const puck = frame.puck ?? (
+      current.drill.initialPuck && !current.drill.players.some(player => player.hasPuck)
+        ? {
+            ...current.drill.initialPuck,
+            visible: true,
+            state: 'loose' as const,
+            velocity: { x: 0, y: 0 },
+          }
+        : null
+    );
 
     drawDynamicLayer(ctx, {
       camera: camera.camera,
@@ -89,7 +99,7 @@ export function CanvasSurface() {
       drill: current.drill,
       positions: frame.positions,
       playerFrames: frame.playerFrames,
-      puck: frame.puck,
+      puck,
       ghostTrails: current.playback.isPlaying ? playback.trails.entries() : [],
       isPlaying: current.playback.isPlaying,
       progress: frame.progress,

@@ -37,6 +37,7 @@ const MIN_EXTENT = 320;
 
 function allPoints(drill: Drill): Point[] {
   const points: Point[] = drill.players.map(player => ({ x: player.x, y: player.y }));
+  if (drill.initialPuck) points.push({ ...drill.initialPuck });
 
   for (const path of drill.skatePaths) {
     for (const point of path.points ?? []) points.push(point);
@@ -213,6 +214,16 @@ export function renderThumbnail(drill: Drill, options: ThumbnailOptions): string
     line(ctx, [event.fromPoint, ...(event.waypoints ?? []), event.toPoint]);
   }
   ctx.setLineDash([]);
+
+  if (drill.initialPuck) {
+    ctx.fillStyle = '#111820';
+    ctx.beginPath();
+    ctx.arc(drill.initialPuck.x, drill.initialPuck.y, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 2 / zoom;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.stroke();
+  }
 
   // Players, as tokens rather than sprites: at this size a photographic crop
   // is a smudge, and a numbered dot is legible.

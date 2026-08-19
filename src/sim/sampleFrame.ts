@@ -235,9 +235,18 @@ function arrivalVelocity(event: CompiledEvent, from: Point, to: Point): Point {
 
 function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolution {
   const initialCarrier = compiled.source.players.find(player => player.hasPuck);
+  const initialLoosePuck = compiled.source.initialPuck;
   let state: StablePuckState | null = initialCarrier
     ? { mode: 'possessed', carrierId: initialCarrier.id }
-    : null;
+    : initialLoosePuck
+      ? {
+          mode: 'loose',
+          position: { ...initialLoosePuck },
+          velocity: { x: 0, y: 0 },
+          sinceSeconds: 0,
+          pickupAvailableAt: 0,
+        }
+      : null;
   const firedEventIndices: number[] = [];
   const eventExecutions: EventExecution[] = compiled.events.map(event => ({
     eventId: event.source.id,

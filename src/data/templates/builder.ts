@@ -195,9 +195,9 @@ export interface TemplateSpec {
   annotations?: Annotation[];
 
   /** Where the puck starts, and what happens to it. */
-  puck?: { from: string; actions: ActionSpec[] };
+  puck?: { from: string | Point; actions: ActionSpec[] };
   /** Extra pucks, for drills that run two at once. */
-  extraPucks?: { from: string; actions: ActionSpec[] }[];
+  extraPucks?: { from: string | Point; actions: ActionSpec[] }[];
 
   finishPolicy: FinishPolicy;
   /** Seconds the drill runs for. Defaults to something sensible for its size. */
@@ -267,7 +267,7 @@ function buildTracks(spec: TemplateSpec, duration: number): ActorTrack[] {
 
 function buildActions(
   spec: TemplateSpec,
-  chain: { from: string; actions: ActionSpec[] },
+  chain: { from: string | Point; actions: ActionSpec[] },
   duration: number,
   idPrefix: string
 ): PuckAction[] {
@@ -333,7 +333,10 @@ function buildActions(
   return actions;
 }
 
-function sourceFor(spec: TemplateSpec, actorId: string): PuckSource {
+function sourceFor(spec: TemplateSpec, source: string | Point): PuckSource {
+  if (typeof source !== 'string') return { kind: 'loose', at: { ...source } };
+
+  const actorId = source;
   const actor = spec.actors.find(item => item.id === actorId);
   return actor?.kind === 'coach'
     ? { kind: 'coach', actorId }

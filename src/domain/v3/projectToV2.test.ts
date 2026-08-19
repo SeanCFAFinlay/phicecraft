@@ -96,6 +96,43 @@ describe('a coach puck source', () => {
   });
 });
 
+describe('a loose puck source', () => {
+  const loose = { x: 500, y: 212.5 };
+  const base = documentWith({});
+  const document = documentWith({
+    puckTracks: [
+      {
+        id: 'puck-loose',
+        initialSource: { kind: 'loose', at: loose },
+        actions: [
+          {
+            id: 'pickup-loose',
+            phaseId: base.phases[0].id,
+            type: 'pickup',
+            fromActorId: 'p11',
+            fromPoint: loose,
+            target: loose,
+            releaseAt: 1,
+            arrivalAt: 1.2,
+            waypoints: [],
+            shape: 'spline',
+          },
+        ],
+      },
+    ],
+  });
+  const projected = projectToV2(document).drill;
+
+  it('keeps the puck position without inventing a carrier', () => {
+    expect(projected.initialPuck).toEqual(loose);
+    expect(projected.players.some(player => player.hasPuck)).toBe(false);
+  });
+
+  it('uses authored recovery so the pickup occurs at its recorded time', () => {
+    expect(projected.settings?.recovery).toBe('authored');
+  });
+});
+
 // ----------------------------------------------------------------------------
 // What v2 cannot hold
 // ----------------------------------------------------------------------------
