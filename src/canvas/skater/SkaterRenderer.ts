@@ -3,7 +3,6 @@ import type { PlaybackPlayerFrame, Player, Point } from '@/core/types';
 import { drawSkaterEffects } from './SkaterEffects';
 import { deriveSkaterPose } from './SkaterPose';
 import { getSkaterPalette } from './skaterPalette';
-import { getHockeySpriteAtlas, HOCKEY_SPRITES } from '../HockeySpriteAtlas';
 import { drawCarrierRing, drawPuckMarker } from '../puckMarker';
 
 interface DetailedSkaterOptions {
@@ -42,6 +41,13 @@ function mixPoint(from: Point, to: Point, amount: number): Point {
   };
 }
 
+function iconScaleForCurrentView(ctx: CanvasRenderingContext2D, referenceRadius: number): number {
+  const transform = ctx.getTransform();
+  const screenScale = Math.hypot(transform.a, transform.b) || 1;
+  const minScreenRadius = 28;
+  return Math.min(2.05, Math.max(1, minScreenRadius / (referenceRadius * screenScale)));
+}
+
 export function drawDetailedSkater(
   ctx: CanvasRenderingContext2D,
   player: Player,
@@ -52,7 +58,7 @@ export function drawDetailedSkater(
   const palette = getSkaterPalette(player.team, options.jersey);
   // The mechanics retain the regulation interaction radius, while the visual
   // model is slightly enlarged so equipment remains readable in full-rink view.
-  const r = PLAYER_RADIUS * 1.12;
+  const r = PLAYER_RADIUS * 1.26;
   const handSign = (player.visual?.handedness ?? (player.team === 'home' ? 'right' : 'left')) === 'right' ? 1 : -1;
   const blade = localPoint(player, frame, frame.bladePosition);
   const shaftStart = { x: -r * 0.38, y: -handSign * r * 0.34 };
@@ -62,6 +68,8 @@ export function drawDetailedSkater(
   ctx.save();
   ctx.translate(player.x, player.y);
   ctx.rotate(pose.heading);
+  const iconScale = iconScaleForCurrentView(ctx, r);
+  ctx.scale(iconScale, iconScale);
   drawSkaterEffects(ctx, frame, options.reducedEffects);
 
   // A long soft shadow grounds the model and makes its direction obvious.
@@ -73,47 +81,10 @@ export function drawDetailedSkater(
   ctx.fill();
   ctx.restore();
 
-  // The pre-rendered atlas bakes in the classic red/blue jerseys, so a custom
-  // jersey colour falls back to the procedural body, which honours the palette.
-  const defaultHex = player.team === 'home' ? '#e63946' : '#2f80ed';
-  const customJersey = !!options.jersey && options.jersey.toLowerCase() !== defaultHex;
-  const atlas = customJersey ? null : getHockeySpriteAtlas();
-  if (atlas) {
-    const source = player.team === 'home' ? HOCKEY_SPRITES.homeSkater : HOCKEY_SPRITES.awaySkater;
-    const drawWidth = 62;
-    const drawHeight = drawWidth * source.height / source.width;
-    const drawX = -source.anchorX * drawWidth / source.width;
-    const drawY = -source.anchorY * drawHeight / source.height;
-    ctx.save();
-    if (player.team === 'away') ctx.scale(1, -1);
-    ctx.drawImage(
-      atlas,
-      source.x,
-      source.y,
-      source.width,
-      source.height,
-      drawX,
-      drawY,
-      drawWidth,
-      drawHeight
-    );
-    ctx.restore();
-
-    // Assignment number stays screen-upright over the jersey.
-    ctx.save();
-    ctx.rotate(-pose.heading - (options.screenRotation ?? 0));
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = 'rgba(0, 0, 0, .78)';
-    ctx.lineWidth = 2.8;
-    ctx.font = '900 13px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.strokeText(player.number, -3, -2);
-    ctx.fillText(player.number, -3, -2);
-    ctx.restore();
-    ctx.restore();
-  } else {
-
+  // Draw every flat-board skater procedurally rather than using the baked 3D
+  // atlas. The larger illustrated body keeps the helmet, pads, skates, gloves,
+  // stick and number legible in full-rink mobile views and still honours custom
+  // jersey colours.
   // Stick sits underneath the hands but ends at the authoritative puck socket.
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -289,7 +260,6 @@ export function drawDetailedSkater(
   ctx.restore();
   ctx.restore();
   ctx.restore();
-  }
 
   if (options.isPreparingReceive) {
     ctx.save();

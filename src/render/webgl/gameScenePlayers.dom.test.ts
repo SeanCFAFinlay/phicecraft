@@ -59,6 +59,7 @@ function options(overrides: Partial<PlayerVisualOptions> = {}): PlayerVisualOpti
     showRouteHandle: false,
     isPreparingReceive: false,
     screenRotation: 0,
+    zoom: 1,
     ...overrides,
   };
 }
@@ -174,5 +175,20 @@ describe('updatePlayerToken — goalie tracks a visible puck (trackedPuck)', () 
     });
 
     expect(token.bodyGroup.rotation).toBeCloseTo(1.2, 5);
+  });
+});
+
+describe('updatePlayerToken — mobile readable player graphics', () => {
+  it('enlarges the visual body when the camera zoom makes players too small on screen', () => {
+    const token = createPlayerToken();
+
+    updatePlayerToken(token, {
+      player: skater,
+      options: options({ zoom: 0.35 }),
+      quality: 'high',
+    });
+
+    expect(token.bodyGroup.scale.x).toBeGreaterThan(1);
+    expect(token.bodyGroup.scale.x).toBeLessThanOrEqual(2.05);
   });
 });

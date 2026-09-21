@@ -61,6 +61,7 @@ export interface PlayerVisualOptions {
   trackedPuck?: AnimatedPuck | null;
   jersey?: string;
   screenRotation: number;
+  zoom: number;
 }
 
 const NUMBER_STYLE: TextStyleOptions = {
@@ -325,15 +326,22 @@ function effectsEnabled(quality: RenderQuality): boolean {
   return quality !== 'low';
 }
 
+function iconScaleForZoom(zoom: number, referenceRadius: number, minScreenRadius: number): number {
+  const screenScale = Math.max(0.001, Math.abs(zoom));
+  return Math.min(2.05, Math.max(1, minScreenRadius / (referenceRadius * screenScale)));
+}
+
 export function updatePlayerToken(token: PlayerToken, { player, options, quality }: UpdatePlayerTokenArgs): void {
   const frame = options.playbackFrame ?? designFrame(player, options.heading);
   const isGoalie = player.role === 'G';
   const palette = getSkaterPalette(player.team, options.jersey);
   const r = PLAYER_RADIUS * 1.12;
   const heading = effectiveHeading(isGoalie, player, frame, options.trackedPuck);
+  const iconScale = iconScaleForZoom(options.zoom, isGoalie ? PLAYER_RADIUS * 1.45 : r, isGoalie ? 30 : 28);
 
   token.container.position.set(player.x, player.y);
   token.bodyGroup.rotation = heading;
+  token.bodyGroup.scale.set(iconScale);
 
   updateRings(token, player, options);
   updateGoalieRing(token, player);

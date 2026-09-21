@@ -275,6 +275,7 @@ export function updateGameScene(scene: GameScene, input: DynamicLayerInput): voi
       trackedPuck: input.puck,
       jersey: player.team === 'home' ? jerseys.home : jerseys.away,
       screenRotation: input.camera.rotation ?? 0,
+      zoom: input.camera.zoom,
     };
     updatePlayerToken(token, { player, options, quality: input.quality });
   }

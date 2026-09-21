@@ -1,8 +1,14 @@
 import type { AnimatedPuck, PlaybackPlayerFrame, Player } from '@/core/types';
 import { getSkaterPalette } from './skaterPalette';
-import { getHockeySpriteAtlas, HOCKEY_SPRITES } from '../HockeySpriteAtlas';
 import { drawCarrierRing, drawPuckMarker } from '../puckMarker';
 import { PLAYER_RADIUS } from '@/core/constants';
+
+function iconScaleForCurrentView(ctx: CanvasRenderingContext2D, referenceRadius: number): number {
+  const transform = ctx.getTransform();
+  const screenScale = Math.hypot(transform.a, transform.b) || 1;
+  const minScreenRadius = 30;
+  return Math.min(2.05, Math.max(1, minScreenRadius / (referenceRadius * screenScale)));
+}
 
 export function drawDetailedGoalie(
   ctx: CanvasRenderingContext2D,
@@ -22,6 +28,8 @@ export function drawDetailedGoalie(
   ctx.save();
   ctx.translate(player.x, player.y);
   ctx.rotate(trackedHeading);
+  const iconScale = iconScaleForCurrentView(ctx, PLAYER_RADIUS * 1.45);
+  ctx.scale(iconScale, iconScale);
 
   ctx.save();
   ctx.filter = 'blur(1.6px)';
@@ -31,44 +39,8 @@ export function drawDetailedGoalie(
   ctx.fill();
   ctx.restore();
 
-  const defaultHex = player.team === 'home' ? '#e63946' : '#2f80ed';
-  const customJersey = !!jersey && jersey.toLowerCase() !== defaultHex;
-  const atlas = customJersey ? null : getHockeySpriteAtlas();
-  if (atlas) {
-    const source = player.team === 'home' ? HOCKEY_SPRITES.homeGoalie : HOCKEY_SPRITES.awayGoalie;
-    const drawWidth = 66;
-    const drawHeight = drawWidth * source.height / source.width;
-    const drawX = -source.anchorX * drawWidth / source.width;
-    const drawY = -source.anchorY * drawHeight / source.height;
-    ctx.save();
-    if (player.team === 'away') ctx.scale(1, -1);
-    ctx.drawImage(
-      atlas,
-      source.x,
-      source.y,
-      source.width,
-      source.height,
-      drawX,
-      drawY,
-      drawWidth,
-      drawHeight
-    );
-    ctx.restore();
-
-    ctx.save();
-    ctx.rotate(-trackedHeading - screenRotation);
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = 'rgba(0, 0, 0, .8)';
-    ctx.lineWidth = 2.8;
-    ctx.font = '900 14px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.strokeText(player.number, -1, -2);
-    ctx.fillText(player.number, -1, -2);
-    ctx.restore();
-    ctx.restore();
-  } else {
-
+  // Draw the flat-board goalie procedurally so pads, blocker, catcher, mask,
+  // stick and number stay readable on phones and with custom jersey colours.
   // Goalie skates remain visible beneath the pads.
   ctx.fillStyle = '#111b24';
   ctx.strokeStyle = '#d8e4eb';
@@ -221,7 +193,6 @@ export function drawDetailedGoalie(
   ctx.fillText(player.number, 0, 0);
   ctx.restore();
   ctx.restore();
-  }
 
   if (isPuckHolder) {
     drawCarrierRing(ctx, player.x, player.y, PLAYER_RADIUS + 5);
