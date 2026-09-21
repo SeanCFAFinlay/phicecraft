@@ -33,6 +33,7 @@ vi.mock('@/render3d/loadBoard3D', () => ({
 const announceSpy = vi.fn();
 vi.mock('@/hooks/useAppState', () => ({
   useAppServices: () => ({ announcer: { announce: announceSpy } }),
+  useAppState: () => ({ dispatch: vi.fn() }),
 }));
 
 let store: CameraStore;

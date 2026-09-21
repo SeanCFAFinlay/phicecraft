@@ -15,7 +15,20 @@ import { useAppState, useCommands } from '@/hooks/useAppState';
 import { getPuckChain } from '@/engine/puck';
 import { isReviewComplete } from '@/commands';
 import type { Tool } from '@/core/types';
-import { CoachIcon, GoalieIcon, PuckIcon, ShootIcon, SkaterIcon } from '@/ui/icons';
+import { useViewActions, VIEW_AREAS } from '../shell/useViewActions';
+import {
+  CoachIcon,
+  FitIcon,
+  GoalieIcon,
+  OrientationIcon,
+  PuckIcon,
+  RotateLeftIcon,
+  RotateRightIcon,
+  ShootIcon,
+  SkaterIcon,
+  ZoneLeftIcon,
+  ZoneRightIcon,
+} from '@/ui/icons';
 import { ModeSwitch } from '../shell/ModeSwitch';
 
 export function SheetItem({
@@ -259,6 +272,75 @@ export function ModeSheet() {
       <div className="flex justify-center px-3 py-2">
         <ModeSwitch onSelect={close} />
       </div>
+    </Sheet>
+  );
+}
+
+// ----------------------------------------------------------------------------
+
+export function ViewSheet() {
+  const { state, dispatch } = useAppState();
+  const open = state.ui.openSheet === 'view';
+  const close = () => dispatch({ type: 'CLOSE_SHEET' });
+  const view = useViewActions();
+
+  const run = (action: () => void, closeAfter = true) => () => {
+    action();
+    if (closeAfter) close();
+  };
+
+  return (
+    <Sheet
+      open={open}
+      title="View"
+      description="Change how the rink is framed without covering the ice with extra controls."
+      onClose={close}
+    >
+      <SheetSection title="Perspective">
+        <SheetItem
+          icon={<OrientationIcon />}
+          label={view.is3D ? 'Flat top-down view' : 'Tabletop 3D view'}
+          detail={view.is3D ? 'Return to the coaching board layout' : 'Show depth, boards and player models'}
+          selected={view.is3D}
+          disabled={view.loadingBoard3D}
+          onClick={run(view.toggle3D)}
+        />
+      </SheetSection>
+
+      {!view.is3D && (
+        <SheetSection title="Ice area">
+          {VIEW_AREAS.map(area => (
+            <SheetItem
+              key={area.zone}
+              icon={area.zone === 'defensive' ? <ZoneLeftIcon /> : area.zone === 'offensive' ? <ZoneRightIcon /> : <FitIcon />}
+              label={area.label === 'FULL' ? 'Full ice' : area.label}
+              detail={`Frame ${area.description}`}
+              selected={view.currentArea.label === area.label}
+              onClick={run(() => view.zoomToZone(area.zone))}
+            />
+          ))}
+        </SheetSection>
+      )}
+
+      {view.is3D && (
+        <SheetSection title="Rotate 3D rink">
+          <SheetItem icon={<RotateLeftIcon />} label="Spin left" detail="Turn the tabletop view" onClick={run(view.spinLeft, false)} />
+          <SheetItem icon={<RotateRightIcon />} label="Spin right" detail="Turn the tabletop view" onClick={run(view.spinRight, false)} />
+        </SheetSection>
+      )}
+
+      <SheetSection title="Board framing">
+        {!view.is3D && (
+          <SheetItem
+            icon={<OrientationIcon />}
+            label={view.isVerticalBoard ? 'Lay rink across screen' : 'Turn rink up screen'}
+            detail={view.isVerticalBoard ? 'Use the landscape-style board' : 'Use more height on portrait phones'}
+            selected={view.isVerticalBoard}
+            onClick={run(view.toggleOrientation)}
+          />
+        )}
+        <SheetItem icon={<FitIcon />} label="Fit full rink" detail="Reset pan and zoom to the whole sheet" onClick={run(view.fit)} />
+      </SheetSection>
     </Sheet>
   );
 }

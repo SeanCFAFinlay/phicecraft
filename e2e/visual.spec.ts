@@ -151,6 +151,19 @@ async function openFixture(page: Page, overrides: Partial<typeof FIXTURE> = {}):
 
 const SHOT_OPTIONS = { animations: 'disabled' as const, caret: 'hide' as const };
 
+async function enterTabletopView(page: Page): Promise<void> {
+  const direct = page.getByRole('button', { name: /tabletop 3D view/ });
+  if (await direct.count()) {
+    await direct.click();
+    return;
+  }
+
+  await page.getByRole('button', { name: 'Open view controls' }).click();
+  const sheet = page.getByRole('dialog', { name: 'View' });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole('button', { name: /Tabletop 3D view/ }).click();
+}
+
 test('flat rink, default view', async ({ page }) => {
   await openFixture(page);
   await expect(page).toHaveScreenshot('flat-rink.png', SHOT_OPTIONS);
@@ -158,7 +171,7 @@ test('flat rink, default view', async ({ page }) => {
 
 test('tabletop rink', async ({ page }) => {
   await openFixture(page);
-  await page.getByRole('button', { name: /tabletop 3D view/ }).click();
+  await enterTabletopView(page);
   // The tabletop view is now the true-3D presentation (Board3D, Phase 4 Task
   // 6): a fixed timeout alone races the async GLB load - `framesRendered`
   // can tick from the bare arena/camera before the actor set (skaters,

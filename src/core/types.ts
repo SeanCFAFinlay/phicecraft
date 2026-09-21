@@ -440,6 +440,7 @@ export type SheetKind =
   | 'library'
   | 'possession'
   | 'workflow'
+  | 'view'
   | 'mode'
   | 'playback'
   | 'help'
