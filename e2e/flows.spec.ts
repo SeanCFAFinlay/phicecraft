@@ -361,7 +361,8 @@ test('every Play surface applies the same validation', async ({ page }) => {
 
 async function buildRouteAndPass(page: Page): Promise<void> {
   await dragWorld(page, LINEUP.home13, { x: 520, y: 90 });
-  await dragWorld(page, LINEUP.home11, LINEUP.home44);
+  await page.getByRole('button', { name: 'Pass' }).click();
+  await clickWorld(page, LINEUP.home44);
   await waitForSaved(page);
 
   const drills = await storedDrills(page);

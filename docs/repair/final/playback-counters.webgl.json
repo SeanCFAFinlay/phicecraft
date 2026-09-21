@@ -3,6 +3,6 @@
   "renderer": "webgl",
   "reactCommits": 104,
   "staticRinkRepaints": 0,
-  "dynamicFramesDrawn": 487,
-  "animationFramesOffered": 513
+  "dynamicFramesDrawn": 448,
+  "animationFramesOffered": 447
 }

@@ -214,7 +214,8 @@ test('a player drag writes the document once, not once per pointer sample', asyn
 test('a full playback run does not render React per frame', async ({ page }) => {
   await openEditor(page);
   await dragWorld(page, LINEUP.home13, { x: 520, y: 90 });
-  await dragWorld(page, LINEUP.home11, LINEUP.home44);
+  await page.getByRole('button', { name: 'Pass' }).click();
+  await clickWorld(page, LINEUP.home44);
   await page.waitForTimeout(1500);
 
   await instrument(page);
