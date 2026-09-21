@@ -133,6 +133,7 @@ export function AppShell() {
   return (
     <div className="app-chrome flex h-full w-full flex-col overflow-hidden bg-app-bg text-app-text">
       {mode !== 'present' && <TopStrip />}
+      {mode === 'build' && <FirstRunHint />}
 
       <main className="relative min-h-0 flex-1 overflow-hidden bg-[#0a1520]">
         {is3D ? (
@@ -154,7 +155,6 @@ export function AppShell() {
         )}
 
         {mode !== 'present' && <ActionChip />}
-        {mode === 'build' && <FirstRunHint />}
         <UpdateBanner />
         <ToastHost />
         {mode !== 'present' && <ViewControls />}

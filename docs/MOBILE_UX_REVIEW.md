@@ -20,18 +20,9 @@ Reviewed the PhiceCraft React/Vite app for ease of use, drill-authoring effectiv
 2. Improved first-run hint readability on narrow phones by allowing the guidance text to wrap instead of truncating.
 3. Capped and centered desktop dock buttons so desktop does not inherit huge phone-style full-width buttons.
 4. Removed duplicate compact save-status screen-reader text so assistive tech does not announce `Saved` twice.
+5. Moved the first-run hint out of the rink surface into a compact chrome row below the top bar in portrait/tablet layouts, and suppress it in compact landscape where preserving rink height is more important than onboarding copy.
 
 ## Prioritized remaining recommendations
-
-### P0: Keep guidance from covering the work surface
-
-The first-run hint is useful, but it still floats over the rink. It should become one of:
-
-- a compact top instructional strip integrated below the app bar,
-- a bottom sheet-style teaching card that can be advanced or dismissed,
-- or a dock-adjacent hint tied to the disabled action it explains.
-
-Success check: at 360px portrait and 667px landscape, the hint should not cover active players near center ice.
 
 ### P0: Collapse secondary view controls on phones
 
