@@ -67,7 +67,7 @@ function DockButton({
       aria-haspopup={ariaHasPopup ? 'dialog' : undefined}
       aria-expanded={ariaHasPopup ? ariaExpanded : undefined}
       style={active && accent ? { borderColor: accent, color: accent, backgroundColor: `${accent}22` } : undefined}
-      className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 transition-colors disabled:opacity-35 ${
+      className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 transition-colors disabled:opacity-35 lg:max-w-44 ${
         active && !accent
           ? 'border-app-cyan bg-app-cyan/15 text-app-cyan'
           : active
@@ -108,7 +108,7 @@ export function ToolDock({
   return (
     <nav
       aria-label="Editing tools"
-      className="app-chrome safe-bottom safe-x flex flex-shrink-0 items-stretch gap-1.5 border-t border-app-border bg-[#0c1825] px-2 py-1.5"
+      className="app-chrome safe-bottom safe-x flex flex-shrink-0 items-stretch justify-center gap-1.5 border-t border-app-border bg-[#0c1825] px-2 py-1.5"
       style={{ minHeight: 'calc(var(--tool-dock-height) + var(--safe-bottom))' }}
     >
       <DockButton
@@ -186,7 +186,7 @@ export function ToolDock({
           type="button"
           onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
           aria-label={isPlaying ? 'Stop playback' : 'Play drill'}
-          className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 font-bold transition-colors ${
+          className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 font-bold transition-colors lg:max-w-44 ${
             isPlaying
               ? 'border-red-500 bg-red-500 text-white'
               : 'border-cyan-500 bg-cyan-500 text-[#03121c]'

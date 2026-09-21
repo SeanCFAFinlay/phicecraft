@@ -79,7 +79,6 @@ export function SaveStatus({ compact = false }: { compact?: boolean }) {
         }`}
       />
       <span className={compact ? 'sr-only' : 'text-[12px] font-bold'}>{label}</span>
-      {compact && <span className="sr-only">{label}</span>}
     </div>
   );
 }

@@ -165,25 +165,27 @@ export function ViewControls() {
         {is3D ? '2D' : '3D'}
       </button>
 
-      <button
-        type="button"
-        onClick={() => spin(-0.35)}
-        disabled={!is3D}
-        aria-label="Spin the rink left"
-        className={`${button} text-[14px]`}
-      >
-        <RotateLeftIcon size={16} />
-      </button>
+      {is3D && (
+        <button
+          type="button"
+          onClick={() => spin(-0.35)}
+          aria-label="Spin the rink left"
+          className={`${button} text-[14px]`}
+        >
+          <RotateLeftIcon size={16} />
+        </button>
+      )}
 
-      <button
-        type="button"
-        onClick={() => spin(0.35)}
-        disabled={!is3D}
-        aria-label="Spin the rink right"
-        className={`${button} text-[14px]`}
-      >
-        <RotateRightIcon size={16} />
-      </button>
+      {is3D && (
+        <button
+          type="button"
+          onClick={() => spin(0.35)}
+          aria-label="Spin the rink right"
+          className={`${button} text-[14px]`}
+        >
+          <RotateRightIcon size={16} />
+        </button>
+      )}
 
       {/* Which patch of ice to work on. The zone views frame the real region -
           end boards to the blue line, plus a little neutral ice, because the
