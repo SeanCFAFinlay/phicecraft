@@ -163,7 +163,7 @@ function buildIceMesh(iceCanvas: HTMLCanvasElement): THREE.Mesh {
   // XZ ground plane (facing +Y, up) to match rinkToWorld's y=0 convention.
   geometry.rotateX(-Math.PI / 2);
 
-  const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.85, metalness: 0 });
+  const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.2, metalness: 0.05 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'ice';
   mesh.receiveShadow = true;

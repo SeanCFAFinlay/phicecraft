@@ -22,6 +22,7 @@ import type { GhostTrailsSource } from '@/playback/playbackFrame';
 import { RINK } from '@/core/constants';
 import { drawPlayers } from '@/canvas/PlayerRenderer';
 import { drawCoachTopDown } from '@/canvas/CoachRenderer';
+import { drawEquipment } from '@/canvas/EquipmentRenderer';
 import { drawMechanicsDiagnostics } from '@/canvas/DiagnosticsRenderer';
 import {
   drawAnimatedPuck,
@@ -134,6 +135,9 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
 
   for (const coach of coaches) drawCoachTopDown(ctx, coach, false);
+  if (drill.equipment && drill.equipment.length > 0) {
+    drawEquipment(ctx, drill.equipment);
+  }
 
   // While playing or scrubbing, players render at their interpolated
   // positions. The drill itself is never touched.

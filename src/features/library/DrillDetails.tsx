@@ -6,9 +6,13 @@
 // easier. A library that only lists names is a list, not a resource.
 // ============================================================================
 
+import { useMemo } from 'react';
 import { Sheet } from '@/components/a11y/Sheet';
 import { SheetSection } from '@/components/sheets/QuickSheets';
 import type { DrillTemplate } from '@/data/templates/builder';
+import { cachedThumbnail } from './thumbnailRenderer';
+import { projectToV2 } from '@/domain/v3/projectToV2';
+import { PrintIcon } from '@/ui/icons';
 
 function Points({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
@@ -41,6 +45,14 @@ export function DrillDetails({
   const meta = template.document.metadata;
   const equipment = template.document.equipment;
 
+  const thumbnail = useMemo(() => {
+    return cachedThumbnail(
+      template.document.id,
+      projectToV2(template.document).drill,
+      { width: 500, height: 215 }
+    );
+  }, [template.document]);
+
   const facts: [string, string][] = [
     ['Rink area', meta.rinkArea],
     ['Duration', `${meta.durationMinutes} min`],
@@ -72,6 +84,15 @@ export function DrillDetails({
           </button>
           <button
             type="button"
+            onClick={() => window.print()}
+            aria-label="Print this drill"
+            className="touch-target flex items-center gap-1 rounded-xl border border-app-border bg-white/5 px-3 text-[13px] font-bold text-white/75 hover:bg-white/10"
+          >
+            <PrintIcon size={16} />
+            Print
+          </button>
+          <button
+            type="button"
             onClick={onUse}
             className="touch-target flex-1 rounded-xl border border-app-cyan bg-app-cyan/15 px-3 text-[13px] font-black text-app-cyan"
           >
@@ -80,6 +101,17 @@ export function DrillDetails({
         </div>
       }
     >
+      {thumbnail && (
+        <div className="px-3 pt-1 pb-3">
+          <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-inner">
+            <img
+              src={thumbnail}
+              alt={`Diagram of ${meta.title}`}
+              className="h-auto w-full object-contain"
+            />
+          </div>
+        </div>
+      )}
       <SheetSection title="At a glance">
         <dl className="grid grid-cols-2 gap-1.5 px-3 pb-2">
           {facts.map(([label, value]) => (

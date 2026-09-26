@@ -118,6 +118,8 @@ const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'SWAP_JERSEYS',
   'ADD_COACH',
   'REMOVE_COACH',
+  'ADD_EQUIPMENT',
+  'REMOVE_EQUIPMENT',
   'ADD_SKATE_PATH',
   'REMOVE_SKATE_PATH',
   'UPDATE_SKATE_PATH',
@@ -433,6 +435,41 @@ function reduce(state: AppState, action: AppAction): AppState {
         drill: {
           ...state.drill,
           coaches: (state.drill.coaches ?? []).filter(c => c.id !== action.id),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'ADD_EQUIPMENT': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          equipment: [...(state.drill.equipment ?? []), action.item],
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'MOVE_EQUIPMENT': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          equipment: (state.drill.equipment ?? []).map(item =>
+            item.id === action.id ? { ...item, position: { x: action.x, y: action.y } } : item
+          ),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'REMOVE_EQUIPMENT': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          equipment: (state.drill.equipment ?? []).filter(item => item.id !== action.id),
           updatedAt: Date.now(),
         },
       };

@@ -37,7 +37,32 @@ export type Tool =
   | 'home'
   | 'away'
   | 'goalie'
-  | 'coach';
+  | 'coach'
+  | 'cone'
+  | 'tire'
+  | 'mini-net'
+  | 'barrier';
+
+export type EquipmentKind =
+  | 'cone'
+  | 'tire'
+  | 'gate'
+  | 'mini-net'
+  | 'barrier'
+  | 'puck-pile'
+  | 'start-marker'
+  | 'queue-marker'
+  | 'zone';
+
+export interface EquipmentItem {
+  id: ID;
+  kind: EquipmentKind;
+  position: Point;
+  size?: { width: number; height: number };
+  rotation?: number;
+  label?: string;
+  count?: number;
+}
 
 // Net designation
 export type NetSide = 'L' | 'R';
@@ -218,6 +243,8 @@ export interface Drill {
   events: DrillEvent[];
   /** Non-playing coach markers. Optional for backward compatibility. */
   coaches?: CoachMarker[];
+  /** On-ice training equipment: cones, tires, mini-nets, dividers, puck piles. */
+  equipment?: EquipmentItem[];
   settings?: DrillSettings;
 }
 
@@ -618,6 +645,11 @@ export type AppAction =
   | { type: 'ADD_COACH'; coach: CoachMarker }
   | { type: 'MOVE_COACH'; id: ID; x: number; y: number }
   | { type: 'REMOVE_COACH'; id: ID }
+
+  // Equipment actions
+  | { type: 'ADD_EQUIPMENT'; item: EquipmentItem }
+  | { type: 'MOVE_EQUIPMENT'; id: ID; x: number; y: number }
+  | { type: 'REMOVE_EQUIPMENT'; id: ID }
 
   // Path actions
   | { type: 'ADD_SKATE_PATH'; path: SkatePath }

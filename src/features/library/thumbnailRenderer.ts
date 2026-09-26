@@ -22,6 +22,7 @@
 import type { Drill, Point } from '@/core/types';
 import { RINK } from '@/core/constants';
 import { expandCurve } from '@/utils/curves';
+import { drawEquipment } from '@/canvas/EquipmentRenderer';
 
 export interface WorldRect {
   x: number;
@@ -47,6 +48,7 @@ function allPoints(drill: Drill): Point[] {
     for (const point of event.waypoints ?? []) points.push(point);
   }
   for (const coach of drill.coaches ?? []) points.push({ x: coach.x, y: coach.y });
+  for (const item of drill.equipment ?? []) points.push({ ...item.position });
 
   return points;
 }
@@ -252,6 +254,10 @@ export function renderThumbnail(drill: Drill, options: ThumbnailOptions): string
     ctx.fillStyle = '#ffffff';
     ctx.font = `700 ${radius * 0.95}px system-ui, sans-serif`;
     ctx.fillText('C', coach.x, coach.y + 1);
+  }
+
+  if (drill.equipment && drill.equipment.length > 0) {
+    drawEquipment(ctx, drill.equipment);
   }
 
   ctx.restore();

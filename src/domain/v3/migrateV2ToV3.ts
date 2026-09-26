@@ -306,8 +306,7 @@ export function migrateV2ToV3(input: Drill | DrillDocumentV3): DrillDocumentV3 {
     rink: { area: 'full', orientation: 'horizontal', nets: ['left', 'right'] },
     actors,
     groups: [],
-    // v2 had no equipment at all, so there is none to carry across.
-    equipment: [],
+    equipment: drill.equipment ? [...drill.equipment] : [],
     phases: [phase],
     actorTracks: [...trackByActor.values()],
     puckTracks,

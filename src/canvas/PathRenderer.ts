@@ -161,8 +161,9 @@ export function drawSkatePath(
   ctx.stroke();
   ctx.restore();
 
-  // Main line (dashed)
-  drawExpandedLine(ctx, line, color, true, 2.6);
+  // Main line: backward skating is dashed; forward skate is solid per coaching conventions
+  const isDashed = path.mode === 'backward';
+  drawExpandedLine(ctx, line, color, isDashed, 2.6);
 
   // Diamond markers at 25%, 50%, 75%
   [0.25, 0.5, 0.75].forEach(t => {
@@ -234,7 +235,7 @@ export function drawPassEvent(
 
   const arcPoints = eventFlightLine(event);
 
-  drawExpandedLine(ctx, arcPoints, color, false, 2.8);
+  drawExpandedLine(ctx, arcPoints, color, true, 2.8);
 
   // Puck dots at start and end
   drawPuckDot(ctx, event.fromPoint.x, event.fromPoint.y, color);

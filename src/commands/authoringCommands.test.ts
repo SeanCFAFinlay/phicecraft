@@ -105,6 +105,23 @@ describe('coaches', () => {
   });
 });
 
+describe('equipment', () => {
+  it('places and removes on-ice equipment items', () => {
+    const placed = harness.commands.addEquipment('cone', { x: 300, y: 150 });
+    expect(placed.status).toBe('done');
+    const id = placed.status === 'done' ? placed.value : '';
+
+    expect(harness.getState().drill.equipment?.[0]).toMatchObject({
+      id,
+      kind: 'cone',
+      position: { x: 300, y: 150 },
+    });
+
+    harness.commands.removeEquipment(id);
+    expect(harness.getState().drill.equipment).toEqual([]);
+  });
+});
+
 describe('moving a player', () => {
   it('records ONE undo boundary for the whole gesture', () => {
     harness.commands.beginPlayerMove('h11');

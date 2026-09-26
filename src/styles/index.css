@@ -274,3 +274,45 @@
     animation: none;
   }
 }
+
+/* ============================================================================
+ * PRINT MEDIA STYLES
+ *
+ * Clean 1-page printable drill cards for coaches on physical clipboards.
+ * ========================================================================= */
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* Hide interactive toolbars, docks, and floating chips during print */
+  .app-chrome,
+  button,
+  .touch-target,
+  [aria-haspopup],
+  .view-controls {
+    display: none !important;
+  }
+
+  /* Printable dialog sheet card formatting */
+  [role="dialog"] {
+    position: static !important;
+    max-height: none !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    width: 100% !important;
+    padding: 16px !important;
+  }
+
+  [role="dialog"] * {
+    color: #111827 !important;
+  }
+}
+

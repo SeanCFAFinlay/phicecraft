@@ -6,16 +6,14 @@
 // report a successful export without this returning true.
 // ============================================================================
 
-export function downloadTextFile(filename: string, contents: string): boolean {
+export function downloadBlob(filename: string, blob: Blob): boolean {
   if (typeof document === 'undefined' || typeof URL?.createObjectURL !== 'function') {
     return false;
   }
 
   let url: string | null = null;
   try {
-    const blob = new Blob([contents], { type: 'application/json' });
     url = URL.createObjectURL(blob);
-
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
@@ -29,8 +27,31 @@ export function downloadTextFile(filename: string, contents: string): boolean {
     console.error('Download failed:', error);
     return false;
   } finally {
-    // Revoke on the next tick: revoking synchronously can cancel the download
-    // in some browsers before it has read the blob.
     if (url) setTimeout(() => URL.revokeObjectURL(url!), 0);
   }
+}
+
+export function downloadDataUrl(filename: string, dataUrl: string): boolean {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+
+  try {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = filename;
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return true;
+  } catch (error) {
+    console.error('Download failed:', error);
+    return false;
+  }
+}
+
+export function downloadTextFile(filename: string, contents: string): boolean {
+  return downloadBlob(filename, new Blob([contents], { type: 'application/json' }));
 }

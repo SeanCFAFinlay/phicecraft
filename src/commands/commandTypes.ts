@@ -11,6 +11,7 @@ import type {
   AppMode,
   AppState,
   CurveShape,
+  EquipmentKind,
   FinishPolicy,
   ID,
   PendingEditorAction,
@@ -176,6 +177,9 @@ export interface AuthoringCommands {
   addCoach(point: Point): CommandResult<ID>;
   moveCoach(id: ID, x: number, y: number): void;
   removeCoach(id: ID): CommandResult;
+
+  addEquipment(kind: EquipmentKind, point: Point): CommandResult<ID>;
+  removeEquipment(id: ID): CommandResult;
 
   commitRoute(ownerId: ID, rawPoints: Point[]): CommandResult<ID>;
   updateRouteStyle(pathId: ID, updates: { mode?: 'skate' | 'glide' | 'backward'; finish?: 'coast' | 'stop' }): void;

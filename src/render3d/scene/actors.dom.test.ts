@@ -518,5 +518,32 @@ describe('createPuck', () => {
     expect(puck.root.position.x).toBeCloseTo(world.x, 10);
     expect(puck.root.position.z).toBeCloseTo(world.z, 10);
     expect((puck.root as THREE.Mesh).geometry).toBeInstanceOf(THREE.CylinderGeometry);
+    expect((puck.root as THREE.Mesh).castShadow).toBe(true);
   });
 });
+
+describe('createActor visual enhancements', () => {
+  it('attaches number billboard above player head when number is provided', () => {
+    const gltf = buildFakeGltfMulti([{ name: 'skate', endRotationY: 1 }]);
+    const actor = createActor(gltf, { kind: 'skater', jersey: '#ff0000', accent: '#ffffff', number: '97' });
+    const sprite = actor.root.getObjectByName('number-sprite');
+    expect(sprite).toBeInstanceOf(THREE.Sprite);
+    expect(sprite?.position.y).toBeCloseTo(2.05, 2);
+    actor.dispose();
+  });
+
+  it('enables castShadow on child meshes when quality is high', () => {
+    const gltf = buildFakeGltfMulti([{ name: 'skate', endRotationY: 1 }]);
+    const actor = createActor(gltf, { kind: 'skater', jersey: '#ff0000', accent: '#ffffff', quality: 'high' });
+    const bodyMesh = actor.root.getObjectByName('Body') as THREE.Mesh;
+    expect(bodyMesh.castShadow).toBe(true);
+  });
+
+  it('does not enable castShadow when quality is low', () => {
+    const gltf = buildFakeGltfMulti([{ name: 'skate', endRotationY: 1 }]);
+    const actor = createActor(gltf, { kind: 'skater', jersey: '#ff0000', accent: '#ffffff', quality: 'low' });
+    const bodyMesh = actor.root.getObjectByName('Body') as THREE.Mesh;
+    expect(bodyMesh.castShadow).toBe(false);
+  });
+});
+

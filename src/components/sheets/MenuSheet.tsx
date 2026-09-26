@@ -13,8 +13,10 @@ import {
   ExportIcon,
   FitIcon,
   HelpIcon,
+  ImageIcon,
   ImportIcon,
   NewDrillIcon,
+  PrintIcon,
   RecoveryIcon,
   RenameIcon,
   SaveIcon,
@@ -22,6 +24,7 @@ import {
   ZoneLeftIcon,
   ZoneRightIcon,
 } from '@/ui/icons';
+import { exportDrillImageFile } from '@/ui/exportImage';
 import { Sheet } from '../a11y/Sheet';
 import { SheetItem, SheetSection } from './QuickSheets';
 import { useAppState, useCommands } from '@/hooks/useAppState';
@@ -157,6 +160,24 @@ export function MenuSheet() {
       </SheetSection>
 
       <SheetSection title="Backup and files">
+        <SheetItem
+          icon={<ImageIcon />}
+          label="Export drill diagram (PNG)"
+          detail="High-resolution diagram with players and routes"
+          onClick={() => {
+            exportDrillImageFile(state.drill);
+            close();
+          }}
+        />
+        <SheetItem
+          icon={<PrintIcon />}
+          label="Print drill sheet / PDF"
+          detail="Formatted 1-page printable coaching card"
+          onClick={() => {
+            close();
+            setTimeout(() => window.print(), 100);
+          }}
+        />
         <SheetItem icon={<ExportIcon />} label="Export all plays (JSON)" onClick={() => void commands.exportDrills()} />
         <SheetItem
           icon={<ImportIcon />}

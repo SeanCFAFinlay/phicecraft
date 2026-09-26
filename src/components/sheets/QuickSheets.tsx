@@ -17,15 +17,19 @@ import { isReviewComplete } from '@/commands';
 import type { Tool } from '@/core/types';
 import { useViewActions, VIEW_AREAS } from '../shell/useViewActions';
 import {
+  BarrierIcon,
   CoachIcon,
+  ConeIcon,
   FitIcon,
   GoalieIcon,
+  MiniNetIcon,
   OrientationIcon,
   PuckIcon,
   RotateLeftIcon,
   RotateRightIcon,
   ShootIcon,
   SkaterIcon,
+  TireIcon,
   ZoneLeftIcon,
   ZoneRightIcon,
 } from '@/ui/icons';
@@ -132,6 +136,36 @@ export function AddSheet() {
         selected={state.ui.currentTool === 'coach'}
         onClick={() => choose('coach')}
       />
+      <SheetSection title="Equipment">
+        <SheetItem
+          icon={<ConeIcon className="text-orange-400" />}
+          label="Cone"
+          detail="Agility, boundary or turn pylon"
+          selected={state.ui.currentTool === 'cone'}
+          onClick={() => choose('cone')}
+        />
+        <SheetItem
+          icon={<TireIcon className="text-slate-400" />}
+          label="Tire"
+          detail="On-ice obstacle or stickhandling target"
+          selected={state.ui.currentTool === 'tire'}
+          onClick={() => choose('tire')}
+        />
+        <SheetItem
+          icon={<MiniNetIcon className="text-red-400" />}
+          label="Mini net"
+          detail="Target net for small-area games & accuracy"
+          selected={state.ui.currentTool === 'mini-net'}
+          onClick={() => choose('mini-net')}
+        />
+        <SheetItem
+          icon={<BarrierIcon className="text-sky-400" />}
+          label="Divider pad"
+          detail="Cross-ice bumper or station separator"
+          selected={state.ui.currentTool === 'barrier'}
+          onClick={() => choose('barrier')}
+        />
+      </SheetSection>
     </Sheet>
   );
 }

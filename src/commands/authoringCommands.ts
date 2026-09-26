@@ -11,6 +11,8 @@ import type {
   CoachMarker,
   CurveShape,
   DrillEvent,
+  EquipmentItem,
+  EquipmentKind,
   ID,
   PassEvent,
   Player,
@@ -354,6 +356,25 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
     removeCoach(id) {
       dispatch({ type: 'REMOVE_COACH', id });
       notify.toast({ message: 'Coach removed', type: 'success' });
+      return done();
+    },
+
+    addEquipment(kind: EquipmentKind, point: Point) {
+      const position = constrainToRink(point, RINK_MARGIN);
+      const item: EquipmentItem = {
+        id: `equip-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        kind,
+        position,
+      };
+      dispatch({ type: 'ADD_EQUIPMENT', item });
+      const label = kind === 'mini-net' ? 'Mini net' : kind.charAt(0).toUpperCase() + kind.slice(1);
+      notify.toast({ message: `${label} placed`, type: 'success', dedupeKey: `equip:${item.id}` });
+      return done(item.id);
+    },
+
+    removeEquipment(id) {
+      dispatch({ type: 'REMOVE_EQUIPMENT', id });
+      notify.toast({ message: 'Equipment removed', type: 'success' });
       return done();
     },
 

@@ -16,6 +16,8 @@ import { clamp } from '@/utils/geometry';
 import { headingToYaw, rinkToWorld } from '../worldMap';
 import { tintActorMaterials } from './tintMaterials';
 import { CLIP_FADE_SECONDS, isMovementClip, selectClipName } from './clipSelector';
+import { createNumberSprite } from './numberSprite';
+import type { RenderQuality } from '@/render/quality';
 
 /** Rink-units/second at which the `skate` clip plays at its authored (1x) speed. */
 export const REFERENCE_SKATE_SPEED = 120;
@@ -80,6 +82,8 @@ export interface CreateActorOptions {
   kind: 'skater' | 'goalie';
   jersey: string;
   accent: string;
+  number?: string;
+  quality?: RenderQuality;
 }
 
 export interface Actor {
@@ -136,11 +140,26 @@ interface ClipEntry {
  */
 export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): Actor {
   const root = gltf.scene;
+  if (opts.quality === 'high') {
+    root.traverse(child => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true;
+      }
+    });
+  }
+
   const tintedMaterials = tintActorMaterials(root, {
     jersey: opts.jersey,
     accent: opts.accent,
     pants: PANTS_COLOR,
   });
+
+  const numberSprite = opts.number
+    ? createNumberSprite(opts.number, { jersey: opts.jersey }, opts.quality)
+    : null;
+  if (numberSprite) {
+    root.add(numberSprite.sprite);
+  }
 
   const mixer = new THREE.AnimationMixer(root);
   const availableClipNames = new Set(gltf.animations.map(c => c.name));
@@ -223,6 +242,7 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
     dispose() {
       mixer.stopAllAction();
       mixer.uncacheRoot(root);
+      numberSprite?.dispose();
       // Only the per-actor tint clones are this actor's own to dispose - the
       // mesh geometries and every untinted named material (skin/white/dark/
       // steel/stick) are shared with the module-scope cached GLTF (and every
@@ -254,11 +274,13 @@ export function createCoachMarker(): MarkerActor {
   const capsule = new THREE.Mesh(capsuleGeometry, material);
   capsule.name = 'coach-capsule';
   capsule.position.y = COACH_DISC_HEIGHT + COACH_CAPSULE_LENGTH / 2 + COACH_CAPSULE_RADIUS;
+  capsule.castShadow = true;
 
   const discGeometry = new THREE.CylinderGeometry(COACH_DISC_RADIUS, COACH_DISC_RADIUS, COACH_DISC_HEIGHT, 24);
   const disc = new THREE.Mesh(discGeometry, material);
   disc.name = 'coach-disc';
   disc.position.y = COACH_DISC_HEIGHT / 2;
+  disc.castShadow = true;
 
   const root = new THREE.Group();
   root.name = 'coach';
@@ -296,6 +318,7 @@ export function createPuck(): MarkerActor {
   const material = new THREE.MeshStandardMaterial({ color: PUCK_COLOR, roughness: 0.5 });
   const root = new THREE.Mesh(geometry, material);
   root.name = 'puck';
+  root.castShadow = true;
 
   return {
     root,

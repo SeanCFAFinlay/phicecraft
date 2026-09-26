@@ -291,6 +291,11 @@ export function CanvasSurface() {
         return;
       }
 
+      if (tool === 'cone' || tool === 'tire' || tool === 'mini-net' || tool === 'barrier') {
+        commands.addEquipment(tool, world);
+        return;
+      }
+
       // An armed pass is resolved by the SAME hit test the drag path uses, so
       // it connects to a teammate's token or to any point on their skating
       // route. Tapping the line a receiver is skating is how you pass to

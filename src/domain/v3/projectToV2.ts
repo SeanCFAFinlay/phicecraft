@@ -336,6 +336,7 @@ export function projectToV2(document: DrillDocumentV3): ProjectionResult {
     skatePaths,
     events,
     coaches,
+    ...(document.equipment.length > 0 ? { equipment: document.equipment } : {}),
     settings: {
       assistance: 'standard',
       recovery: initialPuck ? 'authored' : 'nearest-teammate',

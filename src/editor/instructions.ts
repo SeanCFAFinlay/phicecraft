@@ -119,6 +119,14 @@ function toolInstruction(context: InstructionContext): Omit<Instruction, 'cancel
       };
     case 'coach':
       return { label: 'Add coach', next: `${verb(pointer)} empty ice to place the coach.` };
+    case 'cone':
+      return { label: 'Add cone', next: `${verb(pointer)} empty ice to place a training cone.` };
+    case 'tire':
+      return { label: 'Add tire', next: `${verb(pointer)} empty ice to place a tire obstacle.` };
+    case 'mini-net':
+      return { label: 'Add mini-net', next: `${verb(pointer)} empty ice to place a target net.` };
+    case 'barrier':
+      return { label: 'Add divider', next: `${verb(pointer)} empty ice to place a divider pad.` };
   }
 }
 

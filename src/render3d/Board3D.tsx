@@ -36,6 +36,8 @@ import { orbitFromCamera } from './orbit';
 import { RINK_SCALE } from './worldMap';
 import { buildArena } from './scene/buildArena';
 import { createIceTexture } from './scene/iceTexture';
+import { createGoalNets } from './scene/goalNet';
+import { createRouteOverlay3D } from './scene/routeOverlay';
 import {
   createActor,
   createCoachMarker,
@@ -143,6 +145,8 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const iceTexture = createIceTexture();
     const arena = buildArena(iceTexture.canvas, { quality });
     scene.add(arena.root);
+    const goalNets = createGoalNets(quality);
+    scene.add(goalNets.root);
     sceneRef.current = scene;
     setSceneEpoch(epoch => epoch + 1);
 
@@ -228,6 +232,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       } catch {
         /* already lost - nothing left to release */
       }
+      goalNets.dispose();
       arena.dispose();
       iceTexture.dispose();
       scene.clear();
@@ -252,6 +257,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const actorGroup = new THREE.Group();
     actorGroup.name = 'actors';
     scene.add(actorGroup);
+
+    const routeOverlay = createRouteOverlay3D(drillRef.current);
+    scene.add(routeOverlay.root);
 
     const skaterActors = new Map<ID, Actor>();
     const coachMarkers = new Map<ID, MarkerActor>();
@@ -380,6 +388,8 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
             kind: player.role === 'G' ? 'goalie' : 'skater',
             jersey: jerseyColor(player.team, drill.settings),
             accent: ACCENT_COLOR,
+            number: player.number,
+            quality,
           }
         );
         actorGroup.add(actor.root);
@@ -409,8 +419,10 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       disposeActors();
       puckActor.dispose();
       scene.remove(actorGroup);
+      scene.remove(routeOverlay.root);
+      routeOverlay.dispose();
     };
-  }, [playback, state.drill, sceneEpoch, announcer]);
+  }, [playback, state.drill, sceneEpoch, announcer, quality]);
 
   // --------------------------------------------------------------------------
   // Orbit gestures - drag to spin, wheel/pinch to zoom. View-only: nothing
