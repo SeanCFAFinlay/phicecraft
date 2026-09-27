@@ -21,6 +21,7 @@ import {
   CoachIcon,
   ConeIcon,
   FitIcon,
+  FormationIcon,
   GoalieIcon,
   MiniNetIcon,
   OrientationIcon,
@@ -33,6 +34,7 @@ import {
   ZoneLeftIcon,
   ZoneRightIcon,
 } from '@/ui/icons';
+import { FORMATION_PRESETS, type PlayFormationPreset } from '@/engine/formations';
 import { ModeSwitch } from '../shell/ModeSwitch';
 
 export function SheetItem({
@@ -101,6 +103,11 @@ export function AddSheet() {
     close();
   };
 
+  const applyPreset = async (preset: PlayFormationPreset) => {
+    close();
+    await commands.loadFormation(preset);
+  };
+
   return (
     <Sheet
       open={open}
@@ -165,6 +172,17 @@ export function AddSheet() {
           selected={state.ui.currentTool === 'barrier'}
           onClick={() => choose('barrier')}
         />
+      </SheetSection>
+      <SheetSection title="Tactical Formations">
+        {FORMATION_PRESETS.map(preset => (
+          <SheetItem
+            key={preset.id}
+            icon={<FormationIcon className="text-app-cyan" />}
+            label={preset.title}
+            detail={preset.subtitle}
+            onClick={() => void applyPreset(preset.id)}
+          />
+        ))}
       </SheetSection>
     </Sheet>
   );

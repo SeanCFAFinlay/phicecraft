@@ -520,3 +520,15 @@ export function BarrierIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Tactical formation / play layout icon: players in alignment. */
+export function FormationIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="6" cy="6" r="2.2" fill="currentColor" />
+      <circle cx="18" cy="6" r="2.2" fill="currentColor" />
+      <circle cx="12" cy="18" r="2.2" fill="currentColor" />
+      <path d="M7.8 7.5L10.5 16M16.2 7.5L13.5 16M8.5 6h7" opacity="0.45" strokeDasharray="2 2" />
+    </Icon>
+  );
+}

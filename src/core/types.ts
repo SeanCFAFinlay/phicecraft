@@ -640,6 +640,7 @@ export type AppAction =
   | { type: 'SET_JERSEY'; team: Team; hex: string }
   | { type: 'SET_FINISH_POLICY'; policy: FinishPolicy }
   | { type: 'SWAP_JERSEYS' }
+  | { type: 'SET_FORMATION'; players: Player[]; initialPuck?: Point }
 
   // Coach actions
   | { type: 'ADD_COACH'; coach: CoachMarker }

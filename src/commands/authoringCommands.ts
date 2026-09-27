@@ -27,6 +27,7 @@ import {
   nextGoalieNumber,
   nextPlayerNumber,
 } from '@/engine/drill';
+import { getFormationPreset, type PlayFormationPreset } from '@/engine/formations';
 import {
   authoredEvents,
   canAddEvents,
@@ -929,6 +930,29 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       if (!(await host.confirm(CONFIRMATIONS.resetBoard))) return { status: 'cancelled' };
       dispatch({ type: 'RESET_BOARD' });
       notify.toast({ message: 'Board reset to the default lineup', type: 'success' });
+      return done();
+    },
+
+    async loadFormation(preset: PlayFormationPreset) {
+      const state = getState();
+      const hasContent = state.drill.skatePaths.length > 0 || state.drill.events.length > 0;
+      if (hasContent && !(await host.confirm(CONFIRMATIONS.loadFormation))) {
+        return { status: 'cancelled' };
+      }
+
+      const definition = getFormationPreset(preset);
+      const players = definition.players();
+      dispatch({
+        type: 'SET_FORMATION',
+        players,
+        initialPuck: definition.initialPuck,
+      });
+
+      notify.toast({
+        message: `${definition.title} formation loaded`,
+        type: 'success',
+      });
+      host.announce(`${definition.title} formation applied`);
       return done();
     },
 

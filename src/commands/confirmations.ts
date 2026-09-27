@@ -67,6 +67,16 @@ export const CONFIRMATIONS = {
     cancelLabel: 'Cancel',
     destructive: true,
   },
+
+  loadFormation: {
+    id: 'load-formation',
+    title: 'Apply play formation?',
+    body:
+      'Replaces the current player lineup with the tactical formation and clears existing skating routes and puck actions. Coaches, settings and jerseys are kept. This can be undone.',
+    confirmLabel: 'Apply formation',
+    cancelLabel: 'Cancel',
+    destructive: true,
+  },
 } as const satisfies Record<string, ConfirmationRequest>;
 
 /** Deleting a named play needs the name in the copy, so it is built here. */

@@ -41,6 +41,25 @@ const AREA_LABELS: Record<string, string> = {
   station: 'Station',
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  'power-play': 'Power Play',
+  'penalty-kill': 'Penalty Kill',
+  'breakout': 'Breakout',
+  'rush': 'Rush',
+  'forecheck': 'Forecheck',
+  'defensive-zone': 'D-Zone',
+  'passing': 'Passing',
+  'shooting': 'Shooting',
+  'small-area-game': 'Small Area',
+  'transition': 'Transition',
+  'skating': 'Skating',
+  'puck-handling': 'Puck Handling',
+  'warm-up': 'Warm-Up',
+  'goalie': 'Goalie',
+  'battle': 'Battle',
+  'conditioning': 'Conditioning',
+};
+
 function Chip({
   active,
   onClick,
@@ -125,6 +144,20 @@ export function LibraryPage() {
               </Chip>
             ))}
           </div>
+
+          {facets.categories.length > 0 && (
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by category">
+              {facets.categories.map(cat => (
+                <Chip
+                  key={cat}
+                  active={filters.categories.includes(cat)}
+                  onClick={() => patch({ categories: toggleFilterValue(filters.categories, cat) })}
+                >
+                  {CATEGORY_LABELS[cat] ?? cat}
+                </Chip>
+              ))}
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by age group">
             {facets.ageBands.map(band => (

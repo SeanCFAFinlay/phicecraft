@@ -28,6 +28,9 @@ import type {
 } from '@/persistence';
 import type { CameraStore } from '@/camera/CameraStore';
 import type { PlaybackStore } from '@/playback/PlaybackStore';
+import type { PlayFormationPreset } from '@/engine/formations';
+
+export type { PlayFormationPreset };
 
 // ----------------------------------------------------------------------------
 // Results
@@ -216,6 +219,7 @@ export interface AuthoringCommands {
   clearPuckActions(): Promise<CommandResult>;
   clearMovementRoutes(): Promise<CommandResult>;
   resetBoard(): Promise<CommandResult>;
+  loadFormation(preset: PlayFormationPreset): Promise<CommandResult>;
 
   undo(): void;
   redo(): void;

@@ -18,10 +18,12 @@
 
 import type { DrillTemplate } from './builder';
 import { PASSING_TEMPLATES } from './passing';
+import { PLAY_TEMPLATES } from './plays';
 import { SMALL_AREA_TEMPLATES } from './smallArea';
 import { TRANSITION_TEMPLATES } from './transition';
 
 export const DRILL_TEMPLATES: DrillTemplate[] = [
+  ...PLAY_TEMPLATES,
   ...PASSING_TEMPLATES,
   ...SMALL_AREA_TEMPLATES,
   ...TRANSITION_TEMPLATES,

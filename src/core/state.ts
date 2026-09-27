@@ -135,6 +135,7 @@ const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'CLEAR_PUCK_ACTIONS',
   'CLEAR_MOVEMENT_ROUTES',
   'RESET_BOARD',
+  'SET_FORMATION',
 ]);
 
 /** Actions that begin a fresh document; their history is dropped, not extended. */
@@ -703,6 +704,23 @@ function reduce(state: AppState, action: AppAction): AppState {
           skatePaths: [],
           events: [],
           coaches: [],
+          updatedAt: Date.now(),
+        },
+        selection: { ...DEFAULT_SELECTION },
+        pendingAction: { kind: 'none' },
+        playback: { ...DEFAULT_PLAYBACK, speed: state.playback.speed },
+      };
+    }
+
+    case 'SET_FORMATION': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          players: action.players,
+          initialPuck: action.initialPuck,
+          skatePaths: [],
+          events: [],
           updatedAt: Date.now(),
         },
         selection: { ...DEFAULT_SELECTION },

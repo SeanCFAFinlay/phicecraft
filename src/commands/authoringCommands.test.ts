@@ -708,3 +708,47 @@ describe('pass timing', () => {
     expect(second.at!).toBeGreaterThan(0.4);
   });
 });
+
+describe('loadFormation', () => {
+  it('loads a tactical formation immediately when board has no routes or events', async () => {
+    const result = await harness.commands.loadFormation('pp-131');
+    expect(result.status).toBe('done');
+
+    const state = harness.getState();
+    expect(state.drill.players.length).toBe(10);
+    expect(state.drill.players.some(p => p.team === 'home' && p.number === '5' && p.hasPuck)).toBe(true);
+    expect(toasted(harness, '1-3-1 Power Play formation loaded')).toBe(true);
+  });
+
+  it('prompts confirmation when board has drawn routes or events', async () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h11', number: '11', hasPuck: true }),
+          buildPlayer({ id: 'h13', number: '13' }),
+        ],
+        events: [buildPass({ id: 'p1', fromPlayerId: 'h11', toPlayerId: 'h13' })],
+      })
+    );
+
+    harness.answerConfirm(false);
+    const cancelledResult = await harness.commands.loadFormation('rush-3v2');
+    expect(cancelledResult.status).toBe('cancelled');
+    expect(harness.getState().drill.events.length).toBe(1);
+
+    harness.answerConfirm(true);
+    const confirmedResult = await harness.commands.loadFormation('rush-3v2');
+    expect(confirmedResult.status).toBe('done');
+    expect(harness.getState().drill.events.length).toBe(0);
+    expect(harness.getState().drill.players.length).toBe(6);
+  });
+
+  it('can be undone to restore the previous lineup', async () => {
+    const originalCount = harness.getState().drill.players.length;
+    await harness.commands.loadFormation('breakout-5v5');
+    expect(harness.getState().drill.players.length).toBe(8);
+
+    harness.commands.undo();
+    expect(harness.getState().drill.players.length).toBe(originalCount);
+  });
+});
