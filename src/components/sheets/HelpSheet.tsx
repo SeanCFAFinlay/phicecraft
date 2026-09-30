@@ -67,6 +67,27 @@ export function HelpSheet() {
           explicit Move button on the selection chip is the primary way to reposition a player.
         </p>
       </div>
+
+      <div className="mx-4 mb-4 mt-2 flex items-center gap-3 rounded-2xl border border-app-border bg-white/[0.03] p-3 shadow-inner">
+        <img
+          src="/assets/ph-logo-badge.webp"
+          alt=""
+          width={44}
+          height={44}
+          className="h-11 w-11 shrink-0 rounded-xl object-contain ring-1 ring-app-cyan/30"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-black tracking-wide text-white">
+            PhiceCraft: Hockey Practice
+          </div>
+          <div className="text-[10.5px] font-bold text-app-cyan">
+            Train · Play · Improve
+          </div>
+          <div className="text-[10px] text-white/50">
+            Professional hockey drill and practice diagram system
+          </div>
+        </div>
+      </div>
     </Sheet>
   );
 }

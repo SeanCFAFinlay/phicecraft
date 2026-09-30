@@ -34,7 +34,15 @@ const SHELL_CACHE = `phicecraft-shell-${VERSION}`;
 const ASSET_CACHE = `phicecraft-assets-${VERSION}`;
 
 /** Enough to boot with no network at all. */
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/hockey-icon.svg'];
+const SHELL = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/hockey-icon.svg',
+  '/assets/ph-logo.webp',
+  '/assets/ph-logo-badge.webp',
+  '/pwa-192.png',
+];
 
 /**
  * Where Vite writes the list of everything it built.

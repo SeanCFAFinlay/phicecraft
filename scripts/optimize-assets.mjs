@@ -36,6 +36,31 @@ const TARGETS = [
     budgetBytes: 50 * 1024,
   },
   {
+    source: 'ph-logo.png',
+    output: 'ph-logo-badge.webp',
+    // 256px badge for menus, about dialogs, and detail banners.
+    resize: { width: 256, height: 256, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    format: 'webp',
+    options: { quality: 88, effort: 6 },
+    budgetBytes: 50 * 1024,
+  },
+  {
+    source: 'ph-logo.png',
+    output: '../pwa-192.png',
+    resize: { width: 192, height: 192, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    format: 'png',
+    options: { compressionLevel: 9, effort: 8 },
+    budgetBytes: 150 * 1024,
+  },
+  {
+    source: 'ph-logo.png',
+    output: '../pwa-512.png',
+    resize: { width: 512, height: 512, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    format: 'png',
+    options: { compressionLevel: 9, effort: 8 },
+    budgetBytes: 400 * 1024,
+  },
+  {
     source: 'hockey-sprite-atlas.png',
     output: 'hockey-sprite-atlas.webp',
     // Sprites are drawn at roughly 1:1; halving the atlas would soften them,

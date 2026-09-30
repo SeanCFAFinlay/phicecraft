@@ -122,6 +122,30 @@ export function LibraryPage() {
         size="full"
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-3 pb-4">
+          <div className="flex items-center gap-3.5 rounded-2xl border border-app-border bg-gradient-to-r from-white/[0.05] to-white/[0.02] p-3 shadow-sm">
+            <img
+              src="/assets/ph-logo.webp"
+              alt=""
+              width={40}
+              height={40}
+              className="h-10 w-10 shrink-0 rounded-xl object-contain shadow-sm ring-1 ring-app-cyan/30"
+              draggable={false}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[15px] font-black tracking-wider text-white">
+                  PHICE<span className="text-app-cyan">CRAFT</span> PLAYBOOK
+                </span>
+                <span className="rounded-full border border-app-cyan/30 bg-app-cyan/15 px-2 py-0.5 text-[9.5px] font-black tracking-widest text-app-cyan uppercase">
+                  Train · Play · Improve
+                </span>
+              </div>
+              <p className="mt-0.5 text-[12px] text-white/60">
+                Official tactical systems, skill progressions and team drills for practices and game plans.
+              </p>
+            </div>
+          </div>
+
           <label className="block">
             <span className="sr-only">Search drills</span>
             <input

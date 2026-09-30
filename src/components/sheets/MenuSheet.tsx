@@ -85,6 +85,29 @@ export function MenuSheet() {
 
   return (
     <Sheet open={state.ui.showMenu} title="PhiceCraft" side="left" onClose={close}>
+      <div className="mx-2 mb-3 mt-1 flex items-center gap-3.5 rounded-2xl border border-app-border bg-gradient-to-r from-white/[0.06] to-white/[0.02] p-3 shadow-md">
+        <img
+          src="/assets/ph-logo-badge.webp"
+          alt=""
+          width={48}
+          height={48}
+          decoding="async"
+          className="h-12 w-12 shrink-0 rounded-xl object-contain shadow-sm ring-1 ring-app-cyan/40"
+          draggable={false}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-black tracking-wider text-white">
+            PHICE<span className="text-app-cyan">CRAFT</span>
+          </div>
+          <div className="text-[11px] font-bold text-white/70">
+            Hockey Practice & Plays
+          </div>
+          <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-app-cyan/30 bg-app-cyan/15 px-2 py-0.5 text-[9px] font-black tracking-widest text-app-cyan uppercase">
+            Train · Play · Improve
+          </div>
+        </div>
+      </div>
+
       <SheetSection title="This play">
         <SheetItem icon={<SaveIcon />} label="Save play" onClick={() => void commands.saveDrill()} />
         <SheetItem

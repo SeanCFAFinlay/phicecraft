@@ -101,6 +101,15 @@ export function DrillDetails({
         </div>
       }
     >
+      <div className="flex items-center justify-between px-3 pb-2 pt-1">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-app-cyan/30 bg-app-cyan/15 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-app-cyan">
+          <img src="/assets/ph-logo.webp" alt="" className="h-3.5 w-3.5 rounded object-contain" />
+          PhiceCraft Playbook
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+          Train · Play · Improve
+        </span>
+      </div>
       {thumbnail && (
         <div className="px-3 pt-1 pb-3">
           <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-inner">

@@ -54,21 +54,27 @@ export function TopStrip() {
         branding is the one thing here a coach does not need mid-drill.
       */}
       {!isPhone && (
-        <img
-          src="/assets/ph-logo.webp"
-          alt=""
-          width={32}
-          height={32}
-          decoding="async"
-          className="h-8 w-8 flex-shrink-0 rounded-lg object-contain"
-          draggable={false}
-        />
-      )}
-
-      {!isPhone && !isCompactLandscape && (
-        <span className="hidden flex-shrink-0 text-base font-black tracking-wider text-white sm:block">
-          PHICE<span className="text-app-cyan">CRAFT</span>
-        </span>
+        <div className="flex items-center gap-2">
+          <img
+            src="/assets/ph-logo.webp"
+            alt=""
+            width={32}
+            height={32}
+            decoding="async"
+            className="h-8 w-8 flex-shrink-0 rounded-lg object-contain shadow-sm ring-1 ring-app-cyan/30"
+            draggable={false}
+          />
+          {!isCompactLandscape && (
+            <div className="hidden flex-col text-left leading-none sm:flex">
+              <span className="text-[14px] font-black tracking-wider text-white">
+                PHICE<span className="text-app-cyan">CRAFT</span>
+              </span>
+              <span className="mt-0.5 text-[7.5px] font-black uppercase tracking-widest text-app-cyan/80">
+                Hockey Practice
+              </span>
+            </div>
+          )}
+        </div>
       )}
 
       <button

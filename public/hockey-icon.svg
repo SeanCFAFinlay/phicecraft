@@ -1,7 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="15" fill="#0c1d2d"/>
-  <ellipse cx="50" cy="50" rx="35" ry="20" fill="none" stroke="#00c8f0" stroke-width="3"/>
-  <line x1="50" y1="30" x2="50" y2="70" stroke="#e63946" stroke-width="2"/>
-  <circle cx="50" cy="50" r="4" fill="#e63946"/>
-  <ellipse cx="30" cy="50" rx="3" ry="2" fill="#111" stroke="#fff" stroke-width="0.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#04121e" />
+      <stop offset="50%" stop-color="#071b2c" />
+      <stop offset="100%" stop-color="#020910" />
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="50%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#cbd5e1" />
+    </linearGradient>
+    <linearGradient id="bladeGrad" x1="0%" y1="0%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#22d3ee" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer Rounded Square with Neon Border -->
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="4.5" />
+
+  <!-- Subtle Rink Markings in Background -->
+  <circle cx="64" cy="64" r="32" fill="none" stroke="#22d3ee" stroke-opacity="0.18" stroke-width="1.8" />
+  <line x1="10" y1="64" x2="118" y2="64" stroke="#e11d48" stroke-opacity="0.25" stroke-width="1.8" />
+
+  <!-- Bold 3D "PH" Monogram -->
+  <!-- Shadow/3D extrusion -->
+  <text x="65.5" y="65.5" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="46" fill="#020d18" text-anchor="middle" letter-spacing="1">PH</text>
+  <!-- Main Face -->
+  <text x="64" y="64" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="46" fill="url(#textGrad)" text-anchor="middle" letter-spacing="1">PH</text>
+
+  <!-- Sweeping Hockey Stick Shaft & Blade -->
+  <path d="M102 32 L88 74 C82 86 64 92 48 94 L42 94 C39 94 38 90 41 88 C54 84 66 79 72 70 L86 30 Z" fill="url(#bladeGrad)" />
+  <path d="M48 94 C64 92 82 86 88 74" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" />
+
+  <!-- Slanted Puck with Motion Glow -->
+  <ellipse cx="34" cy="88" rx="14" ry="7.5" fill="#090d12" stroke="#38bdf8" stroke-width="1.5" />
+  <ellipse cx="34" cy="85.5" rx="13.5" ry="6.5" fill="#1e293b" />
+  <ellipse cx="34" cy="85" rx="8" ry="3.5" fill="#334155" />
 </svg>

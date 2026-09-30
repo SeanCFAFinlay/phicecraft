@@ -100,7 +100,7 @@ export function renderDrillDiagram(drill: Drill, options: ExportImageOptions = {
     ctx.font = '800 13px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('PHICECRAFT · HOCKEY DRILL DESIGNER', 18, 20);
+    ctx.fillText('PHICECRAFT · HOCKEY PRACTICE · TRAIN. PLAY. IMPROVE.', 18, 20);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 18px system-ui, -apple-system, sans-serif';
