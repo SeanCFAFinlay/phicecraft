@@ -33,7 +33,7 @@ export function ModeSwitch({ onSelect }: { onSelect?: () => void } = {}) {
     <div
       role="radiogroup"
       aria-label="Mode"
-      className="flex flex-shrink-0 items-center gap-0.5 rounded-xl border border-app-border bg-white/5 p-0.5"
+      className="flex flex-shrink-0 items-center gap-0.5 rounded-xl border border-white/10 bg-white/5 p-0.5 shadow-inner"
     >
       {MODES.map(({ mode, label, icon }) => {
         const checked = state.ui.mode === mode;
@@ -48,8 +48,10 @@ export function ModeSwitch({ onSelect }: { onSelect?: () => void } = {}) {
               commands.setMode(mode);
               onSelect?.();
             }}
-            className={`touch-target flex items-center justify-center gap-1 rounded-lg px-1.5 text-[16px] transition-colors ${
-              checked ? 'bg-app-cyan/15 text-app-cyan' : 'text-app-text hover:bg-app-cyan/10'
+            className={`touch-target flex items-center justify-center gap-1 rounded-lg px-2 text-[16px] transition-all ${
+              checked
+                ? 'bg-app-cyan/20 text-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.3)] ring-1 ring-app-cyan/40'
+                : 'text-app-text/75 hover:bg-white/10 hover:text-white'
             }`}
           >
             {icon}
@@ -72,7 +74,7 @@ export function ModeSwitchTrigger() {
       onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'mode' })}
       aria-haspopup="dialog"
       aria-label={`Mode: ${current.label}. Activate to switch.`}
-      className="touch-target flex flex-shrink-0 items-center justify-center rounded-xl border border-app-border bg-white/5 text-app-cyan"
+      className="touch-target flex flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-app-cyan hover:border-cyan-500/30 hover:bg-app-cyan/15 transition-all"
     >
       {current.icon}
     </button>

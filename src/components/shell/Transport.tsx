@@ -62,7 +62,7 @@ export function Transport({
       className={
         inline
           ? 'flex min-w-0 flex-[2] items-center gap-1.5'
-          : 'app-chrome safe-x flex flex-shrink-0 items-center gap-2 border-t border-app-border bg-[#0c1825] px-2 py-1.5'
+          : 'app-chrome safe-x flex flex-shrink-0 items-center gap-2 border-t border-cyan-500/20 bg-gradient-to-t from-[#040b12] to-[#0a1827] px-2 py-1.5 shadow-[0_-2px_12px_rgba(0,0,0,0.4)]'
       }
       style={inline ? undefined : { minHeight: 'var(--transport-height)' }}
     >
@@ -74,7 +74,7 @@ export function Transport({
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'possession' })}
           aria-haspopup="dialog"
-          className="touch-target flex shrink-0 items-center gap-1 rounded-xl border border-app-border bg-white/5 px-2.5 text-[12px] font-bold hover:bg-white/10"
+          className="touch-target flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 text-[12px] font-bold hover:border-cyan-500/30 hover:bg-white/10 transition-all"
         >
           {/* /45 measured 4.32:1 against this row's background - just under
               the 4.5:1 axe requires; /60 clears it with room to spare. */}
@@ -93,7 +93,7 @@ export function Transport({
         type="button"
         onClick={commands.resetPlayback}
         aria-label="Reset playback to the start"
-        className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[15px] text-app-text hover:bg-white/10"
+        className="touch-target flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[15px] text-app-text hover:border-cyan-500/30 hover:bg-white/10 hover:text-white transition-all"
       >
         <StepBackIcon size={16} />
       </button>
@@ -103,10 +103,10 @@ export function Transport({
           type="button"
           onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
           aria-label={isPlaying ? 'Pause playback' : 'Start playback'}
-          className={`touch-target flex items-center justify-center rounded-full border-2 text-[17px] ${
+          className={`touch-target flex items-center justify-center rounded-full border-2 text-[17px] shadow-sm transition-all ${
             isPlaying
-              ? 'border-red-500 bg-red-500 text-white'
-              : 'border-cyan-500 bg-cyan-500 text-[#03121c]'
+              ? 'border-red-400 bg-gradient-to-b from-red-500 to-red-600 text-white shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+              : 'border-cyan-400 bg-gradient-to-b from-cyan-400 to-cyan-500 text-[#03121c] shadow-[0_0_12px_rgba(0,229,255,0.4)] hover:brightness-105 active:scale-95'
           }`}
         >
           {isPlaying ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
@@ -123,9 +123,9 @@ export function Transport({
         aria-valuenow={snapshot.progressPercent}
         aria-valuetext={formatClock(progress, snapshot.durationSeconds)}
       >
-        <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+        <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10">
           <div
-            className="h-full rounded-full bg-app-cyan"
+            className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.7)]"
             style={{ width: `${snapshot.progressPercent}%` }}
           />
         </div>

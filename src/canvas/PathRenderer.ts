@@ -120,12 +120,18 @@ function drawPuckDot(
   y: number,
   color: string
 ): void {
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 20, 40, 0.25)';
+  ctx.beginPath();
+  ctx.arc(x, y + 1.2, 5.2, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.arc(x, y, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.28)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(x, y, 5, 0, Math.PI * 2);
@@ -172,10 +178,25 @@ export function drawSkatePath(
   // actually follows, expanded exactly as the simulation expands it.
   const line = expandCurve(path.points, path.shape ?? 'spline');
 
+  // Ice contact drop shadow
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 24, 48, 0.12)';
+  ctx.lineWidth = 3.6;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  line.forEach((p, i) => {
+    if (i === 0) ctx.moveTo(p.x, p.y + 1.8);
+    else ctx.lineTo(p.x, p.y + 1.8);
+  });
+  ctx.stroke();
+  ctx.restore();
+
   // Glow effect
   ctx.save();
-  ctx.strokeStyle = color.replace('0.82', '0.07');
-  ctx.lineWidth = 13;
+  ctx.strokeStyle = color.replace('0.82', '0.08');
+  ctx.lineWidth = 14;
   ctx.lineCap = 'round';
   ctx.setLineDash([]);
   ctx.beginPath();
@@ -257,6 +278,21 @@ export function drawPassEvent(
 
   const arcPoints = eventFlightLine(event);
 
+  // Subtle ice drop shadow beneath pass flight line
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 24, 48, 0.12)';
+  ctx.lineWidth = 3.4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.setLineDash([9, 6]);
+  ctx.beginPath();
+  arcPoints.forEach((p, i) => {
+    if (i === 0) ctx.moveTo(p.x, p.y + 1.6);
+    else ctx.lineTo(p.x, p.y + 1.6);
+  });
+  ctx.stroke();
+  ctx.restore();
+
   drawExpandedLine(ctx, arcPoints, color, true, 2.8);
 
   // Puck dots at start and end
@@ -284,16 +320,59 @@ export function drawShotEvent(
 
   const arcPoints = eventFlightLine(event);
 
-  drawExpandedLine(ctx, arcPoints, color, false, 3);
-
-  // Target flash ring at net
-  ctx.strokeStyle = 'rgba(255, 107, 15, 0.32)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([3, 3]);
+  // Velocity glow trail
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 107, 15, 0.22)';
+  ctx.lineWidth = 9;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.arc(event.toPoint.x, event.toPoint.y, 20, 0, Math.PI * 2);
+  arcPoints.forEach((p, i) => {
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  });
   ctx.stroke();
+  ctx.restore();
+
+  // Ice contact drop shadow
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 24, 48, 0.14)';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  arcPoints.forEach((p, i) => {
+    if (i === 0) ctx.moveTo(p.x, p.y + 1.8);
+    else ctx.lineTo(p.x, p.y + 1.8);
+  });
+  ctx.stroke();
+  ctx.restore();
+
+  drawExpandedLine(ctx, arcPoints, color, false, 3.2);
+
+  // Concentric target rings at net
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 107, 15, 0.38)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.arc(event.toPoint.x, event.toPoint.y, 22, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner bullseye ring
   ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(255, 107, 15, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(event.toPoint.x, event.toPoint.y, 9, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Center bullseye pip
+  ctx.fillStyle = 'rgba(255, 107, 15, 0.9)';
+  ctx.beginPath();
+  ctx.arc(event.toPoint.x, event.toPoint.y, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 
   // Badge
   const mp = arcPoints[Math.floor(arcPoints.length / 2)];

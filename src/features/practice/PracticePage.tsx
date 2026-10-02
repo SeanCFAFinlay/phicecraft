@@ -25,6 +25,15 @@ import {
   exportPracticePlanJson,
 } from '@/ui/exportPracticePlan';
 
+const EQUIPMENT_ICONS: Record<string, string> = {
+  cones: '🔶',
+  pucks: '🏒',
+  tires: '🔘',
+  nets: '🥅',
+  hurdles: '🚧',
+  bumpers: '🟦',
+};
+
 const TARGET_PRESETS = [45, 50, 60, 75, 80, 90];
 
 export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
@@ -417,22 +426,23 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                       return (
                         <div
                           key={block.id}
-                          className="flex flex-col gap-2 rounded-2xl border border-app-border bg-[#0b1723] p-3.5 transition-colors hover:border-white/20"
+                          className="relative flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-[#081523] p-4 transition-all hover:border-cyan-500/30 hover:bg-[#0c1c2e] hover:shadow-[0_4px_16px_rgba(0,0,0,0.4)] overflow-hidden"
                         >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-cyan-400 to-blue-500" />
+                          <div className="flex flex-wrap items-center justify-between gap-2 pl-1.5">
                             <div className="flex items-center gap-2.5">
-                              <span className="font-mono text-[12px] font-bold rounded-lg bg-white/10 px-2 py-0.5 text-app-cyan">
+                              <span className="font-mono text-[12px] font-black rounded-lg bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-app-cyan shadow-sm">
                                 {String(startM).padStart(2, '0')}:00 – {String(endM).padStart(2, '0')}:00
                               </span>
                               <span className="text-[14px] font-black text-white">
                                 {idx + 1}. {block.title}
                               </span>
                               {block.stationSplit && block.stationSplit !== 'full' && (
-                                <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-black text-amber-300 uppercase">
+                                <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-black text-amber-300 uppercase tracking-wider">
                                   {block.stationSplit.replace('_', ' ')}
                                 </span>
                               )}
-                              <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-300 uppercase">
+                              <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-300 uppercase tracking-wider">
                                 {block.rinkArea}
                               </span>
                             </div>
@@ -443,7 +453,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                                 type="button"
                                 onClick={() => handleDurationChange(block.id, -2)}
                                 aria-label="Decrease drill duration"
-                                className="touch-target h-7 w-7 rounded-lg bg-white/10 text-center font-bold text-white hover:bg-white/20"
+                                className="touch-target h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-center font-bold text-white hover:border-cyan-500/30 hover:bg-white/15 transition-all"
                               >
                                 –
                               </button>
@@ -454,7 +464,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                                 type="button"
                                 onClick={() => handleDurationChange(block.id, 2)}
                                 aria-label="Increase drill duration"
-                                className="touch-target h-7 w-7 rounded-lg bg-white/10 text-center font-bold text-white hover:bg-white/20"
+                                className="touch-target h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-center font-bold text-white hover:border-cyan-500/30 hover:bg-white/15 transition-all"
                               >
                                 +
                               </button>
@@ -464,7 +474,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                                 disabled={idx === 0}
                                 onClick={() => handleMoveBlock(idx, -1)}
                                 aria-label="Move drill up"
-                                className="touch-target ml-1 h-7 w-7 rounded-lg bg-white/10 text-[12px] text-white/70 hover:bg-white/20 disabled:opacity-30"
+                                className="touch-target ml-1 h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-[11px] text-white/70 hover:border-cyan-500/30 hover:bg-white/15 hover:text-white transition-all disabled:opacity-30"
                               >
                                 ▲
                               </button>
@@ -473,7 +483,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                                 disabled={idx === activeSession.blocks.length - 1}
                                 onClick={() => handleMoveBlock(idx, 1)}
                                 aria-label="Move drill down"
-                                className="touch-target h-7 w-7 rounded-lg bg-white/10 text-[12px] text-white/70 hover:bg-white/20 disabled:opacity-30"
+                                className="touch-target h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-[11px] text-white/70 hover:border-cyan-500/30 hover:bg-white/15 hover:text-white transition-all disabled:opacity-30"
                               >
                                 ▼
                               </button>
@@ -481,7 +491,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                               <button
                                 type="button"
                                 onClick={() => handleLoadDrillOnIce(block)}
-                                className="touch-target ml-2 rounded-lg border border-app-cyan/30 bg-app-cyan/15 px-2.5 py-1 text-[11px] font-bold text-app-cyan hover:bg-app-cyan/25"
+                                className="touch-target ml-2 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-3 py-1 text-[11px] font-extrabold text-app-cyan hover:bg-app-cyan/25 hover:shadow-[0_0_10px_rgba(0,229,255,0.25)] transition-all"
                               >
                                 Open on Ice
                               </button>
@@ -490,7 +500,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                                 type="button"
                                 onClick={() => handleRemoveBlock(block.id)}
                                 aria-label="Remove drill from practice"
-                                className="touch-target ml-1 h-7 w-7 rounded-lg text-[13px] text-white/40 hover:bg-red-500/20 hover:text-red-300"
+                                className="touch-target ml-1 h-7 w-7 rounded-lg text-[13px] text-white/40 hover:bg-red-500/20 hover:text-red-300 transition-all"
                               >
                                 ✕
                               </button>
@@ -498,11 +508,11 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                           </div>
 
                           {block.drillSummary && (
-                            <p className="text-[12px] text-white/70">{block.drillSummary}</p>
+                            <p className="text-[12px] text-white/70 pl-1.5">{block.drillSummary}</p>
                           )}
 
                           {block.coachingPoints && block.coachingPoints.length > 0 && (
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-white/60">
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-white/60 pl-1.5">
                               {block.coachingPoints.map((pt, pIdx) => (
                                 <span key={pIdx} className="inline-flex items-center gap-1">
                                   <span className="text-app-cyan">•</span> {pt}
@@ -533,10 +543,11 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                   Object.entries(metrics.equipmentTotals).map(([kind, count]) => (
                     <div
                       key={kind}
-                      className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-[12px] text-white"
+                      className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-[12px] text-white shadow-sm hover:border-cyan-500/30 hover:bg-white/[0.08] transition-all"
                     >
-                      <span className="font-bold text-app-cyan">{count}×</span>
-                      <span className="font-semibold uppercase tracking-wider">{kind}</span>
+                      <span className="text-[14px]">{EQUIPMENT_ICONS[kind] ?? '📦'}</span>
+                      <span className="font-extrabold text-app-cyan">{count}×</span>
+                      <span className="font-bold uppercase tracking-wider text-white/90">{kind}</span>
                     </div>
                   ))
                 )}

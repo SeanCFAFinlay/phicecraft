@@ -32,7 +32,7 @@ export function TopStrip() {
 
   return (
     <header
-      className="app-chrome safe-top safe-x z-30 flex flex-shrink-0 items-center gap-1.5 border-b border-app-border bg-app-surface px-2"
+      className="app-chrome safe-top safe-x z-30 flex flex-shrink-0 items-center gap-1.5 border-b border-cyan-500/20 bg-gradient-to-r from-[#07131e]/95 via-[#0b1b2a]/95 to-[#07131e]/95 backdrop-blur-md px-2 shadow-sm"
       style={{ minHeight: 'calc(var(--top-strip-height) + var(--safe-top))' }}
     >
       <button
@@ -40,11 +40,11 @@ export function TopStrip() {
         onClick={() => dispatch({ type: 'TOGGLE_MENU' })}
         aria-label="Open main menu"
         aria-expanded={state.ui.showMenu}
-        className="touch-target flex flex-col items-center justify-center gap-[5px] rounded-lg hover:bg-app-cyan/10"
+        className="touch-target flex flex-col items-center justify-center gap-[5px] rounded-xl hover:bg-app-cyan/15 transition-colors"
       >
-        <span className="block h-[2px] w-[19px] rounded-sm bg-app-cyan" />
-        <span className="block h-[2px] w-[19px] rounded-sm bg-app-cyan" />
-        <span className="block h-[2px] w-[19px] rounded-sm bg-app-cyan" />
+        <span className="block h-[2px] w-[19px] rounded-sm bg-app-cyan shadow-[0_0_6px_rgba(0,229,255,0.4)]" />
+        <span className="block h-[2px] w-[19px] rounded-sm bg-app-cyan shadow-[0_0_6px_rgba(0,229,255,0.4)]" />
+        <span className="block h-[2px] w-[19px] rounded-sm bg-app-cyan shadow-[0_0_6px_rgba(0,229,255,0.4)]" />
       </button>
 
       {/*
@@ -80,7 +80,7 @@ export function TopStrip() {
       <button
         type="button"
         onClick={() => void commands.requestRename()}
-        className="touch-target min-w-0 flex-1 truncate rounded-lg px-2 text-center text-[14px] font-semibold text-app-text hover:bg-app-cyan/5"
+        className="touch-target min-w-0 flex-1 truncate rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1 text-center text-[14px] font-bold text-white transition-all hover:border-cyan-500/30 hover:bg-app-cyan/10 hover:shadow-[0_0_12px_rgba(0,229,255,0.15)]"
         aria-label={`Play name: ${state.drill.name}. Activate to rename.`}
       >
         {state.drill.name}
@@ -88,13 +88,25 @@ export function TopStrip() {
 
       <SaveStatus compact={isPhone} />
 
+      {!isPhone && !isCompactLandscape && (
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'practice' })}
+          className="touch-target hidden items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-app-cyan/10 px-2.5 py-1 text-[13px] font-bold text-app-cyan transition-all hover:border-cyan-400 hover:bg-app-cyan/20 hover:shadow-[0_0_12px_rgba(0,229,255,0.25)] md:flex"
+          aria-label="Practice Session Planner"
+        >
+          <span className="text-[14px]">📋</span>
+          <span>Practice Plan</span>
+        </button>
+      )}
+
       {state.ui.mode === 'build' && (
         <button
           type="button"
           onClick={commands.undo}
           disabled={!canUndo}
           aria-label="Undo"
-          className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[16px] text-app-text hover:bg-app-cyan/10 disabled:opacity-30"
+          className="touch-target flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[16px] text-white hover:border-cyan-500/30 hover:bg-app-cyan/15 hover:text-app-cyan transition-all disabled:opacity-30 disabled:pointer-events-none"
         >
           ↩
         </button>
@@ -114,7 +126,7 @@ export function TopStrip() {
               onClick={commands.redo}
               disabled={!canRedo}
               aria-label="Redo"
-              className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[16px] text-app-text hover:bg-app-cyan/10 disabled:opacity-30"
+              className="touch-target flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[16px] text-white hover:border-cyan-500/30 hover:bg-app-cyan/15 hover:text-app-cyan transition-all disabled:opacity-30 disabled:pointer-events-none"
             >
               ↪
             </button>
@@ -129,7 +141,7 @@ export function TopStrip() {
         onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'more' })}
         aria-label="More actions"
         aria-haspopup="dialog"
-        className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[16px] text-app-text hover:bg-app-cyan/10"
+        className="touch-target flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[16px] text-white hover:border-cyan-500/30 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
       >
         ⋯
       </button>

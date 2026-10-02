@@ -67,12 +67,12 @@ function DockButton({
       aria-haspopup={ariaHasPopup ? 'dialog' : undefined}
       aria-expanded={ariaHasPopup ? ariaExpanded : undefined}
       style={active && accent ? { borderColor: accent, color: accent, backgroundColor: `${accent}22` } : undefined}
-      className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 transition-colors disabled:opacity-35 lg:max-w-44 ${
+      className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 transition-all duration-150 disabled:opacity-35 lg:max-w-44 ${
         active && !accent
-          ? 'border-app-cyan bg-app-cyan/15 text-app-cyan'
+          ? 'border-app-cyan bg-app-cyan/20 text-app-cyan shadow-[0_0_12px_rgba(0,229,255,0.25)]'
           : active
-            ? ''
-            : 'border-transparent bg-white/5 text-white/60 hover:bg-white/10 disabled:hover:bg-white/5'
+            ? 'shadow-[0_0_12px_rgba(255,214,10,0.25)]'
+            : 'border-white/5 bg-white/[0.04] text-white/70 hover:border-white/15 hover:bg-white/[0.08] hover:text-white disabled:hover:bg-white/[0.04]'
       }`}
     >
       <span className="flex h-5 items-center justify-center leading-none">{icon}</span>
@@ -108,7 +108,7 @@ export function ToolDock({
   return (
     <nav
       aria-label="Editing tools"
-      className="app-chrome safe-bottom safe-x flex flex-shrink-0 items-stretch justify-center gap-1.5 border-t border-app-border bg-[#0c1825] px-2 py-1.5"
+      className="app-chrome safe-bottom safe-x flex flex-shrink-0 items-stretch justify-center gap-1.5 border-t border-cyan-500/20 bg-gradient-to-t from-[#040b12] via-[#081523] to-[#0a1b2d] px-2 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] backdrop-blur-md"
       style={{ minHeight: 'calc(var(--tool-dock-height) + var(--safe-bottom))' }}
     >
       <DockButton
@@ -186,10 +186,10 @@ export function ToolDock({
           type="button"
           onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
           aria-label={isPlaying ? 'Stop playback' : 'Play drill'}
-          className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 font-bold transition-colors lg:max-w-44 ${
+          className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 font-bold transition-all duration-150 lg:max-w-44 ${
             isPlaying
-              ? 'border-red-500 bg-red-500 text-white'
-              : 'border-cyan-500 bg-cyan-500 text-[#03121c]'
+              ? 'border-red-400 bg-gradient-to-b from-red-500 to-red-600 text-white shadow-[0_0_14px_rgba(239,68,68,0.4)]'
+              : 'border-cyan-400 bg-gradient-to-b from-cyan-400 to-cyan-500 text-[#03121c] shadow-[0_0_14px_rgba(0,229,255,0.35)] hover:brightness-105 active:scale-95'
           }`}
         >
           <span className="flex h-5 items-center justify-center leading-none">
