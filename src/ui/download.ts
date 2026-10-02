@@ -52,6 +52,10 @@ export function downloadDataUrl(filename: string, dataUrl: string): boolean {
   }
 }
 
+export function downloadText(filename: string, contents: string, type: string = 'text/plain'): boolean {
+  return downloadBlob(filename, new Blob([contents], { type }));
+}
+
 export function downloadTextFile(filename: string, contents: string): boolean {
-  return downloadBlob(filename, new Blob([contents], { type: 'application/json' }));
+  return downloadText(filename, contents, 'application/json');
 }

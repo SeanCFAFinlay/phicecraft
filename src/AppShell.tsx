@@ -41,6 +41,9 @@ import { useResponsive } from '@/ui/useResponsive';
 // player, or recover from an error, so they are not in the initial bundle.
 // The library carries the whole drill catalogue with it. A coach who never
 // opens it should not pay for 24 drill documents on the way to first paint.
+const PracticePage = lazy(() =>
+  import('@/features/practice/PracticePage').then(module => ({ default: module.PracticePage }))
+);
 const LibraryPage = lazy(() =>
   import('@/features/library/LibraryPage').then(module => ({ default: module.LibraryPage }))
 );
@@ -183,6 +186,7 @@ export function AppShell() {
 
       <Suspense fallback={null}>
         {state.ui.openSheet === 'library' && <LibraryPage />}
+        {state.ui.openSheet === 'practice' && <PracticePage />}
         {state.ui.showMenu && <MenuSheet />}
         {state.ui.openSheet === 'more' && <MoreSheet />}
         {state.ui.openSheet === 'playback' && <PlaybackSheet />}

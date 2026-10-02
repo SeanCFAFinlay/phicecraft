@@ -56,6 +56,27 @@ export function drawPlayer(
   const { isSelected, isDragging, isMoving, isPassFrom, isNodeActive, isPuckHolder, showInitialPuck, heading = 0, showRouteHandle = false, isPreparingReceive = false, playbackFrame, reducedEffects = false, trackedPuck, jersey, screenRotation = 0 } = options;
   const pr = PLAYER_RADIUS;
   const isHighlighted = isDragging || isNodeActive || isPassFrom;
+  const hasPuck = isPuckHolder || showInitialPuck;
+
+  // Puck carrier electric cyan glow aura
+  if (hasPuck && !reducedEffects) {
+    ctx.save();
+    const auraGrad = ctx.createRadialGradient(player.x, player.y, pr * 0.5, player.x, player.y, pr + 14);
+    auraGrad.addColorStop(0, 'rgba(0, 229, 255, 0.42)');
+    auraGrad.addColorStop(0.55, 'rgba(0, 229, 255, 0.16)');
+    auraGrad.addColorStop(1, 'rgba(0, 229, 255, 0)');
+    ctx.fillStyle = auraGrad;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, pr + 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.85)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, pr + 4.5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Selection ring (dashed)
   if (isSelected) {

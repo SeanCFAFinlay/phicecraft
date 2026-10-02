@@ -402,8 +402,17 @@ function drawArcTextTop(
   }
 }
 
+let centerLogoBadge: HTMLImageElement | null = null;
+if (typeof window !== 'undefined' && typeof Image !== 'undefined') {
+  const img = new Image();
+  img.src = '/assets/ph-logo-badge.webp';
+  img.onload = () => {
+    centerLogoBadge = img;
+  };
+}
+
 /**
- * The PH Hockey Practice centre-ice crest: a brand-coloured monogram painted on
+ * The PH Hockey Practice centre-ice crest: a brand-coloured crest painted on
  * the sheet, kept translucent so the lines and circle stay legible over it.
  */
 function drawCenterIceLogo(ctx: CanvasRenderingContext2D): void {
@@ -412,41 +421,79 @@ function drawCenterIceLogo(ctx: CanvasRenderingContext2D): void {
 
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.globalAlpha = 0.62;
+  ctx.globalAlpha = 0.68;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Concentric brand rings.
+  // Ambient brand glow behind center ice
+  const outerGlow = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.08);
+  outerGlow.addColorStop(0, 'rgba(0, 229, 255, 0.09)');
+  outerGlow.addColorStop(0.7, 'rgba(16, 185, 129, 0.05)');
+  outerGlow.addColorStop(1, 'rgba(0, 229, 255, 0)');
+  ctx.fillStyle = outerGlow;
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 1.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Dual neon brand rings (Cyan & Emerald)
+  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = 'rgba(0, 229, 255, 0.65)';
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.98, 0, Math.PI * 2);
+  ctx.stroke();
+
   ctx.lineWidth = 1.6;
-  ctx.strokeStyle = 'rgba(47, 128, 237, 0.55)';
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.65)';
   ctx.beginPath();
-  ctx.arc(0, 0, R, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(22, 163, 74, 0.55)';
-  ctx.beginPath();
-  ctx.arc(0, 0, R * 0.9, 0, Math.PI * 2);
+  ctx.arc(0, 0, R * 0.91, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Curved tagline around the top.
-  ctx.fillStyle = 'rgba(22, 163, 74, 0.8)';
-  ctx.font = `800 ${R * 0.14}px Arial, sans-serif`;
-  drawArcTextTop(ctx, 'TRAIN · PLAY · IMPROVE', R * 0.72, 0.115);
+  if (centerLogoBadge && centerLogoBadge.complete && centerLogoBadge.naturalWidth > 0) {
+    const badgeR = R * 0.84;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, badgeR, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(centerLogoBadge, -badgeR, -badgeR, badgeR * 2, badgeR * 2);
+    ctx.restore();
 
-  // PH monogram with a green-to-blue gradient.
-  const grad = ctx.createLinearGradient(-R * 0.55, 0, R * 0.55, 0);
-  grad.addColorStop(0, '#16a34a');
-  grad.addColorStop(1, '#2f80ed');
-  ctx.font = `900 ${R * 0.9}px "Arial Black", Arial, sans-serif`;
-  ctx.lineWidth = R * 0.035;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-  ctx.strokeText('PH', 0, -R * 0.04);
-  ctx.fillStyle = grad;
-  ctx.fillText('PH', 0, -R * 0.04);
+    // Ice rim highlight
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.38)';
+    ctx.beginPath();
+    ctx.arc(0, 0, badgeR, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
+    // High-fidelity vector crest fallback
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
+    ctx.font = `800 ${R * 0.13}px Arial, sans-serif`;
+    drawArcTextTop(ctx, 'TRAIN · PLAY · IMPROVE', R * 0.72, 0.115);
 
-  // Wordmark beneath.
-  ctx.fillStyle = 'rgba(30, 41, 59, 0.82)';
-  ctx.font = `800 ${R * 0.15}px Arial, sans-serif`;
-  ctx.fillText('HOCKEY PRACTICE', 0, R * 0.52);
+    // PH monogram with emerald-to-cyan brand gradient
+    const grad = ctx.createLinearGradient(-R * 0.55, 0, R * 0.55, 0);
+    grad.addColorStop(0, '#10b981');
+    grad.addColorStop(1, '#00e5ff');
+    ctx.font = `900 ${R * 0.88}px "Arial Black", Arial, sans-serif`;
+    ctx.lineWidth = R * 0.035;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.strokeText('PH', 0, -R * 0.04);
+    ctx.fillStyle = grad;
+    ctx.fillText('PH', 0, -R * 0.04);
+
+    // Hockey stick blade accent
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = R * 0.04;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.42, R * 0.32);
+    ctx.quadraticCurveTo(0, R * 0.4, R * 0.42, R * 0.32);
+    ctx.stroke();
+
+    // Wordmark beneath
+    ctx.fillStyle = 'rgba(240, 246, 252, 0.9)';
+    ctx.font = `800 ${R * 0.14}px Arial, sans-serif`;
+    ctx.fillText('PHICECRAFT', 0, R * 0.52);
+  }
 
   ctx.restore();
 }

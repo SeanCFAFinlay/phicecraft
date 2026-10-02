@@ -133,6 +133,31 @@ function drawPuckDot(
 }
 
 /**
+ * Draw a directional flow chevron along a path to indicate direction of travel
+ */
+function drawChevron(
+  ctx: CanvasRenderingContext2D,
+  pt: Point,
+  angle: number,
+  color: string,
+  size: number = 7.5
+): void {
+  ctx.save();
+  ctx.translate(pt.x, pt.y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.7, -size * 0.6);
+  ctx.lineTo(size * 0.35, 0);
+  ctx.lineTo(-size * 0.7, size * 0.6);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
  * Draw a skate path
  */
 export function drawSkatePath(
@@ -165,18 +190,15 @@ export function drawSkatePath(
   const isDashed = path.mode === 'backward';
   drawExpandedLine(ctx, line, color, isDashed, 2.6);
 
-  // Diamond markers at 25%, 50%, 75%
+  // Directional flow chevrons at 25%, 50%, 75% of route
   [0.25, 0.5, 0.75].forEach(t => {
+    const t0 = Math.max(0, t - 0.02);
+    const t1 = Math.min(1, t + 0.02);
+    const p0 = pointAtParameter(line, t0);
+    const p1 = pointAtParameter(line, t1);
+    const angle = Math.atan2(p1.y - p0.y, p1.x - p0.x);
     const pt = pointAtParameter(line, t);
-    const r = 4;
-    ctx.fillStyle = color.replace('0.82', '0.42');
-    ctx.beginPath();
-    ctx.moveTo(pt.x, pt.y - r);
-    ctx.lineTo(pt.x + r, pt.y);
-    ctx.lineTo(pt.x, pt.y + r);
-    ctx.lineTo(pt.x - r, pt.y);
-    ctx.closePath();
-    ctx.fill();
+    drawChevron(ctx, pt, angle, color.replace('0.82', '0.78'), 7.5);
   });
 }
 

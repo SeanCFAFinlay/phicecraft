@@ -532,3 +532,14 @@ export function FormationIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Practice Planner / clipboard timeline icon. */
+export function PlannerIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" />
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+      <path d="M9 12h6M9 16h6" />
+    </Icon>
+  );
+}

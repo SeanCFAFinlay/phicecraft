@@ -16,6 +16,7 @@ import {
   ImageIcon,
   ImportIcon,
   NewDrillIcon,
+  PlannerIcon,
   PrintIcon,
   RecoveryIcon,
   RenameIcon,
@@ -170,7 +171,16 @@ export function MenuSheet() {
       {/* The four bundled examples used to be the entire library. They are
           still here as a quick way to load a known drill, but the catalogue
           proper is its own surface. */}
-      <SheetSection title="Library">
+      <SheetSection title="Practice System">
+        <SheetItem
+          icon={<PlannerIcon />}
+          label="Practice Session Planner"
+          detail="Combine drills into 50/60/80-min practice plans with timeline & equipment lists"
+          onClick={() => {
+            dispatch({ type: 'CLOSE_MENU' });
+            dispatch({ type: 'OPEN_SHEET', sheet: 'practice' });
+          }}
+        />
         <SheetItem
           icon={<DrillIcon />}
           label="Browse the drill library"

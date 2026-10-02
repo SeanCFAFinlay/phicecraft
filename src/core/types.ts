@@ -465,6 +465,7 @@ export type SheetKind =
   | 'more'
   | 'add'
   | 'library'
+  | 'practice'
   | 'possession'
   | 'workflow'
   | 'view'

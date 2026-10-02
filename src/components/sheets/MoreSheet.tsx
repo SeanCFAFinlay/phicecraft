@@ -17,6 +17,8 @@ import { DEFAULT_RENDERER_PREFERENCE } from '@/core/constants';
 import { readRendererPreference, writeRendererPreference } from '@/render/selectRenderer';
 import {
   ChartIcon,
+  DrillIcon,
+  PlannerIcon,
   MagnetIcon,
   PuckIcon,
   RedoIcon,
@@ -80,6 +82,26 @@ export function MoreSheet() {
 
   return (
     <Sheet open={open} title="More" onClose={close}>
+      <SheetSection title="Practice System">
+        <SheetItem
+          icon={<PlannerIcon />}
+          label="Practice Session Planner"
+          detail="Build 50/60/80-min practice plans with timelines & equipment"
+          onClick={() => {
+            close();
+            dispatch({ type: 'OPEN_SHEET', sheet: 'practice' });
+          }}
+        />
+        <SheetItem
+          icon={<DrillIcon />}
+          label="Browse drill library"
+          detail="Full catalogue of drills and tactical systems"
+          onClick={() => {
+            close();
+            dispatch({ type: 'OPEN_SHEET', sheet: 'library' });
+          }}
+        />
+      </SheetSection>
       {isBuild && (
         <SheetSection title="History">
           <SheetItem
