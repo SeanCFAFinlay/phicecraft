@@ -163,7 +163,7 @@ function buildIceMesh(iceCanvas: HTMLCanvasElement): THREE.Mesh {
   // XZ ground plane (facing +Y, up) to match rinkToWorld's y=0 convention.
   geometry.rotateX(-Math.PI / 2);
 
-  const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.2, metalness: 0.05 });
+  const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.14, metalness: 0.08 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'ice';
   mesh.receiveShadow = true;
@@ -177,7 +177,7 @@ function buildArenaFloorMesh(): THREE.Mesh {
   );
   geometry.rotateX(-Math.PI / 2);
 
-  const material = new THREE.MeshStandardMaterial({ color: ARENA_FLOOR_COLOR, roughness: 1, metalness: 0 });
+  const material = new THREE.MeshStandardMaterial({ color: ARENA_FLOOR_COLOR, roughness: 0.95, metalness: 0 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'arena-floor';
   mesh.position.y = ARENA_FLOOR_Y;
@@ -213,12 +213,11 @@ function buildLightsGroup(quality: RenderQuality): THREE.Group {
   const group = new THREE.Group();
   group.name = 'lights';
 
-  // Soft, near-neutral fill so the ice's own baked lighting (from the 2D
-  // painter's texture) is not double-lit into a blown-out white.
-  const hemisphere = new THREE.HemisphereLight(0xdfefff, 0x141b22, 0.7);
+  // Crisp arena floodfill dome lighting
+  const hemisphere = new THREE.HemisphereLight(0xe2f1ff, 0x0f172a, 0.75);
   group.add(hemisphere);
 
-  const directional = new THREE.DirectionalLight(0xffffff, 1.1);
+  const directional = new THREE.DirectionalLight(0xffffff, 1.25);
   directional.position.set(ICE_WIDTH * 0.25, 22, -ICE_HEIGHT * 0.4);
   directional.target.position.set(0, 0, 0);
   directional.castShadow = quality === 'high';

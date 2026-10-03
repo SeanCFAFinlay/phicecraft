@@ -41,7 +41,7 @@ function createRouteLine(path: SkatePath): THREE.Object3D | null {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = `route-${path.id}`;
 
-  // Add directional cone arrow at endpoint
+  // Directional cone arrow at endpoint
   const last = worldPoints[worldPoints.length - 1];
   const secondLast = worldPoints[worldPoints.length - 2];
   const dir = new THREE.Vector3().subVectors(last, secondLast).normalize();
@@ -54,6 +54,19 @@ function createRouteLine(path: SkatePath): THREE.Object3D | null {
 
   const group = new THREE.Group();
   group.add(mesh, arrowMesh);
+
+  // Directional flow chevrons at 33% and 66% along the route
+  [0.33, 0.66].forEach(t => {
+    const pt = curve.getPointAt(t);
+    const tangent = curve.getTangentAt(t).normalize();
+    const chevronGeo = new THREE.ConeGeometry(0.07, 0.2, 8);
+    chevronGeo.rotateX(Math.PI / 2);
+    const chevronMesh = new THREE.Mesh(chevronGeo, material);
+    chevronMesh.position.copy(pt);
+    chevronMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangent);
+    group.add(chevronMesh);
+  });
+
   return group;
 }
 
@@ -93,6 +106,40 @@ function createEventLine(event: DrillEvent): THREE.Object3D | null {
 
   const group = new THREE.Group();
   group.add(mesh, arrowMesh);
+
+  if (isShot) {
+    // Concentric bullseye target rings at net
+    const ringGeo = new THREE.RingGeometry(0.16, 0.24, 24);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0xf97316,
+      roughness: 0.3,
+      transparent: true,
+      opacity: 0.75,
+      side: THREE.DoubleSide,
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.position.set(last.x, LINE_ELEVATION + 0.002, last.z);
+    group.add(ringMesh);
+
+    const centerGeo = new THREE.CircleGeometry(0.065, 16);
+    centerGeo.rotateX(-Math.PI / 2);
+    const centerMesh = new THREE.Mesh(centerGeo, ringMat);
+    centerMesh.position.set(last.x, LINE_ELEVATION + 0.003, last.z);
+    group.add(centerMesh);
+  } else {
+    // Puck start and arrival indicators for passes
+    const dotGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.012, 16);
+    const dotMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.35 });
+    const startDot = new THREE.Mesh(dotGeo, dotMat);
+    startDot.position.set(worldPoints[0].x, LINE_ELEVATION + 0.006, worldPoints[0].z);
+    group.add(startDot);
+
+    const endDot = new THREE.Mesh(dotGeo, dotMat);
+    endDot.position.set(last.x, LINE_ELEVATION + 0.006, last.z);
+    group.add(endDot);
+  }
+
   return group;
 }
 

@@ -10,6 +10,7 @@ import type {
   Drill,
   DrillEvent,
   DrillSettings,
+  EquipmentItem,
   PassEvent,
   Player,
   PlayerRole,
@@ -97,6 +98,7 @@ export interface BuildDrillOptions {
   skatePaths?: SkatePath[];
   events?: DrillEvent[];
   coaches?: CoachMarker[];
+  equipment?: EquipmentItem[];
   settings?: DrillSettings;
   createdAt?: number;
   updatedAt?: number;
@@ -122,6 +124,7 @@ export function buildDrill(options: BuildDrillOptions = {}): Drill {
     skatePaths: options.skatePaths ?? [],
     events: options.events ?? [],
     coaches: options.coaches ?? [],
+    equipment: options.equipment ?? [],
     settings: options.settings ?? buildSettings(),
   };
 }

@@ -261,30 +261,41 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
 // placeholder rather than an attempt to mirror the 2D token's colourway.
 // ----------------------------------------------------------------------------
 
-const COACH_COLOR = '#e5e7eb';
+const COACH_JACKET_COLOR = '#1e293b';
+const COACH_COLLAR_COLOR = '#f8fafc';
+const COACH_DISC_COLOR = '#0f172a';
 const COACH_CAPSULE_RADIUS = 0.5;
 const COACH_CAPSULE_LENGTH = 1.1;
 const COACH_DISC_RADIUS = 0.62;
 const COACH_DISC_HEIGHT = 0.06;
 
 export function createCoachMarker(): MarkerActor {
-  const material = new THREE.MeshStandardMaterial({ color: COACH_COLOR, roughness: 0.7 });
+  const jacketMaterial = new THREE.MeshStandardMaterial({ color: COACH_JACKET_COLOR, roughness: 0.6 });
+  const collarMaterial = new THREE.MeshStandardMaterial({ color: COACH_COLLAR_COLOR, roughness: 0.4 });
+  const discMaterial = new THREE.MeshStandardMaterial({ color: COACH_DISC_COLOR, roughness: 0.7 });
 
   const capsuleGeometry = new THREE.CapsuleGeometry(COACH_CAPSULE_RADIUS, COACH_CAPSULE_LENGTH, 4, 12);
-  const capsule = new THREE.Mesh(capsuleGeometry, material);
+  const capsule = new THREE.Mesh(capsuleGeometry, jacketMaterial);
   capsule.name = 'coach-capsule';
   capsule.position.y = COACH_DISC_HEIGHT + COACH_CAPSULE_LENGTH / 2 + COACH_CAPSULE_RADIUS;
   capsule.castShadow = true;
 
+  // Tracksuit white chest / collar accent ring
+  const collarGeometry = new THREE.CylinderGeometry(COACH_CAPSULE_RADIUS * 1.02, COACH_CAPSULE_RADIUS * 1.02, 0.12, 16);
+  const collar = new THREE.Mesh(collarGeometry, collarMaterial);
+  collar.name = 'coach-collar';
+  collar.position.y = capsule.position.y + 0.18;
+  collar.castShadow = true;
+
   const discGeometry = new THREE.CylinderGeometry(COACH_DISC_RADIUS, COACH_DISC_RADIUS, COACH_DISC_HEIGHT, 24);
-  const disc = new THREE.Mesh(discGeometry, material);
+  const disc = new THREE.Mesh(discGeometry, discMaterial);
   disc.name = 'coach-disc';
   disc.position.y = COACH_DISC_HEIGHT / 2;
   disc.castShadow = true;
 
   const root = new THREE.Group();
   root.name = 'coach';
-  root.add(disc, capsule);
+  root.add(disc, capsule, collar);
 
   return {
     root,
@@ -294,8 +305,11 @@ export function createCoachMarker(): MarkerActor {
     },
     dispose() {
       capsuleGeometry.dispose();
+      collarGeometry.dispose();
       discGeometry.dispose();
-      material.dispose();
+      jacketMaterial.dispose();
+      collarMaterial.dispose();
+      discMaterial.dispose();
     },
   };
 }

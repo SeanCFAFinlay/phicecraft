@@ -38,6 +38,7 @@ import { buildArena } from './scene/buildArena';
 import { createIceTexture } from './scene/iceTexture';
 import { createGoalNets } from './scene/goalNet';
 import { createRouteOverlay3D } from './scene/routeOverlay';
+import { createEquipmentOverlay3D } from './scene/equipment3D';
 import {
   createActor,
   createCoachMarker,
@@ -261,6 +262,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const routeOverlay = createRouteOverlay3D(drillRef.current);
     scene.add(routeOverlay.root);
 
+    const equipmentOverlay = createEquipmentOverlay3D(drillRef.current, quality);
+    scene.add(equipmentOverlay.root);
+
     const skaterActors = new Map<ID, Actor>();
     const coachMarkers = new Map<ID, MarkerActor>();
     const puckActor = createPuck();
@@ -421,6 +425,8 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       scene.remove(actorGroup);
       scene.remove(routeOverlay.root);
       routeOverlay.dispose();
+      scene.remove(equipmentOverlay.root);
+      equipmentOverlay.dispose();
     };
   }, [playback, state.drill, sceneEpoch, announcer, quality]);
 

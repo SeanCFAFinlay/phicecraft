@@ -72,18 +72,42 @@ export function createSingleGoal(direction: 1 | -1, quality: RenderQuality = 'hi
 
   // 3. Lower Back Frame (curved rear rail running along ice)
   const rearDist = -direction * GOAL_DEPTH;
-  const backCurve = new THREE.Shape();
-  backCurve.moveTo(0, -halfWidth);
-  backCurve.quadraticCurveTo(rearDist * 1.05, 0, 0, halfWidth);
-  const baseFrameGeo = new THREE.CylinderGeometry(POST_RADIUS * 0.9, POST_RADIUS * 0.9, GOAL_DEPTH, 12);
-  baseFrameGeo.rotateZ(Math.PI / 2);
+  const baseCurve = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(0, POST_RADIUS, -halfWidth),
+    new THREE.Vector3(rearDist * 1.05, POST_RADIUS, 0),
+    new THREE.Vector3(0, POST_RADIUS, halfWidth)
+  );
+  const baseFrameGeo = new THREE.TubeGeometry(baseCurve, 16, POST_RADIUS * 0.85, 8, false);
+  addMesh(baseFrameGeo, redMaterial, true);
 
-  // 4. Netting Shell
+  // 4. Center Top Shelf Strut (running from crossbar center to top rear apex)
+  const apexPos = new THREE.Vector3(rearDist * 0.75, GOAL_HEIGHT * 0.85, 0);
+  const topShelfCurve = new THREE.LineCurve3(
+    new THREE.Vector3(0, GOAL_HEIGHT, 0),
+    apexPos
+  );
+  const topShelfGeo = new THREE.TubeGeometry(topShelfCurve, 6, POST_RADIUS * 0.7, 8, false);
+  addMesh(topShelfGeo, redMaterial, true);
+
+  // 5. Rear Vertical Center Strut (from top apex to ice base)
+  const rearStrutCurve = new THREE.LineCurve3(
+    apexPos,
+    new THREE.Vector3(rearDist, POST_RADIUS, 0)
+  );
+  const rearStrutGeo = new THREE.TubeGeometry(rearStrutCurve, 6, POST_RADIUS * 0.7, 8, false);
+  addMesh(rearStrutGeo, redMaterial, true);
+
+  // 6. Netting Shell
   const netShape = new THREE.BufferGeometry();
   // Construct net backing mesh: Top crossbar to rear apex and down to posts
   const vertices = new Float32Array([
-    // Top roof triangle (left post top, right post top, rear apex top)
+    // Top roof triangle 1 (left post top, center crossbar, rear apex)
     0, GOAL_HEIGHT, -halfWidth,
+    0, GOAL_HEIGHT, 0,
+    rearDist * 0.75, GOAL_HEIGHT * 0.85, 0,
+
+    // Top roof triangle 2 (center crossbar, right post top, rear apex)
+    0, GOAL_HEIGHT, 0,
     0, GOAL_HEIGHT, halfWidth,
     rearDist * 0.75, GOAL_HEIGHT * 0.85, 0,
 
@@ -97,10 +121,15 @@ export function createSingleGoal(direction: 1 | -1, quality: RenderQuality = 'hi
     rearDist, 0, 0,
     0, GOAL_HEIGHT, halfWidth,
 
-    // Back angled net
+    // Back angled net (left)
     0, GOAL_HEIGHT, -halfWidth,
     rearDist, 0, 0,
+    rearDist * 0.75, GOAL_HEIGHT * 0.85, 0,
+
+    // Back angled net (right)
     0, GOAL_HEIGHT, halfWidth,
+    rearDist * 0.75, GOAL_HEIGHT * 0.85, 0,
+    rearDist, 0, 0,
   ]);
 
   netShape.setAttribute('position', new THREE.BufferAttribute(vertices, 3));

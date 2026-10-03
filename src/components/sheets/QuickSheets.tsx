@@ -375,6 +375,29 @@ export function ViewSheet() {
       )}
 
       {view.is3D && (
+        <SheetSection title="3D Camera Angles">
+          <SheetItem
+            icon={<OrientationIcon />}
+            label="Broadcast camera"
+            detail="Side-angle broadcast camera perspective"
+            onClick={run(view.setPresetBroadcast)}
+          />
+          <SheetItem
+            icon={<OrientationIcon />}
+            label="Behind-the-net camera"
+            detail="End-zone view looking down the ice"
+            onClick={run(view.setPresetEndZone)}
+          />
+          <SheetItem
+            icon={<OrientationIcon />}
+            label="Tactical overhead 3D"
+            detail="High-angle tactical 3D view"
+            onClick={run(view.setPresetTactical)}
+          />
+        </SheetSection>
+      )}
+
+      {view.is3D && (
         <SheetSection title="Rotate 3D rink">
           <SheetItem icon={<RotateLeftIcon />} label="Spin left" detail="Turn the tabletop view" onClick={run(view.spinLeft, false)} />
           <SheetItem icon={<RotateRightIcon />} label="Spin right" detail="Turn the tabletop view" onClick={run(view.spinRight, false)} />

@@ -38,6 +38,9 @@ export function ViewControls() {
     toggle3D,
     spinLeft,
     spinRight,
+    setPresetBroadcast,
+    setPresetEndZone,
+    setPresetTactical,
     cycleArea,
     toggleOrientation,
     fit,
@@ -85,25 +88,55 @@ export function ViewControls() {
       </button>
 
       {is3D && (
-        <button
-          type="button"
-          onClick={spinLeft}
-          aria-label="Spin the rink left"
-          className={`${button} text-[14px]`}
-        >
-          <RotateLeftIcon size={16} />
-        </button>
-      )}
+        <>
+          <button
+            type="button"
+            onClick={spinLeft}
+            aria-label="Spin the rink left"
+            className={`${button} text-[14px]`}
+          >
+            <RotateLeftIcon size={16} />
+          </button>
 
-      {is3D && (
-        <button
-          type="button"
-          onClick={spinRight}
-          aria-label="Spin the rink right"
-          className={`${button} text-[14px]`}
-        >
-          <RotateRightIcon size={16} />
-        </button>
+          <button
+            type="button"
+            onClick={spinRight}
+            aria-label="Spin the rink right"
+            className={`${button} text-[14px]`}
+          >
+            <RotateRightIcon size={16} />
+          </button>
+
+          <button
+            type="button"
+            onClick={setPresetBroadcast}
+            aria-label="Broadcast 3D camera angle"
+            title="Broadcast side angle"
+            className={`${button} px-1 text-[9px] font-black tracking-tight`}
+          >
+            TV
+          </button>
+
+          <button
+            type="button"
+            onClick={setPresetEndZone}
+            aria-label="Behind the net 3D camera angle"
+            title="Behind the net view"
+            className={`${button} px-1 text-[9px] font-black tracking-tight`}
+          >
+            END
+          </button>
+
+          <button
+            type="button"
+            onClick={setPresetTactical}
+            aria-label="Tactical overhead 3D camera angle"
+            title="Tactical overhead view"
+            className={`${button} px-1 text-[9px] font-black tracking-tight`}
+          >
+            TAC
+          </button>
+        </>
       )}
 
       {/* Which patch of ice to work on. The zone views frame the real region -
