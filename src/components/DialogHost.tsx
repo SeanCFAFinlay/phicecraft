@@ -86,7 +86,7 @@ export function DialogHost() {
                 submit();
               }
             }}
-            className="mt-2 w-full rounded-xl border border-app-border bg-white/5 px-3 py-3 text-[15px] font-normal normal-case tracking-normal text-app-text outline-none focus:border-app-cyan"
+            className="mt-2 w-full rounded-xl border border-app-border bg-white/5 px-3 py-3 text-[16px] sm:text-[15px] font-normal normal-case tracking-normal text-app-text outline-none focus:border-app-cyan"
           />
         </label>
       </Dialog>

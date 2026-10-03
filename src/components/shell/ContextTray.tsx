@@ -62,7 +62,7 @@ export function ContextTray() {
         <div
           role="group"
           aria-label="Selection"
-          className="flex h-[var(--tool-dock-height)] items-center gap-2 border-t border-app-border bg-[#0c1825] px-2.5"
+          className="flex h-[var(--tool-dock-height)] items-center gap-2 overflow-x-auto scrollbar-hide border-t border-app-border bg-[#0c1825] px-2.5"
         >
           <span className="truncate text-[13px] font-black text-app-text">
             {player ? `#${player.number} · ${player.role}` : `${event!.type} ${eventIndex + 1}`}

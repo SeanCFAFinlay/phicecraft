@@ -458,7 +458,11 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      event.currentTarget.setPointerCapture(event.pointerId);
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        /* pointer capture fallback */
+      }
       pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
       if (pointersRef.current.size >= 2) {
@@ -502,7 +506,13 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   const endPointer = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       pointersRef.current.delete(event.pointerId);
-      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      try {
+        if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      } catch {
+        /* pointer release fallback */
+      }
 
       if (pointersRef.current.size >= 2) {
         beginPinchFromCurrentPointers();
@@ -538,7 +548,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   return (
     <div
       ref={containerRef}
-      className="board3d-stage absolute inset-0 overflow-hidden"
+      className="board3d-stage rink-surface touch-none absolute inset-0 overflow-hidden"
       // Editing affordances (selection, drag, route handles) are a later
       // task's job - this task is view-only, so nothing here is interactive
       // or informative for a screen reader today. The pointer handlers below

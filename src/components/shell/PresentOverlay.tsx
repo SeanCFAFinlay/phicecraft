@@ -62,8 +62,8 @@ export function PresentOverlay() {
       onFocus={wake}
     >
       <div
-        className={`app-chrome safe-bottom safe-x pointer-events-auto absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-2 border-t border-app-border bg-[#0c1825]/95 px-2 py-1.5 transition-opacity duration-300 ${
-          visible ? 'opacity-100' : 'opacity-0'
+        className={`app-chrome safe-bottom safe-x absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-2 border-t border-app-border bg-[#0c1825]/95 px-2 py-1.5 transition-opacity duration-300 ${
+          visible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onPointerMove={event => event.stopPropagation()}
       >

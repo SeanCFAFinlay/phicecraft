@@ -95,25 +95,44 @@ export function Sheet({
       >
         {asBottomSheet && (
           <div
-            className="flex justify-center pt-2 pb-1"
+            className="flex justify-center pt-2.5 pb-2 touch-none cursor-grab active:cursor-grabbing select-none"
             onPointerDown={event => {
+              try {
+                (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+              } catch {
+                /* pointer capture fallback */
+              }
               dragStart.current = event.clientY;
             }}
             onPointerMove={event => {
               if (dragStart.current === null) return;
               setDragOffset(Math.max(0, event.clientY - dragStart.current));
             }}
-            onPointerUp={() => {
+            onPointerUp={event => {
+              try {
+                if ((event.currentTarget as HTMLElement).hasPointerCapture?.(event.pointerId)) {
+                  (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+                }
+              } catch {
+                /* pointer release fallback */
+              }
               if (dragOffset > DISMISS_DISTANCE) onClose();
               dragStart.current = null;
               setDragOffset(0);
             }}
-            onPointerCancel={() => {
+            onPointerCancel={event => {
+              try {
+                if ((event.currentTarget as HTMLElement).hasPointerCapture?.(event.pointerId)) {
+                  (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+                }
+              } catch {
+                /* pointer release fallback */
+              }
               dragStart.current = null;
               setDragOffset(0);
             }}
           >
-            <span className="h-1 w-10 rounded-full bg-white/25" aria-hidden="true" />
+            <span className="h-1.5 w-12 rounded-full bg-white/30" aria-hidden="true" />
           </div>
         )}
 

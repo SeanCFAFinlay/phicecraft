@@ -121,7 +121,7 @@ export function LibraryPage() {
         onClose={close}
         size="full"
       >
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-3 pb-4">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-3 pb-16 safe-bottom">
           <div className="flex items-center gap-3.5 rounded-2xl border border-app-border bg-gradient-to-r from-white/[0.05] to-white/[0.02] p-3 shadow-sm">
             <img
               src="/assets/ph-logo.webp"
@@ -153,7 +153,7 @@ export function LibraryPage() {
               value={filters.query}
               onChange={event => patch({ query: event.target.value })}
               placeholder="Search drills, tags or age groups"
-              className="touch-target w-full rounded-xl border border-app-border bg-white/5 px-3 text-[14px] text-app-text placeholder:text-white/35"
+              className="touch-target w-full rounded-xl border border-app-border bg-white/5 px-3 text-[16px] sm:text-[14px] text-app-text placeholder:text-white/35"
             />
           </label>
 

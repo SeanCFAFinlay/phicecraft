@@ -568,15 +568,34 @@ export function CanvasSurface() {
         role="application"
         aria-label="Hockey rink. Use the tool dock below to add players and draw routes."
         onPointerDown={event => {
-          layers.dynamicCanvasRef.current?.setPointerCapture(event.pointerId);
+          try {
+            layers.dynamicCanvasRef.current?.setPointerCapture(event.pointerId);
+          } catch {
+            /* pointer capture fallback */
+          }
           machine.pointerDown(toSample(event));
         }}
         onPointerMove={event => machine.pointerMove(toSample(event))}
         onPointerUp={event => {
-          layers.dynamicCanvasRef.current?.releasePointerCapture?.(event.pointerId);
+          try {
+            if (layers.dynamicCanvasRef.current?.hasPointerCapture?.(event.pointerId)) {
+              layers.dynamicCanvasRef.current?.releasePointerCapture(event.pointerId);
+            }
+          } catch {
+            /* pointer release fallback */
+          }
           machine.pointerUp(toSample(event));
         }}
-        onPointerCancel={event => machine.pointerCancel(toSample(event))}
+        onPointerCancel={event => {
+          try {
+            if (layers.dynamicCanvasRef.current?.hasPointerCapture?.(event.pointerId)) {
+              layers.dynamicCanvasRef.current?.releasePointerCapture(event.pointerId);
+            }
+          } catch {
+            /* pointer release fallback */
+          }
+          machine.pointerCancel(toSample(event));
+        }}
         onContextMenu={event => event.preventDefault()}
       />
     </div>

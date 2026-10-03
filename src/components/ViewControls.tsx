@@ -51,13 +51,13 @@ export function ViewControls() {
 
   if (isPhone) {
     return (
-      <div className={`absolute right-2 z-20 ${isCompactLandscape ? 'top-2' : 'top-14'}`}>
+      <div className={`absolute right-2 z-20 ${isCompactLandscape ? 'top-2' : 'top-2.5'}`}>
         <button
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'view' })}
           aria-haspopup="dialog"
           aria-label="Open view controls"
-          className={`${button} px-2 text-[10px] font-black tracking-tight`}
+          className={`${button} px-2.5 text-[11px] font-black tracking-wider border-cyan-400/35 bg-[#061826]/90`}
         >
           VIEW
         </button>

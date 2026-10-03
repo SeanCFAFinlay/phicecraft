@@ -194,7 +194,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
       onClose={close}
       size="full"
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-3 pb-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-3 pb-20 safe-bottom">
         {/* Brand Header Banner */}
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-app-border bg-gradient-to-r from-white/[0.06] to-white/[0.02] p-3.5 shadow-sm">
           <div className="flex items-center gap-3">
@@ -263,7 +263,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                   type="text"
                   value={activeSession.title}
                   onChange={e => updateActiveSession({ ...activeSession, title: e.target.value })}
-                  className="mt-1 w-full rounded-xl border border-app-border bg-white/5 px-3 py-1.5 text-[13px] font-bold text-white focus:border-app-cyan focus:outline-none"
+                  className="mt-1 w-full rounded-xl border border-app-border bg-white/5 px-3 py-1.5 text-[16px] sm:text-[13px] font-bold text-white focus:border-app-cyan focus:outline-none"
                 />
               </div>
 
@@ -275,7 +275,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                   type="text"
                   value={activeSession.team}
                   onChange={e => updateActiveSession({ ...activeSession, team: e.target.value })}
-                  className="mt-1 w-full rounded-xl border border-app-border bg-white/5 px-3 py-1.5 text-[13px] text-white focus:border-app-cyan focus:outline-none"
+                  className="mt-1 w-full rounded-xl border border-app-border bg-white/5 px-3 py-1.5 text-[16px] sm:text-[13px] text-white focus:border-app-cyan focus:outline-none"
                 />
               </div>
 
@@ -309,7 +309,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                   type="date"
                   value={activeSession.date || ''}
                   onChange={e => updateActiveSession({ ...activeSession, date: e.target.value })}
-                  className="mt-1 w-full rounded-xl border border-app-border bg-white/5 px-3 py-1.5 text-[13px] text-white focus:border-app-cyan focus:outline-none"
+                  className="mt-1 w-full rounded-xl border border-app-border bg-white/5 px-3 py-1.5 text-[16px] sm:text-[13px] text-white focus:border-app-cyan focus:outline-none"
                 />
               </div>
 
@@ -322,7 +322,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                   value={activeSession.focus || ''}
                   placeholder="e.g. Neutral zone angling, passing precision, and quick breakout support"
                   onChange={e => updateActiveSession({ ...activeSession, focus: e.target.value })}
-                  className="mt-1 w-full rounded-xl border border-app-border bg-white/5 px-3 py-1.5 text-[13px] text-white placeholder-white/30 focus:border-app-cyan focus:outline-none"
+                  className="mt-1 w-full rounded-xl border border-app-border bg-white/5 px-3 py-1.5 text-[16px] sm:text-[13px] text-white placeholder-white/30 focus:border-app-cyan focus:outline-none"
                 />
               </div>
             </div>
@@ -429,8 +429,8 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                           className="relative flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-[#081523] p-4 transition-all hover:border-cyan-500/30 hover:bg-[#0c1c2e] hover:shadow-[0_4px_16px_rgba(0,0,0,0.4)] overflow-hidden"
                         >
                           <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-cyan-400 to-blue-500" />
-                          <div className="flex flex-wrap items-center justify-between gap-2 pl-1.5">
-                            <div className="flex items-center gap-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2.5 pl-1.5">
+                            <div className="flex flex-wrap items-center gap-2 min-w-0">
                               <span className="font-mono text-[12px] font-black rounded-lg bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-app-cyan shadow-sm">
                                 {String(startM).padStart(2, '0')}:00 – {String(endM).padStart(2, '0')}:00
                               </span>
@@ -448,23 +448,23 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                             </div>
 
                             {/* Duration & Reordering Controls */}
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => handleDurationChange(block.id, -2)}
                                 aria-label="Decrease drill duration"
-                                className="touch-target h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-center font-bold text-white hover:border-cyan-500/30 hover:bg-white/15 transition-all"
+                                className="touch-target h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-center font-bold text-white hover:border-cyan-500/30 hover:bg-white/15 transition-all flex items-center justify-center"
                               >
                                 –
                               </button>
-                              <span className="min-w-[42px] text-center font-mono text-[13px] font-bold text-white">
+                              <span className="min-w-[36px] text-center font-mono text-[13px] font-bold text-white">
                                 {block.durationMinutes}m
                               </span>
                               <button
                                 type="button"
                                 onClick={() => handleDurationChange(block.id, 2)}
                                 aria-label="Increase drill duration"
-                                className="touch-target h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-center font-bold text-white hover:border-cyan-500/30 hover:bg-white/15 transition-all"
+                                className="touch-target h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-center font-bold text-white hover:border-cyan-500/30 hover:bg-white/15 transition-all flex items-center justify-center"
                               >
                                 +
                               </button>
@@ -474,7 +474,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                                 disabled={idx === 0}
                                 onClick={() => handleMoveBlock(idx, -1)}
                                 aria-label="Move drill up"
-                                className="touch-target ml-1 h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-[11px] text-white/70 hover:border-cyan-500/30 hover:bg-white/15 hover:text-white transition-all disabled:opacity-30"
+                                className="touch-target ml-0.5 h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-[11px] text-white/70 hover:border-cyan-500/30 hover:bg-white/15 hover:text-white transition-all disabled:opacity-30 flex items-center justify-center"
                               >
                                 ▲
                               </button>
@@ -483,7 +483,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                                 disabled={idx === activeSession.blocks.length - 1}
                                 onClick={() => handleMoveBlock(idx, 1)}
                                 aria-label="Move drill down"
-                                className="touch-target h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-[11px] text-white/70 hover:border-cyan-500/30 hover:bg-white/15 hover:text-white transition-all disabled:opacity-30"
+                                className="touch-target h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-[11px] text-white/70 hover:border-cyan-500/30 hover:bg-white/15 hover:text-white transition-all disabled:opacity-30 flex items-center justify-center"
                               >
                                 ▼
                               </button>
@@ -491,7 +491,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                               <button
                                 type="button"
                                 onClick={() => handleLoadDrillOnIce(block)}
-                                className="touch-target ml-2 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-3 py-1 text-[11px] font-extrabold text-app-cyan hover:bg-app-cyan/25 hover:shadow-[0_0_10px_rgba(0,229,255,0.25)] transition-all"
+                                className="touch-target ml-1 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-3 py-1 text-[11px] font-extrabold text-app-cyan hover:bg-app-cyan/25 hover:shadow-[0_0_10px_rgba(0,229,255,0.25)] transition-all flex items-center justify-center"
                               >
                                 Open on Ice
                               </button>
@@ -500,7 +500,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                                 type="button"
                                 onClick={() => handleRemoveBlock(block.id)}
                                 aria-label="Remove drill from practice"
-                                className="touch-target ml-1 h-7 w-7 rounded-lg text-[13px] text-white/40 hover:bg-red-500/20 hover:text-red-300 transition-all"
+                                className="touch-target h-7 w-7 rounded-lg text-[13px] text-white/40 hover:bg-red-500/20 hover:text-red-300 transition-all flex items-center justify-center"
                               >
                                 ✕
                               </button>
@@ -593,8 +593,8 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
 
         {/* Drill Picker Modal */}
         {isAddingDrill && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-            <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-app-border bg-[#0b1723] p-4 shadow-2xl">
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-sm safe-bottom">
+            <div className="flex max-h-[90dvh] w-full max-w-2xl flex-col rounded-2xl border border-app-border bg-[#0b1723] p-4 shadow-2xl">
               <div className="flex items-center justify-between border-b border-app-border pb-3">
                 <h3 className="text-[16px] font-black text-white">Add Drill to Practice</h3>
                 <button
@@ -613,7 +613,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                   placeholder="Search drills by name or skill..."
                   value={drillSearch}
                   onChange={e => setDrillSearch(e.target.value)}
-                  className="w-full rounded-xl border border-app-border bg-white/5 px-3 py-2 text-[13px] text-white focus:border-app-cyan focus:outline-none"
+                  className="w-full rounded-xl border border-app-border bg-white/5 px-3 py-2 text-[16px] sm:text-[13px] text-white focus:border-app-cyan focus:outline-none"
                 />
 
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
