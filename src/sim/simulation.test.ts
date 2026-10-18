@@ -23,6 +23,47 @@ import {
 } from './authoring';
 
 describe('deterministic hockey simulation', () => {
+  it('holds a delayed route through the faceoff and starts it from zero motion time', () => {
+    const source = giveAndGoRegressionDrill;
+    const path = source.skatePaths[0];
+    const delayed = compileDrill({ ...source, events: [], skatePaths: [{ ...path, startAtSeconds: 1 }] });
+    const immediate = compileDrill({ ...source, events: [], skatePaths: [path] });
+    const playerId = path.ownerId;
+    expect(sampleFrame(delayed, 0.8).players[playerId].speed).toBe(0);
+    expect(sampleFrame(delayed, 1).players[playerId].position).toEqual(sampleFrame(immediate, 0).players[playerId].position);
+    const delayedFrame = sampleFrame(delayed, 1.5).players[playerId];
+    const immediateFrame = sampleFrame(immediate, 0.5).players[playerId];
+    expect(delayedFrame.position).toEqual(immediateFrame.position);
+    expect(delayedFrame.stridePhase).toBe(immediateFrame.stridePhase);
+  });
+  it('samples release/contact at half phase and the defending goalie at shot arrival', () => {
+    const compiled = compileDrill(giveAndGoRegressionDrill);
+    for (const event of compiled.events) {
+      const release = sampleFrame(compiled, event.departureSeconds);
+      expect(release.players[event.source.fromPlayerId].actionPhase).toBeCloseTo(0.5);
+      expect(release.players[event.source.fromPlayerId].animationTimeSeconds).toBe(event.departureSeconds);
+      if (event.source.type === 'pass') {
+        expect(sampleFrame(compiled, event.arrivalSeconds).players[event.source.toPlayerId].actionPhase).toBeCloseTo(0.5);
+      }
+      if (event.source.type === 'shot') {
+        const arrival = sampleFrame(compiled, event.arrivalSeconds);
+        const goalie = Object.values(arrival.players).find(player => player.goalieAction === 'save');
+        expect(goalie).toBeDefined();
+        expect(goalie?.actionPhase).toBeCloseTo(0.5);
+        expect(goalie?.heading).toBeCloseTo(Math.atan2(arrival.puck!.y - goalie!.position.y, arrival.puck!.x - goalie!.position.x));
+        expect(sampleFrame(compiled, event.arrivalSeconds)).toEqual(arrival);
+      }
+    }
+  });
+
+  it('does not animate a goalie save for a blocked shot', () => {
+    const drill = { ...giveAndGoRegressionDrill, players: giveAndGoRegressionDrill.players.map(p => ({ ...p, hasPuck: false })) };
+    const compiled = compileDrill(drill);
+    const shot = compiled.events.find(event => event.source.type === 'shot')!;
+    const frame = sampleFrame(compiled, shot.arrivalSeconds);
+    expect(frame.eventExecutions[shot.index].status).toBe('blocked');
+    expect(Object.values(frame.players).some(player => player.goalieAction === 'save')).toBe(false);
+  });
   it('starts from a loose puck and completes an authored pickup', () => {
     const loose = { x: 200, y: 180 };
     const drill = buildDrill({

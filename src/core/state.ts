@@ -113,6 +113,8 @@ const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'REMOVE_PLAYER',
   'SET_PUCK_CARRIER',
   'UPDATE_PLAYER_VISUAL',
+  'UPDATE_PLAYER_IDENTITY',
+  'SET_COACHING',
   'SET_JERSEY',
   'SET_FINISH_POLICY',
   'SWAP_JERSEYS',
@@ -358,6 +360,30 @@ function reduce(state: AppState, action: AppAction): AppState {
         },
       };
     }
+
+    case 'UPDATE_PLAYER_IDENTITY': {
+      if (!state.drill.players.some(player => player.id === action.id)) return state;
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          players: state.drill.players.map(player => player.id === action.id
+            ? { ...player, name: action.name.trim().slice(0, 80), number: action.number.trim().slice(0, 8) || player.number, role: action.role }
+            : player),
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'SET_COACHING':
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          settings: { ...(state.drill.settings ?? FALLBACK_SETTINGS), coaching: action.coaching },
+          updatedAt: Date.now(),
+        },
+      };
 
     case 'SET_JERSEY': {
       const jerseys = {
@@ -715,12 +741,14 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'SET_FORMATION': {
       return {
         ...state,
+        ui: { ...state.ui, currentTool: 'move', inspector: { kind: 'none' } },
         drill: {
           ...state.drill,
           players: action.players,
           initialPuck: action.initialPuck,
-          skatePaths: [],
-          events: [],
+          skatePaths: action.skatePaths ?? [],
+          events: action.events ?? [],
+          settings: action.settings ?? state.drill.settings,
           updatedAt: Date.now(),
         },
         selection: { ...DEFAULT_SELECTION },

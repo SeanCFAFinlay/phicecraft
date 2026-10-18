@@ -171,6 +171,10 @@ export function MenuSheet() {
       {/* The four bundled examples used to be the entire library. They are
           still here as a quick way to load a known drill, but the catalogue
           proper is its own surface. */}
+      <SheetSection title="Coaching">
+        <SheetItem icon={<DrillIcon />} label="Coach workspace" detail="Teams, import a sketch, and explain outcomes"
+          onClick={() => { dispatch({ type: 'CLOSE_MENU' }); dispatch({ type: 'OPEN_SHEET', sheet: 'coach' }); }} />
+      </SheetSection>
       <SheetSection title="Practice System">
         <SheetItem
           icon={<PlannerIcon />}

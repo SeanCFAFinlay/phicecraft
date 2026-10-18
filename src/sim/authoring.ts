@@ -32,7 +32,8 @@ export function getAuthoredReleaseProgress(drill: Drill, playerId: ID, point: Po
   const route = compiled.routes.get(playerId);
   if (!route || route.totalLength <= 0) return 0;
   const closest = closestPointOnPolyline(route.points, point);
-  const seconds = timeAtDistance(route.motion, closest.t * route.totalLength);
+  const seconds = (route.source?.startAtSeconds ?? 0) +
+    timeAtDistance(route.motion, closest.t * route.totalLength);
   return Math.max(0, Math.min(0.98, seconds / compiled.durationSeconds));
 }
 
@@ -139,6 +140,7 @@ export function getRouteMotionAtProgress(drill: Drill, playerId: ID, progress: n
   const compiled = compileDrill(drill);
   const route = compiled.routes.get(playerId);
   return route
-    ? sampleMotionProfile(route.motion, progress * compiled.durationSeconds)
+    ? sampleMotionProfile(route.motion, Math.max(0,
+      progress * compiled.durationSeconds - (route.source?.startAtSeconds ?? 0)))
     : null;
 }

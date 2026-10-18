@@ -82,6 +82,10 @@ export function MoreSheet() {
 
   return (
     <Sheet open={open} title="More" onClose={close}>
+      <SheetSection title="Coaching">
+        <SheetItem icon={<DrillIcon />} label="Coach workspace" detail="Teams, import a sketch, and explain outcomes"
+          onClick={() => { dispatch({ type: 'CLOSE_MENU' }); dispatch({ type: 'OPEN_SHEET', sheet: 'coach' }); }} />
+      </SheetSection>
       <SheetSection title="Practice System">
         <SheetItem
           icon={<PlannerIcon />}

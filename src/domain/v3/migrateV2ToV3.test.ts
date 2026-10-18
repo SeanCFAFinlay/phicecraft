@@ -16,6 +16,16 @@ import { fiveManCornerRetrievalDrill } from '@/fixtures/fiveManCornerRetrieval.v
 import { fiveManCrossCornerDrill } from '@/fixtures/fiveManCrossCorner.v1';
 import { fiveManLowHighDrill } from '@/fixtures/fiveManLowHigh.v1';
 import type { Drill } from '@/core/types';
+import { projectToV2 } from './projectToV2';
+
+it('round-trips a loose faceoff puck even before routes or puck actions are drawn', () => {
+  const drill = buildDrill({ players: [buildPlayer({ id: 'centre', hasPuck: false })], events: [], skatePaths: [], initialPuck: { x: 155, y: 102.5 } });
+  const document = migrateV2ToV3(drill);
+  expect(document.puckTracks[0].initialSource).toEqual({ kind: 'loose', at: drill.initialPuck });
+  const restored = projectToV2(document).drill;
+  expect(restored.initialPuck).toEqual(drill.initialPuck);
+  expect(restored.players.every(player => !player.hasPuck)).toBe(true);
+});
 
 /**
  * The shipped fixtures are shared constants, so every test takes a copy. A

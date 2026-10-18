@@ -114,7 +114,7 @@ export function ViewControls() {
             title="Broadcast side angle"
             className={`${button} px-1 text-[9px] font-black tracking-tight`}
           >
-            TV
+            Side
           </button>
 
           <button
@@ -124,7 +124,7 @@ export function ViewControls() {
             title="Behind the net view"
             className={`${button} px-1 text-[9px] font-black tracking-tight`}
           >
-            END
+            Net
           </button>
 
           <button
@@ -134,7 +134,7 @@ export function ViewControls() {
             title="Tactical overhead view"
             className={`${button} px-1 text-[9px] font-black tracking-tight`}
           >
-            TAC
+            Top
           </button>
         </>
       )}

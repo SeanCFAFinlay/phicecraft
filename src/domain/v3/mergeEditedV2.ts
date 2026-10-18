@@ -1,4 +1,5 @@
 import type { DrillDocumentV3, MovementSegment, PuckAction } from './types';
+import { projectToV2 } from './projectToV2';
 
 /**
  * An edit round-trip is stored-v3 → projectToV2 → edit → migrateV2ToV3.
@@ -14,6 +15,7 @@ export function mergeEditedIntoStored(
   const phases = stored.phases.length > 1 ? stored.phases : edited.phases;
   const validPhaseIds = new Set(phases.map(phase => phase.id));
   const anchorPhaseId = phases[0]?.id;
+  const projectedRoutes = new Map(projectToV2(stored).drill.skatePaths.map(path => [path.ownerId, path.points]));
 
   const reanchorSegment = (segment: MovementSegment): MovementSegment =>
     validPhaseIds.has(segment.phaseId)
@@ -33,7 +35,15 @@ export function mergeEditedIntoStored(
     phases,
     actorTracks: edited.actorTracks.map(track => ({
       ...track,
-      segments: track.segments.map(reanchorSegment),
+      segments: (() => {
+        const original = stored.actorTracks.find(candidate => candidate.actorId === track.actorId);
+        const flattened = projectedRoutes.get(track.actorId);
+        if (original && original.segments.length > 1 && track.segments.length === 1 &&
+          flattened && JSON.stringify(track.segments[0].points) === JSON.stringify(flattened)) {
+          return original.segments;
+        }
+        return track.segments.map(reanchorSegment);
+      })(),
     })),
     puckTracks: [
       ...edited.puckTracks.slice(0, 1).map(track => ({
@@ -50,6 +60,7 @@ export function mergeEditedIntoStored(
       ...stored.presentation,
       durationSeconds: edited.presentation.durationSeconds,
       jerseys: edited.presentation.jerseys,
+      coaching: edited.presentation.coaching,
       reducedEffects: edited.presentation.reducedEffects,
     },
     templateId: stored.templateId,

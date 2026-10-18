@@ -6,27 +6,36 @@
 // tapping. These presets deploy canonical tactical formations in a single tap.
 // ============================================================================
 
-import type { Player, Point } from '@/core/types';
+import type { Player, Point, DrillSettings, CoachingDetails } from '@/core/types';
 import { RINK } from '@/core/constants';
 import { createPlayer } from './drill';
+import { QUICK_SETUP_PRESETS, type FormationSequence, type QuickFormationPreset } from './quickSetups';
+import { SHOWCASE_PRESET } from './showcase';
 
 export type PlayFormationPreset =
   | 'pp-131'
   | 'pk-box'
   | 'breakout-5v5'
   | 'rush-3v2'
-  | 'faceoff-ozone';
+  | 'faceoff-ozone'
+  | 'showcase-faceoff'
+  | QuickFormationPreset;
 
 export interface FormationPresetDefinition {
   id: PlayFormationPreset;
   title: string;
   subtitle: string;
-  category: 'Special Teams' | 'Systems' | 'Rush & Set Plays';
+  category: 'Special Teams' | 'Systems' | 'Rush & Set Plays' | 'Quick Drills';
   players: () => Player[];
   initialPuck?: Point;
+  sequence?: (players: Player[]) => FormationSequence;
+  settings?: Partial<DrillSettings>;
+  coaching?: Pick<CoachingDetails, 'objective' | 'cues'>;
 }
 
 export const FORMATION_PRESETS: readonly FormationPresetDefinition[] = [
+  SHOWCASE_PRESET,
+  ...QUICK_SETUP_PRESETS,
   {
     id: 'pp-131',
     title: '1-3-1 Power Play',

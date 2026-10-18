@@ -83,6 +83,7 @@ export interface CreateActorOptions {
   jersey: string;
   accent: string;
   number?: string;
+  name?: string;
   quality?: RenderQuality;
 }
 
@@ -125,7 +126,10 @@ interface ClipEntry {
  * the `SkeletonUtils.clone()` before calling this), tinted to this actor's
  * own jersey/accent, and advanced every frame by `update`.
  *
- * Clip selection/cross-fading: every named clip this actor has ever needed
+ * Simulation frames use absolute clip sampling, including contact phases;
+ * they never integrate a pose from previous renders. The delta-driven
+ * crossfade path below remains for callers without simulation timestamps.
+ * In that compatibility path, every named clip this actor has ever needed
  * gets its own `THREE.AnimationAction`, created once and left `.play()`-ing
  * forever - only its `weight` (baseline influence) and `enabled` flag turn
  * it on or off. Switching clips is therefore never "stop one, start
@@ -155,7 +159,7 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
   });
 
   const numberSprite = opts.number
-    ? createNumberSprite(opts.number, { jersey: opts.jersey }, opts.quality)
+    ? createNumberSprite(opts.number, { jersey: opts.jersey }, opts.quality, opts.name)
     : null;
   if (numberSprite) {
     root.add(numberSprite.sprite);
@@ -226,6 +230,24 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
       const nextClipName = selectClipName(opts.kind, frame, availableClipNames);
       const nextEntry = getOrCreateEntry(nextClipName);
       if (!nextEntry) return; // No clips on this model at all - position/rotation only, same as before this change.
+
+      // Simulation frames carry absolute time and contact phase. Setting the
+      // action time directly makes direct seeks, reverse scrubs and replay
+      // identical, including large jumps that the legacy dt guard ignores.
+      if (frame?.animationTimeSeconds !== undefined) {
+        snapTo(nextClipName);
+        currentClipName = nextClipName;
+        const movement = isMovementClip(nextClipName);
+        const duration = nextEntry.clip.duration;
+        const phase = movement
+          ? frame.speed < SKATE_FREEZE_SPEED ? SKATE_FROZEN_POSE_FRACTION : frame.stridePhase
+          : frame.actionPhase ?? ((frame.animationTimeSeconds % duration) / duration);
+        nextEntry.action.paused = false;
+        nextEntry.action.timeScale = 1;
+        nextEntry.action.time = clamp(phase, 0, 1 - 1e-7) * duration;
+        mixer.update(0);
+        return;
+      }
 
       if (wrapped) {
         snapTo(nextClipName);

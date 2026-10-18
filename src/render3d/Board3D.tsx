@@ -6,16 +6,15 @@
 // actors on top of it: one skater/goalie per drill player, a marker per
 // coach, and the puck, all driven by the playback frame stream.
 //
-// Two effects, on purpose:
+// Separate lifecycles keep editing responsive:
 //   - the FIRST owns the expensive, one-per-mount lifecycle: the real WebGL
 //     context, the static arena, the orbit camera. It depends only on
-//     `cameraStore`/`quality`, which never change across a mount, so it never
-//     tears the renderer down mid-session.
-//   - the SECOND owns the actors: it (re)builds one whenever `drill` changes
-//     identity (a player added/removed, a jersey recoloured, a coach moved
-//     in from Build) and repaints synchronously on every playback frame. It
+//     `cameraStore`/`quality`; a quality change recreates the scene.
+//   - the SECOND owns the actors: it rebuilds only when roster identity or
+//     appearance changes and repaints synchronously on every playback frame. It
 //     never touches the renderer/canvas lifecycle - only the actor group the
 //     first effect leaves parented under `scene`.
+//   - Routes and equipment update independently of the player models.
 //
 // React 18 StrictMode's dev-only double-invoke (setup -> cleanup -> setup,
 // all synchronous) is naturally safe for both: the first effect has no
@@ -32,13 +31,14 @@ import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import type { RenderQuality } from '@/render/quality';
 import type { Drill, ID, Point } from '@/core/types';
 import { jerseyColor } from '@/core/types';
-import { orbitFromCamera } from './orbit';
-import { RINK_SCALE } from './worldMap';
+import { orbitFromCamera, ORBIT_FOV_DEGREES } from './orbit';
+import { RINK_SCALE, rinkToWorld } from './worldMap';
 import { buildArena } from './scene/buildArena';
 import { createIceTexture } from './scene/iceTexture';
 import { createGoalNets } from './scene/goalNet';
 import { createRouteOverlay3D } from './scene/routeOverlay';
 import { createEquipmentOverlay3D } from './scene/equipment3D';
+import { actorSignature } from './actorSignature';
 import {
   createActor,
   createCoachMarker,
@@ -60,7 +60,7 @@ import {
 
 /** Same cap the 2D canvas path applies (useCanvasLayers.ts) - a 3x/4x phone gains nothing past this. */
 const MAX_DEVICE_PIXEL_RATIO = 2;
-const CAMERA_FOV_DEGREES = 50;
+const CAMERA_FOV_DEGREES = ORBIT_FOV_DEGREES;
 const CAMERA_NEAR = 0.1;
 const CAMERA_FAR = 500;
 /** Every non-goalie skater's accent trim - white, matching the 2D palette's `trim` colour for both teams (`skaterPalette.ts`). */
@@ -93,15 +93,19 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
 
   // The actor effect reads the CURRENT drill every frame (60x/second while
   // playing) without re-subscribing to the frame stream on every edit - it
-  // depends on `drill` only to know when to rebuild the actor set itself.
+  // depends on the roster signature to know when to rebuild the actor set.
   const drillRef = useRef<Drill>(state.drill);
   drillRef.current = state.drill;
+  const rosterSignature = actorSignature(state.drill);
 
   // --------------------------------------------------------------------------
   // Renderer / arena / camera - created once per mount.
   // --------------------------------------------------------------------------
 
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const routesRef = useRef<THREE.Group | null>(null);
+  const routesVisibleRef = useRef(true);
+  routesVisibleRef.current = state.ui.mode === 'build';
   const renderRef = useRef<() => void>(() => {});
   // Bumped every time the renderer effect below (re)creates the
   // THREE.Scene - included in the actor effect's deps so it re-runs and
@@ -129,8 +133,11 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     // ever told it to clear - see WebGLRenderer.ts's own comment on the same
     // flag for the worked-out reasoning.
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1 : quality === 'medium' ? 1.5 : MAX_DEVICE_PIXEL_RATIO));
     renderer.shadowMap.enabled = quality === 'high';
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     // Transparent: the scene sits over the container's own CSS gradient
     // (`.board3d-stage`, src/styles/index.css) around the arena floor's own
     // edges, rather than a solid clear.
@@ -179,8 +186,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
 
     const render = () => {
       applyOrbit();
+      const start = performance.now();
       renderer.render(scene, perspectiveCamera);
-      recordBoard3DFrame();
+      recordBoard3DFrame(performance.now() - start, renderer.info.render.calls, renderer.info.render.triangles);
     };
     renderRef.current = render;
 
@@ -243,8 +251,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   }, [cameraStore, quality]);
 
   // --------------------------------------------------------------------------
-  // Actors - skaters, goalies, coaches, the puck. Rebuilt whenever `drill`
-  // changes identity; repainted synchronously on every playback frame.
+  // Actors - rebuilt when identities or appearance change; repainted synchronously on every playback frame.
   // `sceneEpoch` is in the deps purely so this effect re-runs and re-reads
   // `sceneRef.current` whenever the renderer effect (re)creates the scene -
   // see `sceneEpoch`'s own doc comment above.
@@ -259,17 +266,18 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     actorGroup.name = 'actors';
     scene.add(actorGroup);
 
-    const routeOverlay = createRouteOverlay3D(drillRef.current);
-    scene.add(routeOverlay.root);
-
-    const equipmentOverlay = createEquipmentOverlay3D(drillRef.current, quality);
-    scene.add(equipmentOverlay.root);
-
     const skaterActors = new Map<ID, Actor>();
     const coachMarkers = new Map<ID, MarkerActor>();
     const puckActor = createPuck();
     puckActor.root.visible = false;
     actorGroup.add(puckActor.root);
+    const haloGeometry = new THREE.RingGeometry(0.57, 0.67, 40);
+    const haloMaterial = new THREE.MeshBasicMaterial({ color: '#ffd45c', side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+    const possessionHalo = new THREE.Mesh(haloGeometry, haloMaterial);
+    possessionHalo.rotation.x = -Math.PI / 2;
+    possessionHalo.name = 'possession-halo';
+    possessionHalo.visible = false;
+    actorGroup.add(possessionHalo);
 
     // dt for the mixers is a PROGRESS delta times duration, not wall-clock
     // time - see the module header: scrubbing the timeline must move the
@@ -343,6 +351,13 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       lastProgress = frame.progress;
 
       const drill = drillRef.current;
+      const carrierId = frame.puck?.carrierId ?? (frame.progress === 0 ? drill.players.find(player => player.hasPuck)?.id : undefined);
+      const carrier = drill.players.find(player => player.id === carrierId);
+      possessionHalo.visible = Boolean(carrier);
+      if (carrier) {
+        const world = rinkToWorld(frame.positions[carrier.id] ?? { x: carrier.x, y: carrier.y });
+        possessionHalo.position.set(world.x, 0.025, world.z);
+      }
       for (const player of drill.players) {
         const actor = skaterActors.get(player.id);
         if (!actor) continue;
@@ -391,8 +406,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
           {
             kind: player.role === 'G' ? 'goalie' : 'skater',
             jersey: jerseyColor(player.team, drill.settings),
-            accent: ACCENT_COLOR,
+            accent: player.visual?.jerseyTrim ?? ACCENT_COLOR,
             number: player.number,
+            name: player.name,
             quality,
           }
         );
@@ -422,13 +438,37 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       unsubscribeFrames();
       disposeActors();
       puckActor.dispose();
+      haloGeometry.dispose();
+      haloMaterial.dispose();
       scene.remove(actorGroup);
-      scene.remove(routeOverlay.root);
-      routeOverlay.dispose();
-      scene.remove(equipmentOverlay.root);
-      equipmentOverlay.dispose();
     };
-  }, [playback, state.drill, sceneEpoch, announcer, quality]);
+  }, [playback, rosterSignature, sceneEpoch, announcer, quality]);
+
+  // Editing a route or a coaching note must never clone every animated model.
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const routes = createRouteOverlay3D(drillRef.current);
+    routesRef.current = routes.root;
+    routes.root.visible = routesVisibleRef.current;
+    scene.add(routes.root);
+    renderRef.current();
+    return () => { routesRef.current = null; scene.remove(routes.root); routes.dispose(); };
+  }, [state.drill.skatePaths, state.drill.events, state.drill.settings?.jerseys, sceneEpoch]);
+
+  useEffect(() => {
+    if (routesRef.current) routesRef.current.visible = state.ui.mode === 'build';
+    renderRef.current();
+  }, [state.ui.mode, state.playback.isPlaying]);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const equipment = createEquipmentOverlay3D(drillRef.current, quality);
+    scene.add(equipment.root);
+    renderRef.current();
+    return () => { scene.remove(equipment.root); equipment.dispose(); };
+  }, [state.drill.equipment, sceneEpoch, quality]);
 
   // --------------------------------------------------------------------------
   // Orbit gestures - drag to spin, wheel/pinch to zoom. View-only: nothing

@@ -24,6 +24,7 @@ export class PlaybackStore {
   private frame: PlaybackFrame = EMPTY_FRAME;
   private drill: Drill | null = null;
   private playing = false;
+  private routeOwners: ID[] = [];
 
   /** Canvas-level subscribers: called on every frame. */
   private frameListeners = new Set<() => void>();
@@ -73,6 +74,7 @@ export class PlaybackStore {
   setDrill(drill: Drill): void {
     if (this.drill === drill) return;
     this.drill = drill;
+    this.routeOwners = [...new Set(drill.skatePaths.map(route => route.ownerId))];
     this.reset();
   }
 
@@ -94,9 +96,9 @@ export class PlaybackStore {
 
     // Trails accumulate only while actually playing - scrubbing must not smear.
     if (this.playing) {
-      for (const player of this.drill.players) {
-        const hasRoute = this.drill.skatePaths.some(route => route.ownerId === player.id);
-        if (hasRoute) this.trails.push(player.id, frame.positions[player.id]);
+      for (const id of this.routeOwners) {
+        const position = frame.positions[id];
+        if (position) this.trails.push(id, position);
       }
     }
 

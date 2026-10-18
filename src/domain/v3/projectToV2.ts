@@ -64,6 +64,7 @@ function toPlayer(actor: Actor): Player | null {
     y: actor.position.y,
     team: actor.team,
     number: actor.number,
+    name: actor.label,
     role: actor.kind === 'goalie' ? 'G' : actor.role,
     hasPuck: false,
     ...(actor.handedness ? { visual: { handedness: actor.handedness, visor: true } } : {}),
@@ -301,6 +302,7 @@ export function projectToV2(document: DrillDocumentV3): ProjectionResult {
               ? ('glide' as const)
               : ('skate' as const),
         finish: segments[0].finish ?? 'stop',
+        ...(segments[0].startAtSeconds > 0 ? { startAtSeconds: segments[0].startAtSeconds } : {}),
       };
     })
     .filter((path): path is SkatePath => path !== null);
@@ -343,6 +345,7 @@ export function projectToV2(document: DrillDocumentV3): ProjectionResult {
       timeLimitSeconds: duration,
       reducedEffects: document.presentation.reducedEffects,
       jerseys: { ...document.presentation.jerseys },
+      coaching: document.presentation.coaching,
       finishPolicy: document.phases[0]?.finishPolicy ?? 'none',
     },
   };

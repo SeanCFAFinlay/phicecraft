@@ -85,6 +85,7 @@ function toActor(player: Player, duration: number): Actor {
       position: { x: player.x, y: player.y },
       team: player.team,
       number: player.number,
+      label: player.name,
       handedness: player.visual?.handedness,
     };
   }
@@ -95,6 +96,7 @@ function toActor(player: Player, duration: number): Actor {
     position: { x: player.x, y: player.y },
     team: player.team,
     number: player.number,
+    label: player.name,
     role: player.role as SkaterPosition,
     handedness: player.visual?.handedness,
   };
@@ -104,9 +106,9 @@ function toSegment(path: SkatePath, duration: number): MovementSegment {
   return {
     id: path.id,
     phaseId: MIGRATED_PHASE_ID,
-    startAtSeconds: 0,
+    startAtSeconds: path.startAtSeconds ?? 0,
     // A v2 route had no authored duration; it took as long as the drill did.
-    durationSeconds: duration,
+    durationSeconds: Math.max(0.001, duration - (path.startAtSeconds ?? 0)),
     points: path.points.map(point => ({ ...point })),
     curve: path.shape ?? 'spline',
     movement:
@@ -177,6 +179,7 @@ function toPuckAction(event: DrillEvent, duration: number): PuckAction {
  * fake skater the puck because there was no other way to say it.
  */
 function initialSourceFor(drill: Drill, actors: Actor[]): PuckSource {
+  if (drill.initialPuck) return { kind: 'loose', at: { ...drill.initialPuck } };
   const carrier = drill.players.find(player => player.hasPuck);
   if (!carrier) {
     const first = drill.events[0];
@@ -272,7 +275,7 @@ export function migrateV2ToV3(input: Drill | DrillDocumentV3): DrillDocumentV3 {
   // The single linear event chain becomes exactly one puck track. A drill with
   // two pucks is now expressible, but a v2 drill never had two.
   const puckTracks: PuckTrack[] = [];
-  if (drill.events.length > 0 || drill.players.some(player => player.hasPuck)) {
+  if (drill.initialPuck || drill.events.length > 0 || drill.players.some(player => player.hasPuck)) {
     puckTracks.push({
       id: 'puck-1',
       initialSource: initialSourceFor(drill, actors),
@@ -312,6 +315,7 @@ export function migrateV2ToV3(input: Drill | DrillDocumentV3): DrillDocumentV3 {
     puckTracks,
     annotations: [],
     presentation: {
+      coaching: drill.settings?.coaching,
       durationSeconds: duration,
       jerseys: {
         home: drill.settings?.jerseys?.home ?? DEFAULT_JERSEYS.home,

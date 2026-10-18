@@ -16,6 +16,7 @@ import type {
 } from '@/core/types';
 import { compileDrill } from '@/sim/compileDrill';
 import { sampleFrame } from '@/sim/sampleFrame';
+import type { EventExecution } from '@/sim/types';
 
 export interface PlaybackFrame {
   progress: number;
@@ -25,6 +26,7 @@ export interface PlaybackFrame {
   playerFrames: Record<ID, PlaybackPlayerFrame>;
   puck: AnimatedPuck | null;
   lifecycle: DrillLifecycleState;
+  eventExecutions?: EventExecution[];
 }
 
 export const EMPTY_FRAME: PlaybackFrame = {
@@ -55,6 +57,7 @@ export function derivePlaybackFrame(drill: Drill, progress: number, isPlaying: b
     playerFrames: frame.players,
     puck: frame.puck,
     lifecycle: isPlaying && frame.lifecycle === 'ready' ? 'active' : frame.lifecycle,
+    eventExecutions: frame.eventExecutions,
   };
 }
 

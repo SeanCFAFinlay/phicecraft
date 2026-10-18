@@ -92,6 +92,7 @@ export interface Rect {
 
 export interface Player {
   id: ID;
+  name?: string;
   x: number;
   y: number;
   team: Team;
@@ -134,6 +135,8 @@ export type CurveShape = 'spline' | 'polyline';
 
 export interface SkatePath {
   id: ID;
+  /** Delay before skating begins, in drill seconds. */
+  startAtSeconds?: number;
   ownerId: ID; // Player who owns this path
   team: Team;
   /**
@@ -269,6 +272,7 @@ export type FinishPolicy =
   | 'finish-with-possession';
 
 export interface DrillSettings {
+  coaching?: CoachingDetails;
   assistance: 'off' | 'standard' | 'high';
   recovery: 'authored' | 'nearest-teammate';
   timeLimitSeconds: number;
@@ -281,6 +285,14 @@ export interface DrillSettings {
   finishPolicy?: FinishPolicy;
   /** Base jersey colours per team (hex). Absent = the classic red/blue. */
   jerseys?: { home: string; away: string };
+}
+
+/** Portable coaching context saved with the play and its lineup. */
+export interface CoachingDetails {
+  teams: { home: string; away: string };
+  objective: string;
+  cues: string;
+  referenceImage?: string;
 }
 
 /** Selectable jersey colours, shown in the jersey switcher. */
@@ -369,6 +381,11 @@ export interface PlaybackPlayerFrame {
   routeProgress: number;
   stridePhase: number;
   action: SkaterAction;
+  /** Absolute simulation time: renderers sample poses instead of integrating frame deltas. */
+  animationTimeSeconds?: number;
+  /** Event pose progress, with stick contact/release at 0.5. */
+  actionPhase?: number;
+  goalieAction?: 'set' | 'shuffle' | 'save' | 'freeze';
   bladePosition: Point;
 }
 
@@ -460,6 +477,7 @@ export type InspectorTarget =
 
 /** A disclosure sheet on the responsive shell. */
 export type SheetKind =
+  | 'coach'
   | 'none'
   | 'menu'
   | 'more'
@@ -637,11 +655,13 @@ export type AppAction =
   | { type: 'REMOVE_PLAYER'; id: ID }
   | { type: 'MOVE_PLAYER'; id: ID; x: number; y: number }
   | { type: 'UPDATE_PLAYER_VISUAL'; id: ID; visual: Partial<PlayerVisualProfile> }
+  | { type: 'UPDATE_PLAYER_IDENTITY'; id: ID; name: string; number: string; role: PlayerRole }
+  | { type: 'SET_COACHING'; coaching: CoachingDetails }
   | { type: 'SET_PUCK_CARRIER'; id: ID }
   | { type: 'SET_JERSEY'; team: Team; hex: string }
   | { type: 'SET_FINISH_POLICY'; policy: FinishPolicy }
   | { type: 'SWAP_JERSEYS' }
-  | { type: 'SET_FORMATION'; players: Player[]; initialPuck?: Point }
+  | { type: 'SET_FORMATION'; players: Player[]; initialPuck?: Point; skatePaths?: SkatePath[]; events?: DrillEvent[]; settings?: DrillSettings }
 
   // Coach actions
   | { type: 'ADD_COACH'; coach: CoachMarker }

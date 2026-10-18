@@ -20,7 +20,7 @@
 // the domain, and everything else reads them.
 // ============================================================================
 
-import type { CurveShape, Point, Team } from '@/core/types';
+import type { CoachingDetails, CurveShape, Point, Team } from '@/core/types';
 
 export type ID = string;
 
@@ -382,6 +382,7 @@ export interface Annotation {
 // ----------------------------------------------------------------------------
 
 export interface PresentationSettings {
+  coaching?: CoachingDetails;
   /** Seconds the whole drill runs for at 1x. */
   durationSeconds: number;
   jerseys: { home: string; away: string };

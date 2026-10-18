@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import type { Drill, DrillEvent, SkatePath } from '@/core/types';
+import { jerseyColor } from '@/core/types';
 import { expandCurve } from '@/utils/curves';
 import { rinkToWorld } from '../worldMap';
 
@@ -18,7 +19,7 @@ export interface RouteOverlay3D {
 const LINE_ELEVATION = 0.015; // 1.5 cm off the ice to prevent z-fighting
 const ARROW_SIZE = 0.35;
 
-function createRouteLine(path: SkatePath): THREE.Object3D | null {
+function createRouteLine(path: SkatePath, colour: string): THREE.Object3D | null {
   if (!path.points || path.points.length < 2) return null;
   const points = expandCurve(path.points, path.shape ?? 'spline');
   if (points.length < 2) return null;
@@ -31,7 +32,7 @@ function createRouteLine(path: SkatePath): THREE.Object3D | null {
   const curve = new THREE.CatmullRomCurve3(worldPoints);
   const geometry = new THREE.TubeGeometry(curve, Math.max(20, points.length * 2), 0.035, 6, false);
 
-  const color = path.team === 'home' ? 0xdc2626 : 0x2563eb;
+  const color = colour;
   const material = new THREE.MeshStandardMaterial({
     color,
     roughness: 0.4,
@@ -150,7 +151,7 @@ export function createRouteOverlay3D(drill: Drill): RouteOverlay3D {
   const disposables: { geometry: THREE.BufferGeometry; material: THREE.Material }[] = [];
 
   for (const path of drill.skatePaths) {
-    const obj = createRouteLine(path);
+    const obj = createRouteLine(path, jerseyColor(path.team, drill.settings));
     if (obj) {
       root.add(obj);
       obj.traverse(child => {

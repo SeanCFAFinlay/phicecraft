@@ -23,6 +23,11 @@ export interface Board3DCounters {
   framesRendered: number;
   /** True once the current mount's actor set (skaters/goalies/coaches/puck) has been built. */
   actorsBuilt: boolean;
+  actorBuilds: number;
+  renderMilliseconds: number;
+  maxRenderMilliseconds: number;
+  drawCalls: number;
+  triangles: number;
   reset(): void;
 }
 
@@ -36,9 +41,19 @@ function createBoard3DCounters(): Board3DCounters {
   const counters: Board3DCounters = {
     framesRendered: 0,
     actorsBuilt: false,
+    actorBuilds: 0,
+    renderMilliseconds: 0,
+    maxRenderMilliseconds: 0,
+    drawCalls: 0,
+    triangles: 0,
     reset() {
       counters.framesRendered = 0;
       counters.actorsBuilt = false;
+      counters.actorBuilds = 0;
+      counters.renderMilliseconds = 0;
+      counters.maxRenderMilliseconds = 0;
+      counters.drawCalls = 0;
+      counters.triangles = 0;
     },
   };
   return counters;
@@ -58,11 +73,17 @@ export function installBoard3DCounters(): Board3DCounters {
 }
 
 /** Called from Board3D's own `render()`, once per real WebGL frame. */
-export function recordBoard3DFrame(): void {
-  installBoard3DCounters().framesRendered += 1;
+export function recordBoard3DFrame(renderMilliseconds = 0, drawCalls = 0, triangles = 0): void {
+  const counters = installBoard3DCounters();
+  counters.framesRendered += 1;
+  counters.renderMilliseconds += renderMilliseconds;
+  counters.maxRenderMilliseconds = Math.max(counters.maxRenderMilliseconds, renderMilliseconds);
+  counters.drawCalls = drawCalls;
+  counters.triangles = triangles;
 }
 
 /** Called once the current mount's actor set has been added to the scene. */
 export function markBoard3DActorsBuilt(): void {
   installBoard3DCounters().actorsBuilt = true;
+  installBoard3DCounters().actorBuilds += 1;
 }

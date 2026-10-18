@@ -53,7 +53,8 @@ function skaterFallbackChain(action: SkaterAction): readonly string[] {
  * event/one-shot state, so scrubbing to the same frame twice always yields
  * the same clip and the same fade decision in actors.ts.
  *
- * Goalie is unconditional: always `'goalie_idle'`, unaffected by the frame.
+ * Goalies select a sampled save attempt or authored shuffle, falling back
+ * to goalie_idle when an older model lacks the corresponding clip.
  * Skater tries `frame.action` verbatim, then falls back through
  * `skaterFallbackChain` to the first name that exists on this model. This
  * deliberately ignores AUTHORING_CLIPS.md's original LoopOnce suggestion for
@@ -68,7 +69,11 @@ export function selectClipName(
   frame: PlaybackPlayerFrame | undefined,
   availableClipNames: ReadonlySet<string>
 ): string {
-  if (kind === 'goalie') return 'goalie_idle';
+  if (kind === 'goalie') {
+    const preferred = frame?.goalieAction === 'save' ? 'goalie_save'
+      : frame?.goalieAction === 'shuffle' ? 'goalie_shuffle' : 'goalie_idle';
+    return availableClipNames.has(preferred) ? preferred : 'goalie_idle';
+  }
 
   const action: SkaterAction = frame?.action ?? 'idle';
   for (const name of skaterFallbackChain(action)) {

@@ -149,6 +149,7 @@ function extrudeWall(
     transparent: opacity < 1,
     opacity,
     side: THREE.DoubleSide,
+    depthWrite: opacity >= 1,
   });
 
   return new THREE.Mesh(geometry, material);
@@ -157,13 +158,17 @@ function extrudeWall(
 function buildIceMesh(iceCanvas: HTMLCanvasElement): THREE.Mesh {
   const texture = new THREE.CanvasTexture(iceCanvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
 
   const geometry = new THREE.PlaneGeometry(ICE_WIDTH, ICE_HEIGHT);
   // PlaneGeometry is authored flat in XY, facing +Z; rotate it down onto the
   // XZ ground plane (facing +Y, up) to match rinkToWorld's y=0 convention.
   geometry.rotateX(-Math.PI / 2);
 
-  const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.14, metalness: 0.08 });
+  // Matte scraped ice still catches light, without a blown-out mirror hotspot.
+  // Discard the transparent corners of the rounded rink rather than drawing
+  // the canvas's empty pixels as opaque black triangles.
+  const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.58, metalness: 0, alphaTest: 0.05 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'ice';
   mesh.receiveShadow = true;
@@ -214,20 +219,23 @@ function buildLightsGroup(quality: RenderQuality): THREE.Group {
   group.name = 'lights';
 
   // Crisp arena floodfill dome lighting
-  const hemisphere = new THREE.HemisphereLight(0xe2f1ff, 0x0f172a, 0.75);
+  const hemisphere = new THREE.HemisphereLight(0xf1f7ff, 0x7b899c, 1.65);
   group.add(hemisphere);
 
-  const directional = new THREE.DirectionalLight(0xffffff, 1.25);
-  directional.position.set(ICE_WIDTH * 0.25, 22, -ICE_HEIGHT * 0.4);
+  const directional = new THREE.DirectionalLight(0xffffff, 2.1);
+  directional.position.set(ICE_WIDTH * 0.15, 32, -ICE_HEIGHT * 0.3);
   directional.target.position.set(0, 0, 0);
   directional.castShadow = quality === 'high';
   if (directional.castShadow) {
     directional.shadow.mapSize.set(2048, 2048);
+    directional.shadow.bias = -0.00015;
+    directional.shadow.normalBias = 0.035;
+    directional.shadow.radius = 2;
     const cam = directional.shadow.camera;
-    cam.left = -ICE_WIDTH;
-    cam.right = ICE_WIDTH;
-    cam.top = ICE_HEIGHT;
-    cam.bottom = -ICE_HEIGHT;
+    cam.left = -ICE_WIDTH * 0.6;
+    cam.right = ICE_WIDTH * 0.6;
+    cam.top = ICE_HEIGHT * 0.8;
+    cam.bottom = -ICE_HEIGHT * 0.8;
     cam.near = 1;
     cam.far = 80;
   }

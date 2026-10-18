@@ -72,7 +72,7 @@ export const CONFIRMATIONS = {
     id: 'load-formation',
     title: 'Apply play formation?',
     body:
-      'Replaces the current player lineup with the tactical formation and clears existing skating routes and puck actions. Coaches, settings and jerseys are kept. This can be undone.',
+      'Replaces the lineup, skating routes and puck actions with the selected setup. Named players are reused where possible. Coaches, equipment, settings and jerseys are kept. This can be undone.',
     confirmLabel: 'Apply formation',
     cancelLabel: 'Cancel',
     destructive: true,

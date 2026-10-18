@@ -39,6 +39,77 @@ npm run assets:optimize  # regenerate runtime images from assets-src/
 
 ## Using it
 
+### Faceoff to finish demonstration
+
+Open **Add > Watch 3D demo** for an eight-second teaching sequence: a faceoff
+pickup, two passes received in stride, and a shot with a planned goalie save.
+It uses three attackers, a faceoff partner and a goalie. **Edit demo** loads
+the same editable routes and actions. Replacing an existing play asks first.
+
+The replay preloads its models, frames the action, hides drawing guides and
+explains the current possession, pass or shot. Use Play/Pause, speed, Reset
+and the expanded timeline to review it. Poses are sampled from the playhead,
+so jumping backward produces the same pose as forward playback. Delayed
+skating starts survive saving and importing the play.
+
+The models include distinct stride, glide, turn, stop, pass, shot, receive,
+recovery and goalie clips. These are authored procedural animations, not
+motion capture. The faceoff win and save are teaching scenarios, not predicted
+competitive outcomes. Performance measurements and visual checks are described
+in [the demonstration verification notes](docs/showcase-demo.md).
+
+### Quick drill commands
+
+Open **Add** in the player builder. The first section offers **Centre faceoff**,
+**Zone faceoff**, **Corner setup**, **5v4 power play**, **4v5 penalty kill**,
+**1v1 battle**, **2v2 battle** and **Dump-in**. Choose the rink end and board side
+for any zone faceoff, corner, battle or dump-in. Special-team counts exclude
+goalies; Home is your team. Named on-ice players are reused where possible.
+
+Battles include editable approach routes to a loose puck. Dump-ins include
+the puck action, chase and retrieval routes. The coach still chooses the
+recovery and next action; a battle winner is not predetermined. Setups open
+in the flat editing view and can be rehearsed in 3D. Replacing existing routes
+or puck actions asks first, and **Undo** restores the previous setup.
+
+### Coach workspace
+
+Open **Coach workspace** from the top bar or **More**. Three sections keep the
+workflow short:
+
+- **Explain:** add the teaching objective and cues, rehearse the sequence, jump
+  to an action, or download a plain-text coaching brief. **3D replay** opens the
+  animated rink. Explanations use the authored routes, timing, possession and
+  simulation results. Coach-selected outcomes are labelled as scenarios, not
+  predictions of match results.
+- **Teams:** name your teams, set jersey colours and assign real player names,
+  numbers and positions. Import a full roster using CSV columns `name,number,role`
+  (roles: C, LW, RW, D, F, G), save the team on this device, and choose roster
+  players for the existing rink positions. Press **Apply** on each edited player.
+  Download a CSV backup to move the full roster between devices. The current
+  on-ice lineup travels with saved plays and play exports.
+- **Import:** attach a PNG/JPG/WebP photo or scan (up to 10 MB). Close the panel
+  to keep it beside the rink, or choose **Overlay to trace** and **Align sketch**.
+  Recreate players, routes and puck actions using the existing drawing controls.
+  Photo recognition and automatic conversion into playable actions are not
+  implemented. JSON play files still import through the review screen.
+
+The 3D view shows team names, the current carrier, named player labels and a
+gold possession ring. **Side**, **Net** and **Top** select camera angles. It is
+a coaching replay, not a directly controllable hockey game. Notes, title edits
+and route edits no longer rebuild the animated player models; lower quality
+tiers also reduce the 3D pixel resolution.
+
+Players use shaped protective equipment, helmet details and skate blades on
+the existing animated skeletons. Softer arena lighting, matte ice and open
+goal netting keep the rink legible. Camera presets fit the perspective view,
+including the near boards, on desktop and phone. These are improved stylized
+models; photorealistic likenesses and motion-captured skating are not included.
+
+To regenerate the runtime player models from the original first-party Blender
+sources, run `blender --background --factory-startup --python scripts/refine-hockey-models.py`.
+Add `-- --preview` to render close-ups in `output/playwright/models/`.
+
 ### On a phone
 
 The shell is mobile-first. Five controls are always one tap away:

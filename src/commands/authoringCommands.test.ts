@@ -710,6 +710,28 @@ describe('pass timing', () => {
 });
 
 describe('loadFormation', () => {
+  it('applies dump routes and puck action as one undoable edit, keeping named players', async () => {
+    harness.commands.updatePlayerIdentity('h11', { name: 'Alex', number: '13', role: 'C' });
+    const original = structuredClone(harness.getState().drill);
+    await harness.commands.loadFormation('dump-in-right-bottom');
+    const drill = harness.getState().drill;
+    expect(drill.events).toHaveLength(1);
+    expect(drill.events[0].type).toBe('dump');
+    expect(drill.skatePaths).toHaveLength(2);
+    expect(drill.players.find(player => player.hasPuck)).toMatchObject({ name: 'Alex', number: '13' });
+    expect(new Set(drill.players.filter(player => player.team === 'home').map(player => player.number)).size).toBe(2);
+    harness.commands.undo();
+    expect(harness.getState().drill.players).toEqual(original.players);
+    expect(harness.getState().drill.events).toEqual(original.events);
+    expect(harness.getState().drill.skatePaths).toEqual(original.skatePaths);
+  });
+
+  it('rejects quick setups outside Build without changing the lineup', async () => {
+    const before = harness.getState().drill;
+    harness.commands.setMode('preview');
+    expect((await harness.commands.loadFormation('faceoff-center')).status).toBe('rejected');
+    expect(harness.getState().drill).toBe(before);
+  });
   it('loads a tactical formation immediately when board has no routes or events', async () => {
     const result = await harness.commands.loadFormation('pp-131');
     expect(result.status).toBe('done');

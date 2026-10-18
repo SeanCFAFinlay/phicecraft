@@ -109,6 +109,41 @@ function rigYaw(root: THREE.Object3D): number {
   return rig.rotation.y;
 }
 
+describe('absolute simulation pose sampling', () => {
+  it('matches direct seek, forward playback, reverse scrub and loop restart at contact', () => {
+    const create = () => createActor(buildFutureGltf(), { kind: 'skater', jersey: '#fff', accent: '#fff' });
+    const direct = create();
+    const played = create();
+    const target = playerFrame({ action: 'pass', animationTimeSeconds: 2.8, actionPhase: 0.5, speed: 100 });
+    direct.update(CENTER_ICE, target, 0, true);
+    for (let t = 0; t < 2.8; t += 0.05) {
+      played.update(CENTER_ICE, playerFrame({ action: 'stride', animationTimeSeconds: t, stridePhase: t % 1, speed: 100 }), 0.05);
+    }
+    played.update(CENTER_ICE, target, 0.05);
+    expect(rigYaw(direct.root)).toBeCloseTo(-2);
+    expect(rigYaw(played.root)).toBeCloseTo(rigYaw(direct.root));
+    played.update(CENTER_ICE, { ...target, actionPhase: 0.9, animationTimeSeconds: 3 }, 0.2);
+    played.update(CENTER_ICE, target, -0.2);
+    expect(rigYaw(played.root)).toBeCloseTo(rigYaw(direct.root));
+    played.update(CENTER_ICE, playerFrame({ animationTimeSeconds: 0, speed: 0 }), 0, true);
+    played.update(CENTER_ICE, target, 0, true);
+    expect(rigYaw(played.root)).toBeCloseTo(rigYaw(direct.root));
+    direct.dispose();
+    played.dispose();
+  });
+
+  it('samples goalie save contact and returns to idle without a lingering save blend', () => {
+    const actor = createActor(buildFakeGltfMulti([
+      { name: 'goalie_idle', endRotationY: 1 }, { name: 'goalie_save', endRotationY: -4 },
+    ]), { kind: 'goalie', jersey: '#fff', accent: '#fff' });
+    actor.update(CENTER_ICE, playerFrame({ animationTimeSeconds: 1.5, goalieAction: 'save', actionPhase: 0.5 }), 0);
+    expect(rigYaw(actor.root)).toBeCloseTo(-2);
+    actor.update(CENTER_ICE, playerFrame({ animationTimeSeconds: 2.25, goalieAction: 'set' }), 0);
+    expect(rigYaw(actor.root)).toBeCloseTo(0.25);
+    actor.dispose();
+  });
+});
+
 describe('createActor - position and yaw', () => {
   it('places the root at rinkToWorld(pos) and yaws it to headingToYaw(frame.heading)', () => {
     const actor = createActor(buildFakeGltf('skate'), {

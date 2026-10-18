@@ -67,6 +67,14 @@ describe('buildArena', () => {
   });
 
   describe('ice', () => {
+    it('cuts out the rounded texture corners and avoids a mirror-like ice surface', () => {
+      const arena = buildArena(fakeIceCanvas());
+      const material = findMesh(arena.root, 'ice').material as THREE.MeshStandardMaterial;
+      expect(material.alphaTest).toBeGreaterThan(0);
+      expect(material.roughness).toBeGreaterThanOrEqual(0.4);
+      expect(material.metalness).toBe(0);
+      arena.dispose();
+    });
     it('is a PlaneGeometry(1000*S, 425*S) mesh, flat on the ground plane (y = 0)', () => {
       const { root } = buildArena(fakeIceCanvas());
       const ice = findMesh(root, 'ice');

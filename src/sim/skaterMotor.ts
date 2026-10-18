@@ -9,18 +9,22 @@ function normalizeAngle(angle: number): number {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
-function actionNearEvent(event: DrillEvent, playerId: string, time: number, departure: number, arrival: number): SkaterAction | null {
-  if (event.fromPlayerId === playerId && Math.abs(time - departure) <= 0.2) {
-    return event.type === 'shot'
-      ? 'shot'
-      : event.type === 'pickup'
-        ? 'recover'
-        : event.type === 'pass' || event.type === 'dump'
-          ? 'pass'
-          : null;
+export function contactPhase(time: number, contact: number, before: number, after: number): number {
+  return Math.max(0, Math.min(1, time <= contact
+    ? 0.5 * (time - contact + before) / before
+    : 0.5 + 0.5 * (time - contact) / after));
+}
+
+function actionNearEvent(event: DrillEvent, playerId: string, time: number, departure: number, arrival: number): { action: SkaterAction; phase: number } | null {
+  const contact = event.type === 'pickup' ? arrival : departure;
+  if (event.fromPlayerId === playerId && time >= contact - 0.4 && time <= contact + 0.4) {
+    return {
+      action: event.type === 'shot' ? 'shot' : event.type === 'pickup' ? 'recover' : 'pass',
+      phase: contactPhase(time, contact, 0.4, 0.4),
+    };
   }
   if (event.type === 'pass' && event.toPlayerId === playerId && time >= arrival - 0.3 && time <= arrival + 0.22) {
-    return 'receive';
+    return { action: 'receive', phase: contactPhase(time, arrival, 0.3, 0.22) };
   }
   return null;
 }
@@ -41,12 +45,13 @@ export function sampleSkater(
   timeSeconds: number,
   events: CompiledEvent[] = []
 ): PlaybackPlayerFrame {
-  const motion = sampleMotionProfile(route.motion, timeSeconds);
+  const motionTime = Math.max(0, timeSeconds - (route.source?.startAtSeconds ?? 0));
+  const motion = sampleMotionProfile(route.motion, motionTime);
   const sampled = pointAndTangentAtDistance(route, motion.distance);
   const constrainedPosition = constrainToRink(sampled.position, PLAYER_RADIUS * 0.72).position;
   const pathHeading = Math.atan2(sampled.tangent.y, sampled.tangent.x);
   const heading = route.source?.mode === 'backward' ? normalizeAngle(pathHeading + Math.PI) : pathHeading;
-  const beforeMotion = sampleMotionProfile(route.motion, Math.max(0, timeSeconds - 1 / 120));
+  const beforeMotion = sampleMotionProfile(route.motion, Math.max(0, motionTime - 1 / 120));
   const before = pointAndTangentAtDistance(route, beforeMotion.distance);
   const beforeHeading = Math.atan2(before.tangent.y, before.tangent.x) + (route.source?.mode === 'backward' ? Math.PI : 0);
   const angularVelocity = normalizeAngle(heading - beforeHeading) * 120;
@@ -62,6 +67,7 @@ export function sampleSkater(
           : 'glide';
 
   if (Math.abs(angularVelocity) > 0.32 && motion.speed > 2) action = 'turn';
+  let actionPhase: number | undefined;
   for (const compiledEvent of events) {
     const eventAction = actionNearEvent(
       compiledEvent.source,
@@ -70,7 +76,10 @@ export function sampleSkater(
       compiledEvent.departureSeconds,
       compiledEvent.arrivalSeconds
     );
-    if (eventAction) action = eventAction;
+    if (eventAction) {
+      action = eventAction.action;
+      actionPhase = eventAction.phase;
+    }
   }
 
   const velocityDirection = route.source?.mode === 'backward'
@@ -87,6 +96,8 @@ export function sampleSkater(
     routeProgress: sampled.progress,
     stridePhase: (motion.distance / Math.max(PLAYER_RADIUS * 1.5, 1)) % 1,
     action,
+    animationTimeSeconds: timeSeconds,
+    ...(actionPhase === undefined ? {} : { actionPhase }),
     bladePosition: getBladePosition(player, constrainedPosition, heading),
   };
 }

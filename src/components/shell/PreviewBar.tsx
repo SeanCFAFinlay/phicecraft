@@ -20,7 +20,7 @@ export function PreviewBar() {
       aria-label="Preview"
       className="app-chrome safe-bottom safe-x flex flex-shrink-0 flex-col gap-2 bg-[#0c1825] px-2 pb-2 pt-1.5"
     >
-      <Transport showExpand={false} />
+      <Transport />
 
       <div className="px-1">
         <SpeedControl />

@@ -28,6 +28,12 @@ function playerFrame(overrides: Partial<PlaybackPlayerFrame>): PlaybackPlayerFra
 }
 
 describe('selectClipName - goalie', () => {
+  it('selects actual save and shuffle poses with a compatible idle fallback', () => {
+    const clips = new Set(['goalie_idle', 'goalie_save', 'goalie_shuffle']);
+    expect(selectClipName('goalie', playerFrame({ goalieAction: 'save' }), clips)).toBe('goalie_save');
+    expect(selectClipName('goalie', playerFrame({ goalieAction: 'shuffle' }), clips)).toBe('goalie_shuffle');
+    expect(selectClipName('goalie', playerFrame({ goalieAction: 'save' }), new Set(['goalie_idle']))).toBe('goalie_idle');
+  });
   it('is always goalie_idle, ignoring the frame and the available clip set entirely', () => {
     expect(selectClipName('goalie', playerFrame({ action: 'shot' }), new Set(['goalie_idle']))).toBe('goalie_idle');
     expect(selectClipName('goalie', undefined, new Set())).toBe('goalie_idle');

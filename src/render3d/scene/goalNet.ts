@@ -31,13 +31,7 @@ export function createSingleGoal(direction: 1 | -1, quality: RenderQuality = 'hi
     metalness: 0.25,
   });
 
-  const netMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf9fafb,
-    roughness: 0.85,
-    transparent: true,
-    opacity: 0.58,
-    side: THREE.DoubleSide,
-  });
+  const netMaterial = new THREE.LineBasicMaterial({ color: 0xe8eef2, transparent: true, opacity: 0.58, depthWrite: false });
 
   const geometries: THREE.BufferGeometry[] = [];
 
@@ -97,44 +91,37 @@ export function createSingleGoal(direction: 1 | -1, quality: RenderQuality = 'hi
   const rearStrutGeo = new THREE.TubeGeometry(rearStrutCurve, 6, POST_RADIUS * 0.7, 8, false);
   addMesh(rearStrutGeo, redMaterial, true);
 
-  // 6. Netting Shell
-  const netShape = new THREE.BufferGeometry();
-  // Construct net backing mesh: Top crossbar to rear apex and down to posts
-  const vertices = new Float32Array([
-    // Top roof triangle 1 (left post top, center crossbar, rear apex)
-    0, GOAL_HEIGHT, -halfWidth,
-    0, GOAL_HEIGHT, 0,
-    rearDist * 0.75, GOAL_HEIGHT * 0.85, 0,
-
-    // Top roof triangle 2 (center crossbar, right post top, rear apex)
-    0, GOAL_HEIGHT, 0,
-    0, GOAL_HEIGHT, halfWidth,
-    rearDist * 0.75, GOAL_HEIGHT * 0.85, 0,
-
-    // Left net wall
-    0, 0, -halfWidth,
-    0, GOAL_HEIGHT, -halfWidth,
-    rearDist, 0, 0,
-
-    // Right net wall
-    0, 0, halfWidth,
-    rearDist, 0, 0,
-    0, GOAL_HEIGHT, halfWidth,
-
-    // Back angled net (left)
-    0, GOAL_HEIGHT, -halfWidth,
-    rearDist, 0, 0,
-    rearDist * 0.75, GOAL_HEIGHT * 0.85, 0,
-
-    // Back angled net (right)
-    0, GOAL_HEIGHT, halfWidth,
-    rearDist * 0.75, GOAL_HEIGHT * 0.85, 0,
-    rearDist, 0, 0,
-  ]);
-
-  netShape.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-  netShape.computeVertexNormals();
-  addMesh(netShape, netMaterial);
+  // Open nylon mesh, not opaque triangular panels. One line batch per net
+  // gives the actual grid silhouette without hundreds of separate objects.
+  const strands: THREE.Vector3[] = [];
+  const spacing = quality === 'high' ? 0.075 : quality === 'medium' ? 0.12 : 0.18;
+  const panel = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3) => {
+    const across = Math.max(2, Math.ceil(Math.max(a.distanceTo(b), d.distanceTo(c)) / spacing));
+    const down = Math.max(2, Math.ceil(Math.max(a.distanceTo(d), b.distanceTo(c)) / spacing));
+    for (let index = 0; index <= across; index++) {
+      strands.push(a.clone().lerp(b, index / across), d.clone().lerp(c, index / across));
+    }
+    for (let index = 0; index <= down; index++) {
+      strands.push(a.clone().lerp(d, index / down), b.clone().lerp(c, index / down));
+    }
+  };
+  const frontLeft = new THREE.Vector3(0, 0, -halfWidth);
+  const frontRight = new THREE.Vector3(0, 0, halfWidth);
+  const topLeft = new THREE.Vector3(0, GOAL_HEIGHT, -halfWidth);
+  const topRight = new THREE.Vector3(0, GOAL_HEIGHT, halfWidth);
+  const backLeft = new THREE.Vector3(rearDist, 0, -halfWidth * 0.65);
+  const backRight = new THREE.Vector3(rearDist, 0, halfWidth * 0.65);
+  const backTopLeft = new THREE.Vector3(rearDist * 0.75, GOAL_HEIGHT * 0.85, -halfWidth * 0.65);
+  const backTopRight = new THREE.Vector3(rearDist * 0.75, GOAL_HEIGHT * 0.85, halfWidth * 0.65);
+  panel(frontLeft, topLeft, backTopLeft, backLeft);
+  panel(frontRight, topRight, backTopRight, backRight);
+  panel(topLeft, topRight, backTopRight, backTopLeft);
+  panel(backLeft, backRight, backTopRight, backTopLeft);
+  const netGeometry = new THREE.BufferGeometry().setFromPoints(strands);
+  geometries.push(netGeometry);
+  const netting = new THREE.LineSegments(netGeometry, netMaterial);
+  netting.name = 'nylon-netting';
+  root.add(netting);
 
   return {
     root,

@@ -91,12 +91,12 @@ export function TopStrip() {
       {!isPhone && !isCompactLandscape && (
         <button
           type="button"
-          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'practice' })}
+          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'coach' })}
           className="touch-target hidden items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-app-cyan/10 px-2.5 py-1 text-[13px] font-bold text-app-cyan transition-all hover:border-cyan-400 hover:bg-app-cyan/20 hover:shadow-[0_0_12px_rgba(0,229,255,0.25)] md:flex"
-          aria-label="Practice Session Planner"
+          aria-label="Coach workspace"
         >
           <span className="text-[14px]">📋</span>
-          <span>Practice Plan</span>
+          <span>Coach workspace</span>
         </button>
       )}
 

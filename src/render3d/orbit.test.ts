@@ -3,7 +3,8 @@
 // ============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { orbitFromCamera, BASE_DISTANCE } from './orbit';
+import { orbitFromCamera, ORBIT_FOV_DEGREES } from './orbit';
+import * as THREE from 'three';
 import { rinkToWorld } from './worldMap';
 import { DEFAULT_CAMERA, TABLETOP_DEFAULT_TILT } from '@/core/constants';
 import { calculateFitCamera } from '@/camera/cameraMath';
@@ -12,13 +13,24 @@ import type { Camera } from '@/core/types';
 
 const VIEWPORT_16_9 = { width: 1600, height: 900 };
 
-describe('BASE_DISTANCE', () => {
-  it('is the documented constant', () => {
-    expect(BASE_DISTANCE).toBe(42);
-  });
-});
-
 describe('orbitFromCamera', () => {
+  it('fits all rink and glass corners in side, net and top views on desktop and phone', () => {
+    for (const viewport of [{ width: 1366, height: 520 }, { width: 390, height: 600 }]) {
+      for (const [rotation, tilt] of [[0, 0.65], [-0.4, 0.55], [Math.PI / 2, 0.65], [0, 0.35]]) {
+        const orbit = orbitFromCamera(calculateFitCamera(viewport, { ...DEFAULT_CAMERA, rotation, tilt }), viewport);
+        const camera = new THREE.PerspectiveCamera(ORBIT_FOV_DEGREES, viewport.width / viewport.height, 0.1, 500);
+        const horizontal = orbit.distance * Math.cos(orbit.polar);
+        camera.position.set(horizontal * Math.sin(orbit.azimuth), orbit.distance * Math.sin(orbit.polar), horizontal * Math.cos(orbit.azimuth));
+        camera.lookAt(0, 0, 0);
+        camera.updateMatrixWorld();
+        for (const x of [-30.5, 30.5]) for (const z of [-12.9625, 12.9625]) for (const y of [0, 2.5]) {
+          const point = new THREE.Vector3(x, y, z).project(camera);
+          expect(Math.abs(point.x)).toBeLessThanOrEqual(0.901);
+          expect(Math.abs(point.y)).toBeLessThanOrEqual(0.901);
+        }
+      }
+    }
+  });
   it('reads azimuth straight from camera.rotation, defaulting to 0', () => {
     const withRotation: Camera = { ...DEFAULT_CAMERA, rotation: 1.2 };
     expect(orbitFromCamera(withRotation, VIEWPORT_16_9).azimuth).toBe(1.2);
@@ -48,13 +60,13 @@ describe('orbitFromCamera', () => {
     expect(polar).toBe(0.15);
   });
 
-  it('halves distance when zoom doubles (distance = BASE_DISTANCE / zoom)', () => {
+  it('halves distance when zoom doubles', () => {
     const zoomOne: Camera = { ...DEFAULT_CAMERA, zoom: 1 };
     const zoomTwo: Camera = { ...DEFAULT_CAMERA, zoom: 2 };
     const atOne = orbitFromCamera(zoomOne, VIEWPORT_16_9).distance;
     const atTwo = orbitFromCamera(zoomTwo, VIEWPORT_16_9).distance;
 
-    expect(atOne).toBe(BASE_DISTANCE);
+    expect(atOne).toBeGreaterThan(0);
     expect(atTwo).toBeCloseTo(atOne / 2, 10);
   });
 

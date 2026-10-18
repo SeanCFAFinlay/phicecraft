@@ -1,3 +1,4 @@
+import { coachingSchema } from '@/domain/coachingSchema';
 // ============================================================================
 // DRILL PIPELINE - pure, total functions for untrusted drill documents
 //
@@ -129,6 +130,7 @@ function normalizePlayer(value: unknown, index: number, warnings: string[]): Pla
     y: point.y,
     team,
     number: asNonEmptyString(value.number, String(index + 1)).slice(0, 8),
+    ...(typeof value.name === 'string' ? { name: value.name.slice(0, 80) } : {}),
     role,
     hasPuck: asBoolean(value.hasPuck, false),
     visual: {
@@ -187,6 +189,8 @@ function normalizeRoute(value: unknown, index: number, warnings: string[]): Skat
     shape: shape === 'polyline' ? 'polyline' : 'spline',
     mode: mode === 'glide' || mode === 'backward' ? mode : 'skate',
     finish: finish === 'coast' ? 'coast' : 'stop',
+    startAtSeconds: typeof value.startAtSeconds === 'number' && Number.isFinite(value.startAtSeconds)
+      ? Math.max(0, Math.min(3600, value.startAtSeconds)) : undefined,
   } as SkatePath;
 }
 
@@ -332,6 +336,9 @@ function normalizeSettings(value: unknown, events: DrillEvent[]): DrillSettings 
     timeLimitSeconds: Math.min(600, Math.max(2, asFiniteNumber(source.timeLimitSeconds, 8))),
     reducedEffects: asBoolean(source.reducedEffects, false),
   };
+
+  const coaching = coachingSchema.safeParse(source.coaching);
+  if (coaching.success) settings.coaching = coaching.data;
 
   if (jerseys) {
     settings.jerseys = {

@@ -39,7 +39,7 @@ async function canvasHasInk(page: Page, selector: string): Promise<boolean> {
 
 test('entering 3D mounts Board3D and renders it; playback keeps it live; returning to 2D restores the flat surface', async ({
   page,
-}) => {
+}, testInfo) => {
   await openEditor(page);
 
   // Board3D is view-only (no editing gestures in 3D - that's CanvasSurface's
@@ -86,6 +86,8 @@ test('entering 3D mounts Board3D and renders it; playback keeps it live; returni
     await canvasHasInk(page, 'canvas[data-board3d]'),
     'Board3D still holds real pixels mid-playback'
   ).toBe(true);
+
+  await page.screenshot({ path: testInfo.outputPath('animated-rink.png'), animations: 'disabled' });
 
   const stop = page.getByRole('button', { name: 'Stop playback' });
   if (await stop.isVisible().catch(() => false)) await stop.click();

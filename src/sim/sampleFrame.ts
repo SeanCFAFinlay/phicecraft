@@ -9,7 +9,8 @@ import type {
 import { RINK } from '@/core/constants';
 import { distance } from '@/utils/geometry';
 import { evaluateReception } from './receptionSolver';
-import { sampleSkater } from './skaterMotor';
+import { contactPhase, getBladePosition, sampleSkater } from './skaterMotor';
+import { sampleGoalie } from './goalieSolver';
 import { solveLoosePuck } from './puckSolver';
 import { getFlightPath, puckAlongFlight } from './flightPath';
 import { resolveShotResult, shotVelocity } from './shotSolver';
@@ -451,6 +452,27 @@ export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: numbe
   }
 
   const resolution = samplePuck(compiled, timeSeconds);
+  for (const [id, player] of compiled.players) {
+    const base = players[id];
+    if (!base || player.role !== 'G') continue;
+    // React only to a shot that actually released, for this net's defending
+    // goalie. The pose is a save attempt, never a manufactured shot outcome.
+    const incoming = compiled.events.find(event =>
+      event.source.type === 'shot' &&
+      timeSeconds >= event.arrivalSeconds - 0.35 &&
+      timeSeconds <= event.arrivalSeconds + 0.55 &&
+      resolution.firedEventIndices.includes(event.index) &&
+      defendingGoalieAt(compiled, event.source as ShotEvent, event.arrivalSeconds)?.id === id
+    );
+    const goalie = sampleGoalie(base, resolution.puck, Boolean(incoming));
+    players[id] = {
+      ...base,
+      heading: goalie.heading,
+      goalieAction: goalie.action,
+      actionPhase: incoming ? contactPhase(timeSeconds, incoming.arrivalSeconds, 0.35, 0.55) : undefined,
+      bladePosition: getBladePosition(player, base.position, goalie.heading),
+    };
+  }
   const terminal = timeSeconds >= compiled.durationSeconds - 0.000001;
   const hasAuthoredShot = compiled.events.some(event => event.source.type === 'shot');
   const lifecycle = !terminal

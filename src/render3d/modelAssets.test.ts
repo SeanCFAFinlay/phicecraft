@@ -81,4 +81,13 @@ describe.each([
     // the GLB's baked default colour.
     expect(materialNames).toEqual(expect.arrayContaining(['jersey', 'accent', 'pants']));
   });
+
+  it('ships distinct hockey action clips within a one MiB per-model budget', () => {
+    const buffer = readFileSync(absolutePath);
+    const names = parseGlb(buffer).json.animations?.map(clip => clip.name);
+    expect(names).toEqual(expect.arrayContaining(key === 'skater'
+      ? ['idle', 'stride', 'glide', 'turn', 'stop', 'pass', 'shot', 'receive', 'recover']
+      : ['goalie_idle', 'goalie_shuffle', 'goalie_save']));
+    expect(buffer.length).toBeLessThan(1024 * 1024);
+  });
 });

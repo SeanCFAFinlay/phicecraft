@@ -161,6 +161,8 @@ export interface AuthoringCommands {
   beginPlayerMove(id: ID): CommandResult;
   movePlayerTo(id: ID, x: number, y: number): CommandResult;
   setPuckCarrier(id: ID): Promise<CommandResult>;
+  setCoaching(coaching: import('@/core/types').CoachingDetails): void;
+  updatePlayerIdentity(id: ID, identity: Pick<import('@/core/types').Player, 'name' | 'number' | 'role'>): void;
   updatePlayerVisual(id: ID, visual: { handedness?: 'left' | 'right'; visor?: boolean }): void;
   setJersey(team: 'home' | 'away', hex: string): void;
   swapJerseys(): void;

@@ -7,6 +7,7 @@
 // ============================================================================
 
 import { z } from 'zod';
+import { coachingSchema } from '@/domain/coachingSchema';
 import type { Drill } from '@/core/types';
 import { drillDocumentV3Schema } from '@/domain/v3/schema';
 import type { StoredDrillRecord } from './types';
@@ -59,6 +60,7 @@ export const PlayerSchema = z.object({
   y: finiteNumber,
   team: teamSchema,
   number: z.string().min(1).max(8),
+  name: z.string().max(80).optional(),
   role: roleSchema,
   hasPuck: z.boolean(),
   visual: visualSchema.optional(),
@@ -83,6 +85,7 @@ export const SkatePathSchema = z.looseObject({
   shape: shapeSchema.optional(),
   mode: z.enum(['skate', 'glide', 'backward']).optional(),
   finish: z.enum(['coast', 'stop']).optional(),
+  startAtSeconds: finiteNumber.min(0).max(3600).optional(),
 });
 
 const baseEventFields = {
@@ -135,6 +138,7 @@ export const DrillEventSchema = z.discriminatedUnion('type', [
 ]);
 
 export const DrillSettingsSchema = z.looseObject({
+  coaching: coachingSchema.optional(),
   assistance: z.enum(['off', 'standard', 'high']),
   recovery: z.enum(['authored', 'nearest-teammate']),
   timeLimitSeconds: finiteNumber.min(1).max(600),

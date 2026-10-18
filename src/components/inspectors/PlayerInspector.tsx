@@ -45,8 +45,8 @@ export function PlayerInspector() {
   return (
     <Sheet
       open
-      title={`#${player.number} — ${ROLE_NAMES[player.role] ?? 'Player'}`}
-      description={`${player.team === 'home' ? 'Home' : 'Away'} team${hasPuck ? ' · has the puck' : ''}`}
+      title={`${player.name ? player.name + ' ? ' : ''}#${player.number} — ${ROLE_NAMES[player.role] ?? 'Player'}`}
+      description={`${state.drill.settings?.coaching?.teams[player.team] || (player.team === 'home' ? 'Home' : 'Away')} team${hasPuck ? ' · has the puck' : ''}`}
       onClose={commands.closeInspector}
     >
       <SheetSection title="Position">

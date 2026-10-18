@@ -36,11 +36,14 @@ import { ValidationPanel } from '@/components/ValidationPanel';
 import { AddSheet, ModeSheet, PossessionSheet, ViewSheet, WorkflowSheet } from '@/components/sheets/QuickSheets';
 import { UpdateBanner } from '@/pwa/UpdateBanner';
 import { useResponsive } from '@/ui/useResponsive';
+import { SketchReference } from '@/features/coaching/SketchReference';
+import { ReplayHud } from '@/components/shell/ReplayHud';
 
 // Secondary surfaces: none of these are needed to draw the rink, select a
 // player, or recover from an error, so they are not in the initial bundle.
 // The library carries the whole drill catalogue with it. A coach who never
 // opens it should not pay for 24 drill documents on the way to first paint.
+const CoachWorkspace = lazy(() => import('@/features/coaching/CoachWorkspace').then(module => ({ default: module.CoachWorkspace })));
 const PracticePage = lazy(() =>
   import('@/features/practice/PracticePage').then(module => ({ default: module.PracticePage }))
 );
@@ -158,6 +161,8 @@ export function AppShell() {
         )}
 
         {mode !== 'present' && <ActionChip />}
+        {!is3D && <SketchReference key={state.drill.id} />}
+        {is3D && <ReplayHud />}
         <UpdateBanner />
         <ToastHost />
         {mode !== 'present' && <ViewControls />}
@@ -185,6 +190,7 @@ export function AppShell() {
       <ModeSheet />
 
       <Suspense fallback={null}>
+        {state.ui.openSheet === 'coach' && <CoachWorkspace />}
         {state.ui.openSheet === 'library' && <LibraryPage />}
         {state.ui.openSheet === 'practice' && <PracticePage />}
         {state.ui.showMenu && <MenuSheet />}

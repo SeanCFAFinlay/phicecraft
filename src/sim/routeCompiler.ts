@@ -41,7 +41,7 @@ export function compileRoute(
     segmentLengths,
     cumulativeLengths,
     totalLength,
-    durationSeconds: motion.duration,
+    durationSeconds: motion.duration + (path?.startAtSeconds ?? 0),
     motion,
     warnings: validateRoute(authoredPoints),
   };

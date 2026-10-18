@@ -12,6 +12,8 @@ export function sampleGoalie(base: PlaybackPlayerFrame, puck: Point | null, savi
   return {
     position: base.position,
     heading,
-    action: saving ? 'save' : Math.abs(puck.y - base.position.y) > 10 ? 'shuffle' : 'set',
+    // A stationary goalie tracks with the upper body; shuffling requires
+    // actual authored movement rather than feet sliding in place.
+    action: saving ? 'save' : base.speed > 4 ? 'shuffle' : 'set',
   };
 }

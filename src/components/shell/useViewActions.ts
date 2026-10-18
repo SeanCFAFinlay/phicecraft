@@ -15,8 +15,8 @@ import { TABLETOP_DEFAULT_TILT, TABLETOP_MIN_TILT } from '@/core/constants';
 import type { Zone } from '@/camera/cameraMath';
 import { loadBoard3D } from '@/render3d/loadBoard3D';
 
-/** A pleasing starting spin, matching the reference render. */
-const DEFAULT_ANGLE = -0.4;
+/** Enter a straight side view unless the coach already rotated the rink. */
+const DEFAULT_ANGLE = 0;
 const ANIMATION_MS = 380;
 
 /**
@@ -64,12 +64,13 @@ export function useViewActions() {
   );
 
   const animateTo = useCallback(
-    (targetRotation: number, targetTilt: number) => {
+    (targetRotation: number, targetTilt: number, fitAfter = false) => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
       // Reduced motion: change the view, just don't animate the change.
       if (prefersReducedMotion) {
         camera.setCamera({ ...camera.camera, rotation: targetRotation, tilt: targetTilt });
+        if (fitAfter) camera.fit();
         return;
       }
 
@@ -87,6 +88,7 @@ export function useViewActions() {
           tilt: startTilt + (targetTilt - startTilt) * k,
         });
         rafRef.current = raw < 1 ? requestAnimationFrame(step) : null;
+        if (raw === 1 && fitAfter) camera.fit();
       };
 
       rafRef.current = requestAnimationFrame(step);
@@ -107,7 +109,7 @@ export function useViewActions() {
     loadBoard3D()
       .then(() => {
         const rotation = camera.camera.rotation ?? 0;
-        animateTo(rotation === 0 ? DEFAULT_ANGLE : rotation, TABLETOP_DEFAULT_TILT);
+        animateTo(rotation === 0 ? DEFAULT_ANGLE : rotation, TABLETOP_DEFAULT_TILT, true);
       })
       .catch(error => {
         // Stay in 2D: never animate a tilt Board3D cannot actually render.
@@ -139,9 +141,9 @@ export function useViewActions() {
     toggle3D,
     spinLeft: () => spin(-0.35),
     spinRight: () => spin(0.35),
-    setPresetBroadcast: () => animateTo(-0.4, 0.55),
-    setPresetEndZone: () => animateTo(Math.PI / 2, 0.65),
-    setPresetTactical: () => animateTo(0, 0.95),
+    setPresetBroadcast: () => animateTo(0, 0.65, true),
+    setPresetEndZone: () => animateTo(Math.PI / 2, 0.65, true),
+    setPresetTactical: () => animateTo(0, 0.35, true),
     zoomToZone,
     cycleArea,
     toggleOrientation,

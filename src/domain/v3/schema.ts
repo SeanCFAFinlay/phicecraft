@@ -13,6 +13,7 @@
 // ============================================================================
 
 import { z } from 'zod';
+import { coachingSchema } from '@/domain/coachingSchema';
 import type {
   Actor,
   ActorGroup,
@@ -327,6 +328,7 @@ const annotation: z.ZodType<Annotation> = z.object({
 // ----------------------------------------------------------------------------
 
 const presentationSettings: z.ZodType<PresentationSettings> = z.object({
+  coaching: coachingSchema.optional(),
   durationSeconds: z.number(),
   jerseys: z.object({ home: z.string(), away: z.string() }),
   reducedEffects: z.boolean(),

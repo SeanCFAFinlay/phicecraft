@@ -16,6 +16,16 @@ import { LINEUP, clickWorld, dragWorld, openEditor } from './support';
 const require = createRequire(import.meta.url);
 const AXE_SOURCE = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
 
+test('coach workspace sections have no serious violations', async ({ page }) => {
+  await openEditor(page);
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /Coach workspace/ }).click();
+  for (const section of ['Explain', 'Teams', 'Import']) {
+    await page.getByRole('button', { name: section, exact: true }).click();
+    expect(await seriousViolations(page)).toEqual([]);
+  }
+});
+
 interface AxeViolation {
   id: string;
   impact: string | null;

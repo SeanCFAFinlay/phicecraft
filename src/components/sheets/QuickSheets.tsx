@@ -9,9 +9,12 @@
 // disclose.
 // ============================================================================
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { fitRegionCamera } from '@/camera/cameraMath';
 import { Sheet } from '../a11y/Sheet';
-import { useAppState, useCommands } from '@/hooks/useAppState';
+import { useAppState, useCommands, useAppServices } from '@/hooks/useAppState';
+import { useEditorRuntime } from '@/hooks/useEditorRuntime';
+import { loadBoard3D } from '@/render3d/loadBoard3D';
 import { getPuckChain } from '@/engine/puck';
 import { isReviewComplete } from '@/commands';
 import type { Tool } from '@/core/types';
@@ -35,6 +38,7 @@ import {
   ZoneRightIcon,
 } from '@/ui/icons';
 import { FORMATION_PRESETS, type PlayFormationPreset } from '@/engine/formations';
+import type { QuickSpot } from '@/engine/quickSetups';
 import { ModeSwitch } from '../shell/ModeSwitch';
 
 export function SheetItem({
@@ -95,8 +99,25 @@ export function SheetSection({ title, children }: { title: string; children: Rea
 export function AddSheet() {
   const { state, dispatch } = useAppState();
   const commands = useCommands();
+  const { camera } = useEditorRuntime();
+  const { announcer } = useAppServices();
+  const [loadingDemo, setLoadingDemo] = useState(false);
+  const [demoStartPending, setDemoStartPending] = useState(false);
   const open = state.ui.openSheet === 'add';
+  const [end, setEnd] = useState<'left' | 'right'>('right');
+  const [side, setSide] = useState<'top' | 'bottom'>('bottom');
+  const spot: QuickSpot = `${end}-${side}`;
   const close = () => dispatch({ type: 'CLOSE_SHEET' });
+
+  useEffect(() => {
+    if (!demoStartPending || state.ui.mode !== 'preview') return;
+    setDemoStartPending(false);
+    camera.setCamera(fitRegionCamera(
+      { x: 675, y: 180, width: 300, height: 180 }, camera.viewport,
+      { ...camera.camera, rotation: 0, tilt: 0.65 }
+    ));
+    commands.requestPlaybackStart();
+  }, [demoStartPending, state.ui.mode, camera, commands]);
 
   const choose = (tool: Tool) => {
     commands.setTool(tool);
@@ -108,13 +129,66 @@ export function AddSheet() {
     await commands.loadFormation(preset);
   };
 
+  const watchDemo = async () => {
+    if (loadingDemo) return;
+    setLoadingDemo(true);
+    try {
+      // Fetch the graphics and models before replacing the board or starting
+      // the clock, so a cold load cannot skip the faceoff introduction.
+      await loadBoard3D();
+      const { loadModel } = await import('@/render3d/modelCache');
+      await Promise.all([loadModel('skater'), loadModel('goalie')]);
+      close();
+      const result = await commands.loadFormation('showcase-faceoff');
+      if (result.status !== 'done') return;
+      // Start from the next committed render, after the new document reaches
+      // the command host and playback store (not in this async-event batch).
+      commands.setMode('preview');
+      setDemoStartPending(true);
+    } catch (error) {
+      console.error('Could not launch 3D demo', error);
+      announcer.announce('The 3D demo could not load. Choose Edit demo to open it on the flat rink.');
+    } finally { setLoadingDemo(false); }
+  };
+
   return (
     <Sheet
       open={open}
       title="Add to the rink"
-      description="Pick what to place, then tap empty ice."
+      description="Start a drill instantly, or add individual players and equipment."
       onClose={close}
     >
+      <section className="mx-4 my-3 rounded-xl border border-cyan-300/40 bg-cyan-400/10 p-3" aria-label="Complete demonstration drill">
+        <h3 className="text-sm font-bold text-cyan-100">Faceoff to finish</h3>
+        <p className="my-2 text-xs text-slate-300">3 attackers, a faceoff partner and goalie. Watch the win, two passes and a shot with a planned save.</p>
+        <div className="flex gap-2">
+          <button type="button" disabled={loadingDemo || state.ui.mode !== 'build'} onClick={() => void watchDemo()} className="touch-target flex-1 rounded-lg bg-cyan-400 px-3 text-sm font-bold text-slate-950 disabled:opacity-50">{loadingDemo ? 'Loading demo…' : 'Watch 3D demo'}</button>
+          <button type="button" disabled={loadingDemo || state.ui.mode !== 'build'} onClick={() => void applyPreset('showcase-faceoff')} className="touch-target rounded-lg border border-white/25 px-3 text-sm text-white disabled:opacity-50">Edit demo</button>
+        </div>
+      </section>
+      <SheetSection title="Quick drill commands">
+        <p className="px-3 pb-2 text-xs text-slate-300">Loads an editable lineup. Battles and dump-ins include routes. Undo restores your previous setup.</p>
+        <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+          <label className="text-xs text-slate-300">Rink end<select className="touch-target mt-1 block w-full rounded-lg border border-white/20 bg-slate-900 px-2 text-sm text-white" value={end} onChange={event => setEnd(event.target.value as typeof end)}><option value="left">Left end</option><option value="right">Right end</option></select></label>
+          <label className="text-xs text-slate-300">Board side<select className="touch-target mt-1 block w-full rounded-lg border border-white/20 bg-slate-900 px-2 text-sm text-white" value={side} onChange={event => setSide(event.target.value as typeof side)}><option value="top">Upper boards</option><option value="bottom">Lower boards</option></select></label>
+        </div>
+        <div className="grid grid-cols-2 gap-2 px-3 pb-2">
+          {([
+            ['faceoff-center', 'Centre faceoff', '5v5 · both goalies'],
+            [`faceoff-${spot}`, 'Zone faceoff', 'At the selected dot'],
+            ['pp-131', '5v4 power play', 'Your team attacks · 1-3-1'],
+            ['pk-box', '4v5 penalty kill', 'Your team defends · box'],
+            [`corner-${spot}`, 'Corner setup', 'Carrier, support & defender'],
+            [`dump-in-${spot}`, 'Dump-in', 'Puck flight, chase & retrieval'],
+            [`battle-1v1-${spot}`, '1v1 battle', 'Race to a loose corner puck'],
+            [`battle-2v2-${spot}`, '2v2 battle', 'Corner battle with support'],
+          ] satisfies [PlayFormationPreset, string, string][]).map(([id, label, detail]) => <button key={label} type="button" disabled={state.ui.mode !== 'build'} onClick={() => void applyPreset(id)} className="touch-target min-w-0 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-3 py-3 text-left text-cyan-100 hover:bg-cyan-400/20 disabled:opacity-40">
+            <span className="block text-sm font-bold">{label}</span><span className="mt-1 block text-xs text-slate-300">{detail}</span>
+          </button>)}
+        </div>
+        <p className="px-3 pb-2 text-xs text-slate-400">Location applies to zone faceoffs, corners, battles and dump-ins. Player counts exclude goalies. Your team is Home.</p>
+      </SheetSection>
+      <SheetSection title="Add individual players">
       <SheetItem
         icon={<SkaterIcon className="text-red-400" />}
         label="Home player"
@@ -143,6 +217,7 @@ export function AddSheet() {
         selected={state.ui.currentTool === 'coach'}
         onClick={() => choose('coach')}
       />
+      </SheetSection>
       <SheetSection title="Equipment">
         <SheetItem
           icon={<ConeIcon className="text-orange-400" />}
@@ -173,8 +248,8 @@ export function AddSheet() {
           onClick={() => choose('barrier')}
         />
       </SheetSection>
-      <SheetSection title="Tactical Formations">
-        {FORMATION_PRESETS.map(preset => (
+      <SheetSection title="More systems">
+        {FORMATION_PRESETS.filter(preset => preset.id === 'breakout-5v5' || preset.id === 'rush-3v2').map(preset => (
           <SheetItem
             key={preset.id}
             icon={<FormationIcon className="text-app-cyan" />}

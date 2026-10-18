@@ -323,6 +323,14 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       dispatch({ type: 'UPDATE_PLAYER_VISUAL', id, visual });
     },
 
+    updatePlayerIdentity(id, identity) {
+      dispatch({ type: 'UPDATE_PLAYER_IDENTITY', id, ...identity, name: identity.name ?? '' });
+    },
+
+    setCoaching(coaching) {
+      dispatch({ type: 'SET_COACHING', coaching });
+    },
+
     setJersey(team, hex) {
       dispatch({ type: 'SET_JERSEY', team, hex });
     },
@@ -935,6 +943,7 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
 
     async loadFormation(preset: PlayFormationPreset) {
       const state = getState();
+      if (state.ui.mode !== 'build') return reject('Switch to Build to apply a quick setup.');
       const hasContent = state.drill.skatePaths.length > 0 || state.drill.events.length > 0;
       if (hasContent && !(await host.confirm(CONFIRMATIONS.loadFormation))) {
         return { status: 'cancelled' };
@@ -942,11 +951,43 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
 
       const definition = getFormationPreset(preset);
       const players = definition.players();
+      const available = state.drill.players.filter(player => player.name?.trim());
+      for (const player of players) {
+        let index = available.findIndex(existing => existing.team === player.team && existing.role === player.role);
+        if (index < 0) index = available.findIndex(existing => existing.team === player.team && (existing.role === 'G') === (player.role === 'G'));
+        if (index >= 0) {
+          const [existing] = available.splice(index, 1);
+          player.name = existing.name;
+          player.number = existing.number;
+          player.visual = existing.visual;
+        }
+      }
+      for (const player of players.filter(item => !item.name)) {
+        if (players.some(other => other !== player && other.team === player.team && other.number === player.number)) {
+          player.number = nextPlayerNumber(players, player.team);
+        }
+      }
+      const sequence = definition.sequence?.(players);
+      const settings = definition.settings || definition.coaching ? {
+        assistance: 'standard' as const, recovery: 'authored' as const, timeLimitSeconds: DEFAULT_DRILL_DURATION, reducedEffects: false,
+        ...state.drill.settings, ...definition.settings,
+        ...(definition.coaching ? { coaching: {
+          teams: { home: 'Home', away: 'Away' },
+          ...state.drill.settings?.coaching, ...definition.coaching,
+        } } : {}),
+      } : undefined;
       dispatch({
         type: 'SET_FORMATION',
         players,
         initialPuck: definition.initialPuck,
+        skatePaths: sequence?.skatePaths,
+        events: sequence?.events,
+        settings,
       });
+      host.camera.setCamera({ ...host.camera.camera, tilt: 0, rotation: 0 });
+      const zone = preset.includes('-left-') || preset === 'pk-box' || preset === 'breakout-5v5' ? 'defensive'
+        : preset.includes('-right-') || preset === 'pp-131' || preset === 'faceoff-ozone' || preset === 'showcase-faceoff' ? 'offensive' : 'full';
+      host.camera.zoomToZone(zone);
 
       notify.toast({
         message: `${definition.title} formation loaded`,
