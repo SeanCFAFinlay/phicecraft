@@ -37,7 +37,46 @@ export function ActionChip() {
   const { isTouch } = useResponsive();
 
   const pending = state.pendingAction;
-  if (pending.kind === 'none') return null;
+  const tool = state.ui.currentTool;
+  const isPlacing = tool !== 'move';
+
+  if (pending.kind === 'none' && !isPlacing) return null;
+
+  if (pending.kind === 'none' && isPlacing) {
+    const TOOL_LABELS: Record<string, string> = {
+      home: 'Placing Home Skater',
+      away: 'Placing Away Skater',
+      goalie: 'Placing Goalie',
+      coach: 'Placing Coach',
+      cone: 'Placing Cone',
+      tire: 'Placing Tire',
+      'mini-net': 'Placing Mini-Net',
+      barrier: 'Placing Divider Barrier',
+    };
+    const label = TOOL_LABELS[tool] ?? 'Placing Item';
+
+    return (
+      <div className={`${CHIP_LANE} justify-center`}>
+        <div
+          role="status"
+          aria-live="polite"
+          className="rink-chip pointer-events-auto flex max-w-[min(560px,94vw)] items-center gap-3 rounded-2xl border border-app-cyan/35 bg-[#071522]/95 px-3 py-1.5 shadow-xl backdrop-blur-md"
+        >
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-black text-app-cyan">{label}</div>
+            <div className="truncate text-[11.5px] text-white/70">Tap anywhere on the ice to drop · click Done to finish</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => commands.setTool('move')}
+            className="touch-target shrink-0 rounded-xl bg-app-cyan px-3 py-1 text-[11.5px] font-black text-[#041019] hover:bg-cyan-300 transition-all shadow"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const subjectId =
     'playerId' in pending ? pending.playerId : 'coachId' in pending ? pending.coachId : null;

@@ -77,6 +77,7 @@ export function FirstRunHint() {
   if (state.ui.mode !== 'build') return null;
   if (isCompactLandscape) return null;
   if (state.pendingAction.kind !== 'none') return null;
+  if (state.ui.currentTool !== 'move') return null;
   if (stage === null) return null;
 
   const dismiss = () => {

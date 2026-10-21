@@ -25,6 +25,7 @@ import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useHoldProgress } from '@/hooks/useEditorRuntime';
 import { useResponsive } from '@/ui/useResponsive';
 import { PuckActionButtons } from './PuckActions';
+import { usePuckActions } from '@/hooks/usePuckActions';
 import { ToolDock } from './ToolDock';
 
 export function ContextTray() {
@@ -32,6 +33,7 @@ export function ContextTray() {
   const commands = useCommands();
   const hold = useHoldProgress();
   const { isPhone, isCompactLandscape } = useResponsive();
+  const { carrier } = usePuckActions();
 
   const playerId = state.selection.selectedPlayerId;
   const eventId = state.selection.selectedEventId;
@@ -94,6 +96,18 @@ export function ContextTray() {
               what makes a four-pass chain four taps: each pass selects the
               receiver, so the next Pass button is already under the thumb. */}
           {player && <PuckActionButtons onlyFor={player.id} compact={isPhone} />}
+
+          {player && carrier?.id !== player.id && (
+            <button
+              type="button"
+              onClick={() => void commands.setPuckCarrier(player.id)}
+              aria-label={`Give puck to #${player.number}`}
+              className="touch-target flex shrink-0 items-center gap-1.5 rounded-xl border border-app-gold/45 bg-app-gold/15 px-3 text-[12px] font-bold text-app-gold hover:bg-app-gold/25 transition-all shadow-sm"
+            >
+              <span>🏒</span>
+              <span>Give Puck</span>
+            </button>
+          )}
 
           <button
             type="button"

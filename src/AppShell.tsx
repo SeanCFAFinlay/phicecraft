@@ -23,6 +23,7 @@ import { TABLETOP_MIN_TILT } from '@/core/constants';
 import { loadBoard3D } from '@/render3d/loadBoard3D';
 import { CanvasSurface } from '@/components/canvas/CanvasSurface';
 import { TopStrip } from '@/components/shell/TopStrip';
+import { TacticalBar } from '@/components/shell/TacticalBar';
 import { ContextTray } from '@/components/shell/ContextTray';
 import { Transport } from '@/components/shell/Transport';
 import { PreviewBar } from '@/components/shell/PreviewBar';
@@ -142,6 +143,7 @@ export function AppShell() {
   return (
     <div className="app-chrome flex h-full w-full flex-col overflow-hidden bg-app-bg text-app-text">
       {mode !== 'present' && <TopStrip />}
+      {mode === 'build' && <TacticalBar />}
 
       <main className="relative min-h-0 flex-1 overflow-hidden bg-[#0a1520]">
         {is3D ? (
