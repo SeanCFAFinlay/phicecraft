@@ -28,9 +28,9 @@
     --touch-target: 44px;
 
     /* Chrome heights, overridden per breakpoint below. */
-    --top-strip-height: 52px;
-    --tool-dock-height: 64px;
-    --transport-height: 56px;
+    --top-strip-height: 50px;
+    --tool-dock-height: 58px;
+    --transport-height: 48px;
 
     /* Responsive spacing scale. */
     --gap-xs: 4px;
@@ -59,9 +59,9 @@
 
   @media (min-width: 1024px) {
     :root {
-      --top-strip-height: 56px;
-      --tool-dock-height: 68px;
-      --transport-height: 64px;
+      --top-strip-height: 52px;
+      --tool-dock-height: 60px;
+      --transport-height: 48px;
     }
   }
 

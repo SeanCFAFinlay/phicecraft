@@ -85,12 +85,11 @@ export function FirstRunHint() {
   };
 
   return (
-    <div className="app-chrome safe-x z-20 flex flex-shrink-0 justify-center border-b border-app-border bg-[#071522] px-2 py-1.5">
+    <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-30 flex w-full max-w-[min(680px,94vw)] justify-center px-2">
       <div
         role="status"
         aria-live="polite"
-        className="rink-chip pointer-events-auto flex max-w-[min(680px,94vw)] flex-wrap items-center gap-2 rounded-2xl px-3 py-1"
-      >
+        className="pointer-events-auto flex w-full flex-wrap items-center gap-2 rounded-2xl border border-app-cyan/30 bg-[#071522]/95 px-3 py-1.5 shadow-2xl backdrop-blur-md">
         <div className="min-w-0 flex-1 [text-wrap:balance] text-[13px] font-black leading-tight text-app-gold">
           {MESSAGE[stage]}
         </div>
