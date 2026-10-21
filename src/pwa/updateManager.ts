@@ -60,7 +60,20 @@ export async function registerServiceWorker({
   enabled,
   scriptUrl = '/sw.js',
 }: RegisterOptions): Promise<ServiceWorkerRegistration | null> {
-  if (!enabled || !serviceWorkerSupported()) return null;
+  if (!enabled) {
+    if (serviceWorkerSupported()) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      } catch {
+        // Ignore unregister errors in dev
+      }
+    }
+    return null;
+  }
+  if (!serviceWorkerSupported()) return null;
 
   try {
     // Whether anything was already in charge BEFORE this registration. The
