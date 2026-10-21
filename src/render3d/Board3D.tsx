@@ -39,6 +39,7 @@ import { createGoalNets } from './scene/goalNet';
 import { createRouteOverlay3D } from './scene/routeOverlay';
 import { createEquipmentOverlay3D } from './scene/equipment3D';
 import { actorSignature } from './actorSignature';
+import { getTargetNet } from '@/engine/puck';
 import {
   createActor,
   createCoachMarker,
@@ -228,6 +229,15 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     // internally, so nothing else needs to be rebuilt here.
     const onContextRestored = () => render();
     renderer.domElement.addEventListener('webglcontextrestored', onContextRestored);
+
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __BOARD3D__: unknown }).__BOARD3D__ = {
+        camera: perspectiveCamera,
+        scene,
+        renderer,
+        drillRef,
+      };
+    }
 
     return () => {
       unsubscribe();
@@ -494,6 +504,61 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     return () => { scene.remove(equipment.root); equipment.dispose(); };
   }, [state.drill.equipment, sceneEpoch, quality]);
 
+  const transientRouteGroupRef = useRef<THREE.Group | null>(null);
+  const transientRouteMeshRef = useRef<THREE.Mesh | null>(null);
+  const drawingRouteRef = useRef<Point[] | null>(null);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const group = new THREE.Group();
+    group.name = 'transient-routes';
+    scene.add(group);
+    transientRouteGroupRef.current = group;
+    return () => {
+      if (transientRouteMeshRef.current) {
+        group.remove(transientRouteMeshRef.current);
+        transientRouteMeshRef.current.geometry.dispose();
+        (transientRouteMeshRef.current.material as THREE.Material).dispose();
+        transientRouteMeshRef.current = null;
+      }
+      scene.remove(group);
+      transientRouteGroupRef.current = null;
+    };
+  }, [sceneEpoch]);
+
+  const updateTransientRoute = useCallback((pts: Point[]) => {
+    const group = transientRouteGroupRef.current;
+    if (!group || pts.length < 2) return;
+    if (transientRouteMeshRef.current) {
+      group.remove(transientRouteMeshRef.current);
+      transientRouteMeshRef.current.geometry.dispose();
+      (transientRouteMeshRef.current.material as THREE.Material).dispose();
+      transientRouteMeshRef.current = null;
+    }
+    const worldPoints = pts.map(p => {
+      const w = rinkToWorld(p);
+      return new THREE.Vector3(w.x, 0.03, w.z);
+    });
+    const curve = new THREE.CatmullRomCurve3(worldPoints);
+    const geometry = new THREE.TubeGeometry(curve, Math.max(16, pts.length * 2), 0.04, 6, false);
+    const material = new THREE.MeshBasicMaterial({ color: '#00e5ff' });
+    const mesh = new THREE.Mesh(geometry, material);
+    group.add(mesh);
+    transientRouteMeshRef.current = mesh;
+    renderRef.current();
+  }, []);
+
+  const clearTransientRoute = useCallback(() => {
+    const group = transientRouteGroupRef.current;
+    if (!group || !transientRouteMeshRef.current) return;
+    group.remove(transientRouteMeshRef.current);
+    transientRouteMeshRef.current.geometry.dispose();
+    (transientRouteMeshRef.current.material as THREE.Material).dispose();
+    transientRouteMeshRef.current = null;
+    renderRef.current();
+  }, []);
+
   // --------------------------------------------------------------------------
   // Orbit gestures - drag to spin, wheel/pinch to zoom. View-only: nothing
   // here selects a player or edits the drill (that stays CanvasSurface's
@@ -526,6 +591,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     if (!container || !camera) return null;
     const rect = container.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return null;
+    camera.updateMatrixWorld();
     mouseVecRef.current.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     mouseVecRef.current.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycasterRef.current.setFromCamera(mouseVecRef.current, camera);
@@ -533,7 +599,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     return raycasterRef.current.ray.intersectPlane(icePlaneRef.current, target);
   }, []);
 
-  const findPlayerNear = useCallback((icePoint: THREE.Vector3, thresholdMeters = 1.8): Player | null => {
+  const findPlayerNear = useCallback((icePoint: THREE.Vector3, thresholdMeters = 3.5): Player | null => {
     const drill = drillRef.current;
     let closest: Player | null = null;
     let closestDistSq = thresholdMeters * thresholdMeters;
@@ -561,6 +627,10 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
 
       if (pointersRef.current.size >= 2) {
         draggingPlayerRef.current = null;
+        if (drawingRouteRef.current) {
+          drawingRouteRef.current = null;
+          clearTransientRoute();
+        }
         beginPinchFromCurrentPointers();
         return;
       }
@@ -570,9 +640,44 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       // 3D Raycasting against ice & players
       const iceHit = getIceIntersection(event.clientX, event.clientY);
       const tool = state.ui.currentTool;
+      const pending = state.pendingAction;
+      const selectedPlayerId = state.selection.selectedPlayerId;
 
       if (iceHit) {
         const rinkPt = worldToRink({ x: iceHit.x, z: iceHit.z });
+
+        // If in 'draw-route' mode, start authoring a route in 3D
+        if (pending.kind === 'draw-route' && !state.playback.isPlaying) {
+          drawingRouteRef.current = [rinkPt];
+          dragRef.current = null;
+          return;
+        }
+
+        // If in 'pass' mode in 3D
+        if (pending.kind === 'pass' && !state.playback.isPlaying) {
+          const hitPlayer = findPlayerNear(iceHit);
+          const passer = drillRef.current.players.find(p => p.id === pending.playerId);
+          if (hitPlayer) {
+            if (hitPlayer.id === pending.playerId) return;
+            if (passer && hitPlayer.team === passer.team) {
+              commands.requestPass(pending.playerId, hitPlayer.id);
+              commands.cancelPendingAction();
+            } else {
+              commands.guide('Cannot pass to an opponent.');
+            }
+          } else {
+            const targetNet = passer ? getTargetNet(passer.team) : null;
+            const distToNet = targetNet ? Math.hypot(rinkPt.x - targetNet.x, rinkPt.y - targetNet.y) : 999;
+            if (distToNet < 25) {
+              commands.requestShot(pending.playerId, rinkPt);
+            } else {
+              commands.requestDump(pending.playerId, rinkPt);
+            }
+            commands.cancelPendingAction();
+          }
+          dragRef.current = null;
+          return;
+        }
 
         // Placement tools: tap ice in 3D to drop player or equipment
         if (tool === 'home' || tool === 'away' || tool === 'goalie') {
@@ -588,14 +693,21 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
           return;
         }
 
-        // Move / selection tool
-        if (tool === 'move' && !state.playback.isPlaying) {
+        // Player selection & dragging on 3D ice
+        if (!state.playback.isPlaying) {
           const hitPlayer = findPlayerNear(iceHit);
           if (hitPlayer) {
-            commands.selectPlayer(hitPlayer.id);
+            if (selectedPlayerId === hitPlayer.id) {
+              commands.openPlayerInspector(hitPlayer.id);
+            } else {
+              commands.selectPlayer(hitPlayer.id);
+            }
             draggingPlayerRef.current = { id: hitPlayer.id, hasMoved: false };
             dragRef.current = null;
             return;
+          } else if (selectedPlayerId) {
+            commands.selectPlayer(null);
+            commands.cancelPendingAction();
           }
         }
       }
@@ -607,7 +719,18 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         startRotation: cameraStore.camera.rotation ?? 0,
       };
     },
-    [cameraStore, beginPinchFromCurrentPointers, getIceIntersection, findPlayerNear, state.ui.currentTool, state.playback.isPlaying, commands]
+    [
+      cameraStore,
+      beginPinchFromCurrentPointers,
+      getIceIntersection,
+      findPlayerNear,
+      state.ui.currentTool,
+      state.pendingAction,
+      state.selection.selectedPlayerId,
+      state.playback.isPlaying,
+      commands,
+      clearTransientRoute,
+    ]
   );
 
   const handlePointerMove = useCallback(
@@ -621,6 +744,20 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         const zoom = zoomFromPinch(pinch.startZoom, pinch.startDistance, pointerDistance(a, b));
         cameraStore.setCamera({ ...cameraStore.camera, zoom });
         return;
+      }
+
+      // If drawing a route in 3D
+      if (drawingRouteRef.current && !state.playback.isPlaying) {
+        const iceHit = getIceIntersection(event.clientX, event.clientY);
+        if (iceHit) {
+          const rinkPt = worldToRink({ x: iceHit.x, z: iceHit.z });
+          const last = drawingRouteRef.current[drawingRouteRef.current.length - 1];
+          if (Math.hypot(rinkPt.x - last.x, rinkPt.y - last.y) >= 2.0) {
+            drawingRouteRef.current.push(rinkPt);
+            updateTransientRoute(drawingRouteRef.current);
+          }
+          return;
+        }
       }
 
       // If dragging a player in 3D
@@ -640,7 +777,13 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         cameraStore.setCamera({ ...cameraStore.camera, rotation });
       }
     },
-    [cameraStore, getIceIntersection, commands, state.playback.isPlaying]
+    [
+      cameraStore,
+      getIceIntersection,
+      commands,
+      state.playback.isPlaying,
+      updateTransientRoute,
+    ]
   );
 
   /** Shared by pointerup/pointercancel: drop the finger, and resume whatever gesture the remaining fingers (if any) imply. */
@@ -653,6 +796,16 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         }
       } catch {
         /* pointer release fallback */
+      }
+
+      // If drawing a route finished in 3D
+      if (drawingRouteRef.current) {
+        if (drawingRouteRef.current.length >= 2 && state.pendingAction?.kind === 'draw-route') {
+          commands.commitRoute(state.pendingAction.playerId, drawingRouteRef.current);
+          commands.cancelPendingAction();
+        }
+        drawingRouteRef.current = null;
+        clearTransientRoute();
       }
 
       draggingPlayerRef.current = null;
@@ -668,7 +821,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         ? { pointerId: remaining[0], startX: remaining[1].x, startRotation: cameraStore.camera.rotation ?? 0 }
         : null;
     },
-    [cameraStore, beginPinchFromCurrentPointers]
+    [cameraStore, beginPinchFromCurrentPointers, state.pendingAction, commands, clearTransientRoute]
   );
 
   // Native, not React's onWheel: React's synthetic wheel listener is passive

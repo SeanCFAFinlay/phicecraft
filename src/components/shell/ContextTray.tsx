@@ -92,6 +92,18 @@ export function ContextTray() {
             </button>
           )}
 
+          {player && (
+            <button
+              type="button"
+              onClick={() => commands.setPendingAction({ kind: 'draw-route', playerId: player.id })}
+              aria-label={`Draw route for #${player.number}`}
+              className="touch-target flex shrink-0 items-center gap-1.5 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 text-[12px] font-bold text-cyan-200 hover:bg-cyan-500/20 transition-all shadow-sm"
+            >
+              <span>⛸️</span>
+              <span>Skate</span>
+            </button>
+          )}
+
           {/* The player holding the puck can pass or shoot from here, which is
               what makes a four-pass chain four taps: each pass selects the
               receiver, so the next Pass button is already under the thumb. */}
