@@ -67,7 +67,7 @@ function DockButton({
       aria-haspopup={ariaHasPopup ? 'dialog' : undefined}
       aria-expanded={ariaHasPopup ? ariaExpanded : undefined}
       style={active && accent ? { borderColor: accent, color: accent, backgroundColor: `${accent}22` } : undefined}
-      className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 transition-all duration-150 disabled:opacity-35 lg:max-w-44 ${
+      className={`touch-target flex flex-1 flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-xl border-2 px-2.5 py-1 sm:py-1.5 transition-all duration-150 disabled:opacity-35 lg:max-w-44 ${
         active && !accent
           ? 'border-app-cyan bg-app-cyan/20 text-app-cyan shadow-[0_0_12px_rgba(0,229,255,0.25)]'
           : active
@@ -186,7 +186,7 @@ export function ToolDock({
           type="button"
           onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
           aria-label={isPlaying ? 'Stop playback' : 'Play drill'}
-          className={`touch-target flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-2 py-1.5 font-bold transition-all duration-150 lg:max-w-44 ${
+          className={`touch-target flex flex-1 flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-xl border-2 px-2.5 py-1 sm:py-1.5 font-bold transition-all duration-150 lg:max-w-44 ${
             isPlaying
               ? 'border-red-400 bg-gradient-to-b from-red-500 to-red-600 text-white shadow-[0_0_14px_rgba(239,68,68,0.4)]'
               : 'border-cyan-400 bg-gradient-to-b from-cyan-400 to-cyan-500 text-[#03121c] shadow-[0_0_14px_rgba(0,229,255,0.35)] hover:brightness-105 active:scale-95'

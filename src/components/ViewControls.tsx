@@ -24,16 +24,13 @@
 import { useAppState } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
 import { useViewActions } from '@/components/shell/useViewActions';
-import { FitIcon, OrientationIcon, RotateLeftIcon, RotateRightIcon } from '@/ui/icons';
+import { FitIcon, RotateLeftIcon, RotateRightIcon } from '@/ui/icons';
 
 export function ViewControls() {
   const { dispatch } = useAppState();
   const { isCompactLandscape, isPhone } = useResponsive();
   const {
-    currentArea,
-    nextArea,
     is3D,
-    isVerticalBoard,
     loadingBoard3D,
     toggle3D,
     spinLeft,
@@ -41,8 +38,6 @@ export function ViewControls() {
     setPresetBroadcast,
     setPresetEndZone,
     setPresetTactical,
-    cycleArea,
-    toggleOrientation,
     fit,
   } = useViewActions();
 
@@ -67,7 +62,7 @@ export function ViewControls() {
 
   return (
     <div
-      className={`absolute right-2 z-20 flex flex-col gap-1.5 ${isCompactLandscape ? 'top-2' : 'top-14'}`}
+      className={`absolute right-2.5 z-20 flex flex-col gap-1.5 ${isCompactLandscape ? 'top-2' : 'top-3'}`}
     >
       <button
         type="button"
@@ -139,46 +134,16 @@ export function ViewControls() {
         </>
       )}
 
-      {/* Which patch of ice to work on. The zone views frame the real region -
-          end boards to the blue line, plus a little neutral ice, because the
-          entry into the zone is most of the coaching. */}
-      {!is3D && (
+      {is3D && (
         <button
           type="button"
-          onClick={cycleArea}
-          aria-label={`Showing ${currentArea.description}. Tap for ${nextArea.description}.`}
-          className={`${button} px-1.5 text-[10px] font-black tracking-tight`}
+          onClick={fit}
+          aria-label="Fit the whole rink in view"
+          className={`${button} text-[13px]`}
         >
-          {currentArea.label}
+          <FitIcon size={16} />
         </button>
       )}
-
-      {/* Turning the board is what makes a full sheet usable on an upright
-          phone. It is chosen automatically on a resize, and this is how a
-          coach overrules that - so it is hidden in the tabletop, where
-          rotation means the orbit angle instead. */}
-      {!is3D && (
-        <button
-          type="button"
-          onClick={toggleOrientation}
-          aria-pressed={isVerticalBoard}
-          aria-label={
-            isVerticalBoard ? 'Lay the rink across the screen' : 'Turn the rink up the screen'
-          }
-          className={`${button} px-2 text-[12px] font-black`}
-        >
-          <OrientationIcon size={16} />
-        </button>
-      )}
-
-      <button
-        type="button"
-        onClick={fit}
-        aria-label="Fit the whole rink in view"
-        className={`${button} text-[13px]`}
-      >
-        <FitIcon size={16} />
-      </button>
     </div>
   );
 }

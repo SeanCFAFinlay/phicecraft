@@ -35,9 +35,7 @@ import type { AnimatedPuck, Player, PlaybackPlayerFrame } from '@/core/types';
 import { PLAYER_RADIUS, GOALIE_RING_OFFSET, ROUTE_HANDLE_OFFSET, ROUTE_HANDLE_RADIUS } from '@/core/constants';
 import { getSkaterPalette, type SkaterPalette } from '@/canvas/skater/skaterPalette';
 import { getBladePosition } from '@/sim/skaterMotor';
-import { HOCKEY_SPRITES } from '@/canvas/HockeySpriteAtlas';
 import { PUCK_MARKER_RX, PUCK_MARKER_RY } from '@/canvas/puckMarker';
-import { getHockeySpritesheet, regionAnchor, type AtlasRegion } from './spriteAtlas';
 import type { RenderQuality } from '@/render/quality';
 
 export interface PlayerVisualOptions {
@@ -65,11 +63,11 @@ export interface PlayerVisualOptions {
 }
 
 const NUMBER_STYLE: TextStyleOptions = {
-  fontSize: 12,
+  fontSize: 13,
   fontWeight: '900',
-  fontFamily: 'Arial, sans-serif',
+  fontFamily: 'Inter, system-ui, -apple-system, Arial, sans-serif',
   fill: '#ffffff',
-  stroke: { color: 'rgba(0,0,0,.7)', width: 2.6 },
+  stroke: { color: 'rgba(5, 15, 25, 0.9)', width: 3 },
 };
 
 /** Mirrors PlayerRenderer.ts's private `createDesignFrame` - the same synthetic frame when nothing is playing back. */
@@ -292,27 +290,38 @@ function drawVectorBody(
   effectsEnabled: boolean
 ): void {
   token.shadow.clear();
+  const bodyR = isGoalie ? r * 1.15 : r * 0.95;
   if (effectsEnabled) {
-    // A pre-tessellated alpha-gradient ellipse, no BlurFilter - the brief's
-    // explicit rule for the skater contact shadow.
-    token.shadow.ellipse(-r * 0.08, r * 0.22, r * 1.28, r * 0.72).fill({ color: 0x09161f, alpha: 0.28 });
+    // Balanced centered contact shadow grounds the player on the ice surface
+    token.shadow.ellipse(0, 0, bodyR * 1.05, bodyR * 0.95).fill({ color: 0x071520, alpha: 0.22 });
   }
 
   token.stick.clear();
   token.stick
-    .moveTo(-r * 0.3, 0)
-    .lineTo(blade.x - r * 0.15, blade.y)
-    .stroke({ color: 0x8a5a34, width: 2.6, cap: 'round', join: 'round' });
+    .moveTo(-r * 0.2, 0)
+    .lineTo(blade.x - r * 0.12, blade.y)
+    .stroke({ color: 0xc89a58, width: 2.8, cap: 'round', join: 'round' })
+    .moveTo(blade.x - r * 0.12, blade.y)
+    .lineTo(blade.x, blade.y)
+    .stroke({ color: 0x1a1a1a, width: 3.2, cap: 'round' }); // blade tape
 
-  const bodyR = isGoalie ? r * 1.15 : r * 0.92;
   token.vectorBody
     .clear()
-    .ellipse(0, 0, bodyR * 0.7, bodyR * 0.86)
+    // Soft outer ring for crisp contrast on light ice
+    .ellipse(0, 0, bodyR * 0.82, bodyR * 0.88)
+    .stroke({ color: 0xffffff, alpha: 0.95, width: 2.2 })
+    // Solid team jersey
+    .ellipse(0, 0, bodyR * 0.78, bodyR * 0.84)
     .fill({ color: shadeToNumber(palette.jersey) })
     .stroke({ color: shadeToNumber(palette.jerseyDark), width: 1.4 })
-    .circle(bodyR * 0.66, 0, bodyR * 0.36)
+    // Directional helmet facing forward
+    .circle(bodyR * 0.68, 0, bodyR * 0.38)
     .fill({ color: shadeToNumber(palette.helmet) })
-    .stroke({ color: 0x0a1420, width: 1 });
+    .stroke({ color: 0x07111a, width: 1.5 })
+    // Visor / cage detail
+    .moveTo(bodyR * 0.78, -bodyR * 0.2)
+    .lineTo(bodyR * 0.78, bodyR * 0.2)
+    .stroke({ color: 0x4fc3f7, alpha: 0.75, width: 1.5 });
 }
 
 export interface UpdatePlayerTokenArgs {
@@ -350,44 +359,12 @@ export function updatePlayerToken(token: PlayerToken, { player, options, quality
 
   const blade = localBlade(player, frame);
 
-  // Custom-jersey -> vector-fallback rule, identical to Canvas
-  // (SkaterRenderer.ts / GoalieRenderer.ts): a pre-rendered atlas texture
-  // bakes in the classic red/blue jerseys, so a jersey override falls back
-  // to the procedural body, which honours the palette.
-  const defaultHex = player.team === 'home' ? '#e63946' : '#2f80ed';
-  const customJersey = !!options.jersey && options.jersey.toLowerCase() !== defaultHex;
-  const sheet = customJersey ? null : getHockeySpritesheet();
-
-  if (sheet) {
-    const key = isGoalie
-      ? player.team === 'home'
-        ? 'homeGoalie'
-        : 'awayGoalie'
-      : player.team === 'home'
-        ? 'homeSkater'
-        : 'awaySkater';
-    const region: AtlasRegion = HOCKEY_SPRITES[key as keyof typeof HOCKEY_SPRITES];
-    const texture = sheet.textures[key];
-    token.sprite.texture = texture;
-    const anchor = regionAnchor(region);
-    token.sprite.anchor.set(anchor.x, anchor.y);
-    const drawWidth = isGoalie ? 66 : 62;
-    const scale = drawWidth / region.width;
-    token.sprite.scale.set(scale, (player.team === 'away' ? -1 : 1) * scale);
-    token.sprite.visible = true;
-    token.vectorBody.visible = false;
-    token.stick.visible = false;
-    token.shadow.visible = effectsEnabled(quality);
-    if (effectsEnabled(quality)) {
-      token.shadow.clear().ellipse(-r * 0.08, r * 0.22, r * 1.15, r * 0.62).fill({ color: 0x09161f, alpha: 0.26 });
-    }
-  } else {
-    token.sprite.visible = false;
-    token.vectorBody.visible = true;
-    token.stick.visible = true;
-    token.shadow.visible = true;
-    drawVectorBody(token, r, isGoalie, palette, blade, effectsEnabled(quality));
-  }
+  // Vector player token honoring team palette and crisp centered typography
+  token.sprite.visible = false;
+  token.vectorBody.visible = true;
+  token.stick.visible = true;
+  token.shadow.visible = true;
+  drawVectorBody(token, r, isGoalie, palette, blade, effectsEnabled(quality));
 
   token.number.text = player.number;
   token.number.rotation = -heading - options.screenRotation;

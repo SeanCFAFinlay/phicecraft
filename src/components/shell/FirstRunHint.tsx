@@ -86,42 +86,44 @@ export function FirstRunHint() {
   };
 
   return (
-    <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-30 flex w-full max-w-[min(680px,94vw)] justify-center px-2">
+    <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 z-30 flex w-full max-w-[min(580px,94vw)] justify-center px-2">
       <div
         role="status"
         aria-live="polite"
-        className="pointer-events-auto flex w-full flex-wrap items-center gap-2 rounded-2xl border border-app-cyan/30 bg-[#071522]/95 px-3 py-1.5 shadow-2xl backdrop-blur-md">
-        <div className="min-w-0 flex-1 [text-wrap:balance] text-[13px] font-black leading-tight text-app-gold">
+        className="pointer-events-auto flex w-full items-center justify-between gap-2 rounded-xl border border-app-cyan/30 bg-[#071522]/90 px-3 py-1 shadow-xl backdrop-blur-md">
+        <div className="min-w-0 flex-1 truncate text-[12px] font-bold leading-tight text-app-gold">
           {MESSAGE[stage]}
         </div>
-        <button
-          type="button"
-          onClick={async () => {
-            await commands.useTemplate('tpl-play-131-power-play');
-            dismiss();
-          }}
-          className="touch-target inline-flex shrink-0 items-center gap-1 rounded-xl bg-app-cyan px-2.5 py-1 text-[11.5px] font-black text-[#041019] shadow hover:bg-cyan-300 transition-all"
-        >
-          ▶ Load Example Play
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            dispatch({ type: 'OPEN_SHEET', sheet: 'library' });
-            dismiss();
-          }}
-          className="touch-target hidden sm:inline-flex shrink-0 items-center gap-1 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-2.5 py-1 text-[11.5px] font-bold text-app-cyan hover:bg-app-cyan/25 transition-all"
-        >
-          📚 Browse Drills
-        </button>
-        <button
-          type="button"
-          onClick={dismiss}
-          aria-label="Dismiss hint"
-          className="touch-target shrink-0 rounded-xl border border-app-border bg-white/5 px-2.5 text-[12px] font-bold text-app-text hover:bg-white/10"
-        >
-          Dismiss
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={async () => {
+              await commands.useTemplate('tpl-play-131-power-play');
+              dismiss();
+            }}
+            className="touch-target inline-flex items-center gap-1 rounded-lg bg-app-cyan px-2 py-0.5 text-[11px] font-black text-[#041019] shadow hover:bg-cyan-300 transition-all"
+          >
+            ▶ Example
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              dispatch({ type: 'OPEN_SHEET', sheet: 'library' });
+              dismiss();
+            }}
+            className="touch-target hidden md:inline-flex items-center gap-1 rounded-lg border border-app-cyan/40 bg-app-cyan/15 px-2 py-0.5 text-[11px] font-bold text-app-cyan hover:bg-app-cyan/25 transition-all"
+          >
+            📚 Drills
+          </button>
+          <button
+            type="button"
+            onClick={dismiss}
+            aria-label="Dismiss hint"
+            className="touch-target rounded-lg border border-app-border bg-white/5 px-2 py-0.5 text-[11px] font-bold text-app-text hover:bg-white/10"
+          >
+            ✕
+          </button>
+        </div>
       </div>
     </div>
   );
