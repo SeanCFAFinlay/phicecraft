@@ -78,6 +78,7 @@ export function FirstRunHint() {
   if (isCompactLandscape) return null;
   if (state.pendingAction.kind !== 'none') return null;
   if (state.ui.currentTool !== 'move') return null;
+  if (state.ui.activeToast !== null) return null;
   if (stage === null) return null;
 
   const dismiss = () => {

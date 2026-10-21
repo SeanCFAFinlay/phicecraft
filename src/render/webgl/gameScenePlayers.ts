@@ -250,8 +250,15 @@ function updateRouteHandle(token: PlayerToken, options: PlayerVisualOptions): vo
   token.routeHandleGraphic
     .clear()
     .circle(0, 0, ROUTE_HANDLE_RADIUS)
-    .fill({ color: 0x051823, alpha: 0.96 })
-    .stroke({ color: 0x00c8f0, width: 2 });
+    .fill({ color: 0x061e30, alpha: 0.92 })
+    .stroke({ color: 0x00e5ff, width: 2.2 })
+    .moveTo(-4, -4)
+    .lineTo(2, 0)
+    .lineTo(-4, 4)
+    .stroke({ color: 0x00e5ff, width: 2, cap: 'round', join: 'round' })
+    .moveTo(-4, 0)
+    .lineTo(2, 0)
+    .stroke({ color: 0x00e5ff, width: 2, cap: 'round' });
 }
 
 /**

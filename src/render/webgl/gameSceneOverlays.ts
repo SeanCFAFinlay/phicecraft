@@ -23,7 +23,7 @@ import { expandCurve, controlMidpoints } from '@/utils/curves';
 import { pointAtParameter } from '@/utils/geometry';
 import { flightControls } from '@/sim/flightPath';
 import { getCurrentPuckHolder } from '@/engine/puck';
-import { CONTROL_HANDLE_RADIUS, ADD_HANDLE_RADIUS, eventFlightLine } from '@/canvas/PathRenderer';
+import { CONTROL_HANDLE_RADIUS, eventFlightLine } from '@/canvas/PathRenderer';
 import type { RenderQuality } from '@/render/quality';
 import { polylineOf, type DashPattern } from './dashedLine';
 import type { GraphicsKeyedPool, TokenPool } from './gameScenePool';
@@ -449,15 +449,17 @@ export function updatePassCandidates(
 
 function drawControlHandle(g: Graphics, point: Point, accent: number): void {
   g.circle(point.x, point.y, CONTROL_HANDLE_RADIUS)
-    .fill({ color: accent, alpha: 0.28 })
-    .stroke({ color: accent, width: 2.4 });
-  g.circle(point.x, point.y, 2.4).fill(0xeaffff);
+    .fill({ color: accent, alpha: 0.35 })
+    .stroke({ color: accent, width: 2.2 });
+  g.circle(point.x, point.y, 2.8).fill(0xffffff);
 }
 
 function drawAddHandle(g: Graphics, point: Point, accent: number): void {
-  g.circle(point.x, point.y, ADD_HANDLE_RADIUS).fill({ color: 0x040e18, alpha: 0.72 }).stroke({ color: accent, width: 1.6 });
-  g.moveTo(point.x - 2.6, point.y).lineTo(point.x + 2.6, point.y).stroke({ color: accent, width: 1.4 });
-  g.moveTo(point.x, point.y - 2.6).lineTo(point.x, point.y + 2.6).stroke({ color: accent, width: 1.4 });
+  g.circle(point.x, point.y, 4.5)
+    .fill({ color: 0x051b2c, alpha: 0.85 })
+    .stroke({ color: accent, alpha: 0.9, width: 1.5 });
+  g.moveTo(point.x - 2, point.y).lineTo(point.x + 2, point.y).stroke({ color: 0xffffff, width: 1.2 });
+  g.moveTo(point.x, point.y - 2).lineTo(point.x, point.y + 2).stroke({ color: 0xffffff, width: 1.2 });
 }
 
 export function updateEditHandles(pool: GraphicsKeyedPool, input: DynamicLayerInput): void {
