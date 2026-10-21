@@ -358,6 +358,20 @@ describe('a move armed by the Move button', () => {
     expect(handlers.onPlayerMove).toHaveBeenCalledWith('p1', { x: 104, y: 103 });
   });
 
+  it('drags any player immediately on move when isMoveToolActive is true without waiting for hold', () => {
+    context.isMoveToolActive = true;
+    const machine = build(playerHitTester('p1'));
+    machine.pointerDown(touch(1, 100, 100));
+
+    expect(handlers.onHoldStart).not.toHaveBeenCalled();
+
+    // Moving past threshold immediately enters move-player
+    machine.pointerMove(touch(1, 115, 115));
+    expect(machine.current).toEqual({ kind: 'move-player', playerId: 'p1' });
+    scheduler.flushFrames();
+    expect(handlers.onPlayerMove).toHaveBeenCalledWith('p1', { x: 115, y: 115 });
+  });
+
   it('arms only the named player, leaving the others tappable', () => {
     context.armedMovePlayerId = 'someone-else';
     const machine = build(playerHitTester('p1'));

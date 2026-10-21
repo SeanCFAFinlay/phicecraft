@@ -67,10 +67,10 @@ export function TopStrip() {
           {!isCompactLandscape && (
             <div className="hidden flex-col text-left leading-none sm:flex">
               <span className="text-[14px] font-black tracking-wider text-white">
-                PHICE<span className="text-app-cyan">CRAFT</span>
+                PHORM<span className="text-app-cyan">ATION</span>
               </span>
-              <span className="mt-0.5 text-[7.5px] font-black uppercase tracking-widest text-app-cyan/80">
-                Hockey Practice
+              <span className="mt-0.5 text-[7px] font-black uppercase tracking-widest text-app-cyan/80">
+                PHiceCraft Suite
               </span>
             </div>
           )}
@@ -87,6 +87,16 @@ export function TopStrip() {
       </button>
 
       <SaveStatus compact={isPhone} />
+
+      <button
+        type="button"
+        onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'practice' })}
+        className="touch-target flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-app-cyan/15 px-2.5 py-1 text-[13px] font-black text-app-cyan transition-all hover:border-cyan-300 hover:bg-app-cyan/25 hover:shadow-[0_0_12px_rgba(0,229,255,0.3)]"
+        aria-label="Practice session planner"
+      >
+        <span className="text-[14px]">📅</span>
+        <span className="hidden sm:inline">Practice Plans</span>
+      </button>
 
       {!isPhone && !isCompactLandscape && (
         <button

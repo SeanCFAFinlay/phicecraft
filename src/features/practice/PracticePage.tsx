@@ -298,7 +298,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[16px] font-black tracking-wider text-white">
-                  PHICE<span className="text-app-cyan">CRAFT</span> PRACTICE SYSTEM
+                  PHORM<span className="text-app-cyan">ATION</span> PRACTICE WORKSPACE
                 </span>
                 <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[9.5px] font-black tracking-widest text-emerald-400 uppercase">
                   Pro Planner

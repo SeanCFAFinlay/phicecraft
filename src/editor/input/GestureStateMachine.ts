@@ -134,7 +134,7 @@ export class GestureStateMachine {
 
     // Hold-to-move is an optional expert shortcut, not the only way to move a
     // player. It uses the shared HOLD_DURATION, not a private 230ms constant.
-    if (target.kind === 'player' && context.holdToMoveEnabled) {
+    if (target.kind === 'player' && context.holdToMoveEnabled && !context.isMoveToolActive) {
       this.startHold(target.playerId, handlers);
     }
   }
@@ -306,6 +306,11 @@ export class GestureStateMachine {
         break;
 
       case 'player':
+        if (context.isMoveToolActive || target.playerId === context.armedMovePlayerId) {
+          this.gesture = { kind: 'move-player', playerId: target.playerId };
+          handlers.onPlayerMove(target.playerId, hitTester.toWorld(position));
+          break;
+        }
         // Skate wins over the carrier's default drag-to-pass, so the player
         // with the puck can be given a route like anybody else.
         if (target.isCarrier && target.playerId !== context.armedRoutePlayerId) {

@@ -577,6 +577,7 @@ export function CanvasSurface() {
           stateRef.current.pendingAction.kind === 'draw-route'
             ? stateRef.current.pendingAction.playerId
             : null,
+        isMoveToolActive: stateRef.current.ui.currentTool === 'move',
       }),
     });
   }, [camera]);
