@@ -113,9 +113,9 @@ export function Transport({
         </button>
       )}
 
-      {/* Progress: a labelled bar, plus the clock in text for screen readers. */}
+      {/* Progress: a labelled bar, plus interactive scrubbing slider */}
       <div
-        className="min-w-0 flex-1"
+        className="relative min-w-0 flex-1 flex items-center group py-2"
         role="progressbar"
         aria-label="Playback position"
         aria-valuemin={0}
@@ -123,12 +123,21 @@ export function Transport({
         aria-valuenow={snapshot.progressPercent}
         aria-valuetext={formatClock(progress, snapshot.durationSeconds)}
       >
-        <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10">
+        <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10 transition-all group-hover:h-3 pointer-events-none">
           <div
             className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.7)]"
             style={{ width: `${snapshot.progressPercent}%` }}
           />
         </div>
+        <input
+          type="range"
+          min="0"
+          max="1000"
+          value={Math.round(progress * 1000)}
+          aria-label="Scrub playback timeline"
+          onChange={event => playback.seek(Number(event.currentTarget.value) / 1000)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
       </div>
 
       <span className="shrink-0 text-[12px] tabular-nums text-white/70">

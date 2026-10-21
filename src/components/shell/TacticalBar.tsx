@@ -16,6 +16,7 @@ import { usePuckActions } from '@/hooks/usePuckActions';
 import { useViewActions } from './useViewActions';
 import { useResponsive } from '@/ui/useResponsive';
 import { attackingNetFor } from '@/engine/puck';
+import { exportDrillImageFile } from '@/ui/exportImage';
 import type { Tool } from '@/core/types';
 import type { PlayFormationPreset } from '@/engine/formations';
 
@@ -125,7 +126,7 @@ export function TacticalBar() {
   const { carrier } = usePuckActions();
   const { is3D, toggle3D, fit, zoomToZone } = useViewActions();
 
-  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'mark' | 'lineups' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'mark' | 'lineups' | 'export' | null>(null);
 
   const currentTool = state.ui.currentTool;
   const isMove = currentTool === 'move';
@@ -139,7 +140,7 @@ export function TacticalBar() {
   if (state.ui.mode !== 'build' || isCompactLandscape) return null;
 
   const closeMenu = () => setOpenMenu(null);
-  const toggleMenu = (menu: 'players' | 'objects' | 'mark' | 'lineups') => {
+  const toggleMenu = (menu: 'players' | 'objects' | 'mark' | 'lineups' | 'export') => {
     setOpenMenu(prev => (prev === menu ? null : menu));
   };
 
@@ -382,6 +383,46 @@ export function TacticalBar() {
             label="O-Zone Faceoff"
             sublabel="Attacking circle setup"
             onClick={() => applyFormation('faceoff-ozone')}
+          />
+        </FlyoutMenu>
+
+        {/* Export / Share Flyout */}
+        <FlyoutMenu
+          label="Export"
+          icon="📥"
+          isOpen={openMenu === 'export'}
+          onToggle={() => toggleMenu('export')}
+          onClose={closeMenu}
+        >
+          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-cyan/70">
+            Export & Print
+          </div>
+          <MenuItem
+            icon="📷"
+            label="Drill Diagram (PNG)"
+            sublabel="High-res bench image"
+            onClick={() => {
+              closeMenu();
+              exportDrillImageFile(state.drill);
+            }}
+          />
+          <MenuItem
+            icon="🖨️"
+            label="Print Drill Card (PDF)"
+            sublabel="Printable coaching sheet"
+            onClick={() => {
+              closeMenu();
+              setTimeout(() => window.print(), 100);
+            }}
+          />
+          <MenuItem
+            icon="💾"
+            label="Export Play Data (JSON)"
+            sublabel="Backup and sharing"
+            onClick={() => {
+              closeMenu();
+              void commands.exportDrills();
+            }}
           />
         </FlyoutMenu>
       </div>
