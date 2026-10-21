@@ -86,6 +86,9 @@ export interface DynamicLayerInput {
    * sixty times a second, for a gesture that should be one edit.
    */
   draggedPlayer: { id: ID; point: Point } | null;
+  draggedCoach?: { id: ID; point: Point } | null;
+  draggedRouteHandle?: { pathId: ID; index: number; point: Point } | null;
+  draggedEventHandle?: { eventId: ID; part: 'waypoint' | 'end'; index: number; point: Point } | null;
   dragPreview: DragPreview | null;
   /**
    * While a pass is armed: who can receive it, and how well. Computed once
@@ -134,7 +137,11 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
 
-  for (const coach of coaches) drawCoachTopDown(ctx, coach, false);
+  const draggedCoach = input.draggedCoach;
+  const activeCoaches = draggedCoach
+    ? coaches.map(c => (c.id === draggedCoach.id ? { ...c, x: draggedCoach.point.x, y: draggedCoach.point.y } : c))
+    : coaches;
+  for (const coach of activeCoaches) drawCoachTopDown(ctx, coach, false);
   if (drill.equipment && drill.equipment.length > 0) {
     drawEquipment(ctx, drill.equipment);
   }
@@ -245,11 +252,30 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   if (!input.isPlaying && !input.suppressEditAffordances) {
     if (input.selectedPlayerId) {
       const route = drill.skatePaths.find(path => path.ownerId === input.selectedPlayerId);
-      if (route && route.points.length >= 2) drawRouteEditHandles(ctx, route.points);
+      if (route && route.points.length >= 2) {
+        let pts = route.points;
+        if (input.draggedRouteHandle && (input.draggedRouteHandle.pathId === route.id || input.selectedPlayerId === route.ownerId)) {
+          pts = pts.map((p, idx) => (idx === input.draggedRouteHandle!.index ? input.draggedRouteHandle!.point : p));
+        }
+        drawRouteEditHandles(ctx, pts);
+      }
     }
     if (input.selectedEventId) {
       const event = drill.events.find(item => item.id === input.selectedEventId);
-      if (event) drawEventEditHandles(ctx, event);
+      if (event) {
+        let ev = event;
+        if (input.draggedEventHandle && input.draggedEventHandle.eventId === event.id) {
+          if (input.draggedEventHandle.part === 'end') {
+            ev = { ...ev, toPoint: input.draggedEventHandle.point };
+          } else if (input.draggedEventHandle.part === 'waypoint' && ev.waypoints) {
+            ev = {
+              ...ev,
+              waypoints: ev.waypoints.map((w, idx) => (idx === input.draggedEventHandle!.index ? input.draggedEventHandle!.point : w)),
+            };
+          }
+        }
+        drawEventEditHandles(ctx, ev);
+      }
     }
   }
 

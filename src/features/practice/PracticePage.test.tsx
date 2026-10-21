@@ -56,4 +56,41 @@ describe('PracticePage', () => {
 
     expect(screen.getByText(/Custom Drill \/ Station/i)).toBeInTheDocument();
   });
+
+  it('opens and closes the live practice runner from the header action', () => {
+    renderPracticePage();
+
+    const runBtn = screen.getByRole('button', { name: /Run Live Practice/i });
+    expect(runBtn).toBeInTheDocument();
+    fireEvent.click(runBtn);
+
+    // PracticeRunner renders high-contrast timer and runner UI
+    expect(screen.getByText(/Live Session/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Exit Runner/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Exit Runner/i }));
+    expect(screen.queryByText(/Live Session/i)).not.toBeInTheDocument();
+  });
+
+  it('supports toggling inline editing for a block', () => {
+    renderPracticePage();
+
+    const editButtons = screen.getAllByRole('button', { name: /^Edit /i });
+    expect(editButtons.length).toBeGreaterThan(0);
+
+    fireEvent.click(editButtons[0]);
+    expect(screen.getByText(/Block Title/i)).toBeInTheDocument();
+    expect(screen.getByText(/Station Split \(ADM\)/i)).toBeInTheDocument();
+  });
+
+  it('renders drill picker modal with playbook templates and personal drill tabs', () => {
+    renderPracticePage();
+
+    const addDrillBtn = screen.getByRole('button', { name: /\+ Add Drill from Playbook/i });
+    fireEvent.click(addDrillBtn);
+
+    expect(screen.getByRole('heading', { name: /Add Drill to Practice/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Playbook Templates/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /My Saved Drills/i })).toBeInTheDocument();
+  });
 });

@@ -20,6 +20,7 @@ import type {
   Drill,
   Player,
   UndoSnapshot,
+  PendingEditorAction,
 } from './types';
 import {
   DEFAULT_PLAYBACK,
@@ -170,6 +171,27 @@ const BLOCKED_OUTSIDE_BUILD: ReadonlySet<AppAction['type']> = new Set([
   'UPDATE_SKATE_POINTS',
   'UPDATE_EVENT_GEOMETRY',
 ]);
+
+export function pendingActionEquals(a: PendingEditorAction, b: PendingEditorAction): boolean {
+  if (a === b) return true;
+  if (a.kind !== b.kind) return false;
+  switch (a.kind) {
+    case 'none':
+      return true;
+    case 'move-player':
+    case 'draw-route':
+    case 'pass':
+    case 'shoot':
+      return a.playerId === (b as typeof a).playerId;
+    case 'move-coach':
+      return a.coachId === (b as typeof a).coachId;
+    case 'edit-route':
+      return a.pathId === (b as typeof a).pathId;
+    case 'edit-event':
+      return a.eventId === (b as typeof a).eventId;
+  }
+  return false;
+}
 
 export function appReducer(state: AppState, action: AppAction): AppState {
   // Preview and Present are read-only: a document mutation or an armed editing
@@ -840,6 +862,9 @@ function reduce(state: AppState, action: AppAction): AppState {
     // ========================================================================
 
     case 'SET_PENDING_ACTION': {
+      if (pendingActionEquals(state.pendingAction, action.action)) {
+        return state;
+      }
       return { ...state, pendingAction: action.action };
     }
 

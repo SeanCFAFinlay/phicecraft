@@ -59,6 +59,7 @@ import {
   getAuthoredReleaseProgress,
 } from '@/sim/authoring';
 import { CONFIRMATIONS } from './confirmations';
+import { pendingActionEquals } from '@/core/state';
 import { done, failed, rejected, type AuthoringCommands, type CommandHost, type CommandResult } from './commandTypes';
 
 /** A puck line bent through more than this is a scribble, not a drill. */
@@ -224,6 +225,7 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
     },
 
     setPendingAction(action) {
+      if (pendingActionEquals(getState().pendingAction, action)) return;
       dispatch({ type: 'SET_PENDING_ACTION', action });
     },
 

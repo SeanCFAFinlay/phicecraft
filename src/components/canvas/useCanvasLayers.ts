@@ -31,7 +31,7 @@ export interface CanvasLayers {
   dpr: number;
   quality: RenderQuality;
   /** Report a frame time so the renderer can shed pixels under sustained load. */
-  reportFrameTime: (ms: number) => void;
+  reportFrameTime: (ms: number, intervalMs?: number) => void;
   /**
    * The active renderer, or null before the two canvas elements have mounted.
    * A function, not a value, so its identity is stable across renders — the
@@ -163,7 +163,7 @@ export function useCanvasLayers(
   }, [size, dpr]);
 
   const reportFrameTime = useCallback(
-    (ms: number) => qualityStore.reportFrameTime(ms),
+    (ms: number, intervalMs?: number) => qualityStore.reportFrameTime(ms, intervalMs),
     [qualityStore]
   );
 

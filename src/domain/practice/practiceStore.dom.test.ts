@@ -22,6 +22,14 @@ describe('practiceStore', () => {
     expect(sessions[0].targetMinutes).toBe(60);
   });
 
+  it('preserves an intentionally empty practice list when all sessions are deleted', () => {
+    const sessions = loadPracticeSessions();
+    for (const session of sessions) {
+      deletePracticeSession(session.id);
+    }
+    expect(loadPracticeSessions()).toEqual([]);
+  });
+
   it('can upsert, retrieve, and delete a custom practice session', () => {
     const newSession = createBlankPracticeSession(50, 'Friday Night Peewee Practice');
     newSession.focus = 'Breakout angling and passing';

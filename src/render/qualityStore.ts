@@ -1,35 +1,29 @@
 // ============================================================================
 // QUALITY STORE
 //
-// The auto-degrade render-quality tier, extracted out of useCanvasLayers.ts
-// so it can be a live AppServices store (created once per AppProvider,
-// injectable in tests, exactly like CameraStore/PlaybackStore) instead of
-// component-local state.
-//
-// This is what lets Board3D (the true-3D presentation, src/render3d/Board3D.tsx)
-// share ONE tier with the flat 2D canvas path rather than always starting at
-// 'high': a coach who has already degraded to 'medium' on the 2D board (a
-// sustained over-budget frame rate) tilts into 3D still at 'medium', and time
-// spent in Board3D that is itself over budget degrades the SAME tier the 2D
-// path reads back from on the way out - not a second, independent counter
-// that resets on every remount between the two.
+// The auto-degrade render-quality tier, shared between the 2D canvas/WebGL
+// pipeline and Board3D. Measures full frame pacing (inter-frame intervals
+// and draw duration) under sustained pressure with hysteresis.
 // ============================================================================
 
 import type { RenderQuality } from './quality';
 
 export type { RenderQuality };
 
-/** Frames above this are over the 60fps budget with no headroom to spare. */
-const FRAME_BUDGET_MS = 16.7;
+/** Target 60fps frame budget in ms. */
+export const FRAME_BUDGET_MS = 16.7;
+/** Frame interval threshold indicating a dropped frame / compositor stall. */
+export const JANK_INTERVAL_MS = 24.0;
 /** How many consecutive over-budget frames before dropping a quality step. */
-const DEGRADE_AFTER = 30;
+export const DEGRADE_AFTER = 30;
 /** How many consecutive comfortable frames before stepping back up. */
-const RECOVER_AFTER = 120;
+export const RECOVER_AFTER = 120;
 
 export class QualityStore {
   private tier: RenderQuality = 'high';
   private overBudget = 0;
   private underBudget = 0;
+  private lastFrameTimestamp = 0;
   private listeners = new Set<() => void>();
 
   subscribe = (listener: () => void): (() => void) => {
@@ -41,9 +35,15 @@ export class QualityStore {
 
   getSnapshot = (): RenderQuality => this.tier;
 
-  /** Report one frame's paint time (ms). May step the tier down or up. */
-  reportFrameTime = (ms: number): void => {
-    if (ms > FRAME_BUDGET_MS) {
+  /**
+   * Report one frame's measurement.
+   * @param drawDurationMs Time spent in synchronous drawing code.
+   * @param intervalMs Optional elapsed time since last frame (full frame pacing).
+   */
+  reportFrameTime = (drawDurationMs: number, intervalMs?: number): void => {
+    const isOverBudget = drawDurationMs > FRAME_BUDGET_MS || (intervalMs !== undefined && intervalMs > JANK_INTERVAL_MS);
+
+    if (isOverBudget) {
       this.overBudget += 1;
       this.underBudget = 0;
     } else {
@@ -58,6 +58,21 @@ export class QualityStore {
       this.underBudget = 0;
       this.setTier(this.tier === 'low' ? 'medium' : 'high');
     }
+  };
+
+  /**
+   * Report frame pacing directly using performance timestamp.
+   */
+  reportFrameTimestamp = (now: number, drawDurationMs: number): void => {
+    const interval = this.lastFrameTimestamp > 0 ? now - this.lastFrameTimestamp : 16.6;
+    this.lastFrameTimestamp = now;
+    this.reportFrameTime(drawDurationMs, interval);
+  };
+
+  resetPacing = (): void => {
+    this.lastFrameTimestamp = 0;
+    this.overBudget = 0;
+    this.underBudget = 0;
   };
 
   private setTier(next: RenderQuality): void {

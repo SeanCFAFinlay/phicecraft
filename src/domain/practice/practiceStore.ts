@@ -7,9 +7,11 @@
 
 import type { DrillTemplate } from '@/data/templates/builder';
 import { findTemplate } from '@/data/templates/registry';
+import type { DrillDocumentV3 } from '@/domain/v3/types';
 import type { PracticeBlock, PracticeMetrics, PracticeSession } from './types';
 
 export const PRACTICE_STORAGE_KEY = 'phicecraft:practice_sessions_v1';
+export const PRACTICE_INITIALIZED_KEY = 'phicecraft:practice_sessions_initialized';
 
 export const PRESET_PRACTICE_SESSIONS: PracticeSession[] = [
   {
@@ -233,7 +235,9 @@ export const PRESET_PRACTICE_SESSIONS: PracticeSession[] = [
 ];
 
 /**
- * Loads all practice sessions from storage, seeding with presets if none exist.
+ * Loads all practice sessions from storage.
+ * Seeds with presets on first application run, but preserves an intentionally
+ * empty list if the user deletes all practices.
  */
 export function loadPracticeSessions(): PracticeSession[] {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
@@ -241,28 +245,47 @@ export function loadPracticeSessions(): PracticeSession[] {
   }
 
   try {
+    const isInitialized = localStorage.getItem(PRACTICE_INITIALIZED_KEY);
     const raw = localStorage.getItem(PRACTICE_STORAGE_KEY);
-    if (!raw) {
-      savePracticeSessions(PRESET_PRACTICE_SESSIONS);
-      return PRESET_PRACTICE_SESSIONS;
+
+    if (isInitialized === 'true') {
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? (parsed as PracticeSession[]) : [];
+      } catch {
+        return [];
+      }
     }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed as PracticeSession[];
+
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          localStorage.setItem(PRACTICE_INITIALIZED_KEY, 'true');
+          return parsed as PracticeSession[];
+        }
+      } catch {
+        /* proceed to initial seed */
+      }
     }
+
+    localStorage.setItem(PRACTICE_INITIALIZED_KEY, 'true');
+    savePracticeSessions(PRESET_PRACTICE_SESSIONS);
     return PRESET_PRACTICE_SESSIONS;
   } catch {
-    return PRESET_PRACTICE_SESSIONS;
+    return [];
   }
 }
 
 /**
- * Saves all practice sessions to localStorage.
+ * Saves all practice sessions to storage and marks initialized.
  */
 export function savePracticeSessions(sessions: PracticeSession[]): void {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(PRACTICE_STORAGE_KEY, JSON.stringify(sessions));
+    localStorage.setItem(PRACTICE_INITIALIZED_KEY, 'true');
   } catch (err) {
     console.error('Failed to save practice sessions', err);
   }
@@ -297,6 +320,7 @@ export function upsertPracticeSession(session: PracticeSession): void {
 
 /**
  * Deletes a practice session by ID.
+ * Leaves an empty list truthfully without re-seeding presets.
  */
 export function deletePracticeSession(id: string): void {
   const sessions = loadPracticeSessions();
@@ -326,15 +350,14 @@ export function createBlankPracticeSession(
 }
 
 /**
- * Converts a drill template into a PracticeBlock.
+ * Converts a drill template into a PracticeBlock with an immutable pinned revision.
  */
 export function createBlockFromTemplate(
   template: DrillTemplate,
   durationMinutes?: number
 ): PracticeBlock {
   const meta = template.document.metadata;
-  
-  // Aggregate equipment demands from template document
+
   const equipmentMap = new Map<string, number>();
   for (const item of template.document.equipment) {
     equipmentMap.set(item.kind, (equipmentMap.get(item.kind) ?? 0) + 1);
@@ -356,27 +379,170 @@ export function createBlockFromTemplate(
     drillSummary: meta.summary,
     coachingPoints: [...meta.coachingPoints],
     equipment: equipmentDemands,
+    objective: meta.categories?.join(', '),
+    instructions: meta.summary,
+    pinnedRevision: structuredClone(template.document),
+  };
+}
+
+/**
+ * Converts a personal saved drill (v3 document) into a PracticeBlock with an immutable pinned revision.
+ */
+export function createBlockFromDrill(
+  drill: DrillDocumentV3,
+  durationMinutes?: number
+): PracticeBlock {
+  const meta = drill.metadata;
+
+  const equipmentMap = new Map<string, number>();
+  for (const item of drill.equipment) {
+    equipmentMap.set(item.kind, (equipmentMap.get(item.kind) ?? 0) + 1);
+  }
+  equipmentMap.set('pucks', Math.max(15, drill.actors.length * 2));
+
+  const equipmentDemands = Array.from(equipmentMap.entries()).map(([kind, count]) => ({
+    kind: kind as PracticeBlock['equipment'][0]['kind'],
+    count,
+  }));
+
+  return {
+    id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    drillId: drill.id,
+    title: meta.title,
+    durationMinutes: durationMinutes ?? meta.durationMinutes ?? 10,
+    rinkArea: meta.rinkArea,
+    stationSplit: meta.rinkArea === 'station' ? 'station_a' : 'full',
+    drillSummary: meta.summary,
+    coachingPoints: [...meta.coachingPoints],
+    equipment: equipmentDemands,
+    objective: meta.categories?.join(', '),
+    instructions: meta.summary,
+    pinnedRevision: structuredClone(drill),
+  };
+}
+
+/**
+ * Creates a fully customizable practice block.
+ */
+export function createCustomBlock(
+  title: string = 'Custom Drill / Station',
+  durationMinutes: number = 10,
+  options: Partial<PracticeBlock> = {}
+): PracticeBlock {
+  return {
+    id: `blk-custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    title,
+    durationMinutes,
+    rinkArea: options.rinkArea ?? 'half',
+    stationSplit: options.stationSplit ?? 'full',
+    drillSummary: options.drillSummary ?? 'Coach-directed skills, small-area game, or team system.',
+    coachingPoints: options.coachingPoints ? [...options.coachingPoints] : ['Focus on execution, tempo, and high repetitions.'],
+    equipment: options.equipment ? [...options.equipment] : [{ kind: 'pucks', count: 20 }],
+    objective: options.objective ?? 'Skill Development',
+    instructions: options.instructions ?? '',
+    roles: options.roles ? [...options.roles] : [],
+    notes: options.notes ?? '',
+    ...options,
   };
 }
 
 /**
  * Calculates duration metrics, time balance, and consolidated equipment demand.
+ * Accurately models ADM station concurrency:
+ * - Contiguous stations running concurrently count the max station duration per rotation.
+ * - Reusable equipment (cones, tires, etc.) demand is calculated as peak concurrent
+ *   need across simultaneous stations/blocks, rather than a naive sum.
  */
 export function calculatePracticeMetrics(session: PracticeSession): PracticeMetrics {
-  const totalMinutes = session.blocks.reduce((sum, b) => sum + (b.durationMinutes || 0), 0);
   const targetMinutes = session.targetMinutes || 60;
+
+  interface ActivityUnit {
+    kind: 'sequential' | 'stations';
+    blocks: PracticeBlock[];
+    durationMinutes: number;
+    equipmentDemand: Record<string, number>;
+  }
+
+  const units: ActivityUnit[] = [];
+  let currentStationCluster: PracticeBlock[] = [];
+
+  const flushStationCluster = () => {
+    if (currentStationCluster.length === 0) return;
+    const maxDur = Math.max(...currentStationCluster.map(b => b.durationMinutes || 0), 0);
+    const clusterRotations = currentStationCluster[0]?.rotations ?? (currentStationCluster.length > 1 ? currentStationCluster.length : 1);
+    const changeover = currentStationCluster[0]?.changeoverMinutes ?? (clusterRotations > 1 ? clusterRotations - 1 : 0);
+    const clusterDuration = maxDur * clusterRotations + changeover;
+
+    // Concurrent equipment demand during this station cluster:
+    // Because all stations in the cluster run simultaneously on the ice, their equipment is concurrently in use!
+    const concurrentEquip: Record<string, number> = {};
+    for (const block of currentStationCluster) {
+      for (const eq of block.equipment) {
+        concurrentEquip[eq.kind] = (concurrentEquip[eq.kind] ?? 0) + eq.count;
+      }
+    }
+
+    units.push({
+      kind: 'stations',
+      blocks: [...currentStationCluster],
+      durationMinutes: clusterDuration,
+      equipmentDemand: concurrentEquip,
+    });
+    currentStationCluster = [];
+  };
+
+  for (const block of session.blocks) {
+    const isStation = block.stationSplit && block.stationSplit !== 'full';
+    if (isStation) {
+      currentStationCluster.push(block);
+    } else {
+      flushStationCluster();
+      const blockEquip: Record<string, number> = {};
+      for (const eq of block.equipment) {
+        blockEquip[eq.kind] = (blockEquip[eq.kind] ?? 0) + eq.count;
+      }
+      units.push({
+        kind: 'sequential',
+        blocks: [block],
+        durationMinutes: block.durationMinutes || 0,
+        equipmentDemand: blockEquip,
+      });
+    }
+  }
+  flushStationCluster();
+
+  const totalMinutes = units.reduce((sum, u) => sum + u.durationMinutes, 0);
   const remainingMinutes = targetMinutes - totalMinutes;
 
   let status: 'under' | 'exact' | 'over' = 'exact';
   if (remainingMinutes > 0) status = 'under';
   else if (remainingMinutes < 0) status = 'over';
 
+  // Calculate equipment totals:
+  // equipmentTotals: consolidated checklist across all activities (gross equipment need).
+  // peakConcurrentEquipment: peak simultaneous reusable equipment demand across concurrent stations/blocks.
   const equipmentTotals: Record<string, number> = {};
   for (const block of session.blocks) {
     for (const eq of block.equipment) {
-      // Equipment needed concurrently: take max per station/drill or sum as needed
       equipmentTotals[eq.kind] = (equipmentTotals[eq.kind] ?? 0) + eq.count;
     }
+  }
+
+  const peakConcurrentEquipment: Record<string, number> = {};
+  const allEquipmentKinds = new Set<string>();
+
+  for (const u of units) {
+    for (const kind of Object.keys(u.equipmentDemand)) {
+      allEquipmentKinds.add(kind);
+    }
+  }
+
+  for (const kind of allEquipmentKinds) {
+    let peak = 0;
+    for (const u of units) {
+      peak = Math.max(peak, u.equipmentDemand[kind] ?? 0);
+    }
+    peakConcurrentEquipment[kind] = peak;
   }
 
   return {
@@ -385,6 +551,7 @@ export function calculatePracticeMetrics(session: PracticeSession): PracticeMetr
     remainingMinutes,
     status,
     equipmentTotals,
+    peakConcurrentEquipment,
     blockCount: session.blocks.length,
   };
 }

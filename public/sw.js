@@ -169,16 +169,24 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Navigations: network first, so a coach with signal always gets the current
-  // build, and the cached shell is there when they do not.
+  // Navigations: network first with a 2.5s timeout for weak arena connectivity,
+  // falling back promptly to the cached shell. Validates responses before updating cache.
   if (request.mode === 'navigate') {
     event.respondWith(
       (async () => {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('navigation-timeout')), 2500);
+        });
+
         try {
-          const response = await fetch(request);
-          const cache = await caches.open(SHELL_CACHE);
-          cache.put('/index.html', response.clone());
-          return response;
+          const response = await Promise.race([fetch(request), timeoutPromise]);
+          if (response && response.ok) {
+            const cache = await caches.open(SHELL_CACHE);
+            cache.put('/index.html', response.clone());
+            return response;
+          }
+          const cached = await caches.match('/index.html');
+          return cached ?? response;
         } catch {
           const cached = await caches.match('/index.html');
           return cached ?? Response.error();

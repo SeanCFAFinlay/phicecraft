@@ -19,6 +19,7 @@ import { useCanvasLayers } from './useCanvasLayers';
 import { useHitTesting } from './useHitTesting';
 import type { DragPreview } from './renderDynamic';
 import { GestureStateMachine } from '@/editor/input/GestureStateMachine';
+import { InvalidationScheduler } from '@/render/invalidationScheduler';
 import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input/gestureTypes';
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { EMPTY_TRAILS } from '@/playback/playbackFrame';
@@ -69,6 +70,12 @@ export function CanvasSurface() {
   const layers = useCanvasLayers(qualityStore, onResize, announcer.announce);
   const hitTester = useHitTesting({ getState, camera, playback });
 
+  const schedulerRef = useRef<InvalidationScheduler | null>(null);
+  if (!schedulerRef.current) {
+    schedulerRef.current = new InvalidationScheduler();
+  }
+  const scheduler = schedulerRef.current;
+
   // Transient render inputs that must not become React state.
   const dragPreviewRef = useRef<DragPreview | null>(null);
   const transientRouteRef = useRef<{ ownerId: ID; points: Point[] } | null>(null);
@@ -78,6 +85,10 @@ export function CanvasSurface() {
    * release.
    */
   const draggedPlayerRef = useRef<{ id: ID; point: Point } | null>(null);
+  const draggedCoachRef = useRef<{ id: ID; point: Point } | null>(null);
+  const draggedRouteHandleRef = useRef<{ pathId: ID; index: number; point: Point } | null>(null);
+  const draggedEventHandleRef = useRef<{ eventId: ID; part: 'waypoint' | 'end'; index: number; point: Point } | null>(null);
+  const lastFrameTimestampRef = useRef<number>(0);
   /**
    * Who the armed pass can go to. Recomputed when the pass is armed or the
    * drill changes - never per frame, because scoring a receiver solves an
@@ -94,6 +105,9 @@ export function CanvasSurface() {
     if (!renderer || layers.width === 0) return;
 
     const started = performance.now();
+    const interval = lastFrameTimestampRef.current > 0 ? started - lastFrameTimestampRef.current : undefined;
+    lastFrameTimestampRef.current = started;
+
     const current = stateRef.current;
     const frame = playback.getFrame();
     const puck = frame.puck ?? (
@@ -124,6 +138,9 @@ export function CanvasSurface() {
       passFromPlayerId: current.selection.passFromPlayerId,
       movingPlayerId: draggedPlayerRef.current?.id ?? null,
       draggedPlayer: draggedPlayerRef.current,
+      draggedCoach: draggedCoachRef.current,
+      draggedRouteHandle: draggedRouteHandleRef.current,
+      draggedEventHandle: draggedEventHandleRef.current,
       transientRoute: transientRouteRef.current,
       dragPreview: dragPreviewRef.current,
       passCandidates: isEditingSuppressed(current) ? null : passCandidatesRef.current,
@@ -133,7 +150,8 @@ export function CanvasSurface() {
       quality: layers.quality,
     });
 
-    layers.reportFrameTime(performance.now() - started);
+    const elapsed = performance.now() - started;
+    layers.reportFrameTime(elapsed, interval);
   }, [camera, playback, layers]);
 
   const drawStatic = useCallback(() => {
@@ -148,23 +166,28 @@ export function CanvasSurface() {
     });
   }, [camera, layers]);
 
-  // The dynamic layer repaints after every committed React render (an
-  // authoring change) and on every playback frame. The static layer only
-  // repaints when its key changes - never during camera-stable playback.
+  // Redraw requests are coalesced via InvalidationScheduler to at most once
+  // per animation frame.
   useEffect(() => {
-    drawStatic();
-    drawDynamic();
+    scheduler.setCallback(flags => {
+      if (flags.static) drawStatic();
+      if (flags.dynamic) drawDynamic();
+    });
+    return () => scheduler.cancel();
+  }, [scheduler, drawStatic, drawDynamic]);
+
+  useEffect(() => {
+    scheduler.requestAll();
   });
 
   useEffect(() => camera.subscribe(() => {
-    drawStatic();
-    drawDynamic();
-  }), [camera, drawStatic, drawDynamic]);
+    scheduler.requestAll();
+  }), [camera, scheduler]);
 
-  useEffect(() => playback.subscribeToFrames(drawDynamic), [playback, drawDynamic]);
+  useEffect(() => playback.subscribeToFrames(() => scheduler.requestDynamic()), [playback, scheduler]);
 
   // The generated sprite atlas loads asynchronously; repaint once it arrives.
-  useEffect(() => subscribeToHockeySpriteAtlas(drawDynamic), [drawDynamic]);
+  useEffect(() => subscribeToHockeySpriteAtlas(() => scheduler.requestDynamic()), [scheduler]);
 
   // --------------------------------------------------------------------------
   // Gestures
@@ -202,7 +225,7 @@ export function CanvasSurface() {
   useEffect(() => {
     if (!armedPasserId) {
       passCandidatesRef.current = null;
-      drawDynamic();
+      scheduler.requestDynamic();
       return;
     }
     const context = passContext(armedPasserId);
@@ -214,8 +237,8 @@ export function CanvasSurface() {
         targetPoint: candidate.targetPoint,
       })),
     };
-    drawDynamic();
-  }, [armedPasserId, state.documentRevision, passContext, drawDynamic]);
+    scheduler.requestDynamic();
+  }, [armedPasserId, state.documentRevision, passContext, scheduler]);
 
   const handlers = useMemo<GestureHandlers>(() => {
     const worldOf = (screen: Point) => screenToWorld(screen.x, screen.y, camera.camera);
@@ -224,6 +247,9 @@ export function CanvasSurface() {
       dragPreviewRef.current = null;
       transientRouteRef.current = null;
       draggedPlayerRef.current = null;
+      draggedCoachRef.current = null;
+      draggedRouteHandleRef.current = null;
+      draggedEventHandleRef.current = null;
     };
 
     /**
@@ -332,7 +358,7 @@ export function CanvasSurface() {
 
         case 'player':
           if (second) commands.openPlayerInspector(target.playerId);
-          else handlePlayerTap(target.playerId);
+          else handlePlayerTap(target.playerId, screen);
           break;
         case 'event':
           if (second) commands.openEventInspector(target.eventId);
@@ -353,7 +379,17 @@ export function CanvasSurface() {
     };
 
     // A pass is handled before this, by `passReceiverAt`.
-    const handlePlayerTap = (playerId: ID) => {
+    const handlePlayerTap = (playerId: ID, screen?: Point) => {
+      if (screen && hitTester.playersAt) {
+        const matches = hitTester.playersAt(screen);
+        const currentSelected = stateRef.current.selection.selectedPlayerId;
+        if (matches.length > 1 && currentSelected && matches.some(m => m.id === currentSelected)) {
+          const idx = matches.findIndex(m => m.id === currentSelected);
+          const nextIdx = (idx + 1) % matches.length;
+          commands.selectPlayer(matches[nextIdx].id);
+          return;
+        }
+      }
       commands.selectPlayer(playerId);
     };
 
@@ -381,7 +417,7 @@ export function CanvasSurface() {
       // the finger comes up, so one gesture is one edit and one undo entry.
       onPlayerMove: (playerId, world) => {
         draggedPlayerRef.current = { id: playerId, point: world };
-        drawDynamic();
+        scheduler.requestDynamic();
       },
       onPlayerMoveEnd: playerId => {
         const landed = draggedPlayerRef.current;
@@ -390,19 +426,25 @@ export function CanvasSurface() {
           commands.movePlayerTo(playerId, landed.point.x, landed.point.y);
         }
         commands.cancelPendingAction();
-        drawDynamic();
+        scheduler.requestDynamic();
       },
 
-      onCoachMove: (coachId, world) => commands.moveCoach(coachId, world.x, world.y),
+      onCoachMove: (coachId, world) => {
+        draggedCoachRef.current = { id: coachId, point: world };
+        scheduler.requestDynamic();
+      },
 
       onRouteSampling: (ownerId, points) => {
         transientRouteRef.current = { ownerId, points };
-        commands.setPendingAction({ kind: 'draw-route', playerId: ownerId });
-        drawDynamic();
+        if (stateRef.current.pendingAction.kind !== 'draw-route' || stateRef.current.pendingAction.playerId !== ownerId) {
+          commands.setPendingAction({ kind: 'draw-route', playerId: ownerId });
+        }
+        scheduler.requestDynamic();
       },
       onRouteCommit: (ownerId, points) => {
         transientRouteRef.current = null;
         commands.commitRoute(ownerId, points);
+        scheduler.requestDynamic();
       },
 
       onPuckDragPreview: (playerId, from, to, receiverId) => {
@@ -422,8 +464,11 @@ export function CanvasSurface() {
           to,
           receiver,
         };
-        commands.setPendingAction({ kind: receiver || !nearNet ? 'pass' : 'shoot', playerId });
-        drawDynamic();
+        const nextActionKind = receiver || !nearNet ? 'pass' : 'shoot';
+        if (current.pendingAction.kind !== nextActionKind || current.pendingAction.playerId !== playerId) {
+          commands.setPendingAction({ kind: nextActionKind, playerId });
+        }
+        scheduler.requestDynamic();
       },
 
       onPuckDragRelease: (playerId, from, releaseScreen) => {
@@ -449,18 +494,43 @@ export function CanvasSurface() {
       },
 
       onRouteHandleDrag: (pathId, index, world) => {
-        commands.setPendingAction({ kind: 'edit-route', pathId });
-        commands.moveRouteControl(pathId, index, world);
+        if (stateRef.current.pendingAction.kind !== 'edit-route' || stateRef.current.pendingAction.pathId !== pathId) {
+          commands.setPendingAction({ kind: 'edit-route', pathId });
+        }
+        draggedRouteHandleRef.current = { pathId, index, point: world };
+        scheduler.requestDynamic();
       },
 
       onEventHandleDrag: (eventId, part, index, world) => {
-        commands.setPendingAction({ kind: 'edit-event', eventId });
-        if (part === 'end') commands.setEventTarget(eventId, world);
-        else commands.moveEventWaypoint(eventId, index, world);
+        if (stateRef.current.pendingAction.kind !== 'edit-event' || stateRef.current.pendingAction.eventId !== eventId) {
+          commands.setPendingAction({ kind: 'edit-event', eventId });
+        }
+        draggedEventHandleRef.current = { eventId, part, index, point: world };
+        scheduler.requestDynamic();
       },
 
       onEditGestureEnd: () => {
+        if (draggedCoachRef.current) {
+          const coach = draggedCoachRef.current;
+          draggedCoachRef.current = null;
+          commands.moveCoach(coach.id, coach.point.x, coach.point.y);
+        }
+        if (draggedRouteHandleRef.current) {
+          const handle = draggedRouteHandleRef.current;
+          draggedRouteHandleRef.current = null;
+          commands.moveRouteControl(handle.pathId, handle.index, handle.point);
+        }
+        if (draggedEventHandleRef.current) {
+          const handle = draggedEventHandleRef.current;
+          draggedEventHandleRef.current = null;
+          if (handle.part === 'end') {
+            commands.setEventTarget(handle.eventId, handle.point);
+          } else {
+            commands.moveEventWaypoint(handle.eventId, handle.index, handle.point);
+          }
+        }
         commands.cancelPendingAction();
+        scheduler.requestDynamic();
       },
 
       onPanOrOrbit: next => camera.setCamera(next),
@@ -468,10 +538,10 @@ export function CanvasSurface() {
 
       onGestureCancel: () => {
         clearTransients();
-        drawDynamic();
+        scheduler.requestDynamic();
       },
     };
-  }, [camera, commands, drawDynamic, holdProgress, passContext]);
+  }, [camera, commands, scheduler, holdProgress, passContext, hitTester]);
 
   // The machine MUST outlive renders. It holds the in-flight gesture, and a
   // gesture spans many renders: the first sample of a route dispatches a

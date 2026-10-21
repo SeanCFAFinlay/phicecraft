@@ -83,26 +83,35 @@ export function useHitTesting({ getState, camera, playback }: HitTestingOptions)
       return state.drill.events.find(item => item.id === eventId) ?? null;
     };
 
+    const getPlayersAt = (point: Point): Array<{ id: ID; isCarrier: boolean }> => {
+      const { drill } = getState();
+      const world = toWorld(point);
+      const reach = playerReach();
+      const matches: Array<{ id: ID; isCarrier: boolean }> = [];
+      const holder = getCurrentPuckHolder(drill.players, drill.events);
+      // Topmost first, matching draw order.
+      for (let index = drill.players.length - 1; index >= 0; index--) {
+        const player = drill.players[index];
+        const at = drawnPosition(player.id, player);
+        if (distance(at, world) < reach) {
+          matches.push({
+            id: player.id,
+            isCarrier: holder?.id === player.id && canAddEvents(drill.events),
+          });
+        }
+      }
+      return matches;
+    };
+
     return {
       toWorld,
 
       playerAt(point) {
-        const { drill } = getState();
-        const world = toWorld(point);
-        const reach = playerReach();
-        // Topmost first, matching draw order.
-        for (let index = drill.players.length - 1; index >= 0; index--) {
-          const player = drill.players[index];
-          const at = drawnPosition(player.id, player);
-          if (distance(at, world) < reach) {
-            const holder = getCurrentPuckHolder(drill.players, drill.events);
-            return {
-              id: player.id,
-              isCarrier: holder?.id === player.id && canAddEvents(drill.events),
-            };
-          }
-        }
-        return null;
+        return getPlayersAt(point)[0] ?? null;
+      },
+
+      playersAt(point) {
+        return getPlayersAt(point);
       },
 
       coachAt(point) {

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   formatPracticePlanText,
+  formatPracticePlanMarkdown,
   copyPracticePlanText,
+  copyPracticePlanMarkdown,
   exportPracticePlanJson,
   printPracticePlan,
 } from './exportPracticePlan';
@@ -22,6 +24,26 @@ describe('exportPracticePlan', () => {
     expect(text).toContain('PUCKS');
     expect(text).toContain('CONE');
     expect(text).toContain('TRAIN · PLAY · IMPROVE');
+  });
+
+  it('formats practice plan into clean markdown table and sections', () => {
+    const md = formatPracticePlanMarkdown(session);
+    expect(md).toContain('# 🏒');
+    expect(md).toContain('| Time | Drill / Activity | Area / Split | Dur | Coaching Points |');
+    expect(md).toContain('### 📦 Equipment Checklist');
+  });
+
+  it('copies practice plan markdown to clipboard using navigator.clipboard', async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+
+    const result = await copyPracticePlanMarkdown(session);
+    expect(result).toBe(true);
+    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('# 🏒'));
   });
 
   it('copies practice plan text to clipboard using navigator.clipboard', async () => {

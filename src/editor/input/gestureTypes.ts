@@ -43,6 +43,7 @@ export type EventHandlePart = 'waypoint' | 'end';
 /** Hit-testing the canvas provides, in screen coordinates. */
 export interface HitTester {
   playerAt(point: Point): { id: ID; isCarrier: boolean } | null;
+  playersAt?(point: Point): Array<{ id: ID; isCarrier: boolean }>;
   coachAt(point: Point): ID | null;
   routeAt(point: Point): { pathId: ID; ownerId: ID; point: Point } | null;
   eventAt(point: Point): ID | null;

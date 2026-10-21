@@ -214,7 +214,11 @@ export function updateGameScene(scene: GameScene, input: DynamicLayerInput): voi
   const players = resolvePlayers(input);
   const scrubbing = Object.keys(input.positions).length > 0;
 
-  updateCoaches(s.coachesPool, drill.coaches ?? []);
+  const coaches = drill.coaches ?? [];
+  const activeCoaches = input.draggedCoach
+    ? coaches.map(c => (c.id === input.draggedCoach!.id ? { ...c, x: input.draggedCoach!.point.x, y: input.draggedCoach!.point.y } : c))
+    : coaches;
+  updateCoaches(s.coachesPool, activeCoaches);
   updateGhostTrails(s.ghostTrailsPool, input, players);
   updateSkatePaths(s.skatePathsPool, s.skatePathCache, drill.skatePaths, input.quality);
   updateTransientRoute(s.transientRoute, input.transientRoute, drill.players);

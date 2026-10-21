@@ -461,6 +461,14 @@ describe('SET_MODE', () => {
     expect(armed.pendingAction.kind).toBe('none');
   });
 
+  it('SET_PENDING_ACTION is idempotent and returns identical state reference when unchanged', () => {
+    let state = createInitialState();
+    const pid = state.drill.players[0].id;
+    state = appReducer(state, { type: 'SET_PENDING_ACTION', action: { kind: 'draw-route', playerId: pid } });
+    const second = appReducer(state, { type: 'SET_PENDING_ACTION', action: { kind: 'draw-route', playerId: pid } });
+    expect(second).toBe(state);
+  });
+
   it('LOAD_DRILL still works outside build (library can hand over a drill)', () => {
     let state = createInitialState();
     state = appReducer(state, { type: 'SET_MODE', mode: 'preview' });
