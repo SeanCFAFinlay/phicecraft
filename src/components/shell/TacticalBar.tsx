@@ -5,9 +5,10 @@
 // - Move (Select & Drag pointer)
 // - Players ▾ (Home, Away, Goalie, Coach, Reset)
 // - Objects ▾ (Cone, Tire, Mini-Net, Barrier)
-// - Mark / Actions ▾ (Skate Route, Pass, Shoot on Net, Dump In)
-// - Lineups / Formations ▾ (Power Play, Penalty Kill, 3v2 Rush, Breakout, Faceoff)
-// - Zone View Pills (Full, O-Zone, D-Zone, 2D/3D, Fit)
+// - Draw ▾ (Skate Route, Pass, Shoot on Net, Dump In)
+// - Lineups ▾ (Power Play, Penalty Kill, 3v2 Rush, Breakout, Faceoff)
+// - Export ▾ (Diagram PNG, Printable PDF, JSON)
+// - Zone View Pills (Full, O-Zone, D-Zone, 2D/3D, Fit, Help ?)
 // ============================================================================
 
 import { useState, useRef, useEffect, type ReactNode } from 'react';
@@ -72,7 +73,7 @@ function FlyoutMenu({ label, icon, active, isOpen, onToggle, onClose, children }
       {isOpen && (
         <div
           role="menu"
-          className="absolute left-0 top-full z-50 mt-1 min-w-[190px] rounded-xl border border-cyan-500/30 bg-[#07131e]/98 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+          className="absolute left-0 top-full z-50 mt-1 min-w-[200px] rounded-xl border border-cyan-500/30 bg-[#07131e]/98 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
         >
           {children}
         </div>
@@ -120,19 +121,19 @@ function MenuItem({
 }
 
 export function TacticalBar() {
-  const { state } = useAppState();
+  const { state, dispatch } = useAppState();
   const commands = useCommands();
   const { isCompactLandscape } = useResponsive();
   const { carrier } = usePuckActions();
   const { is3D, toggle3D, fit, zoomToZone } = useViewActions();
 
-  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'mark' | 'lineups' | 'export' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'export' | null>(null);
 
   const currentTool = state.ui.currentTool;
   const isMove = currentTool === 'move';
   const isPlacingPlayer = currentTool === 'home' || currentTool === 'away' || currentTool === 'goalie' || currentTool === 'coach';
   const isPlacingObject = currentTool === 'cone' || currentTool === 'tire' || currentTool === 'mini-net' || currentTool === 'barrier';
-  const isMarking = state.pendingAction.kind !== 'none';
+  const isDrawing = state.pendingAction.kind !== 'none';
   const selectedPlayer = state.selection.selectedPlayerId
     ? state.drill.players.find(p => p.id === state.selection.selectedPlayerId)
     : null;
@@ -140,7 +141,7 @@ export function TacticalBar() {
   if (state.ui.mode !== 'build' || isCompactLandscape) return null;
 
   const closeMenu = () => setOpenMenu(null);
-  const toggleMenu = (menu: 'players' | 'objects' | 'mark' | 'lineups' | 'export') => {
+  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'export') => {
     setOpenMenu(prev => (prev === menu ? null : menu));
   };
 
@@ -167,9 +168,9 @@ export function TacticalBar() {
           type="button"
           onClick={() => selectTool('move')}
           aria-label="Select and move players"
-          aria-pressed={isMove && !isMarking}
+          aria-pressed={isMove && !isDrawing}
           className={`touch-target flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
-            isMove && !isMarking
+            isMove && !isDrawing
               ? 'border border-app-cyan bg-app-cyan/20 text-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.3)]'
               : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
           }`}
@@ -188,33 +189,33 @@ export function TacticalBar() {
           onClose={closeMenu}
         >
           <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-cyan/70">
-            Add to Ice (tap to place)
+            Add to Ice (tap ice to place)
           </div>
           <MenuItem
             icon="🔵"
             label="Home Skater"
-            sublabel="Blue jersey"
+            sublabel="Blue team jersey"
             active={currentTool === 'home'}
             onClick={() => selectTool('home')}
           />
           <MenuItem
             icon="🔴"
             label="Away Skater"
-            sublabel="Red jersey"
+            sublabel="Red team jersey"
             active={currentTool === 'away'}
             onClick={() => selectTool('away')}
           />
           <MenuItem
             icon="🥅"
             label="Goalie"
-            sublabel="Crease tender"
+            sublabel="Crease goaltender"
             active={currentTool === 'goalie'}
             onClick={() => selectTool('goalie')}
           />
           <MenuItem
             icon="📋"
             label="Coach"
-            sublabel="Instructor"
+            sublabel="Coach on ice"
             active={currentTool === 'coach'}
             onClick={() => selectTool('coach')}
           />
@@ -241,45 +242,45 @@ export function TacticalBar() {
           onClose={closeMenu}
         >
           <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-gold/70">
-            Training Gear (tap to place)
+            Training Gear (tap ice to place)
           </div>
           <MenuItem
             icon="🟠"
             label="Cone"
-            sublabel="Agility marker"
+            sublabel="Agility / turning marker"
             active={currentTool === 'cone'}
             onClick={() => selectTool('cone')}
           />
           <MenuItem
             icon="⚫"
             label="Tire"
-            sublabel="Obstacle / screen"
+            sublabel="Obstacle / screen dummy"
             active={currentTool === 'tire'}
             onClick={() => selectTool('tire')}
           />
           <MenuItem
             icon="🥅"
             label="Mini-Net"
-            sublabel="Small target"
+            sublabel="Small shooting target"
             active={currentTool === 'mini-net'}
             onClick={() => selectTool('mini-net')}
           />
           <MenuItem
             icon="🚧"
             label="Divider Barrier"
-            sublabel="Cross-ice bumper"
+            sublabel="Cross-ice drill bumper"
             active={currentTool === 'barrier'}
             onClick={() => selectTool('barrier')}
           />
         </FlyoutMenu>
 
-        {/* Tactical Mark & Actions Flyout */}
+        {/* Tactical Draw & Actions Flyout */}
         <FlyoutMenu
-          label="Mark"
+          label="Draw"
           icon="🎯"
-          active={isMarking}
-          isOpen={openMenu === 'mark'}
-          onToggle={() => toggleMenu('mark')}
+          active={isDrawing}
+          isOpen={openMenu === 'draw'}
+          onToggle={() => toggleMenu('draw')}
           onClose={closeMenu}
         >
           <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-cyan-400/70">
@@ -288,7 +289,7 @@ export function TacticalBar() {
           <MenuItem
             icon="⛸️"
             label="Skate Route"
-            sublabel={selectedPlayer ? `Draw #${selectedPlayer.number}'s line` : 'Select player first'}
+            sublabel={selectedPlayer ? `Draw #${selectedPlayer.number}'s skating lane` : 'Select a player first'}
             active={state.pendingAction.kind === 'draw-route'}
             onClick={() => {
               closeMenu();
@@ -301,7 +302,7 @@ export function TacticalBar() {
           <MenuItem
             icon="⚡"
             label="Pass Puck"
-            sublabel={carrier ? `From #${carrier.number}` : 'Select carrier first'}
+            sublabel={carrier ? `Pass from #${carrier.number}` : 'Select puck carrier first'}
             active={state.pendingAction.kind === 'pass'}
             onClick={() => {
               closeMenu();
@@ -314,7 +315,7 @@ export function TacticalBar() {
           <MenuItem
             icon="🏒"
             label="Shoot on Net"
-            sublabel={carrier ? `Fire on goal from #${carrier.number}` : 'Carrier fires shot'}
+            sublabel={carrier ? `Fire shot from #${carrier.number}` : 'Select carrier first'}
             onClick={() => {
               closeMenu();
               if (carrier) {
@@ -326,7 +327,7 @@ export function TacticalBar() {
           <MenuItem
             icon="📦"
             label="Dump In"
-            sublabel="Send puck to corner"
+            sublabel="Send puck into corner"
             onClick={() => {
               closeMenu();
               if (carrier) {
@@ -346,12 +347,12 @@ export function TacticalBar() {
           onClose={closeMenu}
         >
           <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400/70">
-            Instant Tactical Formations
+            Instant Tactical Setups
           </div>
           <MenuItem
             icon="🏒"
             label="1-3-1 Power Play"
-            sublabel="Umbrella man-advantage"
+            sublabel="5v4 umbrella man-advantage"
             onClick={() => applyFormation('pp-131')}
           />
           <MenuItem
@@ -363,25 +364,25 @@ export function TacticalBar() {
           <MenuItem
             icon="⚡"
             label="3-on-2 Rush"
-            sublabel="Triangulation attack"
+            sublabel="Triangulation rush attack"
             onClick={() => applyFormation('rush-3v2')}
           />
           <MenuItem
             icon="🚀"
             label="5v5 Breakout"
-            sublabel="Full regroup & breakout"
+            sublabel="Regroup & breakout system"
             onClick={() => applyFormation('breakout-5v5')}
           />
           <MenuItem
             icon="⭕"
             label="Centre Faceoff"
-            sublabel="5v5 regulation lineup"
+            sublabel="5v5 regulation center drop"
             onClick={() => applyFormation('faceoff-center')}
           />
           <MenuItem
             icon="🎯"
             label="O-Zone Faceoff"
-            sublabel="Attacking circle setup"
+            sublabel="Offensive faceoff play"
             onClick={() => applyFormation('faceoff-ozone')}
           />
         </FlyoutMenu>
@@ -400,7 +401,7 @@ export function TacticalBar() {
           <MenuItem
             icon="📷"
             label="Drill Diagram (PNG)"
-            sublabel="High-res bench image"
+            sublabel="High-resolution image"
             onClick={() => {
               closeMenu();
               exportDrillImageFile(state.drill);
@@ -418,7 +419,7 @@ export function TacticalBar() {
           <MenuItem
             icon="💾"
             label="Export Play Data (JSON)"
-            sublabel="Backup and sharing"
+            sublabel="Backup and sharing file"
             onClick={() => {
               closeMenu();
               void commands.exportDrills();
@@ -427,7 +428,7 @@ export function TacticalBar() {
         </FlyoutMenu>
       </div>
 
-      {/* RIGHT: BenchIQ-Style Direct Zone View Pills */}
+      {/* RIGHT: BenchIQ-Style Direct Zone View Pills & Help */}
       <div className="flex items-center gap-1 shrink-0 ml-1">
         <button
           type="button"
@@ -477,6 +478,16 @@ export function TacticalBar() {
           className="touch-target rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] font-bold text-white/80 hover:border-white/25 hover:text-white transition-all"
         >
           ⛶
+        </button>
+
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'help' })}
+          aria-label="How to use the whiteboard"
+          title="Coach Guide & Shortcuts"
+          className="touch-target flex h-7 w-7 items-center justify-center rounded-lg border border-cyan-400/35 bg-app-cyan/15 text-[12px] font-black text-app-cyan hover:bg-app-cyan/25 transition-all ml-0.5"
+        >
+          ?
         </button>
       </div>
     </div>
