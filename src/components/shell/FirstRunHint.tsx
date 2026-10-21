@@ -17,7 +17,7 @@
 // ============================================================================
 
 import { useEffect, useState } from 'react';
-import { useAppState } from '@/hooks/useAppState';
+import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
 
 const FLAG_KEY = 'phicecraft.firstRunHintDone';
@@ -58,7 +58,8 @@ function stageFor(drill: {
 }
 
 export function FirstRunHint() {
-  const { state } = useAppState();
+  const { state, dispatch } = useAppState();
+  const commands = useCommands();
   const { isCompactLandscape } = useResponsive();
   const [done, setDone] = useState(readDone);
 
@@ -88,16 +89,36 @@ export function FirstRunHint() {
       <div
         role="status"
         aria-live="polite"
-        className="rink-chip pointer-events-auto flex max-w-[min(560px,94vw)] items-center gap-3 rounded-2xl px-3 py-0"
+        className="rink-chip pointer-events-auto flex max-w-[min(680px,94vw)] flex-wrap items-center gap-2 rounded-2xl px-3 py-1"
       >
-        <div className="min-w-0 [text-wrap:balance] text-[13px] font-black leading-tight text-app-gold">
+        <div className="min-w-0 flex-1 [text-wrap:balance] text-[13px] font-black leading-tight text-app-gold">
           {MESSAGE[stage]}
         </div>
         <button
           type="button"
+          onClick={async () => {
+            await commands.useTemplate('tpl-play-131-power-play');
+            dismiss();
+          }}
+          className="touch-target inline-flex shrink-0 items-center gap-1 rounded-xl bg-app-cyan px-2.5 py-1 text-[11.5px] font-black text-[#041019] shadow hover:bg-cyan-300 transition-all"
+        >
+          ▶ Load Example Play
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            dispatch({ type: 'OPEN_SHEET', sheet: 'library' });
+            dismiss();
+          }}
+          className="touch-target hidden sm:inline-flex shrink-0 items-center gap-1 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-2.5 py-1 text-[11.5px] font-bold text-app-cyan hover:bg-app-cyan/25 transition-all"
+        >
+          📚 Browse Drills
+        </button>
+        <button
+          type="button"
           onClick={dismiss}
           aria-label="Dismiss hint"
-          className="touch-target shrink-0 rounded-xl border border-app-border bg-white/5 px-3 text-[12px] font-bold text-app-text hover:bg-white/10"
+          className="touch-target shrink-0 rounded-xl border border-app-border bg-white/5 px-2.5 text-[12px] font-bold text-app-text hover:bg-white/10"
         >
           Dismiss
         </button>

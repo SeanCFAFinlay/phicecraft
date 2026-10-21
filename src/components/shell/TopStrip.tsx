@@ -98,6 +98,18 @@ export function TopStrip() {
         <span className="hidden sm:inline">Practice Plans</span>
       </button>
 
+      {!isCompactLandscape && (
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'library' })}
+          className="touch-target hidden items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-2.5 py-1 text-[13px] font-bold text-white transition-all hover:border-cyan-500/30 hover:bg-app-cyan/15 hover:text-app-cyan sm:flex"
+          aria-label="Drill playbook library"
+        >
+          <span className="text-[14px]">📚</span>
+          <span className="hidden md:inline">Playbook</span>
+        </button>
+      )}
+
       {!isPhone && !isCompactLandscape && (
         <button
           type="button"
@@ -106,7 +118,7 @@ export function TopStrip() {
           aria-label="Coach workspace"
         >
           <span className="text-[14px]">📋</span>
-          <span>Coach workspace</span>
+          <span>Teach</span>
         </button>
       )}
 

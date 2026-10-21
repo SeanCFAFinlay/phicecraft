@@ -42,7 +42,7 @@ export function IntelligenceBadge({
     >
       <span className="text-[13px]">🧠</span>
       <span>
-        {hasIssues ? `${report.issues.length} Note${report.issues.length > 1 ? 's' : ''}` : 'Verified'}
+        {hasIssues ? `${report.issues.length} Tactical Note${report.issues.length > 1 ? 's' : ''}` : 'Intelligence: Verified'}
       </span>
       {hasIssues && (
         <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
