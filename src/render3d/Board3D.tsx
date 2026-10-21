@@ -26,13 +26,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
-import { useAppState, useAppServices } from '@/hooks/useAppState';
+import { useAppState, useAppServices, useCommands } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import type { RenderQuality } from '@/render/quality';
-import type { Drill, ID, Point } from '@/core/types';
+import type { Drill, ID, Point, Player } from '@/core/types';
 import { jerseyColor } from '@/core/types';
 import { orbitFromCamera, ORBIT_FOV_DEGREES } from './orbit';
-import { RINK_SCALE, rinkToWorld } from './worldMap';
+import { RINK_SCALE, rinkToWorld, worldToRink } from './worldMap';
 import { buildArena } from './scene/buildArena';
 import { createIceTexture } from './scene/iceTexture';
 import { createGoalNets } from './scene/goalNet';
@@ -88,8 +88,14 @@ export interface Board3DProps {
 export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   const { camera: cameraStore, playback } = useEditorRuntime();
   const { state } = useAppState();
+  const commands = useCommands();
   const { announcer } = useAppServices();
   const containerRef = useRef<HTMLDivElement>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const draggingPlayerRef = useRef<{ id: ID; hasMoved: boolean } | null>(null);
+  const icePlaneRef = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const mouseVecRef = useRef(new THREE.Vector2());
 
   // The actor effect reads the CURRENT drill every frame (60x/second while
   // playing) without re-subscribing to the frame stream on every edit - it
@@ -164,6 +170,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       CAMERA_NEAR,
       CAMERA_FAR
     );
+    cameraRef.current = perspectiveCamera;
 
     /** Positions the three.js camera from the current camera-store snapshot. */
     const applyOrbit = () => {
@@ -246,6 +253,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       iceTexture.dispose();
       scene.clear();
       sceneRef.current = null;
+      cameraRef.current = null;
       renderRef.current = () => {};
     };
   }, [cameraStore, quality]);
@@ -278,6 +286,14 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     possessionHalo.name = 'possession-halo';
     possessionHalo.visible = false;
     actorGroup.add(possessionHalo);
+
+    const selectHaloGeometry = new THREE.RingGeometry(0.72, 0.84, 40);
+    const selectHaloMaterial = new THREE.MeshBasicMaterial({ color: '#00e5ff', side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+    const selectionHalo = new THREE.Mesh(selectHaloGeometry, selectHaloMaterial);
+    selectionHalo.rotation.x = -Math.PI / 2;
+    selectionHalo.name = 'selection-halo';
+    selectionHalo.visible = false;
+    actorGroup.add(selectionHalo);
 
     // dt for the mixers is a PROGRESS delta times duration, not wall-clock
     // time - see the module header: scrubbing the timeline must move the
@@ -357,6 +373,14 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       if (carrier) {
         const world = rinkToWorld(frame.positions[carrier.id] ?? { x: carrier.x, y: carrier.y });
         possessionHalo.position.set(world.x, 0.025, world.z);
+      }
+
+      const selectedId = state.selection.selectedPlayerId;
+      const selected = selectedId ? drill.players.find(p => p.id === selectedId) : null;
+      selectionHalo.visible = Boolean(selected);
+      if (selected) {
+        const world = rinkToWorld(frame.positions[selected.id] ?? { x: selected.x, y: selected.y });
+        selectionHalo.position.set(world.x, 0.02, world.z);
       }
       for (const player of drill.players) {
         const actor = skaterActors.get(player.id);
@@ -496,6 +520,36 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     };
   }, [cameraStore]);
 
+  const getIceIntersection = useCallback((clientX: number, clientY: number): THREE.Vector3 | null => {
+    const container = containerRef.current;
+    const camera = cameraRef.current;
+    if (!container || !camera) return null;
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    mouseVecRef.current.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    mouseVecRef.current.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycasterRef.current.setFromCamera(mouseVecRef.current, camera);
+    const target = new THREE.Vector3();
+    return raycasterRef.current.ray.intersectPlane(icePlaneRef.current, target);
+  }, []);
+
+  const findPlayerNear = useCallback((icePoint: THREE.Vector3, thresholdMeters = 1.8): Player | null => {
+    const drill = drillRef.current;
+    let closest: Player | null = null;
+    let closestDistSq = thresholdMeters * thresholdMeters;
+    for (const p of drill.players) {
+      const world = rinkToWorld(p);
+      const dx = world.x - icePoint.x;
+      const dz = world.z - icePoint.z;
+      const distSq = dx * dx + dz * dz;
+      if (distSq < closestDistSq) {
+        closestDistSq = distSq;
+        closest = p;
+      }
+    }
+    return closest;
+  }, []);
+
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       try {
@@ -506,18 +560,54 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
       if (pointersRef.current.size >= 2) {
+        draggingPlayerRef.current = null;
         beginPinchFromCurrentPointers();
         return;
       }
 
       pinchRef.current = null;
+
+      // 3D Raycasting against ice & players
+      const iceHit = getIceIntersection(event.clientX, event.clientY);
+      const tool = state.ui.currentTool;
+
+      if (iceHit) {
+        const rinkPt = worldToRink({ x: iceHit.x, z: iceHit.z });
+
+        // Placement tools: tap ice in 3D to drop player or equipment
+        if (tool === 'home' || tool === 'away' || tool === 'goalie') {
+          commands.addPlayer(rinkPt, tool);
+          return;
+        }
+        if (tool === 'coach') {
+          commands.addCoach(rinkPt);
+          return;
+        }
+        if (tool === 'cone' || tool === 'tire' || tool === 'mini-net' || tool === 'barrier') {
+          commands.addEquipment(tool, rinkPt);
+          return;
+        }
+
+        // Move / selection tool
+        if (tool === 'move' && !state.playback.isPlaying) {
+          const hitPlayer = findPlayerNear(iceHit);
+          if (hitPlayer) {
+            commands.selectPlayer(hitPlayer.id);
+            draggingPlayerRef.current = { id: hitPlayer.id, hasMoved: false };
+            dragRef.current = null;
+            return;
+          }
+        }
+      }
+
+      draggingPlayerRef.current = null;
       dragRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
         startRotation: cameraStore.camera.rotation ?? 0,
       };
     },
-    [cameraStore, beginPinchFromCurrentPointers]
+    [cameraStore, beginPinchFromCurrentPointers, getIceIntersection, findPlayerNear, state.ui.currentTool, state.playback.isPlaying, commands]
   );
 
   const handlePointerMove = useCallback(
@@ -533,13 +623,24 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         return;
       }
 
+      // If dragging a player in 3D
+      if (draggingPlayerRef.current && !state.playback.isPlaying) {
+        const iceHit = getIceIntersection(event.clientX, event.clientY);
+        if (iceHit) {
+          const rinkPt = worldToRink({ x: iceHit.x, z: iceHit.z });
+          commands.movePlayerTo(draggingPlayerRef.current.id, rinkPt.x, rinkPt.y);
+          draggingPlayerRef.current.hasMoved = true;
+          return;
+        }
+      }
+
       const drag = dragRef.current;
       if (drag && drag.pointerId === event.pointerId) {
         const rotation = rotationFromDrag(drag.startRotation, event.clientX - drag.startX);
         cameraStore.setCamera({ ...cameraStore.camera, rotation });
       }
     },
-    [cameraStore]
+    [cameraStore, getIceIntersection, commands, state.playback.isPlaying]
   );
 
   /** Shared by pointerup/pointercancel: drop the finger, and resume whatever gesture the remaining fingers (if any) imply. */
@@ -553,6 +654,8 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       } catch {
         /* pointer release fallback */
       }
+
+      draggingPlayerRef.current = null;
 
       if (pointersRef.current.size >= 2) {
         beginPinchFromCurrentPointers();

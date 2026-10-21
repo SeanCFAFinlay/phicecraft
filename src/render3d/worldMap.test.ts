@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { RINK_SCALE, rinkToWorld, headingToYaw } from './worldMap';
+import { RINK_SCALE, rinkToWorld, worldToRink, headingToYaw } from './worldMap';
 import { RINK } from '@/core/constants';
 
 describe('RINK_SCALE', () => {
@@ -43,6 +43,14 @@ describe('rinkToWorld', () => {
     const near = rinkToWorld({ x: RINK.centerX + 10, y: RINK.centerY });
     const far = rinkToWorld({ x: RINK.centerX + 20, y: RINK.centerY });
     expect(far.x).toBeCloseTo(near.x * 2, 10);
+  });
+
+  it('round-trips through worldToRink', () => {
+    const original = { x: 340, y: 180 };
+    const world = rinkToWorld(original);
+    const back = worldToRink({ x: world.x, z: world.z });
+    expect(back.x).toBeCloseTo(original.x, 10);
+    expect(back.y).toBeCloseTo(original.y, 10);
   });
 });
 

@@ -39,6 +39,17 @@ export function rinkToWorld(p: Point): { x: number; y: number; z: number } {
 }
 
 /**
+ * Three.js world (x, y, z) -> Rink (x, y).
+ * Inverse of rinkToWorld.
+ */
+export function worldToRink(w: { x: number; z: number }): Point {
+  return {
+    x: w.x / RINK_SCALE + RINK.centerX,
+    y: w.z / RINK_SCALE + RINK.centerY,
+  };
+}
+
+/**
  * Rink heading (radians, 0 = +x/east, increasing toward +y/"south") -> three.js
  * yaw (radians about +Y, three's convention for a model authored facing +Z).
  *
