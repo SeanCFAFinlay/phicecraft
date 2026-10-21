@@ -93,4 +93,24 @@ describe('PracticePage', () => {
     expect(screen.getByRole('button', { name: /Playbook Templates/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /My Saved Drills/i })).toBeInTheDocument();
   });
+
+  it('renders live coaching intelligence and ADM balance analytics', () => {
+    renderPracticePage();
+
+    expect(screen.getByText(/Practice Intelligence & ADM Balance/i)).toBeInTheDocument();
+    expect(screen.getByText(/Live Analytics/i)).toBeInTheDocument();
+    expect(screen.getByText(/Station Concurrency/i)).toBeInTheDocument();
+    expect(screen.getByText(/Puck Touch Density/i)).toBeInTheDocument();
+  });
+
+  it('provides smart match ranking in drill picker modal', () => {
+    renderPracticePage();
+
+    const addDrillBtn = screen.getByRole('button', { name: /\+ Add Drill from Playbook/i });
+    fireEvent.click(addDrillBtn);
+
+    expect(screen.getByText(/Smart Coaching Match/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Rank by Smart Match/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/% Match/i).length).toBeGreaterThan(0);
+  });
 });

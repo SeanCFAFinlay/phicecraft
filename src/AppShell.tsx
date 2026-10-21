@@ -12,7 +12,9 @@
 // lazy-loaded so none of them are on the path to first interaction.
 // ============================================================================
 
-import { Suspense, lazy, useEffect, useRef, useSyncExternalStore } from 'react';
+import { Suspense, lazy, useState, useEffect, useRef, useSyncExternalStore } from 'react';
+import { IntelligenceBadge } from '@/components/intelligence/IntelligenceBadge';
+import { IntelligencePanel } from '@/components/intelligence/IntelligencePanel';
 import type { RenderQuality } from '@/render/quality';
 import { useAppServices, useAppState } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
@@ -88,6 +90,7 @@ const Board3D = lazy(loadBoard3D);
 
 export function AppShell() {
   const { state, dispatch } = useAppState();
+  const [isIntelligenceOpen, setIsIntelligenceOpen] = useState(false);
   const { importPreviews } = useAppServices();
   const { camera, quality: qualityStore } = useEditorRuntime();
   const { isDesktop, isPhone, isCompactLandscape } = useResponsive();
@@ -167,6 +170,15 @@ export function AppShell() {
         <ToastHost />
         {mode !== 'present' && <ViewControls />}
         {mode !== 'present' && isDesktop && <ValidationPanel />}
+        {mode !== 'present' && (
+          <IntelligenceBadge
+            isOpen={isIntelligenceOpen}
+            onToggle={() => setIsIntelligenceOpen(prev => !prev)}
+          />
+        )}
+        {isIntelligenceOpen && (
+          <IntelligencePanel onClose={() => setIsIntelligenceOpen(false)} />
+        )}
 
         <Suspense fallback={null}>{state.ui.showDiagnostics && <DiagnosticsOverlay />}</Suspense>
 

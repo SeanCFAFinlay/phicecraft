@@ -21,7 +21,11 @@ import {
   createCustomBlock,
 } from '@/domain/practice/practiceStore';
 import type { PracticeSession, PracticeBlock } from '@/domain/practice/types';
-import type { DrillDocumentV3 } from '@/domain/v3/types';
+import type { AgeBand, DrillCategory, DrillDocumentV3, RinkArea } from '@/domain/v3/types';
+import {
+  recommendDrills,
+  type RecommendationCriteria,
+} from '@/domain/recommendation/recommendationEngine';
 import { getRepository } from '@/persistence';
 import {
   validateBundlePayload,
@@ -66,6 +70,10 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
   const [isRunnerOpen, setIsRunnerOpen] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [smartMatchEnabled, setSmartMatchEnabled] = useState(true);
+  const [criteriaAgeBand, setCriteriaAgeBand] = useState<AgeBand | 'all'>('all');
+  const [criteriaRinkArea, setCriteriaRinkArea] = useState<RinkArea | 'all'>('all');
+  const [criteriaGoalies, setCriteriaGoalies] = useState<number | 'all'>('all');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -274,6 +282,45 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
       return matchesText && matchesCat;
     });
   }, [personalDrills, drillSearch, selectedCategory]);
+
+  const templateCandidateDocs = useMemo(() => DRILL_TEMPLATES.map(t => t.document), []);
+
+  const scoredTemplates = useMemo(() => {
+    if (!smartMatchEnabled) return null;
+    const criteria: RecommendationCriteria = {
+      query: drillSearch || undefined,
+      categories: selectedCategory === 'all' ? undefined : [selectedCategory as DrillCategory],
+      rinkArea: criteriaRinkArea === 'all' ? undefined : criteriaRinkArea,
+      ageBand: criteriaAgeBand === 'all' ? undefined : criteriaAgeBand,
+      goalieCount: criteriaGoalies === 'all' ? undefined : criteriaGoalies,
+      maxMinutes: metrics?.remainingMinutes && metrics.remainingMinutes > 0 ? metrics.remainingMinutes : undefined,
+    };
+    return recommendDrills(templateCandidateDocs, criteria, 50);
+  }, [smartMatchEnabled, drillSearch, selectedCategory, criteriaRinkArea, criteriaAgeBand, criteriaGoalies, metrics?.remainingMinutes, templateCandidateDocs]);
+
+  const scoredPersonal = useMemo(() => {
+    if (!smartMatchEnabled || personalDrills.length === 0) return null;
+    const criteria: RecommendationCriteria = {
+      query: drillSearch || undefined,
+      categories: selectedCategory === 'all' ? undefined : [selectedCategory as DrillCategory],
+      rinkArea: criteriaRinkArea === 'all' ? undefined : criteriaRinkArea,
+      ageBand: criteriaAgeBand === 'all' ? undefined : criteriaAgeBand,
+      goalieCount: criteriaGoalies === 'all' ? undefined : criteriaGoalies,
+      maxMinutes: metrics?.remainingMinutes && metrics.remainingMinutes > 0 ? metrics.remainingMinutes : undefined,
+    };
+    return recommendDrills(personalDrills, criteria, 50);
+  }, [smartMatchEnabled, personalDrills, drillSearch, selectedCategory, criteriaRinkArea, criteriaAgeBand, criteriaGoalies, metrics?.remainingMinutes]);
+
+  const topSuggestedDrill = useMemo(() => {
+    if (!metrics || metrics.remainingMinutes <= 0) return null;
+    const criteria: RecommendationCriteria = {
+      maxMinutes: metrics.remainingMinutes,
+    };
+    const results = recommendDrills(templateCandidateDocs, criteria, 3);
+    const existingTitles = new Set(activeSession?.blocks.map(b => b.title) || []);
+    const candidate = results.find(r => !existingTitles.has(r.drill.metadata.title));
+    return candidate ?? results[0] ?? null;
+  }, [metrics, templateCandidateDocs, activeSession?.blocks]);
 
   return (
     <Sheet
@@ -510,6 +557,88 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Coaching Intelligence & ADM Station Assessment */}
+            <div className="rounded-2xl border border-app-cyan/30 bg-gradient-to-r from-cyan-950/40 via-[#0b1723] to-[#0b1723] p-4 shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-app-cyan/20 text-[18px]">
+                    🧠
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-[13px] font-black uppercase tracking-wider text-white">
+                        Practice Intelligence & ADM Balance
+                      </h4>
+                      <span className="rounded-full bg-app-cyan/15 border border-app-cyan/30 px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider text-app-cyan">
+                        Live Analytics
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[12px] text-white/70">
+                      {metrics.remainingMinutes > 0 ? (
+                        <>
+                          <span className="font-bold text-app-cyan">{metrics.remainingMinutes} minutes open ice</span> remaining in this {metrics.targetMinutes}m sheet allocation.
+                        </>
+                      ) : metrics.remainingMinutes === 0 ? (
+                        <>
+                          <span className="font-bold text-emerald-400">100% Ice Utilization</span>. Perfect alignment with {metrics.targetMinutes}-minute practice window.
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-bold text-amber-400">{Math.abs(metrics.remainingMinutes)}m overtime</span>. Ice slot will exceed schedule.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {topSuggestedDrill && metrics.remainingMinutes > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11.5px] text-white/60 hidden sm:inline">
+                      Suggested: <strong className="text-white">{topSuggestedDrill.drill.metadata.title}</strong> ({topSuggestedDrill.drill.metadata.durationMinutes}m)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleAddBlockFromTemplate(topSuggestedDrill.drill.id)}
+                      className="touch-target inline-flex items-center gap-1.5 rounded-xl bg-app-cyan px-3.5 py-1.5 text-[11.5px] font-black text-[#041019] shadow hover:bg-cyan-300 transition-all"
+                    >
+                      + Quick Add Fill Drill
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Station & Engagement Breakdown */}
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-white/10 text-[11.5px]">
+                <div className="rounded-xl bg-white/[0.04] p-2.5 border border-white/5">
+                  <div className="text-white/50 uppercase font-bold text-[10px]">Station Concurrency</div>
+                  <div className="mt-0.5 font-bold text-white flex items-center gap-1.5">
+                    <span>🔄</span>
+                    {activeSession.blocks.some(b => b.stationSplit && b.stationSplit !== 'full')
+                      ? 'ADM Multi-Station Enabled'
+                      : 'Single Station / Full Ice'}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-white/[0.04] p-2.5 border border-white/5">
+                  <div className="text-white/50 uppercase font-bold text-[10px]">Puck Touch Density</div>
+                  <div className="mt-0.5 font-bold text-white flex items-center gap-1.5">
+                    <span>⚡</span>
+                    {activeSession.blocks.some(b => b.stationSplit && b.stationSplit !== 'full')
+                      ? 'High Reps (3.2x vs traditional)'
+                      : 'Standard Rep Density'}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-white/[0.04] p-2.5 border border-white/5">
+                  <div className="text-white/50 uppercase font-bold text-[10px]">Equipment Ready</div>
+                  <div className="mt-0.5 font-bold text-white flex items-center gap-1.5">
+                    <span>📦</span>
+                    {Object.keys(metrics.equipmentTotals).length > 0
+                      ? `${Object.values(metrics.equipmentTotals).reduce((a, b) => a + b, 0)} Total Arena Items`
+                      : 'Standard Rink Setup'}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -985,12 +1114,144 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                     )
                   )}
                 </div>
+
+                {/* Smart Recommendation Criteria Bar */}
+                <div className="rounded-xl border border-cyan-500/25 bg-[#05111d] p-2.5 flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px]">🧠</span>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-app-cyan">
+                        Smart Coaching Match
+                      </span>
+                    </div>
+                    <label className="flex items-center gap-2 text-[11px] font-bold text-white/80 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={smartMatchEnabled}
+                        onChange={e => setSmartMatchEnabled(e.target.checked)}
+                        className="rounded accent-cyan-400"
+                      />
+                      Rank by Smart Match
+                    </label>
+                  </div>
+
+                  {smartMatchEnabled && (
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] pt-1 border-t border-white/5">
+                      <span className="text-white/50 font-bold uppercase text-[9.5px]">Ice Footprint:</span>
+                      {(['all', 'full', 'half', 'station'] as const).map(area => (
+                        <button
+                          key={area}
+                          type="button"
+                          onClick={() => setCriteriaRinkArea(area)}
+                          className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase transition-all ${
+                            criteriaRinkArea === area
+                              ? 'bg-app-cyan text-[#041019]'
+                              : 'bg-white/5 text-white/70 hover:bg-white/10'
+                          }`}
+                        >
+                          {area}
+                        </button>
+                      ))}
+
+                      <span className="ml-2 text-white/50 font-bold uppercase text-[9.5px]">Goalies:</span>
+                      {(['all', 0, 1, 2] as const).map(g => (
+                        <button
+                          key={String(g)}
+                          type="button"
+                          onClick={() => setCriteriaGoalies(g)}
+                          className={`rounded-lg px-2 py-0.5 font-bold text-[10px] transition-all ${
+                            criteriaGoalies === g
+                              ? 'bg-app-cyan text-[#041019]'
+                              : 'bg-white/5 text-white/70 hover:bg-white/10'
+                          }`}
+                        >
+                          {g === 'all' ? 'Any' : `${g} G`}
+                        </button>
+                      ))}
+
+                      <span className="ml-2 text-white/50 font-bold uppercase text-[9.5px]">Age:</span>
+                      {(['all', 'u9', 'u11', 'u13', 'u15', 'u18'] as const).map(age => (
+                        <button
+                          key={age}
+                          type="button"
+                          onClick={() => setCriteriaAgeBand(age)}
+                          className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase transition-all ${
+                            criteriaAgeBand === age
+                              ? 'bg-app-cyan text-[#041019]'
+                              : 'bg-white/5 text-white/70 hover:bg-white/10'
+                          }`}
+                        >
+                          {age}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Filtered Drill List */}
+              {/* Filtered / Scored Drill List */}
               <div className="mt-3 flex-1 overflow-y-auto space-y-2 pr-1">
                 {drillPickerTab === 'templates' ? (
-                  filteredTemplates.length === 0 ? (
+                  smartMatchEnabled && scoredTemplates ? (
+                    scoredTemplates.length === 0 ? (
+                      <p className="p-4 text-center text-[13px] text-white/40">No matching template drills for current criteria.</p>
+                    ) : (
+                      scoredTemplates.map(rec => {
+                        const meta = rec.drill.metadata;
+                        return (
+                          <div
+                            key={rec.drill.id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-app-border bg-white/5 p-3 transition-colors hover:border-app-cyan/50 hover:bg-white/[0.08]"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-bold text-[13px] text-white">{meta.title}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                                  rec.matchPercentage >= 80
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                    : rec.matchPercentage >= 50
+                                    ? 'bg-app-cyan/20 text-app-cyan border border-app-cyan/40'
+                                    : 'bg-white/10 text-white/70'
+                                }`}>
+                                  {rec.matchPercentage}% Match
+                                </span>
+                                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white/70 uppercase">
+                                  {meta.rinkArea}
+                                </span>
+                                <span className="font-mono text-[11px] text-app-cyan">
+                                  {meta.durationMinutes}m
+                                </span>
+                              </div>
+                              <p className="mt-1 line-clamp-1 text-[11.5px] text-white/60">
+                                {meta.summary}
+                              </p>
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {rec.factors.slice(0, 3).map((f, fi) => (
+                                  <span
+                                    key={fi}
+                                    className={`rounded px-1.5 py-0.5 text-[9.5px] font-bold ${
+                                      f.isPositive
+                                        ? 'bg-emerald-500/15 text-emerald-300'
+                                        : 'bg-amber-500/15 text-amber-300'
+                                    }`}
+                                  >
+                                    {f.isPositive ? '✓' : '•'} {f.label}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAddBlockFromTemplate(rec.drill.id)}
+                              className="touch-target shrink-0 rounded-xl bg-app-cyan px-3 py-1.5 text-[12px] font-black text-[#041019] hover:bg-cyan-300 shadow"
+                            >
+                              + Add
+                            </button>
+                          </div>
+                        );
+                      })
+                    )
+                  ) : filteredTemplates.length === 0 ? (
                     <p className="p-4 text-center text-[13px] text-white/40">No template drills match search.</p>
                   ) : (
                     filteredTemplates.map(tpl => {
@@ -1031,6 +1292,59 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                       ? 'No personal drills saved in library yet. Author drills on the ice to add them.'
                       : 'No saved personal drills match search.'}
                   </p>
+                ) : smartMatchEnabled && scoredPersonal && scoredPersonal.length > 0 ? (
+                  scoredPersonal.map(rec => {
+                    const meta = rec.drill.metadata;
+                    return (
+                      <div
+                        key={rec.drill.id}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-app-border bg-white/5 p-3 transition-colors hover:border-app-cyan/50 hover:bg-white/[0.08]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-[13px] text-white">{meta.title}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                              rec.matchPercentage >= 80
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                : 'bg-app-cyan/20 text-app-cyan border border-app-cyan/40'
+                            }`}>
+                              {rec.matchPercentage}% Match
+                            </span>
+                            <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300 uppercase">
+                              {meta.rinkArea}
+                            </span>
+                            <span className="font-mono text-[11px] text-app-cyan">
+                              {meta.durationMinutes}m
+                            </span>
+                          </div>
+                          <p className="mt-1 line-clamp-1 text-[11.5px] text-white/60">
+                            {meta.summary || 'Saved custom personal drill.'}
+                          </p>
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {rec.factors.slice(0, 3).map((f, fi) => (
+                              <span
+                                key={fi}
+                                className={`rounded px-1.5 py-0.5 text-[9.5px] font-bold ${
+                                  f.isPositive
+                                    ? 'bg-emerald-500/15 text-emerald-300'
+                                    : 'bg-amber-500/15 text-amber-300'
+                                }`}
+                              >
+                                {f.isPositive ? '✓' : '•'} {f.label}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAddBlockFromPersonalDrill(rec.drill)}
+                          className="touch-target shrink-0 rounded-xl bg-app-cyan px-3 py-1.5 text-[12px] font-black text-[#041019] hover:bg-cyan-300 shadow"
+                        >
+                          + Add
+                        </button>
+                      </div>
+                    );
+                  })
                 ) : (
                   filteredPersonalDrills.map(drill => {
                     const meta = drill.metadata;

@@ -79,7 +79,8 @@ export function scoreDrill(
 ): DrillRecommendation | null {
   const meta = drill.metadata;
   const factors: ScoreFactor[] = [];
-  let score = 0;
+  let score = 40;
+  factors.push({ label: 'Core tactical drill', points: 40, isPositive: true });
   const maxPossibleScore = 100;
 
   // 1. Strict Goalie Filter
@@ -218,7 +219,7 @@ export function scoreDrill(
   }
 
   // Bound score and calculate match percentage
-  const boundedScore = Math.max(0, score);
+  const boundedScore = Math.min(100, Math.max(0, score));
   const matchPercentage = Math.min(100, Math.round((boundedScore / maxPossibleScore) * 100));
 
   const reasons = factors.map(f => (f.isPositive ? `+${f.points} ${f.label}` : `${f.points} ${f.label}`));
