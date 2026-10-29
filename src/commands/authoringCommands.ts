@@ -37,7 +37,7 @@ import {
   validatePass,
   validateShot,
 } from '@/engine/puck';
-import { constrainToRink, distance, isInsideRink } from '@/utils/geometry';
+import { closestPointOnPolyline, constrainToRink, distance, isInsideRink } from '@/utils/geometry';
 import {
   MAX_COMFORTABLE_CONTROLS,
   MIN_CONTROLS,
@@ -96,11 +96,13 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
    */
   function applyEventGeometry(
     event: DrillEvent,
-    changes: { toPoint?: Point; waypoints?: Point[]; shape?: CurveShape }
+    changes: { fromPoint?: Point; toPoint?: Point; waypoints?: Point[]; shape?: CurveShape; at?: number; arrivalAt?: number }
   ): void {
     const shape = changes.shape ?? event.shape ?? 'spline';
     const waypoints = changes.waypoints ?? event.waypoints ?? [];
+    const fromPoint = changes.fromPoint ?? event.fromPoint;
     const toPoint = changes.toPoint ?? event.toPoint;
+    const at = changes.at ?? event.at;
 
     const before = measureFlight(
       event.fromPoint,
@@ -108,24 +110,28 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       event.toPoint,
       event.shape ?? 'spline'
     );
-    const after = measureFlight(event.fromPoint, waypoints, toPoint, shape);
+    const after = measureFlight(fromPoint, waypoints, toPoint, shape);
 
-    let arrivalAt: number | undefined;
+    let arrivalAt = changes.arrivalAt;
     if (
-      event.at !== undefined &&
+      arrivalAt === undefined &&
+      at !== undefined &&
       event.arrivalAt !== undefined &&
       before > 1e-6 &&
-      event.arrivalAt > event.at
+      event.arrivalAt > at
     ) {
-      const window = event.arrivalAt - event.at;
-      arrivalAt = Math.min(1, Math.max(event.at + 0.005, event.at + window * (after / before)));
+      const window = event.arrivalAt - at;
+      arrivalAt = Math.min(1, Math.max(at + 0.005, at + window * (after / before)));
     }
 
     dispatch({
       type: 'UPDATE_EVENT_GEOMETRY',
       id: event.id,
       ...changes,
+      fromPoint,
+      toPoint,
       waypoints: changes.waypoints,
+      at,
       arrivalAt,
     });
   }
@@ -567,7 +573,7 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       return done();
     },
 
-    requestShot(fromPlayerId, target) {
+    requestShot(fromPlayerId, target, fromPoint?) {
       const state = getState();
       const fromPlayer = findPlayer(fromPlayerId);
       if (!fromPlayer) return reject('That shooter is no longer on the ice.');
@@ -576,11 +582,35 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       if (!validation.valid) return reject(validation.error!);
 
       const route = state.drill.skatePaths.find(path => path.ownerId === fromPlayerId);
-      const authoredSource = route?.points.length
-        ? route.points[route.points.length - 1]
-        : { x: fromPlayer.x, y: fromPlayer.y };
-      const at = releaseTimeFor(fromPlayerId, authoredSource);
-      const source = getAuthoredPlayerBlade(state.drill, fromPlayerId, at) ?? authoredSource;
+      let source: Point;
+      let at: number;
+
+      if (fromPoint) {
+        const constrained = constrainToRink(fromPoint, RINK_MARGIN);
+        if (route && route.points.length >= 2) {
+          const closest = closestPointOnPolyline(route.points, constrained);
+          if (closest.distance < 25) {
+            at = getAuthoredReleaseProgress(state.drill, fromPlayerId, closest.point);
+            source = getAuthoredPlayerBlade(state.drill, fromPlayerId, at) ?? closest.point;
+          } else {
+            const newPoints = [...route.points.slice(0, -1), constrained];
+            dispatch({ type: 'UPDATE_SKATE_POINTS', id: route.id, points: newPoints });
+            at = releaseTimeFor(fromPlayerId, constrained);
+            source = constrained;
+          }
+        } else {
+          dispatch({ type: 'MOVE_PLAYER', id: fromPlayerId, x: constrained.x, y: constrained.y });
+          at = releaseTimeFor(fromPlayerId, constrained);
+          source = constrained;
+        }
+      } else {
+        const authoredSource = route?.points.length
+          ? route.points[route.points.length - 1]
+          : { x: fromPlayer.x, y: fromPlayer.y };
+        at = releaseTimeFor(fromPlayerId, authoredSource);
+        source = getAuthoredPlayerBlade(state.drill, fromPlayerId, at) ?? authoredSource;
+      }
+
       const flight = Math.max(0.025, distance(source, target) / 5 / 75 / drillDurationSeconds());
 
       dispatch({
@@ -802,6 +832,59 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
 
       const next = moveControl(waypoints, index, constrainToRink(to, RINK_MARGIN));
       applyEventGeometry(event, { waypoints: next });
+      return done();
+    },
+
+    setEventSource(eventId, from) {
+      const event = findEvent(eventId);
+      if (!event) return rejected('That puck action is already gone.');
+
+      const constrained = constrainToRink(from, RINK_MARGIN);
+      const state = getState();
+      const shooter = findPlayer(event.fromPlayerId);
+
+      dispatch({ type: 'PUSH_UNDO' });
+
+      if (shooter) {
+        const route = state.drill.skatePaths.find(path => path.ownerId === shooter.id);
+        if (route && route.points.length >= 2) {
+          const closest = closestPointOnPolyline(route.points, constrained);
+          if (closest.distance < 25) {
+            const at = getAuthoredReleaseProgress(state.drill, shooter.id, closest.point);
+            const bladePos = getAuthoredPlayerBlade(state.drill, shooter.id, at) ?? closest.point;
+            const flight = Math.max(0.025, distance(bladePos, event.toPoint) / 5 / 75 / drillDurationSeconds());
+            applyEventGeometry(event, {
+              fromPoint: bladePos,
+              at,
+              arrivalAt: Math.min(1, at + flight),
+            });
+          } else {
+            const newPoints = [...route.points.slice(0, -1), constrained];
+            dispatch({ type: 'UPDATE_SKATE_POINTS', id: route.id, points: newPoints });
+            const at = releaseTimeFor(shooter.id, constrained);
+            const flight = Math.max(0.025, distance(constrained, event.toPoint) / 5 / 75 / drillDurationSeconds());
+            applyEventGeometry(event, {
+              fromPoint: constrained,
+              at,
+              arrivalAt: Math.min(1, at + flight),
+            });
+          }
+          notify.toast({ message: 'Shot origin adjusted', type: 'success' });
+          return done();
+        } else {
+          dispatch({ type: 'MOVE_PLAYER', id: shooter.id, x: constrained.x, y: constrained.y });
+          const flight = Math.max(0.025, distance(constrained, event.toPoint) / 5 / 75 / drillDurationSeconds());
+          applyEventGeometry(event, {
+            fromPoint: constrained,
+            arrivalAt: Math.min(1, (event.at ?? 0.12) + flight),
+          });
+          notify.toast({ message: 'Shot origin adjusted', type: 'success' });
+          return done();
+        }
+      }
+
+      applyEventGeometry(event, { fromPoint: constrained });
+      notify.toast({ message: 'Shot origin adjusted', type: 'success' });
       return done();
     },
 

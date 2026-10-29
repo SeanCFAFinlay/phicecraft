@@ -651,7 +651,20 @@ export function updateEditHandles(pool: GraphicsKeyedPool, input: DynamicLayerIn
   if (active && input.selectedEventId) {
     const event = input.drill.events.find(item => item.id === input.selectedEventId);
     if (event) {
-      const controls = flightControls(event, event.fromPoint, event.toPoint);
+      let ev = event;
+      if (input.draggedEventHandle && input.draggedEventHandle.eventId === event.id) {
+        if (input.draggedEventHandle.part === 'end') {
+          ev = { ...ev, toPoint: input.draggedEventHandle.point };
+        } else if (input.draggedEventHandle.part === 'start') {
+          ev = { ...ev, fromPoint: input.draggedEventHandle.point };
+        } else if (input.draggedEventHandle.part === 'waypoint' && ev.waypoints) {
+          ev = {
+            ...ev,
+            waypoints: ev.waypoints.map((w, idx) => (idx === input.draggedEventHandle!.index ? input.draggedEventHandle!.point : w)),
+          };
+        }
+      }
+      const controls = flightControls(ev, ev.fromPoint, ev.toPoint);
       for (const { index, point } of controlMidpoints(controls)) {
         drawAddHandle(pool.get(`event-add-${index}`), point, 0xffd60a);
       }
@@ -667,10 +680,16 @@ export function updateEditHandles(pool: GraphicsKeyedPool, input: DynamicLayerIn
           .stroke({ color: 0xffd60a, width: 2.4 });
         g.circle(waypoint.x, waypoint.y, 2.4).fill(0xfff7d6);
       });
-      if (event.type === 'shot' || event.type === 'dump') {
+      if (ev.type === 'shot' || ev.type === 'dump') {
+        pool
+          .get('event-start')
+          .circle(ev.fromPoint.x, ev.fromPoint.y, 8)
+          .fill({ color: 0x061823, alpha: 0.9 })
+          .stroke({ color: 0x00e676, width: 2.2 });
+
         pool
           .get('event-end')
-          .circle(event.toPoint.x, event.toPoint.y, 8)
+          .circle(ev.toPoint.x, ev.toPoint.y, 8)
           .fill({ color: 0x061823, alpha: 0.9 })
           .stroke({ color: 0xff6b0f, width: 2 });
       }

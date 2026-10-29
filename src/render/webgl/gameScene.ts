@@ -241,7 +241,13 @@ export function updateGameScene(scene: GameScene, input: DynamicLayerInput): voi
   const compiled = compiledFor(s, drill);
   const renderedEvents: DrillEvent[] = compiled.events.map(compiledEvent => {
     const endpoints = getCompiledEventEndpoints(compiled, compiledEvent);
-    return { ...compiledEvent.source, fromPoint: endpoints.from, toPoint: endpoints.to };
+    let from = endpoints.from;
+    let to = endpoints.to;
+    if (input.draggedEventHandle && input.draggedEventHandle.eventId === compiledEvent.source.id) {
+      if (input.draggedEventHandle.part === 'end') to = input.draggedEventHandle.point;
+      if (input.draggedEventHandle.part === 'start') from = input.draggedEventHandle.point;
+    }
+    return { ...compiledEvent.source, fromPoint: from, toPoint: to };
   });
   updateEvents(s.eventsPool, renderedEvents, input.selectedEventId);
 

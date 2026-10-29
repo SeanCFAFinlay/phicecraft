@@ -555,9 +555,11 @@ function reduce(state: AppState, action: AppAction): AppState {
           events: state.drill.events.map(ev => {
             if (ev.id !== action.id) return ev;
             const next = { ...ev };
+            if (action.fromPoint) next.fromPoint = action.fromPoint;
             if (action.toPoint) next.toPoint = action.toPoint;
             if (action.waypoints) next.waypoints = action.waypoints;
             if (action.shape) next.shape = action.shape;
+            if (action.at !== undefined) next.at = action.at;
             // The command layer re-times the flight from the new arc length,
             // so a bent pass genuinely takes longer to arrive.
             if (action.arrivalAt !== undefined) next.arrivalAt = action.arrivalAt;

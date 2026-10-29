@@ -91,7 +91,7 @@ export interface DynamicLayerInput {
   draggedCoach?: { id: ID; point: Point } | null;
   draggedEquipment?: { id: ID; point: Point } | null;
   draggedRouteHandle?: { pathId: ID; index: number; point: Point } | null;
-  draggedEventHandle?: { eventId: ID; part: 'waypoint' | 'end'; index: number; point: Point } | null;
+  draggedEventHandle?: { eventId: ID; part: 'waypoint' | 'end' | 'start'; index: number; point: Point } | null;
   dragPreview: DragPreview | null;
   /**
    * While a pass is armed: who can receive it, and how well. Computed once
@@ -199,7 +199,13 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   const compiled = compiledFor(drill);
   const renderedEvents: DrillEvent[] = compiled.events.map(compiledEvent => {
     const endpoints = getCompiledEventEndpoints(compiled, compiledEvent);
-    return { ...compiledEvent.source, fromPoint: endpoints.from, toPoint: endpoints.to };
+    let from = endpoints.from;
+    let to = endpoints.to;
+    if (input.draggedEventHandle && input.draggedEventHandle.eventId === compiledEvent.source.id) {
+      if (input.draggedEventHandle.part === 'end') to = input.draggedEventHandle.point;
+      if (input.draggedEventHandle.part === 'start') from = input.draggedEventHandle.point;
+    }
+    return { ...compiledEvent.source, fromPoint: from, toPoint: to };
   });
   drawEvents(ctx, renderedEvents, input.selectedEventId);
 
@@ -289,6 +295,8 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
         if (input.draggedEventHandle && input.draggedEventHandle.eventId === event.id) {
           if (input.draggedEventHandle.part === 'end') {
             ev = { ...ev, toPoint: input.draggedEventHandle.point };
+          } else if (input.draggedEventHandle.part === 'start') {
+            ev = { ...ev, fromPoint: input.draggedEventHandle.point };
           } else if (input.draggedEventHandle.part === 'waypoint' && ev.waypoints) {
             ev = {
               ...ev,

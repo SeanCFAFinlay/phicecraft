@@ -649,8 +649,18 @@ export function drawEventEditHandles(ctx: CanvasRenderingContext2D, event: Drill
 
   ctx.restore();
 
-  // A shot or dump ends on open ice or a net, so its target is re-aimable.
+  // A shot or dump ends on open ice or a net, so its source and target are re-aimable.
   if (event.type === 'shot' || event.type === 'dump') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(event.fromPoint.x, event.fromPoint.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(6, 24, 35, 0.9)';
+    ctx.fill();
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = '#00e676';
+    ctx.stroke();
+    ctx.restore();
+
     ctx.save();
     ctx.beginPath();
     ctx.arc(event.toPoint.x, event.toPoint.y, 8, 0, Math.PI * 2);

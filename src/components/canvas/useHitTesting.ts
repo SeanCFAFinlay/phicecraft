@@ -226,6 +226,12 @@ export function useHitTesting({ getState, camera, playback }: HitTestingOptions)
         ) {
           return { eventId: event.id, part: 'end', index: -1 };
         }
+        if (
+          (event.type === 'shot' || event.type === 'dump') &&
+          distance(event.fromPoint, world) * zoom < HANDLE_HIT
+        ) {
+          return { eventId: event.id, part: 'start', index: -1 };
+        }
         return null;
       },
 

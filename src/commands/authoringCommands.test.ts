@@ -207,6 +207,15 @@ describe('requestShot', () => {
       harness.commands.requestShot('h13', { x: RINK.netRightX, y: RINK.netRightY }).status
     ).toBe('rejected');
   });
+
+  it('accepts an explicit origin fromPoint when requesting shot', () => {
+    const shotOrigin = { x: 600, y: 212 };
+    const result = harness.commands.requestShot('h11', { x: RINK.netRightX, y: RINK.netRightY }, shotOrigin);
+    expect(result.status).toBe('done');
+    const shot = harness.getState().drill.events[0];
+    expect(shot.fromPoint.x).toBe(shotOrigin.x);
+    expect(shot.fromPoint.y).toBe(shotOrigin.y);
+  });
 });
 
 describe('requestDump', () => {

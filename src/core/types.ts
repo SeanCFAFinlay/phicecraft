@@ -687,8 +687,10 @@ export type AppAction =
   | {
       type: 'UPDATE_EVENT_GEOMETRY';
       id: ID;
+      fromPoint?: Point;
       toPoint?: Point;
       waypoints?: Point[];
+      at?: number;
       shape?: CurveShape;
       /** Re-timed from the new arc length by the command layer. */
       arrivalAt?: number;

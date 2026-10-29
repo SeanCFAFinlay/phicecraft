@@ -203,7 +203,7 @@ export interface AuthoringCommands {
   simplifyRoute(pathId: ID): CommandResult;
 
   requestPass(fromPlayerId: ID, toPlayerId: ID, options?: { fromPoint?: Point }): CommandResult;
-  requestShot(fromPlayerId: ID, target: Point): CommandResult;
+  requestShot(fromPlayerId: ID, target: Point, fromPoint?: Point): CommandResult;
   requestDump(fromPlayerId: ID, target: Point, fromPoint?: Point): CommandResult;
   requestPickup(playerId: ID): CommandResult;
   retargetPass(eventId: ID, receiverId: ID): CommandResult;
@@ -216,6 +216,7 @@ export interface AuthoringCommands {
   moveEventWaypoint(eventId: ID, index: number, to: Point): CommandResult;
   insertEventWaypoint(eventId: ID, index: number, at: Point): CommandResult;
   removeEventWaypoint(eventId: ID, index: number): CommandResult;
+  setEventSource(eventId: ID, from: Point): CommandResult;
   setEventTarget(eventId: ID, to: Point): CommandResult;
   setEventShape(eventId: ID, shape: CurveShape): CommandResult;
 

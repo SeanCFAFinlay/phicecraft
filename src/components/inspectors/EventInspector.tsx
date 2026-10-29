@@ -17,6 +17,7 @@ import { getEventArrivalTime, getEventDepartureTime } from '@/engine/playback';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { usePlaybackSnapshot } from '@/playback/usePlaybackSnapshot';
 import { measureFlight } from '@/sim/flightPath';
+import { RINK, FT } from '@/core/constants';
 
 const SHOT_RESULTS = ['goal', 'save', 'rebound', 'wide', 'post'] as const;
 
@@ -186,6 +187,78 @@ export function EventInspector() {
             </div>
           </SheetSection>
         </>
+      )}
+
+      {event.type === 'shot' && (
+        <SheetSection title="Where Shot Is Taken From">
+          <div className="px-3 pb-2 space-y-2">
+            <p className="text-[12px] text-white/70 leading-relaxed">
+              Drag the <span className="font-bold text-emerald-400">green origin handle</span> on the ice to adjust release spot, or tap a quick location below:
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const targetNet = event.targetNet === 'L' || event.toPoint.x < RINK.centerX ? 'L' : 'R';
+                  const x = targetNet === 'R' ? RINK.netRightX - 35 * FT : RINK.netLeftX + 35 * FT;
+                  commands.setEventSource(event.id, { x, y: RINK.centerY });
+                }}
+                className="touch-target flex items-center justify-center gap-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-[11.5px] font-bold text-emerald-200 hover:bg-emerald-500/20 transition-all"
+              >
+                <span>🎯</span>
+                <span>High Slot</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetNet = event.targetNet === 'L' || event.toPoint.x < RINK.centerX ? 'L' : 'R';
+                  const x = targetNet === 'R' ? RINK.netRightX - 20 * FT : RINK.netLeftX + 20 * FT;
+                  commands.setEventSource(event.id, { x, y: RINK.centerY });
+                }}
+                className="touch-target flex items-center justify-center gap-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-[11.5px] font-bold text-emerald-200 hover:bg-emerald-500/20 transition-all"
+              >
+                <span>🏒</span>
+                <span>Low Slot</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetNet = event.targetNet === 'L' || event.toPoint.x < RINK.centerX ? 'L' : 'R';
+                  const x = targetNet === 'R' ? RINK.netRightX - 31 * FT : RINK.netLeftX + 31 * FT;
+                  commands.setEventSource(event.id, { x, y: RINK.centerY - 22 * FT });
+                }}
+                className="touch-target flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-[11.5px] font-bold text-white/80 hover:bg-white/10 transition-all"
+              >
+                <span>📍</span>
+                <span>Left Circle</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetNet = event.targetNet === 'L' || event.toPoint.x < RINK.centerX ? 'L' : 'R';
+                  const x = targetNet === 'R' ? RINK.netRightX - 31 * FT : RINK.netLeftX + 31 * FT;
+                  commands.setEventSource(event.id, { x, y: RINK.centerY + 22 * FT });
+                }}
+                className="touch-target flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-[11.5px] font-bold text-white/80 hover:bg-white/10 transition-all"
+              >
+                <span>📍</span>
+                <span>Right Circle</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetNet = event.targetNet === 'L' || event.toPoint.x < RINK.centerX ? 'L' : 'R';
+                  const x = targetNet === 'R' ? RINK.netRightX - 60 * FT : RINK.netLeftX + 60 * FT;
+                  commands.setEventSource(event.id, { x, y: RINK.centerY });
+                }}
+                className="touch-target col-span-2 flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-[11.5px] font-bold text-white/80 hover:bg-white/10 transition-all"
+              >
+                <span>🛡️</span>
+                <span>Point (Blue Line)</span>
+              </button>
+            </div>
+          </div>
+        </SheetSection>
       )}
 
       {event.type === 'shot' && (

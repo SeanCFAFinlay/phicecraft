@@ -40,7 +40,7 @@ export type PressTarget =
   | { kind: 'route-affordance'; playerId: ID };
 
 /** Which part of a puck line a handle belongs to. */
-export type EventHandlePart = 'waypoint' | 'end';
+export type EventHandlePart = 'waypoint' | 'end' | 'start';
 
 /** Hit-testing the canvas provides, in screen coordinates. */
 export interface HitTester {

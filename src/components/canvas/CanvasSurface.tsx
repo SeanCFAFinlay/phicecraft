@@ -88,7 +88,7 @@ export function CanvasSurface() {
   const draggedCoachRef = useRef<{ id: ID; point: Point } | null>(null);
   const draggedEquipmentRef = useRef<{ id: ID; point: Point } | null>(null);
   const draggedRouteHandleRef = useRef<{ pathId: ID; index: number; point: Point } | null>(null);
-  const draggedEventHandleRef = useRef<{ eventId: ID; part: 'waypoint' | 'end'; index: number; point: Point } | null>(null);
+  const draggedEventHandleRef = useRef<{ eventId: ID; part: 'waypoint' | 'end' | 'start'; index: number; point: Point } | null>(null);
   const lastFrameTimestampRef = useRef<number>(0);
   /**
    * Who the armed pass can go to. Recomputed when the pass is armed or the
@@ -520,7 +520,7 @@ export function CanvasSurface() {
             distance(release, { x: RINK.netRightX, y: RINK.netRightY })
           ) < SHOT_SNAP_DISTANCE;
         if (nearNet) {
-          void commands.requestShot(playerId, getAimedNetTarget(release));
+          void commands.requestShot(playerId, getAimedNetTarget(release), from);
           return;
         }
 
@@ -568,6 +568,8 @@ export function CanvasSurface() {
           draggedEventHandleRef.current = null;
           if (handle.part === 'end') {
             commands.setEventTarget(handle.eventId, handle.point);
+          } else if (handle.part === 'start') {
+            commands.setEventSource(handle.eventId, handle.point);
           } else {
             commands.moveEventWaypoint(handle.eventId, handle.index, handle.point);
           }
