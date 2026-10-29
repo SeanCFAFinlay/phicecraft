@@ -336,6 +336,27 @@ export function CanvasSurface() {
         return;
       }
 
+      if (current.pendingAction.kind === 'draw-route') {
+        if (target.kind === 'player') {
+          commands.selectPlayer(target.playerId);
+          commands.setPendingAction({ kind: 'draw-route', playerId: target.playerId });
+          return;
+        }
+
+        // Tapping ice extends the active route with a new waypoint
+        const ownerId = current.pendingAction.playerId;
+        const player = current.drill.players.find(p => p.id === ownerId);
+        if (player) {
+          const existingRoute = current.drill.skatePaths.find(p => p.ownerId === ownerId);
+          const startPoint = existingRoute && existingRoute.points.length > 0
+            ? existingRoute.points[existingRoute.points.length - 1]
+            : { x: player.x, y: player.y };
+          const points = existingRoute ? [...existingRoute.points, world] : [startPoint, world];
+          commands.commitRoute(ownerId, points);
+          return;
+        }
+      }
+
       switch (target.kind) {
         // Tapping a "+" between two controls inserts a point there, which is
         // how a line gains detail after the play is set up.

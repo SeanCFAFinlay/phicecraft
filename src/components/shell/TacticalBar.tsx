@@ -18,6 +18,8 @@ import { useViewActions } from './useViewActions';
 import { useResponsive } from '@/ui/useResponsive';
 import { attackingNetFor } from '@/engine/puck';
 import { exportDrillImageFile } from '@/ui/exportImage';
+import { printSingleDrillCard } from '@/ui/exportDrillCard';
+import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
 import type { Tool } from '@/core/types';
 import type { PlayFormationPreset } from '@/engine/formations';
 
@@ -131,7 +133,6 @@ export function TacticalBar() {
 
   const currentTool = state.ui.currentTool;
   const isMove = currentTool === 'move';
-  const isPlacingPlayer = currentTool === 'home' || currentTool === 'away' || currentTool === 'goalie' || currentTool === 'coach';
   const isPlacingObject = currentTool === 'cone' || currentTool === 'tire' || currentTool === 'mini-net' || currentTool === 'barrier';
   const isDrawing = state.pendingAction.kind !== 'none';
   const selectedPlayer = state.selection.selectedPlayerId
@@ -162,11 +163,14 @@ export function TacticalBar() {
       className="app-chrome safe-x z-20 flex flex-shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#050e17]/95 px-2.5 py-1 backdrop-blur-md select-none"
     >
       {/* LEFT: Tactical Whiteboard Verbs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5">
+      <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-0.5">
         {/* Pointer / Move tool */}
         <button
           type="button"
-          onClick={() => selectTool('move')}
+          onClick={() => {
+            commands.cancelPendingAction();
+            selectTool('move');
+          }}
           aria-label="Select and move players"
           aria-pressed={isMove && !isDrawing}
           className={`touch-target flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
@@ -179,62 +183,149 @@ export function TacticalBar() {
           <span>Move</span>
         </button>
 
-        {/* Players Flyout */}
-        <FlyoutMenu
-          label="Players"
-          icon="🏒"
-          active={isPlacingPlayer}
-          isOpen={openMenu === 'players'}
-          onToggle={() => toggleMenu('players')}
-          onClose={closeMenu}
+        {/* Direct Add Player Buttons */}
+        <button
+          type="button"
+          onClick={() => selectTool('home')}
+          aria-label="Home skater"
+          title="Add Home skater (tap ice to place)"
+          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
+            currentTool === 'home'
+              ? 'border border-blue-400 bg-blue-500/25 text-blue-200 shadow-[0_0_8px_rgba(59,130,246,0.4)]'
+              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-blue-200'
+          }`}
         >
-          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-cyan/70">
-            Add to Ice (tap ice to place)
-          </div>
-          <MenuItem
-            icon="🔵"
-            label="Home Skater"
-            sublabel="Blue team jersey"
-            active={currentTool === 'home'}
-            onClick={() => selectTool('home')}
-          />
-          <MenuItem
-            icon="🔴"
-            label="Away Skater"
-            sublabel="Red team jersey"
-            active={currentTool === 'away'}
-            onClick={() => selectTool('away')}
-          />
-          <MenuItem
-            icon="🥅"
-            label="Goalie"
-            sublabel="Crease goaltender"
-            active={currentTool === 'goalie'}
-            onClick={() => selectTool('goalie')}
-          />
-          <MenuItem
-            icon="📋"
-            label="Coach"
-            sublabel="Coach on ice"
-            active={currentTool === 'coach'}
-            onClick={() => selectTool('coach')}
-          />
-          <div className="my-1 border-t border-white/10" />
-          <MenuItem
-            icon="🔄"
-            label="Reset Lineup"
-            sublabel="Restore starting board"
-            tone="danger"
-            onClick={() => {
-              closeMenu();
-              void commands.resetBoard();
-            }}
-          />
-        </FlyoutMenu>
+          <span>🔵</span>
+          <span>Home</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => selectTool('away')}
+          aria-label="Away skater"
+          title="Add Away skater (tap ice to place)"
+          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
+            currentTool === 'away'
+              ? 'border border-red-400 bg-red-500/25 text-red-200 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200'
+          }`}
+        >
+          <span>🔴</span>
+          <span>Away</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => selectTool('goalie')}
+          aria-label="Goalie"
+          title="Add Goalie (tap crease to place)"
+          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
+            currentTool === 'goalie'
+              ? 'border border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-200'
+          }`}
+        >
+          <span>🥅</span>
+          <span>Goalie</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => selectTool('coach')}
+          aria-label="Coach marker"
+          title="Add Coach marker (tap ice to place)"
+          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
+            currentTool === 'coach'
+              ? 'border border-emerald-400 bg-emerald-500/25 text-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-emerald-200'
+          }`}
+        >
+          <span>📋</span>
+          <span>Coach</span>
+        </button>
+
+        {/* Direct Action: Skate Route / Path */}
+        <button
+          type="button"
+          onClick={() => {
+            const targetPlayer =
+              selectedPlayer ??
+              carrier ??
+              state.drill.players.find(p => p.role !== 'G') ??
+              state.drill.players[0];
+            if (targetPlayer) {
+              commands.selectPlayer(targetPlayer.id);
+              commands.setTool('move');
+              commands.setPendingAction({ kind: 'draw-route', playerId: targetPlayer.id });
+            }
+          }}
+          aria-label="Draw skate path"
+          title={selectedPlayer ? `Draw #${selectedPlayer.number}'s skate path` : 'Draw skate path (drag or tap player)'}
+          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
+            state.pendingAction.kind === 'draw-route'
+              ? 'border border-cyan-400 bg-cyan-500/25 text-cyan-200 shadow-[0_0_8px_rgba(6,182,212,0.4)]'
+              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200'
+          }`}
+        >
+          <span>⛸️</span>
+          <span>Path</span>
+        </button>
+
+        {/* Direct Action: Pass */}
+        <button
+          type="button"
+          onClick={() => {
+            const targetCarrier =
+              carrier ??
+              state.drill.players.find(p => p.hasPuck) ??
+              selectedPlayer ??
+              state.drill.players.find(p => p.role !== 'G') ??
+              state.drill.players[0];
+            if (targetCarrier) {
+              if (!targetCarrier.hasPuck) void commands.setPuckCarrier(targetCarrier.id);
+              commands.setTool('move');
+              commands.setPendingAction({ kind: 'pass', playerId: targetCarrier.id });
+            }
+          }}
+          aria-label="Pass puck"
+          title={carrier ? `Pass puck from #${carrier.number}` : 'Pass puck'}
+          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
+            state.pendingAction.kind === 'pass'
+              ? 'border border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-200'
+          }`}
+        >
+          <span>⚡</span>
+          <span>Pass</span>
+        </button>
+
+        {/* Direct Action: Shoot */}
+        <button
+          type="button"
+          onClick={() => {
+            const targetCarrier =
+              carrier ??
+              state.drill.players.find(p => p.hasPuck) ??
+              selectedPlayer ??
+              state.drill.players.find(p => p.role !== 'G') ??
+              state.drill.players[0];
+            if (targetCarrier) {
+              if (!targetCarrier.hasPuck) void commands.setPuckCarrier(targetCarrier.id);
+              commands.setTool('move');
+              void commands.requestShot(targetCarrier.id, attackingNetFor(targetCarrier.team));
+            }
+          }}
+          aria-label="Shoot on net"
+          title="Shoot on net"
+          className="touch-target flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-bold text-white/80 hover:border-orange-400/40 hover:bg-orange-500/10 hover:text-orange-200 transition-all"
+        >
+          <span>🏒</span>
+          <span>Shoot</span>
+        </button>
 
         {/* Objects / Equipment Flyout */}
         <FlyoutMenu
-          label="Objects"
+          label="Gear"
           icon="🔶"
           active={isPlacingObject}
           isOpen={openMenu === 'objects'}
@@ -274,73 +365,9 @@ export function TacticalBar() {
           />
         </FlyoutMenu>
 
-        {/* Tactical Draw & Actions Flyout */}
-        <FlyoutMenu
-          label="Draw"
-          icon="🎯"
-          active={isDrawing}
-          isOpen={openMenu === 'draw'}
-          onToggle={() => toggleMenu('draw')}
-          onClose={closeMenu}
-        >
-          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-cyan-400/70">
-            Tactical Lanes & Actions
-          </div>
-          <MenuItem
-            icon="⛸️"
-            label="Skate Route"
-            sublabel={selectedPlayer ? `Draw #${selectedPlayer.number}'s skating lane` : 'Select a player first'}
-            active={state.pendingAction.kind === 'draw-route'}
-            onClick={() => {
-              closeMenu();
-              if (selectedPlayer) {
-                commands.setTool('move');
-                commands.setPendingAction({ kind: 'draw-route', playerId: selectedPlayer.id });
-              }
-            }}
-          />
-          <MenuItem
-            icon="⚡"
-            label="Pass Puck"
-            sublabel={carrier ? `Pass from #${carrier.number}` : 'Select puck carrier first'}
-            active={state.pendingAction.kind === 'pass'}
-            onClick={() => {
-              closeMenu();
-              if (carrier) {
-                commands.setTool('move');
-                commands.setPendingAction({ kind: 'pass', playerId: carrier.id });
-              }
-            }}
-          />
-          <MenuItem
-            icon="🏒"
-            label="Shoot on Net"
-            sublabel={carrier ? `Fire shot from #${carrier.number}` : 'Select carrier first'}
-            onClick={() => {
-              closeMenu();
-              if (carrier) {
-                commands.setTool('move');
-                void commands.requestShot(carrier.id, attackingNetFor(carrier.team));
-              }
-            }}
-          />
-          <MenuItem
-            icon="📦"
-            label="Dump In"
-            sublabel="Send puck into corner"
-            onClick={() => {
-              closeMenu();
-              if (carrier) {
-                commands.setTool('move');
-                void commands.requestDump(carrier.id, { x: 880, y: 70 });
-              }
-            }}
-          />
-        </FlyoutMenu>
-
         {/* Setups / Formations Flyout */}
         <FlyoutMenu
-          label="Lineups"
+          label="Systems"
           icon="⚡"
           isOpen={openMenu === 'lineups'}
           onToggle={() => toggleMenu('lineups')}
@@ -408,12 +435,12 @@ export function TacticalBar() {
             }}
           />
           <MenuItem
-            icon="🖨️"
-            label="Print Drill Card (PDF)"
-            sublabel="Printable coaching sheet"
+            icon="✂️"
+            label="Print Cut-Out Card (PDF)"
+            sublabel="Printable bench pocket card"
             onClick={() => {
               closeMenu();
-              setTimeout(() => window.print(), 100);
+              printSingleDrillCard(migrateV2ToV3(state.drill));
             }}
           />
           <MenuItem
@@ -426,6 +453,18 @@ export function TacticalBar() {
             }}
           />
         </FlyoutMenu>
+
+        {/* Reset Lineup Button */}
+        <button
+          type="button"
+          onClick={() => void commands.resetBoard()}
+          aria-label="Reset lineup to default"
+          title="Reset board lineup"
+          className="touch-target flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-bold text-white/70 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-300 transition-all"
+        >
+          <span>↺</span>
+          <span className="hidden md:inline">Reset</span>
+        </button>
       </div>
 
       {/* RIGHT: BenchIQ-Style Direct Zone View Pills & Help */}

@@ -118,6 +118,12 @@ export class GestureStateMachine {
       return;
     }
 
+    if (target.kind === 'player' && target.playerId === context.armedRoutePlayerId) {
+      this.gesture = { kind: 'draw-route', ownerId: target.playerId };
+      this.routeSamples = [hitTester.toWorld(sample.position)];
+      return;
+    }
+
     // The Move button arms a player. Pressing that player then drags it
     // straight away, with no 0.7s hold to sit through - and a tap anywhere
     // else drops it there, which `onTap` handles.
@@ -306,6 +312,12 @@ export class GestureStateMachine {
         break;
 
       case 'player':
+        if (target.playerId === context.armedRoutePlayerId) {
+          this.gesture = { kind: 'draw-route', ownerId: target.playerId };
+          this.routeSamples = [hitTester.toWorld(origin)];
+          break;
+        }
+
         if (context.isMoveToolActive || target.playerId === context.armedMovePlayerId) {
           this.gesture = { kind: 'move-player', playerId: target.playerId };
           handlers.onPlayerMove(target.playerId, hitTester.toWorld(position));

@@ -90,7 +90,7 @@ export function ToolDock({
   const { state, dispatch } = useAppState();
   const commands = useCommands();
   const { isCompactLandscape } = useResponsive();
-  const { carrier, canPass, passBlockedReason } = usePuckActions();
+  const { carrier, passBlockedReason } = usePuckActions();
 
   const tool = state.ui.currentTool;
   const pending = state.pendingAction;
@@ -126,12 +126,19 @@ export function ToolDock({
         label="Pass"
         active={pending.kind === 'pass'}
         accent="#ffd60a"
-        disabled={!canPass}
-        title={passBlockedReason ?? `Pass from #${carrier?.number}`}
+        title={passBlockedReason ?? (carrier ? `Pass from #${carrier.number}` : 'Pass puck')}
         onClick={() => {
-          if (!carrier) return;
-          commands.setTool('move');
-          commands.setPendingAction({ kind: 'pass', playerId: carrier.id });
+          const targetCarrier =
+            carrier ??
+            state.drill.players.find(p => p.hasPuck) ??
+            selected ??
+            state.drill.players.find(p => p.role !== 'G') ??
+            state.drill.players[0];
+          if (targetCarrier) {
+            if (!targetCarrier.hasPuck) void commands.setPuckCarrier(targetCarrier.id);
+            commands.setTool('move');
+            commands.setPendingAction({ kind: 'pass', playerId: targetCarrier.id });
+          }
         }}
       />
 
@@ -140,12 +147,18 @@ export function ToolDock({
         label="Skate"
         active={pending.kind === 'draw-route'}
         accent="#22d3ee"
-        disabled={!selected}
-        title={selected ? `Draw #${selected.number}'s route` : 'Select a player first'}
+        title={selected ? `Draw #${selected.number}'s route` : 'Draw skate route'}
         onClick={() => {
-          if (!selected) return;
-          commands.setTool('move');
-          commands.setPendingAction({ kind: 'draw-route', playerId: selected.id });
+          const targetPlayer =
+            selected ??
+            carrier ??
+            state.drill.players.find(p => p.role !== 'G') ??
+            state.drill.players[0];
+          if (targetPlayer) {
+            commands.selectPlayer(targetPlayer.id);
+            commands.setTool('move');
+            commands.setPendingAction({ kind: 'draw-route', playerId: targetPlayer.id });
+          }
         }}
       />
 
