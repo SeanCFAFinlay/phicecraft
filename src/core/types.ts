@@ -491,7 +491,9 @@ export type SheetKind =
   | 'playback'
   | 'help'
   | 'diagnostics'
-  | 'import-preview';
+  | 'import-preview'
+  | 'formations'
+  | 'print-preview';
 
 /** The three product states. Only 'build' may mutate the document. */
 export type AppMode = 'build' | 'preview' | 'present';

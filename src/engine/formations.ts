@@ -17,7 +17,12 @@ export type PlayFormationPreset =
   | 'pk-box'
   | 'breakout-5v5'
   | 'rush-3v2'
+  | 'rush-2v1'
+  | 'forecheck-212'
+  | 'trap-122'
+  | 'pp-umbrella'
   | 'faceoff-ozone'
+  | 'faceoff-dzone'
   | 'showcase-faceoff'
   | QuickFormationPreset;
 
@@ -108,6 +113,102 @@ export const FORMATION_PRESETS: readonly FormationPresetDefinition[] = [
       createPlayer(680, 165, 'away', '4', 'D'),
       createPlayer(680, 260, 'away', '6', 'D'),
       createPlayer(920, RINK.centerY, 'away', '1', 'G'),
+    ],
+  },
+  {
+    id: 'rush-2v1',
+    title: '2-on-1 Rush Attack',
+    subtitle: 'Odd-man rush with carrier driving wide and trailing pass option',
+    category: 'Rush & Set Plays',
+    players: () => [
+      createPlayer(520, 130, 'home', '10', 'LW', true),
+      createPlayer(500, 295, 'home', '88', 'RW'),
+      createPlayer(690, RINK.centerY, 'away', '4', 'D'),
+      createPlayer(920, RINK.centerY, 'away', '1', 'G'),
+    ],
+  },
+  {
+    id: 'forecheck-212',
+    title: '2-1-2 Heavy Forecheck',
+    subtitle: 'Aggressive F1/F2 puck pursuit with F3 high slot lock and pinch support',
+    category: 'Systems',
+    players: () => [
+      // Home Breakout
+      createPlayer(120, 100, 'home', '2', 'D', true),
+      createPlayer(120, 325, 'home', '3', 'D'),
+      createPlayer(200, RINK.centerY, 'home', '9', 'C'),
+      createPlayer(260, 90, 'home', '13', 'LW'),
+      createPlayer(260, 335, 'home', '18', 'RW'),
+      createPlayer(80, RINK.centerY, 'home', '30', 'G'),
+      // Away Forecheck
+      createPlayer(190, 135, 'away', '11', 'LW'),
+      createPlayer(220, 290, 'away', '17', 'RW'),
+      createPlayer(310, RINK.centerY, 'away', '19', 'C'),
+      createPlayer(420, 140, 'away', '4', 'D'),
+      createPlayer(440, 285, 'away', '6', 'D'),
+    ],
+  },
+  {
+    id: 'trap-122',
+    title: '1-2-2 Neutral Zone Trap',
+    subtitle: 'Steering F1 with 2-man neutral wall and backline defense',
+    category: 'Systems',
+    players: () => [
+      // Away Trap Unit
+      createPlayer(450, RINK.centerY, 'away', '19', 'C'),
+      createPlayer(540, 130, 'away', '11', 'LW'),
+      createPlayer(540, 295, 'away', '17', 'RW'),
+      createPlayer(670, 150, 'away', '4', 'D'),
+      createPlayer(670, 275, 'away', '6', 'D'),
+      createPlayer(920, RINK.centerY, 'away', '1', 'G'),
+      // Home Attack Unit
+      createPlayer(320, RINK.centerY, 'home', '97', 'C', true),
+      createPlayer(340, 90, 'home', '8', 'LW'),
+      createPlayer(340, 335, 'home', '88', 'RW'),
+      createPlayer(240, 140, 'home', '5', 'D'),
+      createPlayer(240, 285, 'home', '2', 'D'),
+    ],
+  },
+  {
+    id: 'pp-umbrella',
+    title: 'Umbrella Power Play',
+    subtitle: 'High point quarterback with half-wall shooters and net-front screens',
+    category: 'Special Teams',
+    players: () => [
+      // Home PP
+      createPlayer(630, RINK.centerY, 'home', '5', 'D', true),
+      createPlayer(740, 85, 'home', '8', 'LW'),
+      createPlayer(740, 340, 'home', '88', 'RW'),
+      createPlayer(875, 175, 'home', '19', 'C'),
+      createPlayer(875, 250, 'home', '97', 'F'),
+      // Away PK Diamond
+      createPlayer(720, RINK.centerY, 'away', '11', 'C'),
+      createPlayer(810, 150, 'away', '17', 'LW'),
+      createPlayer(810, 275, 'away', '23', 'RW'),
+      createPlayer(870, RINK.centerY, 'away', '4', 'D'),
+      createPlayer(920, RINK.centerY, 'away', '1', 'G'),
+    ],
+  },
+  {
+    id: 'faceoff-dzone',
+    title: 'D-Zone Faceoff Alignment',
+    subtitle: 'Defensive box coverage inside circle defending home crease',
+    category: 'Rush & Set Plays',
+    initialPuck: { x: 205, y: 322.5 },
+    players: () => [
+      // Home Defending
+      createPlayer(205, 315, 'home', '9', 'C'),
+      createPlayer(130, 260, 'home', '4', 'D'),
+      createPlayer(170, 380, 'home', '6', 'D'),
+      createPlayer(225, 380, 'home', '13', 'LW'),
+      createPlayer(265, 260, 'home', '18', 'RW'),
+      createPlayer(80, RINK.centerY, 'home', '30', 'G'),
+      // Away Attacking
+      createPlayer(215, 330, 'away', '19', 'C'),
+      createPlayer(220, 390, 'away', '11', 'LW'),
+      createPlayer(240, 270, 'away', '17', 'RW'),
+      createPlayer(350, 320, 'away', '2', 'D'),
+      createPlayer(360, 160, 'away', '5', 'D'),
     ],
   },
   {

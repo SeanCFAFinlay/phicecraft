@@ -71,7 +71,7 @@ export const RINK_MARGIN = PLAYER_RADIUS;
 export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
   const { dispatch, getState, notify } = host;
 
-  const reject = (reason: string): CommandResult => {
+  const reject = (reason: string): CommandResult<never> => {
     notify.toast({ message: reason, type: 'warning', dedupeKey: `reject:${reason}` });
     return rejected(reason);
   };
@@ -850,6 +850,160 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
     // ------------------------------------------------------------------------
     // Recovery of legacy off-rink content
     // ------------------------------------------------------------------------
+
+    generateOpposingDefense(tactic: 'gap' | 'forecheck' | 'box-shift' | 'backcheck' = 'gap'): CommandResult<number> {
+      const state = getState();
+      if (state.ui.mode !== 'build') return reject('Switch to Build to add opposing movement.');
+
+      // Determine attacking and opposing defending teams
+      const holder = getCurrentPuckHolder(state.drill.players, state.drill.events);
+      const attackTeam: Team = holder ? holder.team : 'home';
+      const defenseTeam: Team = attackTeam === 'home' ? 'away' : 'home';
+
+      const retreatDirection = defenseTeam === 'away' ? 1 : -1;
+
+      // Find opposing skaters (excluding goalies)
+      let defSkaters = state.drill.players.filter(
+        p => p.team === defenseTeam && p.role !== 'G'
+      );
+
+      // If no opposing skaters exist, create a canonical D-pair
+      if (defSkaters.length === 0) {
+        const d1 = createPlayer(
+          defenseTeam === 'away' ? 680 : 320,
+          165,
+          defenseTeam,
+          nextPlayerNumber(state.drill.players, defenseTeam),
+          'D'
+        );
+        const d2 = createPlayer(
+          defenseTeam === 'away' ? 680 : 320,
+          260,
+          defenseTeam,
+          nextPlayerNumber([...state.drill.players, d1], defenseTeam),
+          'D'
+        );
+        dispatch({ type: 'ADD_PLAYER', player: d1 });
+        dispatch({ type: 'ADD_PLAYER', player: d2 });
+        defSkaters = [d1, d2];
+      }
+
+      dispatch({ type: 'PUSH_UNDO' });
+      let routesCreated = 0;
+
+      if (tactic === 'gap') {
+        // Defensive Gap Control: Defensemen retreat backward toward the net/slot
+        for (const player of defSkaters) {
+          const start = { x: player.x, y: player.y };
+          const targetY = player.y < 212.5 ? Math.max(160, player.y + 15) : Math.min(265, player.y - 15);
+          const midX = constrainToRink({ x: player.x + retreatDirection * 70, y: player.y }, RINK_MARGIN).x;
+          const endX = constrainToRink({ x: player.x + retreatDirection * 150, y: targetY }, RINK_MARGIN).x;
+
+          const points: Point[] = [
+            start,
+            { x: midX, y: (player.y + targetY) / 2 },
+            { x: endX, y: targetY },
+          ];
+          const path: SkatePath = {
+            ...createSkatePath(player.id, defenseTeam, points),
+            mode: 'backward',
+            finish: 'stop',
+          };
+          dispatch({ type: 'ADD_SKATE_PATH', path });
+          routesCreated++;
+        }
+      } else if (tactic === 'forecheck') {
+        // Forecheck Pressure: Opponents press puck carrier / puck location
+        const targetPuck = holder
+          ? { x: holder.x, y: holder.y }
+          : state.drill.initialPuck ?? { x: defenseTeam === 'away' ? 250 : 750, y: 212.5 };
+
+        defSkaters.forEach((player, idx) => {
+          const start = { x: player.x, y: player.y };
+          let end: Point;
+          if (idx === 0) {
+            const angleOffset = player.y > targetPuck.y ? 20 : -20;
+            end = constrainToRink({ x: targetPuck.x + (defenseTeam === 'away' ? -35 : 35), y: targetPuck.y + angleOffset }, RINK_MARGIN);
+          } else if (idx === 1) {
+            end = constrainToRink({ x: (targetPuck.x + player.x) / 2, y: 212.5 }, RINK_MARGIN);
+          } else {
+            end = constrainToRink({ x: player.x + (targetPuck.x > player.x ? 50 : -50), y: player.y }, RINK_MARGIN);
+          }
+          const mid: Point = {
+            x: (start.x + end.x) / 2,
+            y: (start.y + end.y) / 2 + (idx % 2 === 0 ? -15 : 15),
+          };
+          const path: SkatePath = {
+            ...createSkatePath(player.id, defenseTeam, [start, mid, end]),
+            mode: 'skate',
+            finish: 'stop',
+          };
+          dispatch({ type: 'ADD_SKATE_PATH', path });
+          routesCreated++;
+        });
+      } else if (tactic === 'box-shift') {
+        // PK Box Shift: Slide toward puck quadrant
+        const puckY = holder ? holder.y : 212.5;
+        const shiftY = puckY < 212.5 ? -35 : 35;
+        for (const player of defSkaters) {
+          const start = { x: player.x, y: player.y };
+          const end = constrainToRink({ x: player.x + retreatDirection * 30, y: player.y + shiftY }, RINK_MARGIN);
+          const path: SkatePath = {
+            ...createSkatePath(player.id, defenseTeam, [start, end]),
+            mode: 'glide',
+            finish: 'stop',
+          };
+          dispatch({ type: 'ADD_SKATE_PATH', path });
+          routesCreated++;
+        }
+      } else if (tactic === 'backcheck') {
+        // Backcheck: Sprint back through the middle lane
+        for (const player of defSkaters) {
+          const start = { x: player.x, y: player.y };
+          const endX = constrainToRink({ x: player.x + retreatDirection * 200, y: 212.5 }, RINK_MARGIN).x;
+          const endY = player.y < 212.5 ? 180 : 245;
+          const path: SkatePath = {
+            ...createSkatePath(player.id, defenseTeam, [start, { x: (player.x + endX) / 2, y: endY }, { x: endX, y: endY }]),
+            mode: 'skate',
+            finish: 'stop',
+          };
+          dispatch({ type: 'ADD_SKATE_PATH', path });
+          routesCreated++;
+        }
+      }
+
+      notify.toast({
+        message: `Opposing defensive movement added (${routesCreated} routes)`,
+        type: 'success',
+        dedupeKey: 'opposing-movement-added',
+      });
+      host.announce('Opposing defensive movement added');
+      return done(routesCreated);
+    },
+
+    clearOpposingRoutes(): CommandResult<number> {
+      const state = getState();
+      const holder = getCurrentPuckHolder(state.drill.players, state.drill.events);
+      const attackTeam: Team = holder ? holder.team : 'home';
+      const defenseTeam: Team = attackTeam === 'home' ? 'away' : 'home';
+
+      const opposingPaths = state.drill.skatePaths.filter(p => p.team === defenseTeam);
+      if (opposingPaths.length === 0) {
+        return reject('No opposing routes to clear.');
+      }
+
+      dispatch({ type: 'PUSH_UNDO' });
+      for (const p of opposingPaths) {
+        dispatch({ type: 'REMOVE_SKATE_PATH', id: p.id });
+      }
+
+      notify.toast({
+        message: `Cleared ${opposingPaths.length} opposing route(s)`,
+        type: 'success',
+      });
+      host.announce('Opposing routes cleared');
+      return done(opposingPaths.length);
+    },
 
     recoverOffRinkObjects() {
       const { drill } = getState();

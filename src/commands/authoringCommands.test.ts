@@ -774,3 +774,36 @@ describe('loadFormation', () => {
     expect(harness.getState().drill.players.length).toBe(originalCount);
   });
 });
+
+describe('opposing defense movement', () => {
+  it('generates backward gap-control routes for defending team', () => {
+    const res = harness.commands.generateOpposingDefense('gap');
+    expect(res.status).toBe('done');
+    if (res.status === 'done') {
+      expect(res.value).toBeGreaterThan(0);
+    }
+    const opposingRoutes = harness.getState().drill.skatePaths.filter(p => p.team === 'away');
+    expect(opposingRoutes.length).toBeGreaterThan(0);
+    expect(opposingRoutes[0].mode).toBe('backward');
+    expect(opposingRoutes[0].finish).toBe('stop');
+  });
+
+  it('generates forecheck pressure routes targeting the puck', () => {
+    const res = harness.commands.generateOpposingDefense('forecheck');
+    expect(res.status).toBe('done');
+    const opposingRoutes = harness.getState().drill.skatePaths.filter(p => p.team === 'away');
+    expect(opposingRoutes.length).toBeGreaterThan(0);
+    expect(opposingRoutes[0].mode).toBe('skate');
+  });
+
+  it('clears opposing routes while preserving home routes', () => {
+    harness.commands.generateOpposingDefense('gap');
+    expect(harness.getState().drill.skatePaths.length).toBeGreaterThan(0);
+
+    const clearRes = harness.commands.clearOpposingRoutes();
+    expect(clearRes.status).toBe('done');
+    const remainingOpposing = harness.getState().drill.skatePaths.filter(p => p.team === 'away');
+    expect(remainingOpposing.length).toBe(0);
+  });
+});
+

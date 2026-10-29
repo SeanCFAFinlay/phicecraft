@@ -218,6 +218,9 @@ export interface AuthoringCommands {
 
   recoverOffRinkObjects(): CommandResult<number>;
 
+  generateOpposingDefense(tactic?: 'gap' | 'forecheck' | 'box-shift' | 'backcheck'): CommandResult<number>;
+  clearOpposingRoutes(): CommandResult<number>;
+
   clearPuckActions(): Promise<CommandResult>;
   clearMovementRoutes(): Promise<CommandResult>;
   resetBoard(): Promise<CommandResult>;

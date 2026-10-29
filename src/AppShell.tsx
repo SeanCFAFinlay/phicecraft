@@ -83,6 +83,16 @@ const EventInspector = lazy(() =>
 const DiagnosticsOverlay = lazy(() =>
   import('@/components/DiagnosticsOverlay').then(module => ({ default: module.DiagnosticsOverlay }))
 );
+const FormationQuickPicker = lazy(() =>
+  import('@/components/shell/FormationQuickPicker').then(module => ({
+    default: module.FormationQuickPicker,
+  }))
+);
+const PrintPreviewModal = lazy(() =>
+  import('@/components/shell/PrintPreviewModal').then(module => ({
+    default: module.PrintPreviewModal,
+  }))
+);
 
 // The true-3D presentation (Phase 4). A coach who never tilts into 3D never
 // parses or executes three.js: this chunk is not requested until the render
@@ -212,6 +222,12 @@ export function AppShell() {
         {state.ui.openSheet === 'more' && <MoreSheet />}
         {state.ui.openSheet === 'playback' && <PlaybackSheet />}
         {state.ui.openSheet === 'help' && <HelpSheet />}
+        {state.ui.openSheet === 'formations' && (
+          <FormationQuickPicker onClose={() => dispatch({ type: 'CLOSE_SHEET' })} />
+        )}
+        {state.ui.openSheet === 'print-preview' && (
+          <PrintPreviewModal onClose={() => dispatch({ type: 'CLOSE_SHEET' })} />
+        )}
         {state.ui.openSheet === 'import-preview' && (
           <ImportPreviewSheet
             preview={importPreview}

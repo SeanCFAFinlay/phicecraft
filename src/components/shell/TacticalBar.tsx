@@ -129,7 +129,7 @@ export function TacticalBar() {
   const { carrier } = usePuckActions();
   const { is3D, toggle3D, fit, zoomToZone } = useViewActions();
 
-  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'export' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | null>(null);
 
   const currentTool = state.ui.currentTool;
   const isMove = currentTool === 'move';
@@ -142,7 +142,7 @@ export function TacticalBar() {
   if (state.ui.mode !== 'build' || isCompactLandscape) return null;
 
   const closeMenu = () => setOpenMenu(null);
-  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'export') => {
+  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export') => {
     setOpenMenu(prev => (prev === menu ? null : menu));
   };
 
@@ -365,6 +365,79 @@ export function TacticalBar() {
           />
         </FlyoutMenu>
 
+        {/* Defending / Opposing Team Movement Flyout */}
+        <FlyoutMenu
+          label="Defend"
+          icon="🛡️"
+          isOpen={openMenu === 'defense'}
+          onToggle={() => toggleMenu('defense')}
+          onClose={closeMenu}
+        >
+          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-rose-400/80">
+            Opposing Team Movement
+          </div>
+          <MenuItem
+            icon="🛡️"
+            label="Defensive Gap Control"
+            sublabel="D-pair backward retreat to slot"
+            onClick={() => {
+              closeMenu();
+              commands.generateOpposingDefense('gap');
+            }}
+          />
+          <MenuItem
+            icon="🦅"
+            label="Forecheck Pressure"
+            sublabel="F1/F2 angling pursuit on puck"
+            onClick={() => {
+              closeMenu();
+              commands.generateOpposingDefense('forecheck');
+            }}
+          />
+          <MenuItem
+            icon="📦"
+            label="PK Box Shift"
+            sublabel="Box slides toward puck quadrant"
+            onClick={() => {
+              closeMenu();
+              commands.generateOpposingDefense('box-shift');
+            }}
+          />
+          <MenuItem
+            icon="⚡"
+            label="Backcheck Through Middle"
+            sublabel="Forwards sprint back to slot"
+            onClick={() => {
+              closeMenu();
+              commands.generateOpposingDefense('backcheck');
+            }}
+          />
+          <MenuItem
+            icon="✏️"
+            label="Draw Opponent Route"
+            sublabel="Sketch path for nearest away player"
+            onClick={() => {
+              closeMenu();
+              const awaySkater = state.drill.players.find(p => p.team === 'away' && p.role !== 'G') || state.drill.players.find(p => p.team === 'away');
+              if (awaySkater) {
+                commands.selectPlayer(awaySkater.id);
+                commands.setTool('move');
+                commands.setPendingAction({ kind: 'draw-route', playerId: awaySkater.id });
+              }
+            }}
+          />
+          <MenuItem
+            icon="↺"
+            label="Clear Opponent Routes"
+            sublabel="Remove defending movement"
+            tone="danger"
+            onClick={() => {
+              closeMenu();
+              commands.clearOpposingRoutes();
+            }}
+          />
+        </FlyoutMenu>
+
         {/* Setups / Formations Flyout */}
         <FlyoutMenu
           label="Systems"
@@ -373,9 +446,20 @@ export function TacticalBar() {
           onToggle={() => toggleMenu('lineups')}
           onClose={closeMenu}
         >
-          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400/70">
-            Instant Tactical Setups
+          <div className="flex items-center justify-between px-2 py-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400/80">
+              Tactical Formations
+            </span>
           </div>
+          <MenuItem
+            icon="📋"
+            label="All Formations & Placements..."
+            sublabel="Browse full tactical library"
+            onClick={() => {
+              closeMenu();
+              dispatch({ type: 'OPEN_SHEET', sheet: 'formations' });
+            }}
+          />
           <MenuItem
             icon="🏒"
             label="1-3-1 Power Play"
@@ -395,10 +479,28 @@ export function TacticalBar() {
             onClick={() => applyFormation('rush-3v2')}
           />
           <MenuItem
+            icon="⚡"
+            label="2-on-1 Rush"
+            sublabel="Odd-man rush with trailer"
+            onClick={() => applyFormation('rush-2v1')}
+          />
+          <MenuItem
             icon="🚀"
             label="5v5 Breakout"
             sublabel="Regroup & breakout system"
             onClick={() => applyFormation('breakout-5v5')}
+          />
+          <MenuItem
+            icon="🦅"
+            label="2-1-2 Forecheck"
+            sublabel="Heavy aggressive puck pursuit"
+            onClick={() => applyFormation('forecheck-212')}
+          />
+          <MenuItem
+            icon="🧱"
+            label="1-2-2 Neutral Trap"
+            sublabel="Neutral zone wall defense"
+            onClick={() => applyFormation('trap-122')}
           />
           <MenuItem
             icon="⭕"
@@ -412,7 +514,23 @@ export function TacticalBar() {
             sublabel="Offensive faceoff play"
             onClick={() => applyFormation('faceoff-ozone')}
           />
-        </FlyoutMenu>
+          <MenuItem
+            icon="🛡️"
+            label="D-Zone Faceoff"
+            sublabel="Defensive zone coverage"
+            onClick={() => applyFormation('faceoff-dzone')}
+          />
+        </FlyoutMenu>        {/* Direct In-App Print Preview Button */}
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'print-preview' })}
+          aria-label="Open print preview modal"
+          title="Print Preview (Bench Card / Practice Sheet)"
+          className="touch-target flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-bold text-white/80 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200 transition-all"
+        >
+          <span>🖨️</span>
+          <span>Preview</span>
+        </button>
 
         {/* Export / Share Flyout */}
         <FlyoutMenu
@@ -425,6 +543,15 @@ export function TacticalBar() {
           <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-cyan/70">
             Export & Print
           </div>
+          <MenuItem
+            icon="🖨️"
+            label="Print Preview (Card / Sheet)"
+            sublabel="Interactive print & cut preview"
+            onClick={() => {
+              closeMenu();
+              dispatch({ type: 'OPEN_SHEET', sheet: 'print-preview' });
+            }}
+          />
           <MenuItem
             icon="📷"
             label="Drill Diagram (PNG)"
