@@ -1002,10 +1002,17 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => printPracticePlan(activeSession)}
+                  onClick={() => printPracticePlan(activeSession, 'sheet')}
                   className="touch-target inline-flex items-center gap-2 rounded-xl bg-app-cyan px-4 py-2 text-[13px] font-black text-[#041019] shadow-md hover:bg-cyan-300"
                 >
                   Print Coaching Sheet / PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => printPracticePlan(activeSession, 'cards')}
+                  className="touch-target inline-flex items-center gap-1.5 rounded-xl border border-app-cyan/50 bg-app-cyan/15 px-3.5 py-2 text-[13px] font-bold text-app-cyan hover:bg-app-cyan/25"
+                >
+                  ✂ Print Cut-Out Cards
                 </button>
                 <button
                   type="button"

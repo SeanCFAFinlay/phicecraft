@@ -2,7 +2,7 @@
 // EXPORT PRACTICE PLAN
 //
 // Generates printable coaching clipboard sheets, formatted team text summaries,
-// and downloadable practice plan documents.
+// downloadable practice plan documents, and cut-out drill cards with screen preview.
 // ============================================================================
 
 import type { PracticeSession } from '@/domain/practice/types';
@@ -174,16 +174,22 @@ export function exportPracticePlanJson(session: PracticeSession): void {
   downloadText(`${safeTitle || 'practice-plan'}.json`, payload, 'application/json');
 }
 
+export type PrintLayoutMode = 'sheet' | 'cards' | 'pocket';
+
 /**
- * Opens a dedicated printable coaching clipboard window formatted for 1-2 pages
- * with brand lockup, timeline, station split, and equipment summary.
+ * Opens a dedicated printable coaching clipboard window formatted with on-screen
+ * preview modes: full clipboard sheet or cut-out drill cards for the bench.
  */
-export function printPracticePlan(session: PracticeSession): void {
+export function printPracticePlan(
+  session: PracticeSession,
+  initialMode: PrintLayoutMode = 'sheet'
+): void {
   if (typeof window === 'undefined') return;
 
   const metrics = calculatePracticeMetrics(session);
   let currentMinute = 0;
 
+  // 1. Build Full Practice Sheet Drill Blocks
   const blocksHtml = session.blocks
     .map((block, idx) => {
       const startMin = currentMinute;
@@ -236,6 +242,63 @@ export function printPracticePlan(session: PracticeSession): void {
     })
     .join('');
 
+  // 2. Build Cut-Out Bench Cards (2-Up / 4-Up)
+  const cardsHtml = session.blocks
+    .map((block, idx) => {
+      let diagramUrl = '';
+      if (block.pinnedRevision) {
+        try {
+          const v2 = projectToV2(block.pinnedRevision);
+          const thumb = renderThumbnail(v2.drill, { width: 440, height: 220, scale: 2 });
+          if (thumb) diagramUrl = thumb;
+        } catch {
+          // Graceful fallback
+        }
+      }
+
+      const pointsHtml = (block.coachingPoints || [])
+        .map(p => `<li>${p}</li>`)
+        .join('');
+
+      const eqHtml = (block.equipment || [])
+        .map(e => `<span class="tag-pill">${e.count} ${e.kind}</span>`)
+        .join(' ');
+
+      return `
+        <div class="cut-card">
+          <div class="cut-marker">✂ CUT OUT · DRILL #${idx + 1}</div>
+          <div class="hole-punch" title="Binder ring hole punch guide"></div>
+          <div class="cut-card-header">
+            <div>
+              <div class="cut-card-title">${idx + 1}. ${block.title}</div>
+              <div class="cut-badges">
+                <span class="badge badge-cyan">${block.rinkArea.toUpperCase()}</span>
+                ${block.stationSplit && block.stationSplit !== 'full' ? `<span class="badge badge-amber">${block.stationSplit.toUpperCase().replace('_', ' ')}</span>` : ''}
+              </div>
+            </div>
+            <div class="cut-time">⏱ ${block.durationMinutes} MIN</div>
+          </div>
+
+          ${diagramUrl ? `<div class="cut-diagram"><img src="${diagramUrl}" alt="${block.title}" /></div>` : ''}
+
+          ${block.drillSummary ? `<div class="cut-summary">${block.drillSummary}</div>` : ''}
+
+          ${pointsHtml ? `
+            <div class="cut-points-title">Coaching Points</div>
+            <ul class="cut-points-list">${pointsHtml}</ul>
+          ` : ''}
+
+          ${eqHtml ? `<div class="cut-gear-strip"><strong>Gear:</strong> ${eqHtml}</div>` : ''}
+
+          <div class="cut-card-footer">
+            <span>PhiceCraft Bench Card</span>
+            <span>${session.title}</span>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+
   const equipmentRows = Object.entries(metrics.equipmentTotals)
     .map(([kind, count]) => `<div class="eq-pill"><strong>${kind.toUpperCase()}:</strong> ${count}</div>`)
     .join('');
@@ -247,16 +310,87 @@ export function printPracticePlan(session: PracticeSession): void {
       <meta charset="utf-8">
       <title>Practice Plan: ${session.title}</title>
       <style>
-        @page { size: letter portrait; margin: 12mm 15mm; }
+        @page { size: letter portrait; margin: 10mm 12mm; }
+        * { box-sizing: border-box; }
         body {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
           color: #0f172a;
-          background: #fff;
+          background: #f8fafc;
           margin: 0;
-          padding: 10px;
+          padding: 12px 18px;
           line-height: 1.35;
           font-size: 13px;
         }
+
+        /* Screen Preview Toolbar (Hidden in Print) */
+        .preview-toolbar {
+          position: sticky;
+          top: 0;
+          z-index: 999;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #09131d;
+          color: #fff;
+          padding: 8px 16px;
+          border-radius: 8px;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+          margin-bottom: 16px;
+        }
+        .toolbar-brand {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .toolbar-brand strong { color: #22d3ee; font-size: 13px; }
+        .toolbar-modes {
+          display: flex;
+          gap: 6px;
+        }
+        .mode-btn {
+          background: rgba(255,255,255,0.08);
+          color: #cbd5e1;
+          border: 1px solid rgba(255,255,255,0.2);
+          border-radius: 6px;
+          padding: 6px 12px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .mode-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+        .mode-btn.active {
+          background: #0284c7;
+          border-color: #38bdf8;
+          color: #fff;
+        }
+        .toolbar-actions {
+          display: flex;
+          gap: 8px;
+        }
+        .btn-print {
+          background: #22d3ee;
+          color: #041019;
+          border: none;
+          font-weight: 900;
+          padding: 6px 14px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+        }
+        .btn-print:hover { background: #67e8f9; }
+        .btn-close {
+          background: rgba(255,255,255,0.1);
+          color: #fff;
+          border: 1px solid rgba(255,255,255,0.2);
+          padding: 6px 10px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+        }
+
+        /* Full Practice Sheet Styling */
+        #view-sheet { background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; }
         .header-bar {
           display: flex;
           justify-content: space-between;
@@ -390,6 +524,132 @@ export function printPracticePlan(session: PracticeSession): void {
           border-radius: 6px;
           font-size: 11px;
         }
+
+        /* Cut-Out Bench Cards Styling */
+        #view-cards {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 18px;
+          max-width: 760px;
+          margin: 0 auto;
+        }
+        .cut-card {
+          position: relative;
+          background: #fff;
+          border: 2px dashed #94a3b8;
+          border-radius: 10px;
+          padding: 18px 20px 16px 32px;
+          page-break-inside: avoid;
+          break-inside: avoid;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        }
+        .cut-marker {
+          position: absolute;
+          top: -10px;
+          right: 20px;
+          background: #fff;
+          padding: 0 6px;
+          font-size: 10px;
+          font-weight: 800;
+          color: #64748b;
+        }
+        .hole-punch {
+          position: absolute;
+          left: 10px;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 12px;
+          height: 12px;
+          border: 1.5px dashed #cbd5e1;
+          border-radius: 50%;
+        }
+        .hole-punch::after {
+          content: '○';
+          display: block;
+          text-align: center;
+          line-height: 10px;
+          font-size: 9px;
+          color: #94a3b8;
+        }
+        .cut-card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          border-bottom: 2px solid #0284c7;
+          padding-bottom: 6px;
+          margin-bottom: 8px;
+        }
+        .cut-card-title {
+          font-size: 15px;
+          font-weight: 800;
+          color: #0f172a;
+        }
+        .cut-badges {
+          display: flex;
+          gap: 4px;
+          margin-top: 3px;
+        }
+        .badge {
+          font-size: 9px;
+          font-weight: 800;
+          padding: 2px 5px;
+          border-radius: 4px;
+        }
+        .badge-cyan { background: #e0f2fe; color: #0369a1; }
+        .badge-amber { background: #fef3c7; color: #92400e; }
+        .cut-time {
+          font-family: monospace;
+          font-weight: 800;
+          background: #f1f5f9;
+          color: #0284c7;
+          padding: 3px 6px;
+          border-radius: 4px;
+          font-size: 11px;
+        }
+        .cut-diagram {
+          width: 100%;
+          border: 1px solid #cbd5e1;
+          border-radius: 4px;
+          overflow: hidden;
+          background: #f8fafc;
+          margin-bottom: 8px;
+          text-align: center;
+        }
+        .cut-diagram img {
+          max-width: 100%;
+          height: auto;
+          display: block;
+          margin: 0 auto;
+        }
+        .cut-summary { font-size: 11px; color: #334155; margin-bottom: 6px; }
+        .cut-points-title { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #475569; margin-top: 4px; }
+        .cut-points-list { margin: 2px 0 6px 14px; padding: 0; font-size: 11px; color: #1e293b; }
+        .cut-gear-strip { font-size: 10px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 4px; }
+        .tag-pill { display: inline-block; background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-weight: 700; color: #334155; }
+        .cut-card-footer {
+          margin-top: 8px;
+          display: flex;
+          justify-content: space-between;
+          font-size: 8.5px;
+          color: #94a3b8;
+          text-transform: uppercase;
+        }
+
+        /* 4-Up Pocket Cards Layout */
+        #view-pocket {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+        #view-pocket .cut-card {
+          padding: 12px 14px 10px 22px;
+        }
+        #view-pocket .cut-card-title { font-size: 13px; }
+        #view-pocket .cut-diagram { max-height: 120px; }
+        #view-pocket .cut-diagram img { max-height: 115px; }
+
         .footer-note {
           text-align: center;
           font-size: 10px;
@@ -398,52 +658,97 @@ export function printPracticePlan(session: PracticeSession): void {
           margin-top: 16px;
           padding-top: 8px;
         }
+
+        @media print {
+          .no-print { display: none !important; }
+          body { background: #fff !important; padding: 0 !important; }
+          #view-sheet { border: none !important; padding: 0 !important; }
+          .cut-card { box-shadow: none !important; page-break-inside: avoid; break-inside: avoid; }
+        }
       </style>
     </head>
     <body>
-      <div class="header-bar">
-        <div>
-          <div class="brand-title">PHICE<span>CRAFT</span> PRACTICE PLAN</div>
-          <div class="tagline">Train · Play · Improve · Official Hockey Practice System</div>
+      <!-- Preview Toolbar -->
+      <div class="preview-toolbar no-print">
+        <div class="toolbar-brand">
+          <strong>🏒 Print & Cut Preview</strong>
         </div>
-        <div style="text-align: right;">
-          <div style="font-size: 14px; font-weight: 800;">${session.title}</div>
-          <div style="font-size: 11px; color: #64748b;">${session.targetMinutes} Minutes Ice Time</div>
+        <div class="toolbar-modes">
+          <button id="btn-sheet" class="mode-btn" onclick="setMode('sheet')">📋 Full Practice Plan</button>
+          <button id="btn-cards" class="mode-btn" onclick="setMode('cards')">✂ 2-Up Bench Cards</button>
+          <button id="btn-pocket" class="mode-btn" onclick="setMode('pocket')">✂ 4-Up Pocket Cards</button>
         </div>
-      </div>
-
-      <div class="meta-strip">
-        <div class="meta-item"><label>Team / Group</label><value>${session.team || 'All Teams'}</value></div>
-        <div class="meta-item"><label>Date</label><value>${session.date || new Date().toISOString().slice(0, 10)}</value></div>
-        <div class="meta-item"><label>Status</label><value>${metrics.totalMinutes} of ${metrics.targetMinutes} min (${metrics.remainingMinutes >= 0 ? `${metrics.remainingMinutes}m left` : `${Math.abs(metrics.remainingMinutes)}m overtime`})</value></div>
-      </div>
-
-      ${session.focus ? `
-        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px; margin-bottom: 12px; font-size: 12px;">
-          <strong>Practice Objectives:</strong> ${session.focus}
-        </div>
-      ` : ''}
-
-      <div class="timeline-section">
-        <h2>Practice Timeline (${session.blocks.length} Drill Blocks)</h2>
-        ${blocksHtml}
-      </div>
-
-      <div class="eq-section">
-        <h2>Required Equipment Checklist</h2>
-        <div class="eq-grid">
-          ${equipmentRows || '<div class="eq-pill">Standard pucks</div>'}
+        <div class="toolbar-actions">
+          <button class="btn-print" onclick="window.print()">🖨 Print / Save PDF</button>
+          <button class="btn-close" onclick="window.close()">✕ Close</button>
         </div>
       </div>
 
-      <div class="footer-note">
-        Generated by PhiceCraft · Offline-first Pro Hockey Diagramming & Practice Planning
+      <!-- VIEW 1: Full Practice Plan Sheet -->
+      <div id="view-sheet">
+        <div class="header-bar">
+          <div>
+            <div class="brand-title">PHICE<span>CRAFT</span> PRACTICE PLAN</div>
+            <div class="tagline">Train · Play · Improve · Official Hockey Practice System</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 14px; font-weight: 800;">${session.title}</div>
+            <div style="font-size: 11px; color: #64748b;">${session.targetMinutes} Minutes Ice Time</div>
+          </div>
+        </div>
+
+        <div class="meta-strip">
+          <div class="meta-item"><label>Team / Group</label><value>${session.team || 'All Teams'}</value></div>
+          <div class="meta-item"><label>Date</label><value>${session.date || new Date().toISOString().slice(0, 10)}</value></div>
+          <div class="meta-item"><label>Status</label><value>${metrics.totalMinutes} of ${metrics.targetMinutes} min (${metrics.remainingMinutes >= 0 ? `${metrics.remainingMinutes}m left` : `${Math.abs(metrics.remainingMinutes)}m overtime`})</value></div>
+        </div>
+
+        ${session.focus ? `
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px; margin-bottom: 12px; font-size: 12px;">
+            <strong>Practice Objectives:</strong> ${session.focus}
+          </div>
+        ` : ''}
+
+        <div class="timeline-section">
+          <h2>Practice Timeline (${session.blocks.length} Drill Blocks)</h2>
+          ${blocksHtml}
+        </div>
+
+        <div class="eq-section">
+          <h2>Required Equipment Checklist</h2>
+          <div class="eq-grid">
+            ${equipmentRows || '<div class="eq-pill">Standard pucks</div>'}
+          </div>
+        </div>
+
+        <div class="footer-note">
+          Generated by PhiceCraft · Offline-first Pro Hockey Diagramming & Practice Planning
+        </div>
+      </div>
+
+      <!-- VIEW 2: 2-Up Bench Cut-Out Cards -->
+      <div id="view-cards" style="display: none;">
+        ${cardsHtml}
+      </div>
+
+      <!-- VIEW 3: 4-Up Pocket Cards -->
+      <div id="view-pocket" style="display: none;">
+        ${cardsHtml}
       </div>
 
       <script>
-        window.addEventListener('load', function() {
-          setTimeout(function() { window.print(); }, 250);
-        });
+        function setMode(mode) {
+          document.getElementById('view-sheet').style.display = mode === 'sheet' ? 'block' : 'none';
+          document.getElementById('view-cards').style.display = mode === 'cards' ? 'grid' : 'none';
+          document.getElementById('view-pocket').style.display = mode === 'pocket' ? 'grid' : 'none';
+          
+          document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+          var activeBtn = document.getElementById('btn-' + mode);
+          if (activeBtn) activeBtn.classList.add('active');
+        }
+
+        // Set initial mode on launch
+        setMode('${initialMode}');
       </script>
     </body>
     </html>

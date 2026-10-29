@@ -13,6 +13,7 @@ import type { DrillTemplate } from '@/data/templates/builder';
 import { cachedThumbnail } from './thumbnailRenderer';
 import { projectToV2 } from '@/domain/v3/projectToV2';
 import { PrintIcon } from '@/ui/icons';
+import { printSingleDrillCard } from '@/ui/exportDrillCard';
 
 function Points({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
@@ -84,7 +85,7 @@ export function DrillDetails({
           </button>
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => printSingleDrillCard(template.document)}
             aria-label="Print this drill"
             className="touch-target flex items-center gap-1 rounded-xl border border-app-border bg-white/5 px-3 text-[13px] font-bold text-white/75 hover:bg-white/10"
           >
