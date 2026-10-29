@@ -15,6 +15,7 @@ module.exports = {
     'output',
     '.playwright-cli',
     'docs/repair',
+    'scratch',
     '.eslintrc.cjs',
   ],
   parser: '@typescript-eslint/parser',

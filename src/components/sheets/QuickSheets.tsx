@@ -469,6 +469,12 @@ export function ViewSheet() {
             detail="High-angle tactical 3D view"
             onClick={run(view.setPresetTactical)}
           />
+          <SheetItem
+            icon={<OrientationIcon />}
+            label="Player POV chase camera"
+            detail="First-person perspective tracking active puck carrier"
+            onClick={run(view.setPresetPOV)}
+          />
         </SheetSection>
       )}
 

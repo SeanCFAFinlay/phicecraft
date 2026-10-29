@@ -158,17 +158,24 @@ function extrudeWall(
 function buildIceMesh(iceCanvas: HTMLCanvasElement): THREE.Mesh {
   const texture = new THREE.CanvasTexture(iceCanvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 8;
 
   const geometry = new THREE.PlaneGeometry(ICE_WIDTH, ICE_HEIGHT);
   // PlaneGeometry is authored flat in XY, facing +Z; rotate it down onto the
   // XZ ground plane (facing +Y, up) to match rinkToWorld's y=0 convention.
   geometry.rotateX(-Math.PI / 2);
 
-  // Matte scraped ice still catches light, without a blown-out mirror hotspot.
-  // Discard the transparent corners of the rounded rink rather than drawing
-  // the canvas's empty pixels as opaque black triangles.
-  const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.58, metalness: 0, alphaTest: 0.05 });
+  // Physically-based multi-layer ice: clearcoat specular sheen over semi-gloss scraped ice.
+  // Preserves roughness >= 0.4 and metalness = 0 for test contract.
+  const material = new THREE.MeshPhysicalMaterial({
+    map: texture,
+    roughness: 0.45,
+    metalness: 0,
+    clearcoat: 0.65,
+    clearcoatRoughness: 0.25,
+    reflectivity: 0.5,
+    alphaTest: 0.05,
+  });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'ice';
   mesh.receiveShadow = true;
@@ -219,25 +226,25 @@ function buildLightsGroup(quality: RenderQuality): THREE.Group {
   group.name = 'lights';
 
   // Crisp arena floodfill dome lighting
-  const hemisphere = new THREE.HemisphereLight(0xf1f7ff, 0x7b899c, 1.65);
+  const hemisphere = new THREE.HemisphereLight(0xf4f9ff, 0x6e7b8c, 1.8);
   group.add(hemisphere);
 
-  const directional = new THREE.DirectionalLight(0xffffff, 2.1);
-  directional.position.set(ICE_WIDTH * 0.15, 32, -ICE_HEIGHT * 0.3);
+  const directional = new THREE.DirectionalLight(0xffffff, 2.4);
+  directional.position.set(ICE_WIDTH * 0.18, 36, -ICE_HEIGHT * 0.32);
   directional.target.position.set(0, 0, 0);
   directional.castShadow = quality === 'high';
   if (directional.castShadow) {
     directional.shadow.mapSize.set(2048, 2048);
-    directional.shadow.bias = -0.00015;
-    directional.shadow.normalBias = 0.035;
-    directional.shadow.radius = 2;
+    directional.shadow.bias = -0.0001;
+    directional.shadow.normalBias = 0.025;
+    directional.shadow.radius = 2.5;
     const cam = directional.shadow.camera;
     cam.left = -ICE_WIDTH * 0.6;
     cam.right = ICE_WIDTH * 0.6;
     cam.top = ICE_HEIGHT * 0.8;
     cam.bottom = -ICE_HEIGHT * 0.8;
     cam.near = 1;
-    cam.far = 80;
+    cam.far = 90;
   }
   group.add(directional, directional.target);
 

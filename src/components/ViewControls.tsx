@@ -38,6 +38,7 @@ export function ViewControls() {
     setPresetBroadcast,
     setPresetEndZone,
     setPresetTactical,
+    setPresetPOV,
     fit,
   } = useViewActions();
 
@@ -130,6 +131,16 @@ export function ViewControls() {
             className={`${button} px-1 text-[9px] font-black tracking-tight`}
           >
             Top
+          </button>
+
+          <button
+            type="button"
+            onClick={setPresetPOV}
+            aria-label="Player POV 3D camera angle"
+            title="Player first-person / chase view"
+            className={`${button} px-1 text-[9px] font-black tracking-tight text-amber-300 border-amber-400/30`}
+          >
+            POV
           </button>
         </>
       )}

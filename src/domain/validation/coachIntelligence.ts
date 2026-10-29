@@ -16,7 +16,7 @@ import type {
   PassAction,
   SkaterActor,
 } from '@/domain/v3/types';
-import { isSkater, isGoalie } from '@/domain/v3/types';
+import { isSkater, isGoalie, isOnIce } from '@/domain/v3/types';
 import type { Point } from '@/core/types';
 
 export type ValidationIssueSeverity = 'error' | 'warning' | 'suggestion';
@@ -26,7 +26,9 @@ export type ValidationIssueKind =
   | 'role_shortage'
   | 'space_conflict'
   | 'equipment_shortage'
-  | 'duration_mismatch';
+  | 'duration_mismatch'
+  | 'passing_lane_obstruction'
+  | 'goalie_coverage_angle';
 
 export interface CorrectiveProposal {
   id: string;
@@ -126,7 +128,7 @@ function validatePassTiming(
   drill: DrillDocumentV3,
   issues: DrillValidationIssue[]
 ): void {
-  for (const track of drill.puckTracks) {
+  for (const track of (drill.puckTracks || [])) {
     for (const action of track.actions) {
       if (action.type !== 'pass') continue;
 
@@ -387,9 +389,102 @@ function validateEquipmentSufficiency(
   }
 }
 
+function distToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return distance(p, a);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return distance(p, { x: a.x + t * dx, y: a.y + t * dy });
+}
+
 /**
- * Main domain intelligence evaluator for drills.
+ * Validates passing lanes against defending opponents and goalie coverage angles on shots.
  */
+function validateTacticalLaneAndNetAngles(
+  drill: DrillDocumentV3,
+  issues: DrillValidationIssue[]
+): void {
+  const actorsById = new Map<string, Actor>(drill.actors.map(a => [a.id, a]));
+  const goalies = drill.actors.filter(isGoalie);
+
+  for (const track of (drill.puckTracks || [])) {
+    for (const action of track.actions) {
+      if (action.type === 'pass') {
+        const pass = action as PassAction;
+        const passer = actorsById.get(pass.fromActorId);
+        if (!passer || !isOnIce(passer)) continue;
+
+        for (const actor of drill.actors) {
+          if (actor.id === pass.fromActorId || actor.id === pass.toActorId) continue;
+          if (!isOnIce(actor)) continue;
+          if (actor.team === passer.team) continue; // Only check opponents
+
+          const midTime = (pass.releaseAt + pass.arrivalAt) / 2;
+          const segments = (drill.actorTracks || []).find(t => t.actorId === actor.id)?.segments || [];
+          const oppPos = estimateActorPositionAtTime(actor, segments, midTime).position;
+
+          const dist = distToSegment(oppPos, pass.fromPoint, pass.target);
+          if (dist < 4.0) {
+            const oppLabel = ('number' in actor ? actor.number : '') || actor.label || 'opponent';
+            issues.push({
+              id: `lane-obstructed-${pass.id}-${actor.id}`,
+              kind: 'passing_lane_obstruction',
+              severity: 'warning',
+              title: 'Passing Lane Obstructed',
+              message: `Pass trajectory passes within stick intercept reach (${dist.toFixed(1)}ft) of defending opponent #${oppLabel}.`,
+              affectedActorIds: [passer.id, actor.id],
+              affectedActionIds: [pass.id],
+              timestamp: pass.releaseAt,
+            });
+          }
+        }
+      } else if (action.type === 'shot') {
+        // Goalie angle bisector coverage
+        const shot = action;
+        const netX = shot.target.x >= 0 ? 89 : -89;
+        const defendingGoalie = goalies.find(g => (netX > 0 ? g.position.x > 0 : g.position.x < 0));
+        if (defendingGoalie) {
+          const netCenter: Point = { x: netX, y: 0 };
+          const distFromBisector = distToSegment(defendingGoalie.position, netCenter, shot.fromPoint);
+          if (distFromBisector > 5.5) {
+            issues.push({
+              id: `goalie-angle-${shot.id}-${defendingGoalie.id}`,
+              kind: 'goalie_coverage_angle',
+              severity: 'suggestion',
+              title: 'Goaltender Off-Angle Coverage',
+              message: `Defending goalie #${defendingGoalie.number || '31'} is caught off-angle (${distFromBisector.toFixed(1)}ft lateral deviation) from the shot release angle.`,
+              affectedActorIds: [defendingGoalie.id],
+              affectedActionIds: [shot.id],
+              timestamp: shot.releaseAt,
+              proposal: {
+                id: `square-goalie-${defendingGoalie.id}`,
+                label: 'Square Goalie to Shooting Angle',
+                description: 'Positions the goalie along the angle bisector facing the shooter.',
+                apply: (dDoc) => {
+                  const clone = structuredClone(dDoc);
+                  const g = clone.actors.find(a => a.id === defendingGoalie.id);
+                  if (g) {
+                    const dirX = shot.fromPoint.x - netX;
+                    const dirY = shot.fromPoint.y - 0;
+                    const len = Math.hypot(dirX, dirY) || 1;
+                    g.position = {
+                      x: netX + (dirX / len) * 4.5,
+                      y: (dirY / len) * 4.5,
+                    };
+                  }
+                  return clone;
+                },
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+}
+
 export function validateDrillIntelligence(
   drill: DrillDocumentV3,
   context?: TeamSessionContext
@@ -400,6 +495,7 @@ export function validateDrillIntelligence(
   validateRolesAndAttendance(drill, context, issues);
   validateSpatialConflicts(drill, issues);
   validateEquipmentSufficiency(drill, context, issues);
+  validateTacticalLaneAndNetAngles(drill, issues);
 
   const errorCount = issues.filter(i => i.severity === 'error').length;
   const warningCount = issues.filter(i => i.severity === 'warning').length;

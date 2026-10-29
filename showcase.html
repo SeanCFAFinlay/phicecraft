@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhiceCraft — Program in Action Showcase</title>
+  <style>
+    :root {
+      --bg: #050b14;
+      --card-bg: rgba(14, 25, 44, 0.75);
+      --card-border: rgba(56, 189, 248, 0.2);
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --cyan-glow: #00e5ff;
+      --gold: #facc15;
+      --green: #4ade80;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: radial-gradient(circle at 50% 10%, #0d1e38 0%, #050b14 70%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.5;
+      padding: 32px 24px 80px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+    }
+
+    .badge-pill {
+      display: inline-block;
+      padding: 4px 14px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--cyan-glow);
+      background: rgba(0, 229, 255, 0.1);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      border-radius: 9999px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      font-size: 2.6rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, #7dd3fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 1.15rem;
+      max-width: 780px;
+      margin: 0 auto 20px;
+    }
+
+    .stats-bar {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .stat-num {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--cyan-glow);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+
+    /* Filters */
+    .filter-bar {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 36px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      color: var(--muted);
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover, .filter-btn.active {
+      color: #ffffff;
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--cyan-glow);
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
+    }
+
+    /* Gallery Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      gap: 28px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: var(--cyan-glow);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 229, 255, 0.2);
+    }
+
+    .img-wrap {
+      position: relative;
+      width: 100%;
+      height: 240px;
+      background: #020617;
+      overflow: hidden;
+    }
+
+    .img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.4s ease;
+    }
+
+    .card:hover .img-wrap img {
+      transform: scale(1.03);
+    }
+
+    .card-tag {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(2, 6, 23, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--cyan-glow);
+      backdrop-filter: blur(6px);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .card-content {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+
+    .card-title {
+      font-size: 1.18rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .card-desc {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+      margin-bottom: 16px;
+      flex-grow: 1;
+    }
+
+    .card-features {
+      list-style: none;
+      border-top: 1px solid rgba(56, 189, 248, 0.12);
+      padding-top: 12px;
+      margin-top: auto;
+    }
+
+    .card-features li {
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-features li::before {
+      content: "•";
+      color: var(--cyan-glow);
+      font-weight: bold;
+    }
+
+    /* Lightbox Modal */
+    .lightbox {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(2, 6, 23, 0.92);
+      backdrop-filter: blur(16px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+
+    .lightbox.active {
+      display: flex;
+    }
+
+    .lightbox-content {
+      max-width: 1200px;
+      max-height: 90vh;
+      background: #0b1528;
+      border: 1px solid var(--cyan-glow);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(0, 229, 255, 0.3);
+    }
+
+    .lightbox-img-wrap {
+      background: #020617;
+      text-align: center;
+      max-height: 65vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lightbox-img-wrap img {
+      max-width: 100%;
+      max-height: 65vh;
+      object-fit: contain;
+    }
+
+    .lightbox-info {
+      padding: 24px;
+      border-top: 1px solid rgba(56, 189, 248, 0.2);
+      background: #0b1528;
+    }
+
+    .lightbox-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+
+    .lightbox-desc {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 24px;
+      right: 32px;
+      color: #ffffff;
+      font-size: 2.2rem;
+      font-weight: 300;
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .lightbox-close:hover {
+      color: var(--cyan-glow);
+    }
+
+    /* Comparison Section */
+    .comparison-section {
+      margin-top: 70px;
+      background: rgba(11, 21, 40, 0.6);
+      border: 1px solid rgba(56, 189, 248, 0.18);
+      border-radius: 16px;
+      padding: 36px 32px;
+    }
+
+    .comparison-section h2 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+      font-size: 0.92rem;
+    }
+
+    .comparison-table th, .comparison-table td {
+      padding: 14px 18px;
+      text-align: left;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.12);
+    }
+
+    .comparison-table th {
+      background: rgba(2, 6, 23, 0.7);
+      color: #94a3b8;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+    }
+
+    .comparison-table tr:hover td {
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    .check {
+      color: var(--green);
+      font-weight: bold;
+    }
+
+    .cross {
+      color: #f87171;
+    }
+
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+      h1 { font-size: 2rem; }
+      body { padding: 20px 14px 60px; }
+      .comparison-table { font-size: 0.8rem; }
+      .comparison-table th, .comparison-table td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge-pill">Production Operational State</span>
+      <h1>PhiceCraft in Action</h1>
+      <p class="subtitle">
+        Visual showcase and screenshot evidence of the 3D animated simulation, PBR arena lighting, kinematic skating models, tactical whiteboard, and bench coaching intelligence.
+      </p>
+      <div class="stats-bar">
+        <div class="stat-item">
+          <span class="stat-num">100% Offline</span>
+          <span class="stat-label">PWA Service Worker</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">Three.js 0.182</span>
+          <span class="stat-label">PBR Clearcoat Ice</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">60 FPS</span>
+          <span class="stat-label">Kinematic Pacing</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">1,885 Tests</span>
+          <span class="stat-label">Automated Parity</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+      <button class="filter-btn active" data-filter="all">All Screenshots</button>
+      <button class="filter-btn" data-filter="3d-simulation">3D Simulation & Rink</button>
+      <button class="filter-btn" data-filter="2d-authoring">2D Tactical Whiteboard</button>
+      <button class="filter-btn" data-filter="models-equipment">Models & Equipment</button>
+      <button class="filter-btn" data-filter="intelligence">Coaching Intelligence</button>
+    </div>
+
+    <!-- Gallery Grid -->
+    <div class="grid">
+      <!-- 1: 3D Arena Surface -->
+      <div class="card" data-category="3d-simulation" onclick="openLightbox('showcase_assets/01-3d-arena.png', 'Regulation NHL 3D Arena Surface', 'Extruded regulation boards (1.2m) with golden kickplate rail, transparent acrylic glass stanchions (1.6m), and Physically Based Rendering (PBR) ice with clearcoat specular sheen and soft contact shadows.')">
+        <div class="img-wrap">
+          <span class="card-tag">3D Simulation</span>
+          <img src="showcase_assets/01-3d-arena.png" alt="Regulation NHL 3D Arena Surface" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Regulation 3D Arena & PBR Ice</h3>
+          <p class="card-desc">Extruded NHL regulation boards with protective glass stanchions, multi-layer ice with clearcoat specular reflection and authentic skate wear.</p>
+          <ul class="card-features">
+            <li>MeshPhysicalMaterial with clearcoat sheen & anisotropic filtering</li>
+            <li>Soft PCF shadow maps anchoring skates and puck</li>
+            <li>Accurate 200\' × 85\' NHL sheet geometry with 28\' corners</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 2: 3D Playback Motion -->
+      <div class="card" data-category="3d-simulation" onclick="openLightbox('showcase_assets/02-3d-playback-motion.png', 'Multi-Skater 3D Playback & Dynamic Motion', 'Synchronized real-time playback showing skaters executing tactical movements, turn banking, and puck transitions on ice with real-time possession halos.')">
+        <div class="img-wrap">
+          <span class="card-tag">3D Simulation</span>
+          <img src="showcase_assets/02-3d-playback-motion.png" alt="Multi-Skater 3D Playback" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Multi-Skater Dynamic Motion</h3>
+          <p class="card-desc">Drill playback running at 60 FPS with multiple skaters executing timed routes, crossovers, and passing sequences.</p>
+          <ul class="card-features">
+            <li>Procedural stride speed scaling and glide states</li>
+            <li>Dynamic centrifugal lean banking into turns</li>
+            <li>Real-time possession ring identifying current carrier</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 3: 3D Route Authoring -->
+      <div class="card" data-category="3d-simulation" onclick="openLightbox('showcase_assets/03-3d-route-authoring.png', 'Interactive 3D Route Authoring', 'Direct interactive manipulation of player waypoints and skate paths in 3D perspective with real-time waypoint handles.')">
+        <div class="img-wrap">
+          <span class="card-tag">3D Simulation</span>
+          <img src="showcase_assets/03-3d-route-authoring.png" alt="Interactive 3D Route Authoring" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Interactive 3D Route Authoring</h3>
+          <p class="card-desc">Direct on-ice gesture handling allowing coaches to drag players, adjust waypoints, and reshape curved routes directly in the 3D view.</p>
+          <ul class="card-features">
+            <li>Transient gesture previews without state churning</li>
+            <li>Gold waypoint handles with bezier curve smoothing</li>
+            <li>Single-click undo and transaction safety</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 4: 3D Drill Sequence -->
+      <div class="card" data-category="3d-simulation" onclick="openLightbox('showcase_assets/04-3d-drill-sequence.png', 'Tactical Sequence Rehearsal', 'Breakout and cycle drill sequence showing forward zone entry and pass reception in stride.')">
+        <div class="img-wrap">
+          <span class="card-tag">3D Simulation</span>
+          <img src="showcase_assets/04-3d-drill-sequence.png" alt="Tactical Sequence Rehearsal" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Tactical Sequence Rehearsal</h3>
+          <p class="card-desc">Full teaching sequence illustrating pass reception in stride, teammate support spacing, and lane bisection.</p>
+          <ul class="card-features">
+            <li>Lead pass trajectory calculation</li>
+            <li>Deterministic catch probability verification</li>
+            <li>Broadcast camera angles (Side, Net, Top, POV)</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 5: Goalie Crease & Net -->
+      <div class="card" data-category="3d-simulation" onclick="openLightbox('showcase_assets/05-goalie-crease-net.png', 'Goalie Crease & Net Detail', 'Regulation goal net with steel crossbar, tension cord netting, and animated goaltender positioned square to the shooter.')">
+        <div class="img-wrap">
+          <span class="card-tag">models-equipment</span>
+          <img src="showcase_assets/05-goalie-crease-net.png" alt="Goalie Crease & Net Detail" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Goalie Crease & Net Dynamics</h3>
+          <p class="card-desc">Regulation red goal frame with open netting and animated goalie tracking the puck along the crease arc.</p>
+          <ul class="card-features">
+            <li>Automatic angle bisector tracking against shooter</li>
+            <li>Crease depth management and butterfly saves</li>
+            <li>Realistic goal frame geometry with depth netting</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 6: Player Model & Equipment -->
+      <div class="card" data-category="models-equipment" onclick="openLightbox('showcase_assets/06-player-model-equipment.png', 'Player Model & Equipment Anatomics', 'Detailed procedural hockey player model showing helmet with visor, molded shoulder/elbow pads, hockey pants, skate boot with steel runner, and stick.')">
+        <div class="img-wrap">
+          <span class="card-tag">models-equipment</span>
+          <img src="showcase_assets/06-player-model-equipment.png" alt="Player Model & Equipment" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Skater Model & Protective Gear</h3>
+          <p class="card-desc">Anatomically proportioned 3D hockey player equipped with helmet, visor, protective padding, and composite stick.</p>
+          <ul class="card-features">
+            <li>Dynamic jersey and trim tinting from team roster</li>
+            <li>Vector jersey number sprite mapping</li>
+            <li>Aggressive athletic hockey stance</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 7: Goalie Gear & Pads -->
+      <div class="card" data-category="models-equipment" onclick="openLightbox('showcase_assets/07-goalie-model-pads.png', 'Goaltender Equipment & Leg Pads', 'Complete goaltender gear setup including sculpted leg pads, catch glove, blocker, and reinforced goalie mask.')">
+        <div class="img-wrap">
+          <span class="card-tag">models-equipment</span>
+          <img src="showcase_assets/07-goalie-model-pads.png" alt="Goaltender Equipment & Leg Pads" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Goalie Equipment Architecture</h3>
+          <p class="card-desc">Sculpted modern goalie leg pads with knee blocks, catching glove, blocker, and protective goalie mask.</p>
+          <ul class="card-features">
+            <li>Dedicated butterfly and lateral shuffle animations</li>
+            <li>Customizable team colors and pad accents</li>
+            <li>Optimized lightweight low-poly GLTF geometry</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 8: 2D Tactical Whiteboard -->
+      <div class="card" data-category="2d-authoring" onclick="openLightbox('showcase_assets/08-2d-tactical-whiteboard.png', '2D Tactical Whiteboard & Editor', 'High-speed 2D drawing canvas with regulation NHL markings, 3-verb dock (Move, Pass, Skate), and instant gesture resolution.')">
+        <div class="img-wrap">
+          <span class="card-tag">2D Authoring</span>
+          <img src="showcase_assets/08-2d-tactical-whiteboard.png" alt="2D Tactical Whiteboard" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Lightning-Fast 2D Whiteboard</h3>
+          <p class="card-desc">Digital replacement for pen-and-paper coaching boards with instant tap-to-pass, route sketching, and zone setups.</p>
+          <ul class="card-features">
+            <li>Only 3 core verbs: Move, Pass, Skate</li>
+            <li>No mode traps — actions self-commit or cancel cleanly</li>
+            <li>Dual-engine rendering: WebGL accelerated + Canvas2D fallback</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 9: Bench Workspace & Intelligence -->
+      <div class="card" data-category="intelligence" onclick="openLightbox('showcase_assets/09-coach-workspace-intelligence.png', 'Coach Workspace & Domain Intelligence', 'Integrated coaching intelligence panel providing automated pass timing sync, equipment sufficiency audit, and roster validation.')">
+        <div class="img-wrap">
+          <span class="card-tag">Intelligence</span>
+          <img src="showcase_assets/09-coach-workspace-intelligence.png" alt="Coach Workspace & Intelligence" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Bench IQ & Coaching Intelligence</h3>
+          <p class="card-desc">Local rule verification identifying passing lane conflicts, timing bottlenecks, and goalie positioning errors.</p>
+          <ul class="card-features">
+            <li>Passing lane obstruction & stick intercept detection</li>
+            <li>Goaltender shooting angle bisection verification</li>
+            <li>One-click automated corrective proposals</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 10: 2D Drill Timing & Possession -->
+      <div class="card" data-category="2d-authoring" onclick="openLightbox('showcase_assets/10-2d-drill-possession-timing.png', '2D Drill Possession & Timeline Scrubbing', 'Playback runner tracking possession transfer, puck travel times, and receiver arrival windows.')">
+        <div class="img-wrap">
+          <span class="card-tag">2D Authoring</span>
+          <img src="showcase_assets/10-2d-drill-possession-timing.png" alt="2D Drill Timing & Possession" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Precision Timeline & Possession Bar</h3>
+          <p class="card-desc">Scrubbable timeline showing exact seconds, possession state, and pass flight windows across the entire drill.</p>
+          <ul class="card-features">
+            <li>Frame-accurate forward and reverse scrubbing</li>
+            <li>Color-coded catch prediction (Green / Amber / Red)</li>
+            <li>Persistent finish policies (Shot, Breakout, Battle)</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 11: Tabletop Tilt Perspective -->
+      <div class="card" data-category="3d-simulation" onclick="openLightbox('showcase_assets/11-tabletop-tilt-perspective.png', 'Tabletop Orbit & Tilt Perspective', 'Smooth cinematic tilt from flat 2D whiteboard into 3D tabletop perspective with zero layout jump.')">
+        <div class="img-wrap">
+          <span class="card-tag">3D Simulation</span>
+          <img src="showcase_assets/11-tabletop-tilt-perspective.png" alt="Tabletop Orbit & Tilt Perspective" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Seamless 2D-to-3D Transition</h3>
+          <p class="card-desc">Single-click toggle from 2D diagramming into tabletop 3D orbit with unified world coordinate projection.</p>
+          <ul class="card-features">
+            <li>Zero spatial drift between 2D and 3D coordinates</li>
+            <li>Player POV chase camera option at 1.75m eye level</li>
+            <li>Reduced-motion accessibility support</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 12: Skate Route Drawing Mode -->
+      <div class="card" data-category="2d-authoring" onclick="openLightbox('showcase_assets/12-skate-route-drawing-mode.png', 'Gesture Route Drawing Mode', 'Intuitive drag-to-draw route creation with automatic point decimation.')">
+        <div class="img-wrap">
+          <span class="card-tag">2D Authoring</span>
+          <img src="showcase_assets/12-skate-route-drawing-mode.png" alt="Skate Route Drawing Mode" loading="lazy" />
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">Fluid Route Authoring</h3>
+          <p class="card-desc">Drag any skater to draw smooth curved or straight paths with automatic deceleration and turn radius limits.</p>
+          <ul class="card-features">
+            <li>Automatic decimation from raw pointer samples to ~10 nodes</li>
+            <li>Puck release handles at exact moments along the route</li>
+            <li>Mobile touch-optimized hit targets</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparison Table Section -->
+    <div class="comparison-section">
+      <h2>Competitive Advantage Matrix</h2>
+      <p style="text-align: center; color: var(--muted); margin-bottom: 20px;">
+        How PhiceCraft compares head-to-head against industry benchmarks.
+      </p>
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Feature / Capability</th>
+            <th>PhiceCraft (This Program)</th>
+            <th>Hockey Coach Vision (HCV)</th>
+            <th>CoachThem</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Visual Presentation</strong></td>
+            <td><span class="check">✓</span> <strong>Unified 2D Whiteboard + True 3D PBR Simulation</strong></td>
+            <td><span class="check">✓</span> 3D Animations & Perspectives</td>
+            <td><span class="cross">✗</span> Strictly 2D Static Diagrams</td>
+          </tr>
+          <tr>
+            <td><strong>Access & Installation</strong></td>
+            <td><span class="check">✓</span> <strong>Zero Install (Browser PWA) + 100% Offline</strong></td>
+            <td><span class="cross">✗</span> Heavy Native Software Install Required</td>
+            <td><span class="check">✓</span> Web Browser (Cloud Only)</td>
+          </tr>
+          <tr>
+            <td><strong>Account & Subscription Cost</strong></td>
+            <td><span class="check">✓</span> <strong>Free, Local-First, No Forced Account</strong></td>
+            <td><span class="cross">✗</span> $129+ / year recurring</td>
+            <td><span class="cross">✗</span> $72–$96 / year recurring</td>
+          </tr>
+          <tr>
+            <td><strong>Kinematics & Physics</strong></td>
+            <td><span class="check">✓</span> <strong>Turn Banking, Minimum Radius, Lead Passing</strong></td>
+            <td><span class="check">✓</span> Motion Captured / Keyframed</td>
+            <td><span class="cross">✗</span> None (Static drawn arrows)</td>
+          </tr>
+          <tr>
+            <td><strong>Camera Modes</strong></td>
+            <td><span class="check">✓</span> <strong>Broadcast (Side, Net, Top) + Player POV</strong></td>
+            <td><span class="check">✓</span> 1st Person & 3rd Person POV</td>
+            <td><span class="cross">✗</span> Top-Down 2D Only</td>
+          </tr>
+          <tr>
+            <td><strong>ADM Station Concurrency</strong></td>
+            <td><span class="check">✓</span> <strong>Concurrency-Aware Timing & Peak Equipment</strong></td>
+            <td><span class="cross">✗</span> Linear Playlist Summation</td>
+            <td><span class="cross">✗</span> Naive Time Summation</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Lightbox Modal -->
+  <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+    <button class="lightbox-close" onclick="closeLightbox(event)">&times;</button>
+    <div class="lightbox-content" onclick="event.stopPropagation()">
+      <div class="lightbox-img-wrap">
+        <img id="lightbox-img" src="" alt="Fullscreen View" />
+      </div>
+      <div class="lightbox-info">
+        <h2 class="lightbox-title" id="lightbox-title"></h2>
+        <p class="lightbox-desc" id="lightbox-desc"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Filter logic
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const cards = document.querySelectorAll('.card');
+
+    filterButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const filter = btn.getAttribute('data-filter');
+        cards.forEach(card => {
+          if (filter === 'all' || card.getAttribute('data-category') === filter) {
+            card.style.display = 'flex';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    });
+
+    // Lightbox modal logic
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightboxTitle = document.getElementById('lightbox-title');
+    const lightboxDesc = document.getElementById('lightbox-desc');
+
+    function openLightbox(src, title, desc) {
+      lightboxImg.src = src;
+      lightboxTitle.textContent = title;
+      lightboxDesc.textContent = desc;
+      lightbox.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox(event) {
+      lightbox.classList.remove('active');
+      document.body.style.overflow = 'auto';
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && lightbox.classList.contains('active')) {
+        closeLightbox();
+      }
+    });
+  </script>
+</body>
+</html>

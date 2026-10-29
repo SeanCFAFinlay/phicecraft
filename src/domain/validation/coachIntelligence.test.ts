@@ -194,4 +194,85 @@ describe('coachIntelligence', () => {
     expect(equipIssue).toBeDefined();
     expect(equipIssue?.message).toContain('Drill requires 3 cone(s), but current rink inventory only has 1.');
   });
+  it('detects passing lane obstruction when opponent sits in pass corridor', () => {
+    const drill = createTestDrill();
+    // Add an opponent directly between skater-1 (0,0) and skater-2 target (50, 0)
+    drill.actors.push({
+      id: 'opp-1',
+      kind: 'skater',
+      team: 'away',
+      number: '44',
+      role: 'D',
+      position: { x: 25, y: 0.5 }, // Directly in passing corridor
+    });
+
+    const passAction: PassAction = {
+      id: 'pass-intercept-1',
+      phaseId: drill.phases[0].id,
+      fromActorId: 'skater-1',
+      fromPoint: { x: 0, y: 0 },
+      toActorId: 'skater-2',
+      targetMode: 'actor',
+      target: { x: 50, y: 0 },
+      releaseAt: 1.0,
+      arrivalAt: 2.5,
+      type: 'pass',
+      passType: 'flat',
+      receiveMode: 'control',
+      waypoints: [],
+      shape: 'polyline',
+    };
+
+    drill.puckTracks.push({
+      id: 'puck-track-1',
+      initialSource: { kind: 'actor', actorId: 'skater-1' },
+      actions: [passAction],
+    });
+
+    const report = validateDrillIntelligence(drill);
+    const laneIssue = report.issues.find(i => i.kind === 'passing_lane_obstruction');
+    expect(laneIssue).toBeDefined();
+    expect(laneIssue?.affectedActorIds).toContain('opp-1');
+  });
+
+  it('detects off-angle goaltender coverage on shot and offers square proposal', () => {
+    const drill = createTestDrill();
+    // Add defending goalie way off to the side (y = 20) for net at (89, 0)
+    drill.actors.push({
+      id: 'g-defend',
+      kind: 'goalie',
+      team: 'away',
+      number: '30',
+      position: { x: 89, y: 20 }, // Off-angle
+    });
+
+    drill.puckTracks.push({
+      id: 'puck-track-shot',
+      initialSource: { kind: 'actor', actorId: 'skater-1' },
+      actions: [
+        {
+          id: 'shot-1',
+          phaseId: drill.phases[0].id,
+          type: 'shot',
+          fromActorId: 'skater-1',
+          targetNet: 'right',
+          fromPoint: { x: 40, y: 0 },
+          target: { x: 89, y: 0 },
+          releaseAt: 2.0,
+          arrivalAt: 2.8,
+          waypoints: [],
+          shape: 'polyline',
+        },
+      ],
+    });
+
+    const report = validateDrillIntelligence(drill);
+    const goalieIssue = report.issues.find(i => i.kind === 'goalie_coverage_angle');
+    expect(goalieIssue).toBeDefined();
+    expect(goalieIssue?.proposal).toBeDefined();
+
+    const squared = goalieIssue!.proposal!.apply(drill);
+    const fixedGoalie = squared.actors.find(a => a.id === 'g-defend');
+    expect(Math.abs(fixedGoalie!.position.y)).toBeLessThan(5);
+  });
 });

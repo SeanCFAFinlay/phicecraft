@@ -103,6 +103,8 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   // depends on the roster signature to know when to rebuild the actor set.
   const drillRef = useRef<Drill>(state.drill);
   drillRef.current = state.drill;
+  const selectedPlayerIdRef = useRef<ID | null>(state.selection.selectedPlayerId);
+  selectedPlayerIdRef.current = state.selection.selectedPlayerId;
   const rosterSignature = actorSignature(state.drill);
 
   // --------------------------------------------------------------------------
@@ -139,13 +141,13 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     // `toHaveScreenshot()` capture) could see it go blank even though nothing
     // ever told it to clear - see WebGLRenderer.ts's own comment on the same
     // flag for the worked-out reasoning.
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1 : quality === 'medium' ? 1.5 : MAX_DEVICE_PIXEL_RATIO));
     renderer.shadowMap.enabled = quality === 'high';
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    // Transparent: the scene sits over the container's own CSS gradient
+    renderer.toneMappingExposure = 1.12;
+        // Transparent: the scene sits over the container's own CSS gradient
     // (`.board3d-stage`, src/styles/index.css) around the arena floor's own
     // edges, rather than a solid clear.
     renderer.setClearColor(0x000000, 0);
@@ -176,13 +178,45 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     /** Positions the three.js camera from the current camera-store snapshot. */
     const applyOrbit = () => {
       const snapshot = cameraStore.getSnapshot();
+      const tilt = snapshot.camera.tilt ?? 0;
+
+      // Low-angle Player POV chase mode (tilt >= 1.2):
+      // Dynamically tracks behind active puck carrier or skater at eye level
+      if (tilt >= 1.2) {
+        const frame = playback.getFrame();
+        const drill = drillRef.current;
+        const carrierId = frame.puck?.carrierId ?? (frame.progress === 0 ? drill.players.find(p => p.hasPuck)?.id : undefined);
+        const targetPlayerId = carrierId ?? drill.players[0]?.id;
+        const targetPlayer = targetPlayerId ? drill.players.find(p => p.id === targetPlayerId) : null;
+
+        if (targetPlayer) {
+          const targetPos = frame.positions[targetPlayer.id] ?? { x: targetPlayer.x, y: targetPlayer.y };
+          const worldPos = rinkToWorld(targetPos);
+          const playerFrame = frame.playerFrames[targetPlayer.id];
+          const heading = playerFrame?.heading ?? 0;
+
+          const eyeHeight = 1.75;
+          const chaseDistance = 3.4;
+          const lookAhead = 8.5;
+
+          const camX = worldPos.x - Math.cos(heading) * chaseDistance;
+          const camY = eyeHeight;
+          const camZ = worldPos.z - Math.sin(heading) * chaseDistance;
+
+          const lookX = worldPos.x + Math.cos(heading) * lookAhead;
+          const lookY = eyeHeight * 0.65;
+          const lookZ = worldPos.z + Math.sin(heading) * lookAhead;
+
+          perspectiveCamera.position.set(camX, camY, camZ);
+          perspectiveCamera.lookAt(lookX, lookY, lookZ);
+          return;
+        }
+      }
+
       const { azimuth, polar, distance, target } = orbitFromCamera(
         snapshot.camera,
         snapshot.viewport
       );
-      // polar is elevation above the horizon (PI/2 = overhead), so the
-      // vertical component scales with sin(polar) and the horizontal radius
-      // (what azimuth spins around) scales with cos(polar).
       const horizontalRadius = distance * Math.cos(polar);
       perspectiveCamera.position.set(
         target.x + horizontalRadius * Math.sin(azimuth),
@@ -266,7 +300,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       cameraRef.current = null;
       renderRef.current = () => {};
     };
-  }, [cameraStore, quality]);
+  }, [cameraStore, quality, playback]);
 
   // --------------------------------------------------------------------------
   // Actors - rebuilt when identities or appearance change; repainted synchronously on every playback frame.
@@ -385,7 +419,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         possessionHalo.position.set(world.x, 0.025, world.z);
       }
 
-      const selectedId = state.selection.selectedPlayerId;
+      const selectedId = selectedPlayerIdRef.current;
       const selected = selectedId ? drill.players.find(p => p.id === selectedId) : null;
       selectionHalo.visible = Boolean(selected);
       if (selected) {

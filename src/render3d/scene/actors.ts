@@ -225,7 +225,23 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
     update(pos, frame, dt, wrapped = false) {
       const world = rinkToWorld(pos);
       root.position.set(world.x, world.y, world.z);
+      root.rotation.order = 'YXZ';
       root.rotation.y = headingToYaw(frame?.heading ?? 0);
+
+      // Kinetic banking into turns and forward athletic posture
+      if (opts.kind === 'skater' && frame) {
+        const speedFactor = Math.min((frame.speed ?? 0) / REFERENCE_SKATE_SPEED, 1.5);
+        const bankAngle = clamp(-(frame.angularVelocity ?? 0) * speedFactor * 0.16, -0.32, 0.32);
+        root.rotation.z = bankAngle;
+
+        const forwardPitch = (frame.speed ?? 0) > SKATE_FREEZE_SPEED
+          ? clamp(((frame.speed ?? 0) / REFERENCE_SKATE_SPEED) * 0.08, 0, 0.12)
+          : 0;
+        root.rotation.x = forwardPitch;
+      } else {
+        root.rotation.z = 0;
+        root.rotation.x = 0;
+      }
 
       const nextClipName = selectClipName(opts.kind, frame, availableClipNames);
       const nextEntry = getOrCreateEntry(nextClipName);
@@ -350,11 +366,16 @@ const PUCK_HEIGHT = 0.03;
 const PUCK_COLOR = '#111418';
 
 export function createPuck(): MarkerActor {
-  const geometry = new THREE.CylinderGeometry(PUCK_RADIUS, PUCK_RADIUS, PUCK_HEIGHT, 24);
-  const material = new THREE.MeshStandardMaterial({ color: PUCK_COLOR, roughness: 0.5 });
+  const geometry = new THREE.CylinderGeometry(PUCK_RADIUS, PUCK_RADIUS, PUCK_HEIGHT, 32);
+  const material = new THREE.MeshStandardMaterial({
+    color: PUCK_COLOR,
+    roughness: 0.85,
+    metalness: 0.1,
+  });
   const root = new THREE.Mesh(geometry, material);
   root.name = 'puck';
   root.castShadow = true;
+  root.receiveShadow = true;
 
   return {
     root,

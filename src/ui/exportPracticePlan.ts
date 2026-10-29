@@ -9,6 +9,8 @@ import type { PracticeSession } from '@/domain/practice/types';
 import { calculatePracticeMetrics } from '@/domain/practice/practiceStore';
 import { createPracticeBundle } from '@/domain/practice/practiceBundle';
 import { downloadText } from './download';
+import { projectToV2 } from '@/domain/v3/projectToV2';
+import { renderThumbnail } from '@/features/library/thumbnailRenderer';
 
 /**
  * Formats a practice plan into a structured plain text document for email,
@@ -200,6 +202,19 @@ export function printPracticePlan(session: PracticeSession): void {
         ? `<div class="equipment-line"><strong>Gear:</strong> ${block.equipment.map(e => `${e.count} ${e.kind}`).join(', ')}</div>`
         : '';
 
+      let diagramHtml = '';
+      if (block.pinnedRevision) {
+        try {
+          const v2 = projectToV2(block.pinnedRevision);
+          const thumb = renderThumbnail(v2.drill, { width: 220, height: 110, scale: 2 });
+          if (thumb) {
+            diagramHtml = `<div class="drill-diagram"><img src="${thumb}" alt="${block.title} rink diagram" /></div>`;
+          }
+        } catch {
+          // Gracefully omit thumbnail if rendering is unavailable
+        }
+      }
+
       return `
         <div class="drill-block">
           <div class="drill-header">
@@ -208,9 +223,14 @@ export function printPracticePlan(session: PracticeSession): void {
             ${stationBadge}
             <span class="area-badge">${block.rinkArea.toUpperCase()}</span>
           </div>
-          ${block.drillSummary ? `<div class="drill-summary">${block.drillSummary}</div>` : ''}
-          ${pointsHtml}
-          ${eqHtml}
+          <div class="drill-body">
+            ${diagramHtml}
+            <div class="drill-content">
+              ${block.drillSummary ? `<div class="drill-summary">${block.drillSummary}</div>` : ''}
+              ${pointsHtml}
+              ${eqHtml}
+            </div>
+          </div>
         </div>
       `;
     })
@@ -288,6 +308,31 @@ export function printPracticePlan(session: PracticeSession): void {
           align-items: center;
           gap: 8px;
           font-size: 13px;
+        }
+        .drill-body {
+          display: flex;
+          gap: 12px;
+          align-items: flex-start;
+          margin-top: 6px;
+        }
+        .drill-content {
+          flex: 1;
+          min-width: 0;
+        }
+        .drill-diagram {
+          flex-shrink: 0;
+          width: 150px;
+          height: 80px;
+          border: 1px solid #cbd5e1;
+          border-radius: 4px;
+          overflow: hidden;
+          background: #f8fafc;
+        }
+        .drill-diagram img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
         }
         .drill-time {
           font-family: monospace;

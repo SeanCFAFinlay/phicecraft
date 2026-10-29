@@ -144,6 +144,7 @@ export function useViewActions() {
     setPresetBroadcast: () => animateTo(0, 0.65, true),
     setPresetEndZone: () => animateTo(Math.PI / 2, 0.65, true),
     setPresetTactical: () => animateTo(0, 0.35, true),
+    setPresetPOV: () => animateTo(0, 1.25, false),
     zoomToZone,
     cycleArea,
     toggleOrientation,
