@@ -395,6 +395,12 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       return done(item.id);
     },
 
+    moveEquipment(id, x, y) {
+      const position = constrainToRink({ x, y }, RINK_MARGIN);
+      dispatch({ type: 'PUSH_UNDO' });
+      dispatch({ type: 'MOVE_EQUIPMENT', id, x: position.x, y: position.y });
+    },
+
     removeEquipment(id) {
       dispatch({ type: 'REMOVE_EQUIPMENT', id });
       notify.toast({ message: 'Equipment removed', type: 'success' });

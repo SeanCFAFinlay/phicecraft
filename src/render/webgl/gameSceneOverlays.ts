@@ -14,7 +14,7 @@
 // ============================================================================
 
 import { Container, FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
-import type { AnimatedPuck, CoachMarker, DrillEvent, ID, Player, PlaybackPlayerFrame, Point, SkatePath } from '@/core/types';
+import type { AnimatedPuck, CoachMarker, DrillEvent, EquipmentItem, ID, Player, PlaybackPlayerFrame, Point, SkatePath } from '@/core/types';
 import type { DragPreview, DynamicLayerInput } from '@/components/canvas/renderDynamic';
 import type { PassCandidateView } from '@/canvas/PassOverlay';
 import type { CatchQuality } from '@/editor/passing/passTargetService';
@@ -98,6 +98,7 @@ const COACH_RADIUS = PLAYER_RADIUS * 1.28;
 export interface CoachToken {
   container: Container;
   body: Graphics;
+  selectionRing: Graphics;
   label: Text;
 }
 
@@ -110,12 +111,13 @@ const COACH_LABEL_STYLE: TextStyleOptions = {
 
 export function createCoachToken(): CoachToken {
   const container = new Container({ label: 'coach' });
+  const selectionRing = new Graphics();
   const body = new Graphics();
   const label = new Text({ text: 'COACH', resolution: 2, style: COACH_LABEL_STYLE });
   label.anchor.set(0.5, 0);
   label.position.set(0, COACH_RADIUS + 2);
-  container.addChild(body, label);
-  return { container, body, label };
+  container.addChild(selectionRing, body, label);
+  return { container, body, selectionRing, label };
 }
 
 function drawCoachBody(g: Graphics): void {
@@ -141,12 +143,180 @@ function drawCoachBody(g: Graphics): void {
   g.roundRect(r * 0.5, -r * 0.2, r * 0.5, r * 0.66, 2).fill('#d9c38a').stroke({ color: '#141d28', width: 1 });
 }
 
-export function updateCoaches(pool: TokenPool<CoachToken>, coaches: CoachMarker[]): void {
+export function updateCoaches(
+  pool: TokenPool<CoachToken>,
+  coaches: CoachMarker[],
+  selectedCoachId?: ID | null
+): void {
   pool.begin();
   for (const coach of coaches) {
     const token = pool.get(coach.id);
     token.container.position.set(coach.x, coach.y);
     drawCoachBody(token.body);
+    token.selectionRing.clear();
+    if (coach.id === selectedCoachId) {
+      token.selectionRing
+        .circle(0, 0, COACH_RADIUS + 4)
+        .stroke({ color: 0x38bdf8, alpha: 0.9, width: 2.2 });
+    }
+  }
+  pool.end();
+}
+
+// ----------------------------------------------------------------------------
+// Training Equipment (cones, tires, mini-nets, barriers, gates, puck piles)
+// ----------------------------------------------------------------------------
+
+export interface EquipmentToken {
+  container: Container;
+  body: Graphics;
+  selectionRing: Graphics;
+}
+
+export function createEquipmentToken(): EquipmentToken {
+  const container = new Container({ label: 'equipment' });
+  const selectionRing = new Graphics();
+  const body = new Graphics();
+  container.addChild(selectionRing, body);
+  return { container, body, selectionRing };
+}
+
+function drawConeGraphic(g: Graphics): void {
+  // Shadow
+  g.ellipse(1.5, 3.5, 12, 7.5).fill({ color: 0x000f1e, alpha: 0.28 });
+  // Base
+  g.roundRect(-9, -9, 18, 18, 3.5).fill(0x9a3412).stroke({ color: 0x7c2d12, width: 1.2 });
+  // Conical body
+  g.circle(0, 0, 7.8).fill(0xea580c);
+  // Reflective collar
+  g.circle(0, 0, 4.8).fill(0xffffff).stroke({ color: 0xc2410c, alpha: 0.55, width: 0.8 });
+  // Tip
+  g.circle(0, 0, 1.8).fill(0x431407);
+}
+
+function drawTireGraphic(g: Graphics): void {
+  const outerR = 13.5;
+  const innerR = 5.5;
+  g.circle(2, 3, outerR + 1).fill({ color: 0x000c18, alpha: 0.35 });
+  g.circle(0, 0, outerR).fill(0x1e293b);
+  for (let i = 0; i < 12; i++) {
+    const angle = (i * Math.PI) / 6;
+    const x1 = Math.cos(angle) * (outerR - 2.8);
+    const y1 = Math.sin(angle) * (outerR - 2.8);
+    const x2 = Math.cos(angle) * outerR;
+    const y2 = Math.sin(angle) * outerR;
+    g.moveTo(x1, y1).lineTo(x2, y2).stroke({ color: 0x090d16, width: 1.6 });
+  }
+  g.circle(0, 0, outerR - 3.5).stroke({ color: 0x475569, width: 1.4 });
+  g.circle(0, 0, innerR + 1.2).stroke({ color: 0x64748b, width: 1.2 });
+  g.circle(0, 0, innerR).fill(0x050811);
+}
+
+function drawMiniNetGraphic(g: Graphics): void {
+  const halfW = 16;
+  const d = 19;
+  g.poly([-halfW - 2, 2, -halfW * 0.72 - 1, d + 3, halfW * 0.72 + 3, d + 3, halfW + 2, 2]).fill({ color: 0x000f1e, alpha: 0.28 });
+  g.poly([-halfW, 0, -halfW * 0.72, d, halfW * 0.72, d, halfW, 0]).fill({ color: 0xf0f8ff, alpha: 0.52 });
+  g.moveTo(-halfW * 0.7, 0).lineTo(halfW * 0.45, d);
+  g.moveTo(-halfW * 0.2, 0).lineTo(halfW * 0.7, d * 0.7);
+  g.moveTo(-halfW * 0.9, d * 0.35).lineTo(0, d);
+  g.moveTo(halfW * 0.7, 0).lineTo(-halfW * 0.45, d);
+  g.moveTo(halfW * 0.2, 0).lineTo(-halfW * 0.7, d * 0.7);
+  g.moveTo(halfW * 0.9, d * 0.35).lineTo(0, d);
+  g.stroke({ color: 0x647d91, alpha: 0.5, width: 0.85 });
+  g.moveTo(-halfW * 0.72, d).lineTo(halfW * 0.72, d).stroke({ color: 0xffffff, alpha: 0.85, width: 2.2 });
+  g.moveTo(-halfW, d).lineTo(-halfW, 0).lineTo(halfW, 0).lineTo(halfW, d).stroke({ color: 0xdc2626, width: 3, cap: 'round', join: 'round' });
+  g.moveTo(-halfW + 3, -0.6).lineTo(halfW - 3, -0.6).stroke({ color: 0xffffff, alpha: 0.65, width: 1 });
+  g.circle(-halfW, 0, 2.5).fill(0xb91c1c);
+  g.circle(halfW, 0, 2.5).fill(0xb91c1c);
+}
+
+function drawBarrierGraphic(g: Graphics, size?: { width: number; height: number }): void {
+  const w = size?.width ?? 68;
+  const h = size?.height ?? 17;
+  const r = h / 2;
+  g.roundRect(-w / 2 + 1.5, -h / 2 + 3.5, w, h, r).fill({ color: 0x000f1e, alpha: 0.32 });
+  g.roundRect(-w / 2, -h / 2, w, h, r).fill(0x0284c7);
+  g.roundRect(-w / 2, -h / 2, w, h, r).stroke({ color: 0x38bdf8, width: 1.8 });
+  g.moveTo(-w / 2 + r, 0).lineTo(w / 2 - r, 0).stroke({ color: 0xffffff, alpha: 0.45, width: 1 });
+  g.rect(-w / 2 + 2, -3, 3, 6).fill(0x0f172a);
+  g.rect(w / 2 - 5, -3, 3, 6).fill(0x0f172a);
+}
+
+function drawGateGraphic(g: Graphics, size?: { width: number; height: number }): void {
+  const span = size?.width ?? 52;
+  const halfSpan = span / 2;
+  g.roundRect(-halfSpan - 4, 3, span + 8, 5, 2.5).fill({ color: 0x000f1e, alpha: 0.25 });
+  g.roundRect(-halfSpan, -2.5, span, 5, 2.5).fill(0xf8fafc).stroke({ color: 0x0284c7, width: 1.2 });
+  for (let x = -halfSpan + 6; x < halfSpan - 6; x += 10) {
+    g.moveTo(x - 2, -2).lineTo(x + 2, 2).stroke({ color: 0xe11d48, width: 2.2 });
+  }
+  g.circle(-halfSpan, 0, 5).fill(0xea580c).stroke({ color: 0x7c2d12, width: 1 });
+  g.circle(halfSpan, 0, 5).fill(0xea580c).stroke({ color: 0x7c2d12, width: 1 });
+}
+
+function drawPuckPileGraphic(g: Graphics, count = 5): void {
+  const offsets = [
+    { x: -5, y: -3 },
+    { x: 4, y: -4 },
+    { x: -3, y: 4 },
+    { x: 5, y: 3 },
+    { x: 0, y: 0 },
+  ];
+  const n = Math.min(count, offsets.length);
+  g.ellipse(1, 2, 14, 10).fill({ color: 0x000f1e, alpha: 0.26 });
+  for (let i = 0; i < n; i++) {
+    const { x, y } = offsets[i];
+    g.circle(x, y, 6).fill(0x171717).stroke({ color: 0xffffff, alpha: 0.35, width: 1 });
+  }
+}
+
+function drawEquipmentBody(g: Graphics, item: EquipmentItem): void {
+  g.clear();
+  switch (item.kind) {
+    case 'cone':
+      drawConeGraphic(g);
+      break;
+    case 'tire':
+      drawTireGraphic(g);
+      break;
+    case 'mini-net':
+      drawMiniNetGraphic(g);
+      break;
+    case 'barrier':
+      drawBarrierGraphic(g, item.size);
+      break;
+    case 'gate':
+      drawGateGraphic(g, item.size);
+      break;
+    case 'puck-pile':
+      drawPuckPileGraphic(g, item.count ?? 5);
+      break;
+    default:
+      drawConeGraphic(g);
+      break;
+  }
+}
+
+function updateEquipmentSelectionRing(g: Graphics, item: EquipmentItem, isSelected: boolean): void {
+  g.clear();
+  if (!isSelected) return;
+  const radius = item.kind === 'barrier' ? 24 : item.kind === 'mini-net' ? 22 : 18;
+  g.circle(0, 0, radius).stroke({ color: 0x38bdf8, alpha: 0.9, width: 2.2 });
+}
+
+export function updateEquipment(
+  pool: TokenPool<EquipmentToken>,
+  equipment: EquipmentItem[],
+  selectedEquipmentId?: ID | null
+): void {
+  pool.begin();
+  for (const item of equipment) {
+    const token = pool.get(item.id);
+    token.container.position.set(item.position.x, item.position.y);
+    token.container.rotation = item.rotation ?? 0;
+    drawEquipmentBody(token.body, item);
+    updateEquipmentSelectionRing(token.selectionRing, item, item.id === selectedEquipmentId);
   }
   pool.end();
 }

@@ -86,6 +86,7 @@ export function CanvasSurface() {
    */
   const draggedPlayerRef = useRef<{ id: ID; point: Point } | null>(null);
   const draggedCoachRef = useRef<{ id: ID; point: Point } | null>(null);
+  const draggedEquipmentRef = useRef<{ id: ID; point: Point } | null>(null);
   const draggedRouteHandleRef = useRef<{ pathId: ID; index: number; point: Point } | null>(null);
   const draggedEventHandleRef = useRef<{ eventId: ID; part: 'waypoint' | 'end'; index: number; point: Point } | null>(null);
   const lastFrameTimestampRef = useRef<number>(0);
@@ -134,11 +135,14 @@ export function CanvasSurface() {
       isPlaying: current.playback.isPlaying,
       progress: frame.progress,
       selectedPlayerId: current.selection.selectedPlayerId,
+      selectedCoachId: current.selection.selectedCoachId,
+      selectedEquipmentId: current.selection.selectedEquipmentId,
       selectedEventId: current.selection.selectedEventId,
       passFromPlayerId: current.selection.passFromPlayerId,
       movingPlayerId: draggedPlayerRef.current?.id ?? null,
       draggedPlayer: draggedPlayerRef.current,
       draggedCoach: draggedCoachRef.current,
+      draggedEquipment: draggedEquipmentRef.current,
       draggedRouteHandle: draggedRouteHandleRef.current,
       draggedEventHandle: draggedEventHandleRef.current,
       transientRoute: transientRouteRef.current,
@@ -248,6 +252,7 @@ export function CanvasSurface() {
       transientRouteRef.current = null;
       draggedPlayerRef.current = null;
       draggedCoachRef.current = null;
+      draggedEquipmentRef.current = null;
       draggedRouteHandleRef.current = null;
       draggedEventHandleRef.current = null;
     };
@@ -462,6 +467,11 @@ export function CanvasSurface() {
         scheduler.requestDynamic();
       },
 
+      onEquipmentMove: (equipmentId, world) => {
+        draggedEquipmentRef.current = { id: equipmentId, point: world };
+        scheduler.requestDynamic();
+      },
+
       onRouteSampling: (ownerId, points) => {
         transientRouteRef.current = { ownerId, points };
         if (stateRef.current.pendingAction.kind !== 'draw-route' || stateRef.current.pendingAction.playerId !== ownerId) {
@@ -542,6 +552,11 @@ export function CanvasSurface() {
           const coach = draggedCoachRef.current;
           draggedCoachRef.current = null;
           commands.moveCoach(coach.id, coach.point.x, coach.point.y);
+        }
+        if (draggedEquipmentRef.current) {
+          const equip = draggedEquipmentRef.current;
+          draggedEquipmentRef.current = null;
+          commands.moveEquipment(equip.id, equip.point.x, equip.point.y);
         }
         if (draggedRouteHandleRef.current) {
           const handle = draggedRouteHandleRef.current;

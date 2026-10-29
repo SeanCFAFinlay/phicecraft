@@ -37,20 +37,28 @@ export function ContextTray() {
 
   const playerId = state.selection.selectedPlayerId;
   const eventId = state.selection.selectedEventId;
+  const coachId = state.selection.selectedCoachId;
+  const equipmentId = state.selection.selectedEquipmentId;
 
   const player = playerId ? state.drill.players.find(item => item.id === playerId) ?? null : null;
   const eventIndex = eventId ? state.drill.events.findIndex(item => item.id === eventId) : -1;
   const event = eventIndex >= 0 ? state.drill.events[eventIndex] : null;
+  const coach = coachId ? (state.drill.coaches ?? []).find(item => item.id === coachId) ?? null : null;
+  const equipment = equipmentId ? (state.drill.equipment ?? []).find(item => item.id === equipmentId) ?? null : null;
 
   // The row deliberately stays mounted while the inspector is open. Removing
   // it meant the Details button that opened the inspector no longer existed
   // when the inspector closed, so focus had nowhere to return to.
-  const hasSelection = state.pendingAction.kind === 'none' && (player !== null || event !== null);
-  const openDetails = () =>
-    player ? commands.openPlayerInspector(player.id) : commands.openEventInspector(event!.id);
+  const hasSelection = state.pendingAction.kind === 'none' && (player !== null || event !== null || coach !== null || equipment !== null);
+  const openDetails = () => {
+    if (player) commands.openPlayerInspector(player.id);
+    else if (event) commands.openEventInspector(event.id);
+  };
   const remove = () => {
     if (player) void commands.removePlayer(player.id);
-    else commands.removeEvent(event!.id);
+    else if (event) commands.removeEvent(event.id);
+    else if (coach) void commands.removeCoach(coach.id);
+    else if (equipment) void commands.removeEquipment(equipment.id);
   };
 
   // In compact landscape the selection folds into the dock row itself
@@ -67,7 +75,15 @@ export function ContextTray() {
           className="flex h-[var(--tool-dock-height)] items-center gap-2 overflow-x-auto scrollbar-hide border-t border-app-border bg-[#0c1825] px-2.5"
         >
           <span className="truncate text-[13px] font-black text-app-text">
-            {player ? `#${player.number} · ${player.role}` : `${event!.type} ${eventIndex + 1}`}
+            {player
+              ? `#${player.number} · ${player.role}`
+              : event
+                ? `${event.type} ${eventIndex + 1}`
+                : coach
+                  ? 'Coach'
+                  : equipment
+                    ? (equipment.kind === 'mini-net' ? 'Mini Net' : equipment.kind.charAt(0).toUpperCase() + equipment.kind.slice(1))
+                    : ''}
           </span>
 
           {player && (
@@ -121,13 +137,17 @@ export function ContextTray() {
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={openDetails}
-            className="touch-target rounded-xl border border-app-border bg-white/5 px-3 text-[12px] font-bold text-app-text"
-          >
-            Details
-          </button>
+          {coach && <span className="text-[11.5px] text-white/60">Drag on ice to reposition</span>}
+          {equipment && <span className="text-[11.5px] text-white/60">Drag on ice to reposition</span>}
+          {(player || event) && (
+            <button
+              type="button"
+              onClick={openDetails}
+              className="touch-target rounded-xl border border-app-border bg-white/5 px-3 text-[12px] font-bold text-app-text"
+            >
+              Details
+            </button>
+          )}
 
           <button
             type="button"

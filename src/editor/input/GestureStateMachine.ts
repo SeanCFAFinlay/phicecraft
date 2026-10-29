@@ -226,6 +226,7 @@ export class GestureStateMachine {
       case 'drag-route-handle':
       case 'drag-event-handle':
       case 'move-coach':
+      case 'move-equipment':
         handlers.onEditGestureEnd();
         break;
 
@@ -281,6 +282,9 @@ export class GestureStateMachine {
 
     const coach = hitTester.coachAt(point);
     if (coach) return { kind: 'coach', coachId: coach };
+
+    const equipment = hitTester.equipmentAt?.(point);
+    if (equipment) return { kind: 'equipment', equipmentId: equipment };
 
     const route = hitTester.routeAt(point);
     if (route) return { kind: 'route', ...route };
@@ -339,6 +343,10 @@ export class GestureStateMachine {
 
       case 'coach':
         this.gesture = { kind: 'move-coach', coachId: target.coachId };
+        break;
+
+      case 'equipment':
+        this.gesture = { kind: 'move-equipment', equipmentId: target.equipmentId };
         break;
 
       case 'route':
@@ -464,6 +472,10 @@ export class GestureStateMachine {
 
       case 'move-coach':
         handlers.onCoachMove(gesture.coachId, hitTester.toWorld(position));
+        return;
+
+      case 'move-equipment':
+        handlers.onEquipmentMove?.(gesture.equipmentId, hitTester.toWorld(position));
         return;
 
       case 'draw-route':

@@ -481,6 +481,22 @@ export function TacticalBar() {
           />
         </FlyoutMenu>
 
+        {/* Formations Quick Find Button */}
+        <button
+          type="button"
+          onClick={() => {
+            closeMenu();
+            dispatch({ type: 'OPEN_SHEET', sheet: 'formations' });
+          }}
+          aria-label="Formations quick find"
+          title="Formations & Systems (F) — Quick Find"
+          className="touch-target flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11.5px] font-extrabold text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/25 hover:text-white transition-all shadow-sm"
+        >
+          <span>📋</span>
+          <span>Formations</span>
+          <kbd className="hidden sm:inline-block rounded bg-black/40 px-1 py-0.2 text-[9px] font-mono text-emerald-300/90 border border-emerald-500/30">F</kbd>
+        </button>
+
         {/* Setups / Formations Flyout */}
         <FlyoutMenu
           label="Systems"

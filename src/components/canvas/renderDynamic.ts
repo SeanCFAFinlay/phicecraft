@@ -72,6 +72,8 @@ export interface DynamicLayerInput {
   progress: number;
   selectedPlayerId: ID | null;
   selectedEventId: ID | null;
+  selectedCoachId?: ID | null;
+  selectedEquipmentId?: ID | null;
   passFromPlayerId: ID | null;
   movingPlayerId: ID | null;
   /** The route being drawn right now, straight from the gesture machine. */
@@ -87,6 +89,7 @@ export interface DynamicLayerInput {
    */
   draggedPlayer: { id: ID; point: Point } | null;
   draggedCoach?: { id: ID; point: Point } | null;
+  draggedEquipment?: { id: ID; point: Point } | null;
   draggedRouteHandle?: { pathId: ID; index: number; point: Point } | null;
   draggedEventHandle?: { eventId: ID; part: 'waypoint' | 'end'; index: number; point: Point } | null;
   dragPreview: DragPreview | null;
@@ -141,9 +144,28 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
   const activeCoaches = draggedCoach
     ? coaches.map(c => (c.id === draggedCoach.id ? { ...c, x: draggedCoach.point.x, y: draggedCoach.point.y } : c))
     : coaches;
-  for (const coach of activeCoaches) drawCoachTopDown(ctx, coach, false);
-  if (drill.equipment && drill.equipment.length > 0) {
-    drawEquipment(ctx, drill.equipment);
+  for (const coach of activeCoaches) drawCoachTopDown(ctx, coach, coach.id === input.selectedCoachId);
+  const equipment = drill.equipment ?? [];
+  const draggedEquip = input.draggedEquipment;
+  const activeEquipment = draggedEquip
+    ? equipment.map(e => (e.id === draggedEquip.id ? { ...e, position: draggedEquip.point } : e))
+    : equipment;
+  if (activeEquipment.length > 0) {
+    drawEquipment(ctx, activeEquipment);
+    if (input.selectedEquipmentId) {
+      const selectedItem = activeEquipment.find(e => e.id === input.selectedEquipmentId);
+      if (selectedItem) {
+        ctx.save();
+        ctx.translate(selectedItem.position.x, selectedItem.position.y);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        const radius = selectedItem.kind === 'barrier' ? 24 : selectedItem.kind === 'mini-net' ? 22 : 18;
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
   }
 
   // While playing or scrubbing, players render at their interpolated

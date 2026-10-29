@@ -53,11 +53,13 @@ import {
   createEventToken,
   createSkatePathCache,
   updateAnimatedPuck,
+  createEquipmentToken,
   updateCoaches,
   updateDiagnostics,
   updateDimmedPlayers,
   updateDragPreview,
   updateEditHandles,
+  updateEquipment,
   updateEvents,
   updateGhostTrails,
   updateGlow,
@@ -66,6 +68,7 @@ import {
   updateSkatePaths,
   updateTransientRoute,
   type CoachToken,
+  type EquipmentToken,
   type EventToken,
   type SkatePathCache,
 } from './gameSceneOverlays';
@@ -81,6 +84,8 @@ export interface GameScene {
 interface InternalGameScene extends GameScene {
   coachesContainer: Container;
   coachesPool: TokenPool<CoachToken>;
+  equipmentContainer: Container;
+  equipmentPool: TokenPool<EquipmentToken>;
   ghostTrailsContainer: Container;
   ghostTrailsPool: GraphicsKeyedPool;
   skatePathsContainer: Container;
@@ -113,6 +118,7 @@ export function buildGameScene(): GameScene {
   const root = new Container({ label: 'game-scene' });
 
   const coachesContainer = new Container({ label: 'coaches' });
+  const equipmentContainer = new Container({ label: 'equipment' });
   const ghostTrailsContainer = new Container({ label: 'ghost-trails' });
   const skatePathsContainer = new Container({ label: 'skate-paths' });
   const transientRoute = new Graphics({ label: 'transient-route' });
@@ -135,6 +141,7 @@ export function buildGameScene(): GameScene {
 
   root.addChild(
     coachesContainer,
+    equipmentContainer,
     ghostTrailsContainer,
     skatePathsContainer,
     transientRoute,
@@ -155,6 +162,8 @@ export function buildGameScene(): GameScene {
     root,
     coachesContainer,
     coachesPool: new TokenPool(coachesContainer, createCoachToken),
+    equipmentContainer,
+    equipmentPool: new TokenPool(equipmentContainer, createEquipmentToken),
     ghostTrailsContainer,
     ghostTrailsPool: new GraphicsKeyedPool(ghostTrailsContainer),
     skatePathsContainer,
@@ -218,7 +227,13 @@ export function updateGameScene(scene: GameScene, input: DynamicLayerInput): voi
   const activeCoaches = input.draggedCoach
     ? coaches.map(c => (c.id === input.draggedCoach!.id ? { ...c, x: input.draggedCoach!.point.x, y: input.draggedCoach!.point.y } : c))
     : coaches;
-  updateCoaches(s.coachesPool, activeCoaches);
+  updateCoaches(s.coachesPool, activeCoaches, input.selectedCoachId);
+
+  const equipment = drill.equipment ?? [];
+  const activeEquipment = input.draggedEquipment
+    ? equipment.map(e => (e.id === input.draggedEquipment!.id ? { ...e, position: input.draggedEquipment!.point } : e))
+    : equipment;
+  updateEquipment(s.equipmentPool, activeEquipment, input.selectedEquipmentId);
   updateGhostTrails(s.ghostTrailsPool, input, players);
   updateSkatePaths(s.skatePathsPool, s.skatePathCache, drill.skatePaths, input.quality);
   updateTransientRoute(s.transientRoute, input.transientRoute, drill.players);

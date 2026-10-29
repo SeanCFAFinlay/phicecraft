@@ -18,6 +18,7 @@ export type Gesture =
   | { kind: 'press'; target: PressTarget; startPointer: Point; moved: boolean }
   | { kind: 'move-player'; playerId: ID }
   | { kind: 'move-coach'; coachId: ID }
+  | { kind: 'move-equipment'; equipmentId: ID }
   | { kind: 'draw-route'; ownerId: ID }
   | { kind: 'drag-puck'; playerId: ID; from: Point }
   | { kind: 'drag-route-handle'; pathId: ID; index: number }
@@ -71,6 +72,7 @@ export interface GestureHandlers {
   onPlayerMoveEnd(playerId: ID): void;
 
   onCoachMove(coachId: ID, world: Point): void;
+  onEquipmentMove?(equipmentId: ID, world: Point): void;
 
   onRouteSampling(ownerId: ID, points: Point[]): void;
   onRouteCommit(ownerId: ID, points: Point[]): void;

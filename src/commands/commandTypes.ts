@@ -185,7 +185,8 @@ export interface AuthoringCommands {
   moveCoach(id: ID, x: number, y: number): void;
   removeCoach(id: ID): CommandResult;
 
-  addEquipment(kind: EquipmentKind, point: Point): CommandResult<ID>;
+    addEquipment(kind: EquipmentKind, point: Point): CommandResult<ID>;
+  moveEquipment(id: ID, x: number, y: number): void;
   removeEquipment(id: ID): CommandResult;
 
   commitRoute(ownerId: ID, rawPoints: Point[]): CommandResult<ID>;

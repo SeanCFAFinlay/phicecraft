@@ -75,10 +75,10 @@ const BASE_INPUT: DynamicLayerInput = {
 describe('buildGameScene', () => {
   it('builds one child per port-order group, all present from the start', () => {
     const scene = buildGameScene();
-    // coaches, ghost trails, skate paths, transient route, events, drag
+    // coaches, equipment, ghost trails, skate paths, transient route, events, drag
     // preview (+label), pass-from highlight, dimmed players, players, pass
     // candidates, edit handles, animated puck, diagnostics, glow.
-    expect(scene.root.children.length).toBe(15);
+    expect(scene.root.children.length).toBe(16);
   });
 
   it('draws coaches as the FIRST group, matching renderDynamic.ts\'s paint order', () => {
@@ -88,6 +88,22 @@ describe('buildGameScene', () => {
 });
 
 describe('updateGameScene', () => {
+  it('renders equipment tokens for cones, tires, and mini-nets', () => {
+    const scene = buildGameScene();
+    const drillWithEquip = {
+      ...giveAndGoRegressionDrill,
+      equipment: [
+        { id: 'cone-1', kind: 'cone' as const, position: { x: 50, y: 50 } },
+        { id: 'tire-1', kind: 'tire' as const, position: { x: 60, y: 60 } },
+        { id: 'net-1', kind: 'mini-net' as const, position: { x: 70, y: 70 } },
+      ],
+    };
+    updateGameScene(scene, { ...BASE_INPUT, drill: drillWithEquip, selectedEquipmentId: 'cone-1' });
+    const equipContainer = scene.root.children.find(child => child.label === 'equipment');
+    expect(equipContainer?.children.length).toBe(3);
+    destroyGameScene(scene);
+  });
+
   it('does not throw against a fully-populated DynamicLayerInput', () => {
     const scene = buildGameScene();
     expect(() =>

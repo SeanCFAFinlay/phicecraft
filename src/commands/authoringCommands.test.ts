@@ -858,5 +858,26 @@ describe('coach and equipment authoring & undo', () => {
     harness.commands.undo();
     expect(harness.getState().drill.equipment?.length).toBe(1);
   });
+  it('moves equipment and supports undo/redo', () => {
+    const addRes = harness.commands.addEquipment('tire', { x: 300, y: 200 });
+    expect(addRes.status).toBe('done');
+    if (addRes.status !== 'done') throw new Error('addEquipment failed');
+    const equipId = addRes.value;
+
+    harness.commands.moveEquipment(equipId, 450, 250);
+    const moved = harness.getState().drill.equipment?.find(e => e.id === equipId);
+    expect(moved?.position.x).toBe(450);
+    expect(moved?.position.y).toBe(250);
+
+    harness.commands.undo();
+    const undone = harness.getState().drill.equipment?.find(e => e.id === equipId);
+    expect(undone?.position.x).toBe(300);
+    expect(undone?.position.y).toBe(200);
+
+    harness.commands.redo();
+    const redone = harness.getState().drill.equipment?.find(e => e.id === equipId);
+    expect(redone?.position.x).toBe(450);
+    expect(redone?.position.y).toBe(250);
+  });
 });
 

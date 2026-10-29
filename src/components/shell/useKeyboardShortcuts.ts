@@ -50,9 +50,11 @@ export function useKeyboardShortcuts(): void {
           dispatch({ type: 'CLOSE_SHEET' });
         } else if (state.ui.showMenu) {
           dispatch({ type: 'CLOSE_MENU' });
-        } else if (state.selection.selectedPlayerId || state.selection.selectedEventId) {
+        } else if (state.selection.selectedPlayerId || state.selection.selectedEventId || state.selection.selectedCoachId || state.selection.selectedEquipmentId) {
           commands.selectPlayer(null);
           commands.selectEvent(null);
+          commands.selectCoach(null);
+          commands.selectEquipment(null);
           announcer.announce('Selection cleared');
         }
         event.preventDefault();
@@ -89,9 +91,46 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
+      // Delete / Backspace: removes current selection (player, event, coach, equipment)
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        const { selectedPlayerId, selectedEventId, selectedCoachId, selectedEquipmentId } = state.selection;
+        if (selectedPlayerId) {
+          event.preventDefault();
+          void commands.removePlayer(selectedPlayerId);
+          announcer.announce('Player deleted');
+          return;
+        }
+        if (selectedEventId) {
+          event.preventDefault();
+          commands.removeEvent(selectedEventId);
+          announcer.announce('Action deleted');
+          return;
+        }
+        if (selectedCoachId) {
+          event.preventDefault();
+          void commands.removeCoach(selectedCoachId);
+          announcer.announce('Coach deleted');
+          return;
+        }
+        if (selectedEquipmentId) {
+          event.preventDefault();
+          void commands.removeEquipment(selectedEquipmentId);
+          announcer.announce('Equipment deleted');
+          return;
+        }
+      }
+
+      // Formations Quick Picker shortcut (F)
+      const key = event.key.toLowerCase();
+      if (!meta && key === 'f') {
+        event.preventDefault();
+        dispatch({ type: 'OPEN_SHEET', sheet: 'formations' });
+        announcer.announce('Formations quick picker opened');
+        return;
+      }
+
       // The authoring verbs. Pass and Shoot act on whoever is carrying;
       // Route acts on the selection, since any player can be given one.
-      const key = event.key.toLowerCase();
       if (!meta && (key === 'p' || key === 's' || key === 'r')) {
         const { players, events } = state.drill;
         const carrier = getCurrentPuckHolder(players, events);
