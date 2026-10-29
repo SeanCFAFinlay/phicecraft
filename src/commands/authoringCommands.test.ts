@@ -807,3 +807,56 @@ describe('opposing defense movement', () => {
   });
 });
 
+describe('coach and equipment authoring & undo', () => {
+  it('adds, selects, moves, deletes and undoes coach markers', () => {
+    const addRes = harness.commands.addCoach({ x: 450, y: 80 });
+    expect(addRes.status).toBe('done');
+    expect(harness.getState().drill.coaches?.length).toBe(1);
+    if (addRes.status !== 'done') throw new Error('addCoach failed');
+    const coachId = addRes.value;
+
+    harness.commands.selectCoach(coachId);
+    expect(harness.getState().selection.selectedCoachId).toBe(coachId);
+
+    harness.commands.moveCoach(coachId, 500, 100);
+    const coach = harness.getState().drill.coaches?.find(c => c.id === coachId);
+    expect(coach?.x).toBe(500);
+    expect(coach?.y).toBe(100);
+
+    // Undo moving coach
+    harness.commands.undo();
+    const coachAfterUndo = harness.getState().drill.coaches?.find(c => c.id === coachId);
+    expect(coachAfterUndo?.x).toBe(450);
+    expect(coachAfterUndo?.y).toBe(80);
+
+    // Delete coach
+    harness.commands.removeCoach(coachId);
+    expect(harness.getState().drill.coaches?.length).toBe(0);
+    expect(harness.getState().selection.selectedCoachId).toBeNull();
+
+    // Undo deletion
+    harness.commands.undo();
+    expect(harness.getState().drill.coaches?.length).toBe(1);
+  });
+
+  it('adds, selects, deletes and undoes equipment', () => {
+    const addRes = harness.commands.addEquipment('cone', { x: 300, y: 200 });
+    expect(addRes.status).toBe('done');
+    expect(harness.getState().drill.equipment?.length).toBe(1);
+    if (addRes.status !== 'done') throw new Error('addEquipment failed');
+    const equipId = addRes.value;
+
+    harness.commands.selectEquipment(equipId);
+    expect(harness.getState().selection.selectedEquipmentId).toBe(equipId);
+
+    // Delete equipment
+    harness.commands.removeEquipment(equipId);
+    expect(harness.getState().drill.equipment?.length).toBe(0);
+    expect(harness.getState().selection.selectedEquipmentId).toBeNull();
+
+    // Undo deletion
+    harness.commands.undo();
+    expect(harness.getState().drill.equipment?.length).toBe(1);
+  });
+});
+

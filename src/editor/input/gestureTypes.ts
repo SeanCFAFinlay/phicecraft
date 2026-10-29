@@ -28,6 +28,7 @@ export type PressTarget =
   | { kind: 'empty' }
   | { kind: 'player'; playerId: ID; isCarrier: boolean }
   | { kind: 'coach'; coachId: ID }
+  | { kind: 'equipment'; equipmentId: ID }
   | { kind: 'route'; pathId: ID; ownerId: ID; point: Point }
   | { kind: 'event'; eventId: ID }
   | { kind: 'route-handle'; pathId: ID; index: number }
@@ -45,6 +46,7 @@ export interface HitTester {
   playerAt(point: Point): { id: ID; isCarrier: boolean } | null;
   playersAt?(point: Point): Array<{ id: ID; isCarrier: boolean }>;
   coachAt(point: Point): ID | null;
+  equipmentAt?(point: Point): ID | null;
   routeAt(point: Point): { pathId: ID; ownerId: ID; point: Point } | null;
   eventAt(point: Point): ID | null;
   routeHandleAt(point: Point): { pathId: ID; index: number } | null;
@@ -124,4 +126,5 @@ export interface GestureContext {
   armedRoutePlayerId: ID | null;
   /** True when the primary Move tool is active on the tool dock. */
   isMoveToolActive?: boolean;
+  isAddToolActive?: boolean;
 }

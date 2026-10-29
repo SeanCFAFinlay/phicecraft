@@ -29,7 +29,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useAppState, useAppServices, useCommands } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import type { RenderQuality } from '@/render/quality';
-import type { Drill, ID, Point, Player } from '@/core/types';
+import type { CoachMarker, Drill, ID, Point, Player } from '@/core/types';
 import { jerseyColor } from '@/core/types';
 import { orbitFromCamera, ORBIT_FOV_DEGREES } from './orbit';
 import { RINK_SCALE, rinkToWorld, worldToRink } from './worldMap';
@@ -94,6 +94,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const draggingPlayerRef = useRef<{ id: ID; hasMoved: boolean } | null>(null);
+  const draggingCoachRef = useRef<{ id: ID; hasMoved: boolean } | null>(null);
   const icePlaneRef = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseVecRef = useRef(new THREE.Vector2());
@@ -650,6 +651,23 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     return closest;
   }, []);
 
+  const findCoachNear = useCallback((icePoint: THREE.Vector3, thresholdMeters = 3.5): CoachMarker | null => {
+    const drill = drillRef.current;
+    let closest: CoachMarker | null = null;
+    let closestDistSq = thresholdMeters * thresholdMeters;
+    for (const c of drill.coaches ?? []) {
+      const world = rinkToWorld(c);
+      const dx = world.x - icePoint.x;
+      const dz = world.z - icePoint.z;
+      const distSq = dx * dx + dz * dz;
+      if (distSq < closestDistSq) {
+        closestDistSq = distSq;
+        closest = c;
+      }
+    }
+    return closest;
+  }, []);
+
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       try {
@@ -661,6 +679,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
 
       if (pointersRef.current.size >= 2) {
         draggingPlayerRef.current = null;
+      draggingCoachRef.current = null;
         if (drawingRouteRef.current) {
           drawingRouteRef.current = null;
           clearTransientRoute();
@@ -727,8 +746,16 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
           return;
         }
 
-        // Player selection & dragging on 3D ice
+        // Coach selection & dragging on 3D ice
         if (!state.playback.isPlaying) {
+          const hitCoach = findCoachNear(iceHit);
+          if (hitCoach) {
+            commands.selectCoach(hitCoach.id);
+            draggingCoachRef.current = { id: hitCoach.id, hasMoved: false };
+            dragRef.current = null;
+            return;
+          }
+
           const hitPlayer = findPlayerNear(iceHit);
           if (hitPlayer) {
             if (selectedPlayerId === hitPlayer.id) {
@@ -758,6 +785,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       beginPinchFromCurrentPointers,
       getIceIntersection,
       findPlayerNear,
+      findCoachNear,
       state.ui.currentTool,
       state.pendingAction,
       state.selection.selectedPlayerId,
@@ -795,6 +823,16 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       }
 
       // If dragging a player in 3D
+      if (draggingCoachRef.current && !state.playback.isPlaying) {
+        const iceHit = getIceIntersection(event.clientX, event.clientY);
+        if (iceHit) {
+          const rinkPt = worldToRink({ x: iceHit.x, z: iceHit.z });
+          commands.moveCoach(draggingCoachRef.current.id, rinkPt.x, rinkPt.y);
+          draggingCoachRef.current.hasMoved = true;
+          return;
+        }
+      }
+
       if (draggingPlayerRef.current && !state.playback.isPlaying) {
         const iceHit = getIceIntersection(event.clientX, event.clientY);
         if (iceHit) {

@@ -151,6 +151,49 @@ export function TacticalBar() {
     closeMenu();
   };
 
+  const addHomeSkater = () => {
+    const homeCount = state.drill.players.filter(p => p.team === 'home' && p.role !== 'G').length;
+    const x = Math.min(840, 480 + (homeCount % 4) * 60);
+    const y = 120 + ((homeCount * 70) % 200);
+    commands.addPlayer({ x, y }, 'home');
+    selectTool('home');
+  };
+
+  const addAwaySkater = () => {
+    const awayCount = state.drill.players.filter(p => p.team === 'away' && p.role !== 'G').length;
+    const x = Math.min(840, 560 + (awayCount % 4) * 60);
+    const y = 140 + ((awayCount * 70) % 200);
+    commands.addPlayer({ x, y }, 'away');
+    selectTool('away');
+  };
+
+  const addGoalie = () => {
+    const hasHomeGoalie = state.drill.players.some(p => p.team === 'home' && p.role === 'G');
+    const x = hasHomeGoalie ? 920 : 80;
+    const y = 212.5;
+    commands.addPlayer({ x, y }, 'goalie');
+    selectTool('goalie');
+  };
+
+  const addCoach = () => {
+    const coachCount = (state.drill.coaches ?? []).length;
+    const x = Math.min(840, 460 + coachCount * 55);
+    const y = 65;
+    const res = commands.addCoach({ x, y });
+    if (res && 'value' in res && res.value) {
+      commands.selectCoach(res.value);
+    }
+    selectTool('coach');
+  };
+
+  const placeEquipment = (kind: 'cone' | 'tire' | 'mini-net' | 'barrier') => {
+    const count = (state.drill.equipment ?? []).length;
+    const x = Math.min(840, 480 + (count % 4) * 50);
+    const y = 180 + ((count * 40) % 120);
+    commands.addEquipment(kind, { x, y });
+    selectTool(kind);
+  };
+
   const applyFormation = async (preset: PlayFormationPreset) => {
     closeMenu();
     await commands.loadFormation(preset);
@@ -186,7 +229,7 @@ export function TacticalBar() {
         {/* Direct Add Player Buttons */}
         <button
           type="button"
-          onClick={() => selectTool('home')}
+          onClick={addHomeSkater}
           aria-label="Home skater"
           title="Add Home skater (tap ice to place)"
           className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
@@ -201,7 +244,7 @@ export function TacticalBar() {
 
         <button
           type="button"
-          onClick={() => selectTool('away')}
+          onClick={addAwaySkater}
           aria-label="Away skater"
           title="Add Away skater (tap ice to place)"
           className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
@@ -216,7 +259,7 @@ export function TacticalBar() {
 
         <button
           type="button"
-          onClick={() => selectTool('goalie')}
+          onClick={addGoalie}
           aria-label="Goalie"
           title="Add Goalie (tap crease to place)"
           className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
@@ -231,7 +274,7 @@ export function TacticalBar() {
 
         <button
           type="button"
-          onClick={() => selectTool('coach')}
+          onClick={addCoach}
           aria-label="Coach marker"
           title="Add Coach marker (tap ice to place)"
           className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
@@ -340,28 +383,28 @@ export function TacticalBar() {
             label="Cone"
             sublabel="Agility / turning marker"
             active={currentTool === 'cone'}
-            onClick={() => selectTool('cone')}
+            onClick={() => placeEquipment('cone')}
           />
           <MenuItem
             icon="⚫"
             label="Tire"
             sublabel="Obstacle / screen dummy"
             active={currentTool === 'tire'}
-            onClick={() => selectTool('tire')}
+            onClick={() => placeEquipment('tire')}
           />
           <MenuItem
             icon="🥅"
             label="Mini-Net"
             sublabel="Small shooting target"
             active={currentTool === 'mini-net'}
-            onClick={() => selectTool('mini-net')}
+            onClick={() => placeEquipment('mini-net')}
           />
           <MenuItem
             icon="🚧"
             label="Divider Barrier"
             sublabel="Cross-ice drill bumper"
             active={currentTool === 'barrier'}
-            onClick={() => selectTool('barrier')}
+            onClick={() => placeEquipment('barrier')}
           />
         </FlyoutMenu>
 

@@ -117,10 +117,21 @@ export function useHitTesting({ getState, camera, playback }: HitTestingOptions)
       coachAt(point) {
         const { drill } = getState();
         const world = toWorld(point);
-        const reach = playerReach() * 1.2;
+        const reach = playerReach() * 1.3;
         const coaches = drill.coaches ?? [];
         for (let index = coaches.length - 1; index >= 0; index--) {
           if (distance(coaches[index], world) < reach) return coaches[index].id;
+        }
+        return null;
+      },
+
+      equipmentAt(point) {
+        const { drill } = getState();
+        const world = toWorld(point);
+        const reach = playerReach() * 1.3;
+        const equipment = drill.equipment ?? [];
+        for (let index = equipment.length - 1; index >= 0; index--) {
+          if (distance(equipment[index].position, world) < reach) return equipment[index].id;
         }
         return null;
       },

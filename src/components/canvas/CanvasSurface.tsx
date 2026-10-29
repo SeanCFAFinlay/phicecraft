@@ -312,8 +312,10 @@ export function CanvasSurface() {
       }
 
       if (tool === 'coach') {
-        if (target.kind === 'player' || target.kind === 'coach') return;
-        commands.addCoach(world);
+        const coachRes = commands.addCoach(world);
+        if (coachRes && 'value' in coachRes && coachRes.value) {
+          commands.selectCoach(coachRes.value);
+        }
         return;
       }
 
@@ -389,10 +391,15 @@ export function CanvasSurface() {
           commands.selectPlayer(target.ownerId);
           break;
         case 'coach':
-          commands.selectPlayer(null);
+          commands.selectCoach(target.coachId);
+          break;
+        case 'equipment':
+          commands.selectEquipment(target.equipmentId);
           break;
         default:
           commands.selectPlayer(null);
+          commands.selectCoach(null);
+          commands.selectEquipment(null);
           commands.selectEvent(null);
           commands.cancelPendingAction();
           break;
@@ -599,6 +606,9 @@ export function CanvasSurface() {
             ? stateRef.current.pendingAction.playerId
             : null,
         isMoveToolActive: stateRef.current.ui.currentTool === 'move',
+        isAddToolActive: ['home', 'away', 'goalie', 'coach', 'cone', 'tire', 'mini-net', 'barrier'].includes(
+          stateRef.current.ui.currentTool
+        ),
       }),
     });
   }, [camera]);

@@ -210,6 +210,16 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       if (id === null) dispatch({ type: 'CLOSE_INSPECTOR' });
     },
 
+    selectCoach(id: ID | null) {
+      dispatch({ type: 'SELECT_COACH', id });
+      if (id === null) dispatch({ type: 'CLOSE_INSPECTOR' });
+    },
+
+    selectEquipment(id: ID | null) {
+      dispatch({ type: 'SELECT_EQUIPMENT', id });
+      if (id === null) dispatch({ type: 'CLOSE_INSPECTOR' });
+    },
+
     openPlayerInspector(id) {
       dispatch({ type: 'SELECT_PLAYER', id });
       dispatch({ type: 'OPEN_INSPECTOR', target: { kind: 'player', playerId: id } });
@@ -361,11 +371,13 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
 
     moveCoach(id, x, y) {
       const position = constrainToRink({ x, y }, RINK_MARGIN);
+      dispatch({ type: 'PUSH_UNDO' });
       dispatch({ type: 'MOVE_COACH', id, x: position.x, y: position.y });
     },
 
     removeCoach(id) {
       dispatch({ type: 'REMOVE_COACH', id });
+      dispatch({ type: 'SELECT_COACH', id: null });
       notify.toast({ message: 'Coach removed', type: 'success' });
       return done();
     },

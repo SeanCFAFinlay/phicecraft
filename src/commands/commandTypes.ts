@@ -150,6 +150,8 @@ export interface AuthoringCommands {
   setEditorStep(step: AppState['ui']['editorStep']): void;
   selectPlayer(id: ID | null): void;
   selectEvent(id: ID | null): void;
+  selectCoach(id: ID | null): void;
+  selectEquipment(id: ID | null): void;
   openPlayerInspector(id: ID): void;
   openEventInspector(id: ID): void;
   closeInspector(): void;

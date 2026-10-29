@@ -86,6 +86,7 @@ function createUndoSnapshot(drill: Drill): UndoSnapshot {
     skatePaths: drill.skatePaths,
     events: drill.events,
     coaches: drill.coaches ?? [],
+    equipment: drill.equipment ?? [],
     settings: drill.settings,
   });
 }
@@ -98,6 +99,7 @@ function applySnapshot(state: AppState, snapshot: UndoSnapshot): Drill {
     skatePaths: snapshot.skatePaths,
     events: snapshot.events,
     coaches: snapshot.coaches ?? [],
+    equipment: snapshot.equipment ?? [],
     settings: snapshot.settings,
     updatedAt: Date.now(),
   };
@@ -486,6 +488,10 @@ function reduce(state: AppState, action: AppAction): AppState {
           coaches: (state.drill.coaches ?? []).filter(c => c.id !== action.id),
           updatedAt: Date.now(),
         },
+        selection:
+          state.selection.selectedCoachId === action.id
+            ? { ...state.selection, selectedCoachId: null }
+            : state.selection,
       };
     }
 
@@ -521,6 +527,10 @@ function reduce(state: AppState, action: AppAction): AppState {
           equipment: (state.drill.equipment ?? []).filter(item => item.id !== action.id),
           updatedAt: Date.now(),
         },
+        selection:
+          state.selection.selectedEquipmentId === action.id
+            ? { ...state.selection, selectedEquipmentId: null }
+            : state.selection,
       };
     }
 
@@ -789,7 +799,7 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'SELECT_PLAYER': {
       return {
         ...state,
-        selection: { ...state.selection, selectedPlayerId: action.id, selectedEventId: null },
+        selection: { ...state.selection, selectedPlayerId: action.id, selectedEventId: null, selectedCoachId: null, selectedEquipmentId: null },
         ui: {
           ...state.ui,
           inspector:
@@ -808,10 +818,36 @@ function reduce(state: AppState, action: AppAction): AppState {
       };
     }
 
+    case 'SELECT_COACH': {
+      return {
+        ...state,
+        selection: {
+          ...state.selection,
+          selectedCoachId: action.id,
+          selectedPlayerId: null,
+          selectedEventId: null,
+          selectedEquipmentId: null,
+        },
+      };
+    }
+
+    case 'SELECT_EQUIPMENT': {
+      return {
+        ...state,
+        selection: {
+          ...state.selection,
+          selectedEquipmentId: action.id,
+          selectedPlayerId: null,
+          selectedEventId: null,
+          selectedCoachId: null,
+        },
+      };
+    }
+
     case 'SELECT_EVENT': {
       return {
         ...state,
-        selection: { ...state.selection, selectedEventId: action.id, selectedPlayerId: null },
+        selection: { ...state.selection, selectedEventId: action.id, selectedPlayerId: null, selectedCoachId: null, selectedEquipmentId: null },
         ui: {
           ...state.ui,
           inspector:

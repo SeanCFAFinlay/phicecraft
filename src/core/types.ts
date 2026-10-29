@@ -417,6 +417,8 @@ export interface SelectionState {
   selectedPlayerId: ID | null;
   passFromPlayerId: ID | null; // For two-tap pass mode
   selectedEventId: ID | null;
+  selectedCoachId?: ID | null;
+  selectedEquipmentId?: ID | null;
 }
 
 // ============================================================================
@@ -544,6 +546,7 @@ export interface UndoSnapshot {
   skatePaths: SkatePath[];
   events: DrillEvent[];
   coaches: CoachMarker[];
+  equipment?: EquipmentItem[];
   settings: DrillSettings | undefined;
 }
 
@@ -715,6 +718,8 @@ export type AppAction =
   | { type: 'SELECT_PLAYER'; id: ID | null }
   | { type: 'SET_PASS_FROM'; id: ID | null }
   | { type: 'SELECT_EVENT'; id: ID | null }
+  | { type: 'SELECT_COACH'; id: ID | null }
+  | { type: 'SELECT_EQUIPMENT'; id: ID | null }
 
   // Playback lifecycle. Per-frame progress is NOT an action - it is written
   // straight into the frame store by the requestAnimationFrame clock.
