@@ -890,3 +890,66 @@ describe('coach and equipment authoring & undo', () => {
   });
 });
 
+describe('bulk removal and object timing', () => {
+  it('clears all equipment and supports undo', () => {
+    harness.commands.addEquipment('cone', { x: 300, y: 200 });
+    harness.commands.addEquipment('tire', { x: 350, y: 220 });
+    expect(harness.getState().drill.equipment?.length).toBe(2);
+
+    const clearRes = harness.commands.clearEquipment();
+    expect(clearRes.status).toBe('done');
+    expect(harness.getState().drill.equipment?.length).toBe(0);
+
+    harness.commands.undo();
+    expect(harness.getState().drill.equipment?.length).toBe(2);
+  });
+
+  it('clears opposing team players and supports undo', () => {
+    harness.commands.addPlayer({ x: 600, y: 200 }, 'away');
+    harness.commands.addPlayer({ x: 650, y: 250 }, 'away');
+    const awayCount = harness.getState().drill.players.filter(p => p.team === 'away').length;
+    expect(awayCount).toBeGreaterThanOrEqual(2);
+
+    const res = harness.commands.clearOpponents();
+    expect(res.status).toBe('done');
+    expect(harness.getState().drill.players.filter(p => p.team === 'away').length).toBe(0);
+
+    harness.commands.undo();
+    expect(harness.getState().drill.players.filter(p => p.team === 'away').length).toBe(awayCount);
+  });
+
+  it('removes selected object via removeSelected', () => {
+    const addRes = harness.commands.addEquipment('mini-net', { x: 400, y: 200 });
+    if (addRes.status !== 'done') throw new Error('addEquipment failed');
+    harness.commands.selectEquipment(addRes.value);
+
+    const removeRes = harness.commands.removeSelected();
+    expect(removeRes.status).toBe('done');
+    expect(harness.getState().drill.equipment?.some(e => e.id === addRes.value)).toBe(false);
+  });
+
+  it('adjusts event timing via setEventTiming and syncs with skater route', () => {
+    harness.commands.addPlayer({ x: 200, y: 200 }, 'home');
+    const shooter = harness.getState().drill.players.find(p => p.team === 'home' && p.role !== 'G')!;
+    harness.commands.commitRoute(shooter.id, [{ x: 200, y: 200 }, { x: 400, y: 200 }, { x: 600, y: 200 }]);
+    const shotRes = harness.commands.requestShot(shooter.id, { x: 900, y: 212.5 });
+    expect(shotRes.status).toBe('done');
+
+    const shotEvent = harness.getState().drill.events.find(e => e.type === 'shot')!;
+    expect(shotEvent).toBeDefined();
+
+    // Adjust timing to 50%
+    const timingRes = harness.commands.setEventTiming(shotEvent.id, 0.5, true);
+    expect(timingRes.status).toBe('done');
+
+    const updated = harness.getState().drill.events.find(e => e.id === shotEvent.id)!;
+    expect(updated.at).toBe(0.5);
+    // Skater's route was from x=200 to x=600, so at 50% the position should be around x=400
+    expect(updated.fromPoint.x).toBeCloseTo(400, 0);
+
+    // Undo should restore previous timing
+    harness.commands.undo();
+    const undone = harness.getState().drill.events.find(e => e.id === shotEvent.id)!;
+    expect(undone.at).not.toBe(0.5);
+  });
+});

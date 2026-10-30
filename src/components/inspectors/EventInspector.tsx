@@ -9,6 +9,7 @@
 // is rejected by the domain rule, so offering it would be a dead end.
 // ============================================================================
 
+import { useState } from 'react';
 import { Sheet } from '../a11y/Sheet';
 import { SheetSection } from '../sheets/QuickSheets';
 import { useAppState, useCommands } from '@/hooks/useAppState';
@@ -27,6 +28,7 @@ export function EventInspector() {
   const outcomes = useEventOutcomes();
   const { playback } = useEditorRuntime();
   const snapshot = usePlaybackSnapshot(playback);
+  const [syncWithRoute, setSyncWithRoute] = useState(true);
 
   const inspector = state.ui.inspector;
   if (inspector.kind !== 'event') return null;
@@ -34,6 +36,11 @@ export function EventInspector() {
   const index = state.drill.events.findIndex(item => item.id === inspector.eventId);
   const event = state.drill.events[index];
   if (!event) return null;
+
+  const totalDuration = state.drill.settings?.timeLimitSeconds ?? 12;
+  const currentAt = event.at ?? (index + 0.5) / Math.max(state.drill.events.length, 1);
+  const currentSeconds = (currentAt * totalDuration).toFixed(1);
+  const hasSenderRoute = state.drill.skatePaths.some(p => p.ownerId === event.fromPlayerId);
 
   const passer = state.drill.players.find(player => player.id === event.fromPlayerId);
   const receiver =
@@ -308,6 +315,117 @@ export function EventInspector() {
           </div>
         </SheetSection>
       )}
+
+      
+      {/* Action Timing Section (When shot or pass is sent) */}
+      <SheetSection title={event.type === 'shot' ? 'When Shot Is Taken (Timing)' : 'When Pass Is Sent (Timing)'}>
+        <div className="px-3 pb-3 space-y-3">
+          <div className="flex items-center justify-between rounded-xl border border-app-cyan/30 bg-app-cyan/10 px-3 py-2 text-app-cyan">
+            <span className="text-[12px] font-bold">Release Timestamp:</span>
+            <span className="font-mono text-[14px] font-black">
+              {currentSeconds}s
+              <span className="ml-1 text-[11px] font-normal text-white/60">
+                ({Math.round(currentAt * 100)}% of drill)
+              </span>
+            </span>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between text-[11px] text-white/50 font-medium">
+              <span>Start (0.0s)</span>
+              <span>Halfway</span>
+              <span>Finish ({totalDuration.toFixed(0)}s)</span>
+            </div>
+            <input
+              type="range"
+              min="0.05"
+              max="0.95"
+              step="0.01"
+              value={currentAt}
+              onChange={e => {
+                const nextAt = parseFloat(e.target.value);
+                commands.setEventTiming(event.id, nextAt, syncWithRoute);
+              }}
+              className="w-full accent-app-cyan cursor-pointer"
+              aria-label="Adjust when the action is sent"
+            />
+          </div>
+
+          {/* Fine tune buttons */}
+          <div className="flex items-center justify-between gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                const step = 0.5 / totalDuration;
+                commands.setEventTiming(event.id, Math.max(0.05, currentAt - step), syncWithRoute);
+              }}
+              className="touch-target flex-1 rounded-xl border border-white/10 bg-white/5 py-1.5 text-[11.5px] font-bold text-white/80 hover:bg-white/10"
+            >
+              - 0.5s Earlier
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const step = 0.5 / totalDuration;
+                commands.setEventTiming(event.id, Math.min(0.95, currentAt + step), syncWithRoute);
+              }}
+              className="touch-target flex-1 rounded-xl border border-white/10 bg-white/5 py-1.5 text-[11.5px] font-bold text-white/80 hover:bg-white/10"
+            >
+              + 0.5s Later
+            </button>
+          </div>
+
+          {/* Quick presets */}
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-white/40 mb-1.5">
+              Quick Timing Presets
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => commands.setEventTiming(event.id, 0.08, syncWithRoute)}
+                className="touch-target rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-bold text-white/80 hover:bg-white/10 text-left"
+              >
+                ⏱️ Start of Drill (0.5s)
+              </button>
+              <button
+                type="button"
+                onClick={() => commands.setEventTiming(event.id, 0.25, syncWithRoute)}
+                className="touch-target rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-bold text-white/80 hover:bg-white/10 text-left"
+              >
+                ⏱️ Early Rush (25%)
+              </button>
+              <button
+                type="button"
+                onClick={() => commands.setEventTiming(event.id, 0.50, syncWithRoute)}
+                className="touch-target rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-bold text-white/80 hover:bg-white/10 text-left"
+              >
+                ⏱️ Mid-Drill (50%)
+              </button>
+              <button
+                type="button"
+                onClick={() => commands.setEventTiming(event.id, 0.75, syncWithRoute)}
+                className="touch-target rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-bold text-white/80 hover:bg-white/10 text-left"
+              >
+                ⏱️ Late in Zone (75%)
+              </button>
+            </div>
+          </div>
+
+          {/* Route Sync Checkbox if sender has a route */}
+          {hasSenderRoute && (
+            <label className="flex items-center gap-2 text-[11.5px] text-white/70 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={syncWithRoute}
+                onChange={e => setSyncWithRoute(e.target.checked)}
+                className="rounded accent-app-cyan"
+              />
+              <span>Sync release spot along skater's route</span>
+            </label>
+          )}
+        </div>
+      </SheetSection>
 
       <div className="px-3 py-3">
         <button

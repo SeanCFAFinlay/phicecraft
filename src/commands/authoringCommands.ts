@@ -45,6 +45,7 @@ import {
   insertControl,
   moveControl,
   removeControl,
+  pointAtProgress,
   simplifyToControls,
 } from '@/utils/curves';
 import { measureFlight } from '@/sim/flightPath';
@@ -411,6 +412,43 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       dispatch({ type: 'REMOVE_EQUIPMENT', id });
       notify.toast({ message: 'Equipment removed', type: 'success' });
       return done();
+    },
+
+    clearEquipment() {
+      const state = getState();
+      const count = (state.drill.equipment ?? []).length;
+      if (count === 0) return rejected('No equipment on the ice to clear.');
+      dispatch({ type: 'CLEAR_EQUIPMENT' });
+      notify.toast({ message: `Cleared ${count} equipment item${count > 1 ? 's' : ''}`, type: 'success' });
+      return done(count);
+    },
+
+    clearOpponents() {
+      const state = getState();
+      const awayPlayers = state.drill.players.filter(p => p.team === 'away');
+      if (awayPlayers.length === 0) return rejected('No opposing players to clear.');
+      dispatch({ type: 'CLEAR_OPPONENTS' });
+      notify.toast({ message: `Removed ${awayPlayers.length} opposing player${awayPlayers.length > 1 ? 's' : ''}`, type: 'success' });
+      return done(awayPlayers.length);
+    },
+
+    removeSelected() {
+      const state = getState();
+      const { selectedPlayerId, selectedCoachId, selectedEquipmentId, selectedEventId } = state.selection;
+      if (selectedPlayerId) {
+        void this.removePlayer(selectedPlayerId);
+        return done();
+      }
+      if (selectedCoachId) {
+        return this.removeCoach(selectedCoachId);
+      }
+      if (selectedEquipmentId) {
+        return this.removeEquipment(selectedEquipmentId);
+      }
+      if (selectedEventId) {
+        return this.removeEvent(selectedEventId);
+      }
+      return rejected('Nothing is currently selected to remove.');
     },
 
     // ------------------------------------------------------------------------
@@ -948,13 +986,43 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       return done();
     },
 
+    setEventTiming(eventId, at, syncRoute = true) {
+      const state = getState();
+      const event = findEvent(eventId);
+      if (!event) return rejected('That puck action is already gone.');
+
+      const clampedAt = Math.max(0.02, Math.min(0.98, at));
+
+      // Determine if sender has a route and sync position if requested
+      let fromPoint = event.fromPoint;
+      const senderRoute = state.drill.skatePaths.find(p => p.ownerId === event.fromPlayerId);
+      if (syncRoute && senderRoute && senderRoute.points.length >= 2) {
+        fromPoint = pointAtProgress(senderRoute.points, clampedAt).position;
+      }
+
+      dispatch({ type: 'PUSH_UNDO' });
+      applyEventGeometry(event, { fromPoint, at: clampedAt });
+
+      const totalDuration = state.drill.settings?.timeLimitSeconds ?? DEFAULT_DRILL_DURATION;
+      const seconds = (clampedAt * totalDuration).toFixed(1);
+      const actionName = event.type === 'shot' ? 'Shot release' : event.type === 'pass' ? 'Pass release' : 'Puck release';
+      notify.toast({
+        message: `${actionName} timed to ${seconds}s (${Math.round(clampedAt * 100)}% of drill)`,
+        type: 'info',
+        duration: 1800,
+        dedupeKey: `event-timing:${eventId}`,
+      });
+
+      return done();
+    },
+
     // ------------------------------------------------------------------------
     // Recovery of legacy off-rink content
     // ------------------------------------------------------------------------
 
     generateOpposingDefense(tactic: 'gap' | 'forecheck' | 'box-shift' | 'backcheck' = 'gap'): CommandResult<number> {
       const state = getState();
-      if (state.ui.mode !== 'build') return reject('Switch to Build to add opposing movement.');
+      if (state.ui.mode !== 'build') dispatch({ type: 'SET_MODE', mode: 'build' });
 
       // Determine attacking and opposing defending teams
       const holder = getCurrentPuckHolder(state.drill.players, state.drill.events);

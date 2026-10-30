@@ -677,6 +677,8 @@ export type AppAction =
   | { type: 'ADD_EQUIPMENT'; item: EquipmentItem }
   | { type: 'MOVE_EQUIPMENT'; id: ID; x: number; y: number }
   | { type: 'REMOVE_EQUIPMENT'; id: ID }
+  | { type: 'CLEAR_EQUIPMENT' }
+  | { type: 'CLEAR_OPPONENTS' }
 
   // Path actions
   | { type: 'ADD_SKATE_PATH'; path: SkatePath }

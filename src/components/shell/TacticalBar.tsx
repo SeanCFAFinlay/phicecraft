@@ -12,6 +12,7 @@
 // ============================================================================
 
 import { useState, useRef, useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { usePuckActions } from '@/hooks/usePuckActions';
 import { useViewActions } from './useViewActions';
@@ -34,51 +35,86 @@ interface FlyoutProps {
 }
 
 function FlyoutMenu({ label, icon, active, isOpen, onToggle, onClose, children }: FlyoutProps) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !buttonRef.current) return;
+    const updatePosition = () => {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuWidth = 240;
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+      const top = Math.min(rect.bottom + 4, window.innerHeight - 150);
+      setCoords({ top, left });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+    function handlePointerDown(e: PointerEvent) {
+      const target = e.target as Node;
+      if (
+        menuRef.current && !menuRef.current.contains(target) &&
+        buttonRef.current && !buttonRef.current.contains(target)
+      ) {
         onClose();
       }
     }
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
-    window.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
 
   return (
-    <div ref={menuRef} className="relative inline-block">
+    <div className="relative inline-block shrink-0">
       <button
+        ref={buttonRef}
         type="button"
         onClick={onToggle}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         className={`touch-target flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
-          active
+          active || isOpen
             ? 'border border-app-cyan bg-app-cyan/20 text-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.3)]'
             : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
         }`}
       >
         <span>{icon}</span>
-        <span className="hidden sm:inline">{label}</span>
+        <span className="inline">{label}</span>
         <span className="text-[9px] text-white/50">▾</span>
       </button>
 
-      {isOpen && (
+      {isOpen && coords && createPortal(
         <div
+          ref={menuRef}
           role="menu"
-          className="absolute left-0 top-full z-50 mt-1 min-w-[200px] rounded-xl border border-cyan-500/30 bg-[#07131e]/98 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            zIndex: 9999,
+          }}
+          className="min-w-[220px] max-w-[90vw] max-h-[80vh] overflow-y-auto rounded-xl border border-cyan-500/30 bg-[#07131e]/98 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
         >
           {children}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -129,7 +165,7 @@ export function TacticalBar() {
   const { carrier } = usePuckActions();
   const { is3D, toggle3D, fit, zoomToZone } = useViewActions();
 
-  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | null>(null);
 
   const currentTool = state.ui.currentTool;
   const isMove = currentTool === 'move';
@@ -138,11 +174,21 @@ export function TacticalBar() {
   const selectedPlayer = state.selection.selectedPlayerId
     ? state.drill.players.find(p => p.id === state.selection.selectedPlayerId)
     : null;
+  const selectedCoach = state.selection.selectedCoachId
+    ? (state.drill.coaches ?? []).find(c => c.id === state.selection.selectedCoachId)
+    : null;
+  const selectedEquipment = state.selection.selectedEquipmentId
+    ? (state.drill.equipment ?? []).find(e => e.id === state.selection.selectedEquipmentId)
+    : null;
+  const selectedEvent = state.selection.selectedEventId
+    ? state.drill.events.find(e => e.id === state.selection.selectedEventId)
+    : null;
+  const hasSelection = Boolean(selectedPlayer || selectedCoach || selectedEquipment || selectedEvent);
 
   if (state.ui.mode !== 'build' || isCompactLandscape) return null;
 
   const closeMenu = () => setOpenMenu(null);
-  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export') => {
+  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove') => {
     setOpenMenu(prev => (prev === menu ? null : menu));
   };
 
@@ -187,11 +233,15 @@ export function TacticalBar() {
   };
 
   const placeEquipment = (kind: 'cone' | 'tire' | 'mini-net' | 'barrier') => {
+    closeMenu();
     const count = (state.drill.equipment ?? []).length;
-    const x = Math.min(840, 480 + (count % 4) * 50);
+    const x = Math.min(840, 480 + (count % 4) * 55);
     const y = 180 + ((count * 40) % 120);
-    commands.addEquipment(kind, { x, y });
-    selectTool(kind);
+    const res = commands.addEquipment(kind, { x, y });
+    if (res && 'value' in res && res.value) {
+      commands.selectEquipment(res.value);
+    }
+    commands.setTool('move');
   };
 
   const applyFormation = async (preset: PlayFormationPreset) => {
@@ -366,6 +416,115 @@ export function TacticalBar() {
           <span>Shoot</span>
         </button>
 
+        {/* Quick Delete Selected Object */}
+        {hasSelection && (
+          <button
+            type="button"
+            onClick={() => commands.removeSelected()}
+            aria-label="Delete selected object"
+            title="Delete selected item (or press Delete/Backspace)"
+            className="touch-target flex items-center gap-1 rounded-lg border border-red-500/50 bg-red-500/25 px-2.5 py-1 text-[11.5px] font-black text-red-100 hover:border-red-400 hover:bg-red-500/35 hover:text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-in fade-in duration-100"
+          >
+            <span>🗑️</span>
+            <span>
+              {selectedPlayer
+                ? `Delete #${selectedPlayer.number}`
+                : selectedCoach
+                  ? 'Delete Coach'
+                  : selectedEquipment
+                    ? `Delete ${selectedEquipment.kind === 'mini-net' ? 'Net' : selectedEquipment.kind.charAt(0).toUpperCase() + selectedEquipment.kind.slice(1)}`
+                    : selectedEvent
+                      ? `Delete ${selectedEvent.type.toUpperCase()}`
+                      : 'Delete'}
+            </span>
+          </button>
+        )}
+
+        {/* Quick Options to Remove Objects */}
+        <FlyoutMenu
+          label="Remove"
+          icon="🗑️"
+          isOpen={openMenu === 'remove'}
+          onToggle={() => toggleMenu('remove')}
+          onClose={closeMenu}
+        >
+          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-rose-400/80">
+            Quick Remove & Clear
+          </div>
+          {hasSelection && (
+            <MenuItem
+              icon="🗑️"
+              label={
+                selectedPlayer
+                  ? `Delete #${selectedPlayer.number} (${selectedPlayer.role})`
+                  : selectedCoach
+                    ? 'Delete Selected Coach'
+                    : selectedEquipment
+                      ? `Delete Selected ${selectedEquipment.kind}`
+                      : selectedEvent
+                        ? `Delete Selected ${selectedEvent.type}`
+                        : 'Delete Selected Item'
+              }
+              sublabel="Remove active selection from the ice"
+              tone="danger"
+              onClick={() => {
+                closeMenu();
+                commands.removeSelected();
+              }}
+            />
+          )}
+          <MenuItem
+            icon="🟠"
+            label="Clear All Gear & Equipment"
+            sublabel="Remove all cones, tires, nets and barriers"
+            tone="danger"
+            onClick={() => {
+              closeMenu();
+              commands.clearEquipment();
+            }}
+          />
+          <MenuItem
+            icon="⛸️"
+            label="Clear Skating Routes"
+            sublabel="Remove all skate paths, keep players"
+            tone="danger"
+            onClick={() => {
+              closeMenu();
+              void commands.clearMovementRoutes();
+            }}
+          />
+          <MenuItem
+            icon="⚡"
+            label="Clear Passes & Shots"
+            sublabel="Remove puck events, keep routes"
+            tone="danger"
+            onClick={() => {
+              closeMenu();
+              void commands.clearPuckActions();
+            }}
+          />
+          <MenuItem
+            icon="🛡️"
+            label="Clear Defending Opponents"
+            sublabel="Remove away team and defense movement"
+            tone="danger"
+            onClick={() => {
+              closeMenu();
+              commands.clearOpponents();
+            }}
+          />
+          <MenuItem
+            icon="↺"
+            label="Reset Entire Board"
+            sublabel="Restore default 5v5 lineup"
+            tone="danger"
+            onClick={() => {
+              closeMenu();
+              void commands.resetBoard();
+            }}
+          />
+        </FlyoutMenu>
+
         {/* Objects / Equipment Flyout */}
         <FlyoutMenu
           label="Gear"
@@ -376,35 +535,46 @@ export function TacticalBar() {
           onClose={closeMenu}
         >
           <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-gold/70">
-            Training Gear (tap ice to place)
+            Training Gear
           </div>
           <MenuItem
             icon="🟠"
-            label="Cone"
+            label="Add Cone"
             sublabel="Agility / turning marker"
             active={currentTool === 'cone'}
             onClick={() => placeEquipment('cone')}
           />
           <MenuItem
             icon="⚫"
-            label="Tire"
+            label="Add Tire"
             sublabel="Obstacle / screen dummy"
             active={currentTool === 'tire'}
             onClick={() => placeEquipment('tire')}
           />
           <MenuItem
             icon="🥅"
-            label="Mini-Net"
+            label="Add Mini-Net"
             sublabel="Small shooting target"
             active={currentTool === 'mini-net'}
             onClick={() => placeEquipment('mini-net')}
           />
           <MenuItem
             icon="🚧"
-            label="Divider Barrier"
+            label="Add Divider Barrier"
             sublabel="Cross-ice drill bumper"
             active={currentTool === 'barrier'}
             onClick={() => placeEquipment('barrier')}
+          />
+          <div className="my-1 border-t border-white/10" />
+          <MenuItem
+            icon="🗑️"
+            label="Clear All Gear"
+            sublabel="Remove all equipment from ice"
+            tone="danger"
+            onClick={() => {
+              closeMenu();
+              commands.clearEquipment();
+            }}
           />
         </FlyoutMenu>
 
@@ -417,7 +587,7 @@ export function TacticalBar() {
           onClose={closeMenu}
         >
           <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-rose-400/80">
-            Opposing Team Movement
+            Opposing Defense Tactics
           </div>
           <MenuItem
             icon="🛡️"
@@ -466,17 +636,30 @@ export function TacticalBar() {
                 commands.selectPlayer(awaySkater.id);
                 commands.setTool('move');
                 commands.setPendingAction({ kind: 'draw-route', playerId: awaySkater.id });
+              } else {
+                commands.addPlayer({ x: 680, y: 212.5 }, 'away');
               }
             }}
           />
+          <div className="my-1 border-t border-white/10" />
           <MenuItem
             icon="↺"
-            label="Clear Opponent Routes"
-            sublabel="Remove defending movement"
+            label="Clear Defending Routes"
+            sublabel="Remove opposing movement paths"
             tone="danger"
             onClick={() => {
               closeMenu();
               commands.clearOpposingRoutes();
+            }}
+          />
+          <MenuItem
+            icon="🗑️"
+            label="Remove All Opponents"
+            sublabel="Clear away team players & routes"
+            tone="danger"
+            onClick={() => {
+              closeMenu();
+              commands.clearOpponents();
             }}
           />
         </FlyoutMenu>

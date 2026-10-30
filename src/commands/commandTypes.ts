@@ -188,6 +188,9 @@ export interface AuthoringCommands {
     addEquipment(kind: EquipmentKind, point: Point): CommandResult<ID>;
   moveEquipment(id: ID, x: number, y: number): void;
   removeEquipment(id: ID): CommandResult;
+  clearEquipment(): CommandResult<number>;
+  clearOpponents(): CommandResult<number>;
+  removeSelected(): CommandResult;
 
   commitRoute(ownerId: ID, rawPoints: Point[]): CommandResult<ID>;
   updateRouteStyle(pathId: ID, updates: { mode?: 'skate' | 'glide' | 'backward'; finish?: 'coast' | 'stop' }): void;
@@ -219,6 +222,7 @@ export interface AuthoringCommands {
   setEventSource(eventId: ID, from: Point): CommandResult;
   setEventTarget(eventId: ID, to: Point): CommandResult;
   setEventShape(eventId: ID, shape: CurveShape): CommandResult;
+  setEventTiming(eventId: ID, at: number, syncRoute?: boolean): CommandResult;
 
   recoverOffRinkObjects(): CommandResult<number>;
 
