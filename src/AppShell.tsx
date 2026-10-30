@@ -14,7 +14,6 @@
 
 import { Suspense, lazy, useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { IntelligenceBadge } from '@/components/intelligence/IntelligenceBadge';
-import { IntelligencePanel } from '@/components/intelligence/IntelligencePanel';
 import type { RenderQuality } from '@/render/quality';
 import { useAppServices, useAppState } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
@@ -91,6 +90,11 @@ const FormationQuickPicker = lazy(() =>
 const PrintPreviewModal = lazy(() =>
   import('@/components/shell/PrintPreviewModal').then(module => ({
     default: module.PrintPreviewModal,
+  }))
+);
+const IntelligencePanel = lazy(() =>
+  import('@/components/intelligence/IntelligencePanel').then(module => ({
+    default: module.IntelligencePanel,
   }))
 );
 
@@ -190,7 +194,9 @@ export function AppShell() {
           />
         )}
         {isIntelligenceOpen && (
-          <IntelligencePanel onClose={() => setIsIntelligenceOpen(false)} />
+          <Suspense fallback={null}>
+            <IntelligencePanel onClose={() => setIsIntelligenceOpen(false)} />
+          </Suspense>
         )}
 
         <Suspense fallback={null}>{state.ui.showDiagnostics && <DiagnosticsOverlay />}</Suspense>

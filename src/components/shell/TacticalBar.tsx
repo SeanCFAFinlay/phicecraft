@@ -18,9 +18,6 @@ import { usePuckActions } from '@/hooks/usePuckActions';
 import { useViewActions } from './useViewActions';
 import { useResponsive } from '@/ui/useResponsive';
 import { attackingNetFor } from '@/engine/puck';
-import { exportDrillImageFile } from '@/ui/exportImage';
-import { printSingleDrillCard } from '@/ui/exportDrillCard';
-import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
 import type { Tool } from '@/core/types';
 import type { PlayFormationPreset } from '@/engine/formations';
 
@@ -866,8 +863,9 @@ export function TacticalBar() {
               icon="📷"
               label="Drill Diagram (PNG)"
               sublabel="High-resolution image"
-              onClick={() => {
+              onClick={async () => {
                 closeMenu();
+                const { exportDrillImageFile } = await import('@/ui/exportImage');
                 exportDrillImageFile(state.drill);
               }}
             />
@@ -875,8 +873,12 @@ export function TacticalBar() {
               icon="✂️"
               label="Print Cut-Out Card (PDF)"
               sublabel="Printable bench pocket card"
-              onClick={() => {
+              onClick={async () => {
                 closeMenu();
+                const [{ printSingleDrillCard }, { migrateV2ToV3 }] = await Promise.all([
+                  import('@/ui/exportDrillCard'),
+                  import('@/domain/v3/migrateV2ToV3'),
+                ]);
                 printSingleDrillCard(migrateV2ToV3(state.drill));
               }}
             />

@@ -147,8 +147,8 @@ export function Transport({
           : formatClock(progress, snapshot.durationSeconds)}
       </span>
 
-      {/* Quick Playback Speed Selector Pills on Desktop / Tablet */}
-      {!inline && !isPhone && (
+      {/* Quick Playback Speed Selector Pills on Desktop / Tablet (in Build mode where SpeedControl is not stacked) */}
+      {!inline && !isPhone && state.ui.mode === 'build' && (
         <div
           role="radiogroup"
           aria-label="Playback speed"

@@ -5,10 +5,9 @@
 // Clicking toggles the Coaching Intelligence drawer.
 // ============================================================================
 
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppState } from '@/hooks/useAppState';
-import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
-import { validateDrillIntelligence } from '@/domain/validation/coachIntelligence';
+import type { DrillValidationReport } from '@/domain/validation/coachIntelligence';
 
 export function IntelligenceBadge({
   isOpen = false,
@@ -18,13 +17,59 @@ export function IntelligenceBadge({
   onToggle?: () => void;
 } = {}) {
   const { state } = useAppState();
+  const [report, setReport] = useState<DrillValidationReport | null>(null);
 
-  const report = useMemo(() => {
-    const v3 = migrateV2ToV3(state.drill);
-    return validateDrillIntelligence(v3);
+  useEffect(() => {
+    let cancelled = false;
+
+    const runValidation = async () => {
+      try {
+        const [{ migrateV2ToV3 }, { validateDrillIntelligence }] = await Promise.all([
+          import('@/domain/v3/migrateV2ToV3'),
+          import('@/domain/validation/coachIntelligence'),
+        ]);
+        if (cancelled) return;
+        const v3 = migrateV2ToV3(state.drill);
+        const rep = validateDrillIntelligence(v3);
+        if (!cancelled) {
+          setReport(rep);
+        }
+      } catch (err) {
+        console.warn('Intelligence evaluation deferred error:', err);
+      }
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const handle = (
+        window as unknown as {
+          requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number;
+          cancelIdleCallback: (id: number) => void;
+        }
+      ).requestIdleCallback(
+        () => {
+          void runValidation();
+        },
+        { timeout: 500 }
+      );
+      return () => {
+        cancelled = true;
+        (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(
+          handle
+        );
+      };
+    } else {
+      const timer = setTimeout(() => {
+        void runValidation();
+      }, 50);
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
+    }
   }, [state.drill]);
 
-  const hasIssues = report.issues.length > 0;
+  const hasIssues = report !== null && report.issues.length > 0;
+  const issueCount = report ? report.issues.length : 0;
 
   return (
     <button
@@ -42,11 +87,11 @@ export function IntelligenceBadge({
     >
       <span className="text-[13px]">🧠</span>
       <span>
-        {hasIssues ? `${report.issues.length} Tactical Note${report.issues.length > 1 ? 's' : ''}` : 'Intelligence: Verified'}
+        {hasIssues
+          ? `${issueCount} Tactical Note${issueCount > 1 ? 's' : ''}`
+          : 'Intelligence: Verified'}
       </span>
-      {hasIssues && (
-        <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-      )}
+      {hasIssues && <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />}
     </button>
   );
 }
