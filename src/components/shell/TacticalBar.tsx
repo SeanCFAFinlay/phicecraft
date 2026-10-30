@@ -344,7 +344,7 @@ export function TacticalBar() {
                 : 'text-white/80 hover:bg-emerald-500/15 hover:text-emerald-200'
             }`}
           >
-            <span>📋</span>
+            <span>🧢</span>
             <span className="hidden 2xl:inline">Coach</span>
           </button>
         </div>

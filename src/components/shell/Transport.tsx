@@ -24,6 +24,7 @@ import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { usePlaybackSnapshot } from '@/playback/usePlaybackSnapshot';
 import { usePuckActions } from '@/hooks/usePuckActions';
 import { useResponsive } from '@/ui/useResponsive';
+import { PLAYBACK_SPEEDS } from '@/core/constants';
 import { ExpandIcon, PauseIcon, PlayIcon, StepBackIcon } from '@/ui/icons';
 
 function formatClock(progress: number, duration: number): string {
@@ -145,6 +146,33 @@ export function Transport({
           ? `${(progress * snapshot.durationSeconds).toFixed(1)}s`
           : formatClock(progress, snapshot.durationSeconds)}
       </span>
+
+      {/* Quick Playback Speed Selector Pills on Desktop / Tablet */}
+      {!inline && !isPhone && (
+        <div
+          role="radiogroup"
+          aria-label="Playback speed"
+          className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm"
+        >
+          {PLAYBACK_SPEEDS.map(speed => (
+            <button
+              key={speed}
+              type="button"
+              role="radio"
+              aria-checked={state.playback.speed === speed}
+              onClick={() => commands.setPlaybackSpeed(speed)}
+              title={`${speed}x tempo`}
+              className={`flex h-6 min-w-0 items-center justify-center rounded px-1.5 text-[10.5px] font-bold transition-all ${
+                state.playback.speed === speed
+                  ? 'border border-cyan-400/50 bg-app-cyan text-[#041019] shadow-sm font-black'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              {speed}×
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* The lifecycle status used to ride along on the (now-gone) workflow
           chip, shown only where there is room to spare for it. */}

@@ -794,7 +794,7 @@ export function CanvasSurface() {
                   commands.setPendingAction({ kind: 'draw-route', playerId: selectedObj.id });
                 }}
                 title="Draw skating route"
-                className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/20 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/35 transition-all"
+                className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/20 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)] active:scale-95 transition-all"
               >
                 <span>⛸️</span>
                 <span>Route</span>
@@ -808,7 +808,7 @@ export function CanvasSurface() {
                   commands.setPendingAction({ kind: 'pass', playerId: selectedObj.id });
                 }}
                 title="Pass puck"
-                className="touch-target flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/35 transition-all"
+                className="touch-target flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(245,158,11,0.4)] active:scale-95 transition-all"
               >
                 <span>⚡</span>
                 <span>Pass</span>
@@ -822,7 +822,7 @@ export function CanvasSurface() {
                   void commands.requestShot(selectedObj.id, attackingNetFor(selectedObj.player.team));
                 }}
                 title="Shoot on net"
-                className="touch-target flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-0.5 text-[11px] font-bold text-orange-200 hover:bg-orange-500/35 transition-all"
+                className="touch-target flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-0.5 text-[11px] font-bold text-orange-200 hover:bg-orange-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(249,115,22,0.4)] active:scale-95 transition-all"
               >
                 <span>🏒</span>
                 <span>Shoot</span>
@@ -836,7 +836,7 @@ export function CanvasSurface() {
                   void commands.generateDumpAndChase();
                 }}
                 title="Dump puck deep into corner & chase"
-                className="touch-target flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/35 transition-all"
+                className="touch-target flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(16,185,129,0.4)] active:scale-95 transition-all"
               >
                 <span>🎯</span>
                 <span>Dump</span>
@@ -848,7 +848,7 @@ export function CanvasSurface() {
                   commands.openPlayerInspector(selectedObj.id);
                 }}
                 title="Player details"
-                className="touch-target flex items-center justify-center rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] font-bold text-white/80 hover:bg-white/20 transition-all"
+                className="touch-target flex items-center justify-center rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] font-bold text-white/80 hover:bg-white/20 hover:text-white hover:scale-105 hover:shadow-[0_0_8px_rgba(255,255,255,0.3)] active:scale-95 transition-all"
               >
                 <span>ℹ️</span>
               </button>
@@ -864,7 +864,7 @@ export function CanvasSurface() {
                   void commands.generateDumpAndChase();
                 }}
                 title="Dump puck into corner & have players chase it"
-                className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/25 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/40 hover:text-white transition-all shadow-sm"
+                className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/25 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)] active:scale-95 transition-all shadow-sm"
               >
                 <span>🏒</span>
                 <span>Dump & Chase</span>
@@ -876,7 +876,7 @@ export function CanvasSurface() {
                   void commands.generateCoachFeed();
                 }}
                 title="Coach feed pass to slot for one-timer"
-                className="touch-target flex items-center gap-1 rounded-full bg-amber-500/25 px-2 py-0.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/40 hover:text-white transition-all shadow-sm"
+                className="touch-target flex items-center gap-1 rounded-full bg-amber-500/25 px-2 py-0.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(245,158,11,0.4)] active:scale-95 transition-all shadow-sm"
               >
                 <span>⚡</span>
                 <span>Feed Slot</span>
@@ -888,7 +888,7 @@ export function CanvasSurface() {
                   void commands.generateCoachRim();
                 }}
                 title="Rim puck along boards into far corner"
-                className="touch-target flex items-center gap-1 rounded-full bg-purple-500/25 px-2 py-0.5 text-[11px] font-bold text-purple-200 hover:bg-purple-500/40 hover:text-white transition-all shadow-sm"
+                className="touch-target flex items-center gap-1 rounded-full bg-purple-500/25 px-2 py-0.5 text-[11px] font-bold text-purple-200 hover:bg-purple-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(168,85,247,0.4)] active:scale-95 transition-all shadow-sm"
               >
                 <span>🌀</span>
                 <span>Rim Boards</span>
@@ -900,7 +900,7 @@ export function CanvasSurface() {
                   commands.requestPlaybackStart();
                 }}
                 title="Rehearse drill"
-                className="touch-target flex items-center gap-1 rounded-full bg-emerald-500/25 px-2 py-0.5 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/40 hover:text-white transition-all shadow-sm"
+                className="touch-target flex items-center gap-1 rounded-full bg-emerald-500/25 px-2 py-0.5 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(16,185,129,0.4)] active:scale-95 transition-all shadow-sm"
               >
                 <span>▶️</span>
                 <span>Play</span>
@@ -916,7 +916,7 @@ export function CanvasSurface() {
                 commands.openEventInspector(selectedObj.id);
               }}
               title="Adjust timing & release"
-              className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/20 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/35 transition-all"
+              className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/20 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)] active:scale-95 transition-all"
             >
               <span>⏱️</span>
               <span>Timing</span>
@@ -931,7 +931,7 @@ export function CanvasSurface() {
             }}
             title="Delete this object"
             aria-label="Delete this object"
-            className="touch-target flex items-center justify-center rounded-full bg-red-500/25 px-2 py-0.5 text-[11px] font-bold text-red-200 hover:bg-red-500/40 hover:text-white transition-all"
+            className="touch-target flex items-center justify-center rounded-full bg-red-500/25 px-2 py-0.5 text-[11px] font-bold text-red-200 hover:bg-red-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_10px_rgba(239,68,68,0.4)] active:scale-95 transition-all"
           >
             <span>🗑️</span>
           </button>
