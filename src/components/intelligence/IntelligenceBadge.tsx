@@ -77,7 +77,7 @@ export function IntelligenceBadge({
       onClick={onToggle}
       aria-label="Toggle coaching intelligence"
       aria-expanded={isOpen}
-      className={`absolute right-3 bottom-3 z-20 flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-black shadow-lg backdrop-blur-md transition-all duration-200 ${
+      className={`touch-target absolute right-2.5 bottom-2.5 sm:right-3 sm:bottom-3 z-20 flex h-9 sm:h-8 items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] sm:text-[11.5px] font-black shadow-lg backdrop-blur-md transition-all active:scale-95 duration-200 ${
         isOpen
           ? 'border-app-cyan bg-app-cyan/25 text-white shadow-[0_0_15px_rgba(0,229,255,0.4)]'
           : hasIssues

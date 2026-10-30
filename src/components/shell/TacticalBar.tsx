@@ -98,19 +98,26 @@ function FlyoutMenu({ label, icon, active, isOpen, onToggle, onClose, children }
       </button>
 
       {isOpen && coords && createPortal(
-        <div
-          ref={menuRef}
-          role="menu"
-          style={{
-            position: 'fixed',
-            top: `${coords.top}px`,
-            left: `${coords.left}px`,
-            zIndex: 9999,
-          }}
-          className="min-w-[220px] max-w-[90vw] max-h-[80vh] overflow-y-auto rounded-xl border border-cyan-500/30 bg-[#07131e]/98 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
-        >
-          {children}
-        </div>,
+        <>
+          <div
+            className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-[1px] md:hidden"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+          <div
+            ref={menuRef}
+            role="menu"
+            style={{
+              position: 'fixed',
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+              zIndex: 9999,
+            }}
+            className="min-w-[220px] max-w-[90vw] max-h-[80vh] overflow-y-auto rounded-xl border border-cyan-500/30 bg-[#07131e]/98 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+          >
+            {children}
+          </div>
+        </>,
         document.body
       )}
     </div>
@@ -992,8 +999,8 @@ export function TacticalBar() {
         </div>
       </div>
 
-      {/* RIGHT: Zone Views & Help */}
-      <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 ml-1.5 shadow-sm" role="group" aria-label="Rink view controls">
+      {/* RIGHT: Zone Views & Help (Desktop & Tablet only; mobile phones use the floating VIEW button and ViewSheet) */}
+      <div className="hidden md:flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 ml-1.5 shadow-sm" role="group" aria-label="Rink view controls">
         <button
           type="button"
           onClick={() => zoomToZone('full')}
