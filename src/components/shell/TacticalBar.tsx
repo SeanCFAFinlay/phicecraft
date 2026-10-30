@@ -165,7 +165,7 @@ export function TacticalBar() {
   const { carrier } = usePuckActions();
   const { is3D, toggle3D, fit, zoomToZone } = useViewActions();
 
-  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | null>(null);
 
   const currentTool = state.ui.currentTool;
   const isMove = currentTool === 'move';
@@ -188,7 +188,7 @@ export function TacticalBar() {
   if (state.ui.mode !== 'build' || isCompactLandscape) return null;
 
   const closeMenu = () => setOpenMenu(null);
-  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove') => {
+  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip') => {
     setOpenMenu(prev => (prev === menu ? null : menu));
   };
 
@@ -762,7 +762,38 @@ export function TacticalBar() {
             sublabel="Defensive zone coverage"
             onClick={() => applyFormation('faceoff-dzone')}
           />
-        </FlyoutMenu>        {/* Direct In-App Print Preview Button */}
+        </FlyoutMenu>        {/* Flip / Mirror Flyout */}
+        <FlyoutMenu
+          label="Flip"
+          icon="🔄"
+          isOpen={openMenu === 'flip'}
+          onToggle={() => toggleMenu('flip')}
+          onClose={closeMenu}
+        >
+          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-cyan-400/80">
+            Mirror & Reverse Ice
+          </div>
+          <MenuItem
+            icon="↕️"
+            label="Mirror Top ⇕ Bottom"
+            sublabel="Flip to opposite wing / boards"
+            onClick={() => {
+              closeMenu();
+              commands.mirrorDrill('horizontal');
+            }}
+          />
+          <MenuItem
+            icon="↔️"
+            label="Mirror Left ⇔ Right"
+            sublabel="Switch ends across center red line"
+            onClick={() => {
+              closeMenu();
+              commands.mirrorDrill('vertical');
+            }}
+          />
+        </FlyoutMenu>
+
+        {/* Direct In-App Print Preview Button */}
         <button
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'print-preview' })}

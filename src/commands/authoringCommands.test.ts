@@ -952,4 +952,28 @@ describe('bulk removal and object timing', () => {
     const undone = harness.getState().drill.events.find(e => e.id === shotEvent.id)!;
     expect(undone.at).not.toBe(0.5);
   });
+
+  it('mirrors drill horizontally and vertically', () => {
+    harness.commands.addPlayer({ x: 300, y: 100 }, 'home');
+    const p = harness.getState().drill.players.find(pl => pl.x === 300 && pl.y === 100)!;
+    expect(p).toBeDefined();
+
+    // Mirror horizontal (top to bottom across y=212.5)
+    // 212.5 * 2 - 100 = 325
+    const mirrorHRes = harness.commands.mirrorDrill('horizontal');
+    expect(mirrorHRes.status).toBe('done');
+    const mirroredP = harness.getState().drill.players.find(pl => pl.id === p.id)!;
+    expect(mirroredP.y).toBeCloseTo(325, 0);
+
+    // Mirror vertical (end to end across x=500)
+    // 500 * 2 - 300 = 700
+    const mirrorVRes = harness.commands.mirrorDrill('vertical');
+    expect(mirrorVRes.status).toBe('done');
+    const mirroredEndToEnd = harness.getState().drill.players.find(pl => pl.id === p.id)!;
+    expect(mirroredEndToEnd.x).toBeCloseTo(700, 0);
+
+    // Undo should step back
+    harness.commands.undo();
+    expect(harness.getState().drill.players.find(pl => pl.id === p.id)!.x).toBeCloseTo(300, 0);
+  });
 });

@@ -223,6 +223,7 @@ export interface AuthoringCommands {
   setEventTarget(eventId: ID, to: Point): CommandResult;
   setEventShape(eventId: ID, shape: CurveShape): CommandResult;
   setEventTiming(eventId: ID, at: number, syncRoute?: boolean): CommandResult;
+  mirrorDrill(axis?: 'horizontal' | 'vertical'): CommandResult;
 
   recoverOffRinkObjects(): CommandResult<number>;
 

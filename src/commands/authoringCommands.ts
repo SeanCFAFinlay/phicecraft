@@ -1150,6 +1150,61 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       return done(routesCreated);
     },
 
+    mirrorDrill(axis: 'horizontal' | 'vertical' = 'horizontal') {
+      const state = getState();
+      const centerY = 212.5;
+      const centerX = 500;
+
+      const mirror = (p: Point): Point => {
+        if (axis === 'horizontal') {
+          return { x: p.x, y: Math.max(15, Math.min(410, centerY * 2 - p.y)) };
+        } else {
+          return { x: Math.max(15, Math.min(985, centerX * 2 - p.x)), y: p.y };
+        }
+      };
+
+      dispatch({ type: 'PUSH_UNDO' });
+
+      for (const player of state.drill.players) {
+        const next = mirror({ x: player.x, y: player.y });
+        dispatch({ type: 'MOVE_PLAYER', id: player.id, x: next.x, y: next.y });
+      }
+
+      for (const coach of state.drill.coaches ?? []) {
+        const next = mirror({ x: coach.x, y: coach.y });
+        dispatch({ type: 'MOVE_COACH', id: coach.id, x: next.x, y: next.y });
+      }
+
+      for (const item of state.drill.equipment ?? []) {
+        const next = mirror(item.position);
+        dispatch({ type: 'MOVE_EQUIPMENT', id: item.id, x: next.x, y: next.y });
+      }
+
+      for (const path of state.drill.skatePaths) {
+        const nextPoints = path.points.map(mirror);
+        dispatch({ type: 'UPDATE_SKATE_POINTS', id: path.id, points: nextPoints });
+      }
+
+      for (const event of state.drill.events) {
+        const fromPoint = mirror(event.fromPoint);
+        const toPoint = mirror(event.toPoint);
+        const waypoints = event.waypoints?.map(mirror);
+        dispatch({
+          type: 'UPDATE_EVENT_GEOMETRY',
+          id: event.id,
+          fromPoint,
+          toPoint,
+          waypoints,
+        });
+      }
+
+      notify.toast({
+        message: axis === 'horizontal' ? 'Drill mirrored top-to-bottom' : 'Drill mirrored end-to-end',
+        type: 'success',
+      });
+      return done();
+    },
+
     clearOpposingRoutes(): CommandResult<number> {
       const state = getState();
       const holder = getCurrentPuckHolder(state.drill.players, state.drill.events);

@@ -11,7 +11,7 @@
 //   CameraStore / PlaybackStore -> high-frequency state, read directly
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppState, useAppServices } from '@/hooks/useAppState';
 import type { AppState } from '@/core/types';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
@@ -24,8 +24,8 @@ import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { EMPTY_TRAILS } from '@/playback/playbackFrame';
 import { RINK, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
-import { distance, screenToWorld } from '@/utils/geometry';
-import { authoredEvents, getAimedNetTarget } from '@/engine/puck';
+import { distance, screenToWorld, worldToScreen } from '@/utils/geometry';
+import { authoredEvents, getAimedNetTarget, attackingNetFor } from '@/engine/puck';
 import {
   eligibleReceivers,
   resolvePassTarget,
@@ -58,6 +58,35 @@ export function CanvasSurface() {
   stateRef.current = state;
 
   const getState = useCallback(() => stateRef.current, []);
+
+  const [cameraState, setCameraState] = useState(camera.camera);
+  useEffect(() => camera.subscribe(() => setCameraState({ ...camera.camera })), [camera]);
+
+  const selectedObj = useMemo(() => {
+    const { selectedPlayerId, selectedCoachId, selectedEquipmentId, selectedEventId } = state.selection;
+    if (selectedPlayerId) {
+      const player = state.drill.players.find(p => p.id === selectedPlayerId);
+      if (player) return { kind: 'player' as const, id: selectedPlayerId, player, point: { x: player.x, y: player.y } };
+    }
+    if (selectedCoachId) {
+      const coach = (state.drill.coaches ?? []).find(c => c.id === selectedCoachId);
+      if (coach) return { kind: 'coach' as const, id: selectedCoachId, coach, point: { x: coach.x, y: coach.y } };
+    }
+    if (selectedEquipmentId) {
+      const item = (state.drill.equipment ?? []).find(e => e.id === selectedEquipmentId);
+      if (item) return { kind: 'equipment' as const, id: selectedEquipmentId, item, point: item.position };
+    }
+    if (selectedEventId) {
+      const event = state.drill.events.find(e => e.id === selectedEventId);
+      if (event) return { kind: 'event' as const, id: selectedEventId, event, point: event.toPoint };
+    }
+    return null;
+  }, [state.selection, state.drill.players, state.drill.coaches, state.drill.equipment, state.drill.events]);
+
+  const screenPoint = useMemo(() => {
+    if (!selectedObj) return null;
+    return worldToScreen(selectedObj.point.x, selectedObj.point.y, cameraState);
+  }, [selectedObj, cameraState]);
 
   const onResize = useCallback(
     (width: number, height: number) => camera.setViewport(width, height),
@@ -180,8 +209,15 @@ export function CanvasSurface() {
     return () => scheduler.cancel();
   }, [scheduler, drawStatic, drawDynamic]);
 
+  // Initial mount draws both static rink and dynamic layers.
   useEffect(() => {
     scheduler.requestAll();
+  }, [scheduler]);
+
+  // Dynamic updates only need to repaint the dynamic canvas layer,
+  // NOT the heavy static ice rink canvas!
+  useEffect(() => {
+    scheduler.requestDynamic();
   });
 
   useEffect(() => camera.subscribe(() => {
@@ -717,6 +753,107 @@ export function CanvasSurface() {
         }}
         onContextMenu={event => event.preventDefault()}
       />
+
+      {/* On-Ice Floating Quick-Action HUD */}
+      {selectedObj && screenPoint && state.pendingAction.kind === 'none' && !state.playback.isPlaying && (
+        <div
+          role="toolbar"
+          aria-label="Selected object actions"
+          style={{
+            position: 'absolute',
+            left: `${screenPoint.x}px`,
+            top: `${screenPoint.y - 34}px`,
+            transform: 'translate(-50%, -100%)',
+            zIndex: 30,
+          }}
+          className="pointer-events-auto flex items-center gap-1 rounded-full border border-cyan-400/50 bg-[#06121f]/95 px-2 py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-100 select-none"
+        >
+          {selectedObj.kind === 'player' && (
+            <>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  commands.selectPlayer(selectedObj.id);
+                  commands.setTool('move');
+                  commands.setPendingAction({ kind: 'draw-route', playerId: selectedObj.id });
+                }}
+                title="Draw skating route"
+                className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/20 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/35 transition-all"
+              >
+                <span>⛸️</span>
+                <span>Route</span>
+              </button>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  if (!selectedObj.player.hasPuck) void commands.setPuckCarrier(selectedObj.id);
+                  commands.setTool('move');
+                  commands.setPendingAction({ kind: 'pass', playerId: selectedObj.id });
+                }}
+                title="Pass puck"
+                className="touch-target flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/35 transition-all"
+              >
+                <span>⚡</span>
+                <span>Pass</span>
+              </button>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  if (!selectedObj.player.hasPuck) void commands.setPuckCarrier(selectedObj.id);
+                  commands.setTool('move');
+                  void commands.requestShot(selectedObj.id, attackingNetFor(selectedObj.player.team));
+                }}
+                title="Shoot on net"
+                className="touch-target flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-0.5 text-[11px] font-bold text-orange-200 hover:bg-orange-500/35 transition-all"
+              >
+                <span>🏒</span>
+                <span>Shoot</span>
+              </button>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  commands.openPlayerInspector(selectedObj.id);
+                }}
+                title="Player details"
+                className="touch-target flex items-center justify-center rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] font-bold text-white/80 hover:bg-white/20 transition-all"
+              >
+                <span>ℹ️</span>
+              </button>
+            </>
+          )}
+
+          {selectedObj.kind === 'event' && (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                commands.openEventInspector(selectedObj.id);
+              }}
+              title="Adjust timing & release"
+              className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/20 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/35 transition-all"
+            >
+              <span>⏱️</span>
+              <span>Timing</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={e => {
+              e.stopPropagation();
+              commands.removeSelected();
+            }}
+            title="Delete this object"
+            className="touch-target flex items-center justify-center rounded-full bg-red-500/25 px-2 py-0.5 text-[11px] font-bold text-red-200 hover:bg-red-500/40 hover:text-white transition-all"
+          >
+            <span>🗑️</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

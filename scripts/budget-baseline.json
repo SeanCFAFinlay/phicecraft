@@ -1,6 +1,6 @@
 {
-  "recordedAt": "2026-10-02",
-  "note": "Updated for visual overhaul: sports glassmorphism shell, glowing transport dock, on-ice equipment 3D styling, and enhanced practice sequence cards.",
-  "jsBytes": 1786360,
-  "cssBytes": 43705
+  "recordedAt": "2026-10-30",
+  "note": "Updated for performance optimizations, tactical bar overhaul, on-ice quick action HUD, drill mirroring, and event release timing controls.",
+  "jsBytes": 2007161,
+  "cssBytes": 61967
 }
