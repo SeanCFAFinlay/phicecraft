@@ -201,24 +201,33 @@ export function TacticalBar() {
     const homeCount = state.drill.players.filter(p => p.team === 'home' && p.role !== 'G').length;
     const x = Math.min(840, 480 + (homeCount % 4) * 60);
     const y = 120 + ((homeCount * 70) % 200);
-    commands.addPlayer({ x, y }, 'home');
-    selectTool('home');
+    const res = commands.addPlayer({ x, y }, 'home');
+    if (res.status === 'done') {
+      commands.selectPlayer(res.value);
+    }
+    commands.setTool('move');
   };
 
   const addAwaySkater = () => {
     const awayCount = state.drill.players.filter(p => p.team === 'away' && p.role !== 'G').length;
     const x = Math.min(840, 560 + (awayCount % 4) * 60);
     const y = 140 + ((awayCount * 70) % 200);
-    commands.addPlayer({ x, y }, 'away');
-    selectTool('away');
+    const res = commands.addPlayer({ x, y }, 'away');
+    if (res.status === 'done') {
+      commands.selectPlayer(res.value);
+    }
+    commands.setTool('move');
   };
 
   const addGoalie = () => {
     const hasHomeGoalie = state.drill.players.some(p => p.team === 'home' && p.role === 'G');
     const x = hasHomeGoalie ? 920 : 80;
     const y = 212.5;
-    commands.addPlayer({ x, y }, 'goalie');
-    selectTool('goalie');
+    const res = commands.addPlayer({ x, y }, 'goalie');
+    if (res.status === 'done') {
+      commands.selectPlayer(res.value);
+    }
+    commands.setTool('move');
   };
 
   const addCoach = () => {
@@ -229,7 +238,7 @@ export function TacticalBar() {
     if (res && 'value' in res && res.value) {
       commands.selectCoach(res.value);
     }
-    selectTool('coach');
+    commands.setTool('move');
   };
 
   const placeEquipment = (kind: 'cone' | 'tire' | 'mini-net' | 'barrier') => {

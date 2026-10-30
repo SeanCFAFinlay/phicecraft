@@ -348,20 +348,29 @@ export function CanvasSurface() {
 
       if (tool === 'home' || tool === 'away' || tool === 'goalie') {
         if (target.kind === 'player') return;
-        commands.addPlayer(world, tool);
+        const res = commands.addPlayer(world, tool);
+        if (res.status === 'done') {
+          commands.selectPlayer(res.value);
+        }
+        commands.setTool('move');
         return;
       }
 
       if (tool === 'coach') {
         const coachRes = commands.addCoach(world);
-        if (coachRes && 'value' in coachRes && coachRes.value) {
+        if (coachRes.status === 'done') {
           commands.selectCoach(coachRes.value);
         }
+        commands.setTool('move');
         return;
       }
 
       if (tool === 'cone' || tool === 'tire' || tool === 'mini-net' || tool === 'barrier') {
-        commands.addEquipment(tool, world);
+        const eqRes = commands.addEquipment(tool, world);
+        if (eqRes.status === 'done') {
+          commands.selectEquipment(eqRes.value);
+        }
+        commands.setTool('move');
         return;
       }
 
@@ -848,6 +857,7 @@ export function CanvasSurface() {
               commands.removeSelected();
             }}
             title="Delete this object"
+            aria-label="Delete this object"
             className="touch-target flex items-center justify-center rounded-full bg-red-500/25 px-2 py-0.5 text-[11px] font-bold text-red-200 hover:bg-red-500/40 hover:text-white transition-all"
           >
             <span>🗑️</span>

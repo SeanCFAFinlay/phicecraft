@@ -734,15 +734,27 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
 
         // Placement tools: tap ice in 3D to drop player or equipment
         if (tool === 'home' || tool === 'away' || tool === 'goalie') {
-          commands.addPlayer(rinkPt, tool);
+          const res = commands.addPlayer(rinkPt, tool);
+          if (res.status === 'done') {
+            commands.selectPlayer(res.value);
+          }
+          commands.setTool('move');
           return;
         }
         if (tool === 'coach') {
-          commands.addCoach(rinkPt);
+          const coachRes = commands.addCoach(rinkPt);
+          if (coachRes.status === 'done') {
+            commands.selectCoach(coachRes.value);
+          }
+          commands.setTool('move');
           return;
         }
         if (tool === 'cone' || tool === 'tire' || tool === 'mini-net' || tool === 'barrier') {
-          commands.addEquipment(tool, rinkPt);
+          const eqRes = commands.addEquipment(tool, rinkPt);
+          if (eqRes.status === 'done') {
+            commands.selectEquipment(eqRes.value);
+          }
+          commands.setTool('move');
           return;
         }
 
