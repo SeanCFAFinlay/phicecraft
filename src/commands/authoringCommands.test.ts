@@ -842,6 +842,44 @@ describe('opposing defense movement', () => {
   });
 });
 
+describe('coach drill tools and dump & chase', () => {
+  it('generates dump and chase drill with puck dumped deep and forward pursuing', () => {
+    const res = harness.commands.generateDumpAndChase('bottom-right');
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    const dump = state.drill.events.find(e => e.type === 'dump');
+    expect(dump).toBeDefined();
+    expect(dump?.toPoint.x).toBe(885);
+    expect(dump?.toPoint.y).toBe(350);
+
+    // Chaser has skate path converging on corner
+    const chasePath = state.drill.skatePaths.find(p => p.points.some(pt => pt.x === 885 && pt.y === 350));
+    expect(chasePath).toBeDefined();
+  });
+
+  it('generates coach feed and one-timer shot on net', () => {
+    const res = harness.commands.generateCoachFeed();
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    const pass = state.drill.events.find(e => e.type === 'pass');
+    const shot = state.drill.events.find(e => e.type === 'shot');
+    expect(pass).toBeDefined();
+    expect(shot).toBeDefined();
+    expect(shot?.result).toBe('goal');
+  });
+
+  it('generates hard board rim and corner retrieval route', () => {
+    const res = harness.commands.generateCoachRim();
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    const rimDump = state.drill.events.find(e => e.type === 'dump');
+    expect(rimDump).toBeDefined();
+    expect(rimDump?.waypoints?.length).toBeGreaterThan(0);
+    const retrieval = state.drill.skatePaths.find(p => p.points.some(pt => pt.x === 885 && pt.y === 75));
+    expect(retrieval).toBeDefined();
+  });
+});
+
 describe('coach and equipment authoring & undo', () => {
   it('adds, selects, moves, deletes and undoes coach markers', () => {
     const addRes = harness.commands.addCoach({ x: 450, y: 80 });

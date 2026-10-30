@@ -230,6 +230,10 @@ export interface AuthoringCommands {
   generateOpposingDefense(tactic?: 'gap' | 'forecheck' | 'box-shift' | 'backcheck'): CommandResult<number>;
   clearOpposingRoutes(): CommandResult<number>;
 
+  generateDumpAndChase(corner?: 'bottom-right' | 'top-right' | 'bottom-left' | 'top-left'): CommandResult;
+  generateCoachFeed(): CommandResult;
+  generateCoachRim(): CommandResult;
+
   clearPuckActions(): Promise<CommandResult>;
   clearMovementRoutes(): Promise<CommandResult>;
   resetBoard(): Promise<CommandResult>;

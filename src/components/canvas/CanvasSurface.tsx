@@ -825,12 +825,79 @@ export function CanvasSurface() {
                 type="button"
                 onClick={e => {
                   e.stopPropagation();
+                  if (!selectedObj.player.hasPuck) void commands.setPuckCarrier(selectedObj.id);
+                  commands.setTool('move');
+                  void commands.generateDumpAndChase();
+                }}
+                title="Dump puck deep into corner & chase"
+                className="touch-target flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/35 transition-all"
+              >
+                <span>🎯</span>
+                <span>Dump</span>
+              </button>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
                   commands.openPlayerInspector(selectedObj.id);
                 }}
                 title="Player details"
                 className="touch-target flex items-center justify-center rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] font-bold text-white/80 hover:bg-white/20 transition-all"
               >
                 <span>ℹ️</span>
+              </button>
+            </>
+          )}
+
+          {selectedObj.kind === 'coach' && (
+            <>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  void commands.generateDumpAndChase();
+                }}
+                title="Dump puck into corner & have players chase it"
+                className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/25 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/40 hover:text-white transition-all shadow-sm"
+              >
+                <span>🏒</span>
+                <span>Dump & Chase</span>
+              </button>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  void commands.generateCoachFeed();
+                }}
+                title="Coach feed pass to slot for one-timer"
+                className="touch-target flex items-center gap-1 rounded-full bg-amber-500/25 px-2 py-0.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/40 hover:text-white transition-all shadow-sm"
+              >
+                <span>⚡</span>
+                <span>Feed Slot</span>
+              </button>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  void commands.generateCoachRim();
+                }}
+                title="Rim puck along boards into far corner"
+                className="touch-target flex items-center gap-1 rounded-full bg-purple-500/25 px-2 py-0.5 text-[11px] font-bold text-purple-200 hover:bg-purple-500/40 hover:text-white transition-all shadow-sm"
+              >
+                <span>🌀</span>
+                <span>Rim Boards</span>
+              </button>
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  commands.requestPlaybackStart();
+                }}
+                title="Rehearse drill"
+                className="touch-target flex items-center gap-1 rounded-full bg-emerald-500/25 px-2 py-0.5 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/40 hover:text-white transition-all shadow-sm"
+              >
+                <span>▶️</span>
+                <span>Play</span>
               </button>
             </>
           )}

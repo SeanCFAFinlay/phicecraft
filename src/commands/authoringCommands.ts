@@ -11,12 +11,14 @@ import type {
   CoachMarker,
   CurveShape,
   DrillEvent,
+  DumpEvent,
   EquipmentItem,
   EquipmentKind,
   ID,
   PassEvent,
   Player,
   Point,
+  ShotEvent,
   SkatePath,
   Team,
 } from '@/core/types';
@@ -29,6 +31,7 @@ import {
 } from '@/engine/drill';
 import { getFormationPreset, type PlayFormationPreset } from '@/engine/formations';
 import {
+  attackingNetFor,
   authoredEvents,
   canAddEvents,
   getCurrentPuckHolder,
@@ -1157,6 +1160,347 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       });
       host.announce('Opposing defensive movement added');
       return done(routesCreated);
+    },
+
+    generateDumpAndChase(corner?: 'bottom-right' | 'top-right' | 'bottom-left' | 'top-left'): CommandResult {
+      const state = getState();
+      if (state.ui.mode !== 'build') dispatch({ type: 'SET_MODE', mode: 'build' });
+
+      dispatch({ type: 'PUSH_UNDO' });
+
+      // If there are fewer than 2 players on the ice, apply the full tactical dump-in preset
+      if (state.drill.players.length < 2) {
+        void this.loadFormation('dump-in-right-bottom', true);
+        if ((state.drill.coaches ?? []).length === 0) {
+          dispatch({ type: 'ADD_COACH', coach: createCoach(460, 65) });
+        }
+        notify.toast({ message: 'Dump & chase drill generated — F1 pursuing corner puck', type: 'success' });
+        return done();
+      }
+
+      // Determine attacking team & attacking direction
+      const selectedPlayer = state.selection.selectedPlayerId
+        ? state.drill.players.find(p => p.id === state.selection.selectedPlayerId)
+        : null;
+      const holder = getCurrentPuckHolder(state.drill.players, state.drill.events);
+      const attackTeam: Team = selectedPlayer ? selectedPlayer.team : holder ? holder.team : 'home';
+      const attackDir = attackTeam === 'home' ? 1 : -1;
+
+      // Determine corner landing point
+      let targetCorner: Point;
+      if (corner) {
+        switch (corner) {
+          case 'top-right': targetCorner = { x: 885, y: 75 }; break;
+          case 'bottom-right': targetCorner = { x: 885, y: 350 }; break;
+          case 'top-left': targetCorner = { x: 115, y: 75 }; break;
+          case 'bottom-left': targetCorner = { x: 115, y: 350 }; break;
+        }
+      } else {
+        const dumperY = selectedPlayer?.y ?? holder?.y ?? 212.5;
+        const cornerY = dumperY < 212.5 ? 75 : 350;
+        targetCorner = { x: attackTeam === 'home' ? 885 : 115, y: cornerY };
+      }
+
+      // Find or assign dumper
+      let dumper = selectedPlayer ?? holder;
+      if (!dumper || dumper.team !== attackTeam || dumper.role === 'G') {
+        const skaters = state.drill.players.filter(p => p.team === attackTeam && p.role !== 'G');
+        dumper = skaters[0];
+      }
+      if (!dumper) {
+        dumper = createPlayer(
+          attackTeam === 'home' ? 520 : 480,
+          targetCorner.y > 212.5 ? 280 : 140,
+          attackTeam,
+          nextPlayerNumber(state.drill.players, attackTeam),
+          'C'
+        );
+        dispatch({ type: 'ADD_PLAYER', player: dumper });
+      }
+
+      // Ensure carrier has the puck
+      if (!dumper.hasPuck) {
+        dispatch({ type: 'SET_PUCK_CARRIER', id: dumper.id });
+      }
+
+      // Clear existing skate paths and puck events for dumper
+      for (const p of state.drill.skatePaths) {
+        if (p.ownerId === dumper.id) {
+          dispatch({ type: 'REMOVE_SKATE_PATH', id: p.id });
+        }
+      }
+      for (const ev of state.drill.events) {
+        dispatch({ type: 'REMOVE_EVENT', id: ev.id });
+      }
+
+      // 1. Add Dump Event
+      const source = { x: dumper.x, y: dumper.y };
+      const dumpEvent: DumpEvent = {
+        id: generateId(),
+        type: 'dump',
+        fromPlayerId: dumper.id,
+        fromPoint: source,
+        toPoint: targetCorner,
+        targetNet: 'dump',
+        team: attackTeam,
+        at: 0.05,
+        arrivalAt: 0.32,
+      };
+      dispatch({ type: 'ADD_DUMP', event: dumpEvent });
+
+      // 2. Chaser route (F1)
+      const otherAttackers = state.drill.players.filter(p => p.team === attackTeam && p.role !== 'G' && p.id !== dumper!.id);
+      let chaser = otherAttackers[0];
+      if (!chaser) {
+        chaser = createPlayer(
+          attackTeam === 'home' ? 500 : 500,
+          targetCorner.y > 212.5 ? 350 : 75,
+          attackTeam,
+          nextPlayerNumber([...state.drill.players, dumper], attackTeam),
+          'LW'
+        );
+        dispatch({ type: 'ADD_PLAYER', player: chaser });
+      }
+
+      for (const p of state.drill.skatePaths) {
+        if (p.ownerId === chaser.id) {
+          dispatch({ type: 'REMOVE_SKATE_PATH', id: p.id });
+        }
+      }
+
+      const midY = targetCorner.y > 212.5 ? Math.max(160, targetCorner.y - 45) : Math.min(265, targetCorner.y + 45);
+      const chasePoints: Point[] = [
+        { x: chaser.x, y: chaser.y },
+        { x: (chaser.x + targetCorner.x) / 2, y: midY },
+        { x: targetCorner.x, y: targetCorner.y },
+      ];
+      dispatch({
+        type: 'ADD_SKATE_PATH',
+        path: {
+          ...createSkatePath(chaser.id, attackTeam, chasePoints),
+          mode: 'skate',
+          finish: 'stop',
+        },
+      });
+
+      // 3. F2 Support route (if additional attacker exists)
+      if (otherAttackers.length > 1) {
+        const f2 = otherAttackers[1];
+        for (const p of state.drill.skatePaths) {
+          if (p.ownerId === f2.id) {
+            dispatch({ type: 'REMOVE_SKATE_PATH', id: p.id });
+          }
+        }
+        const f2End = { x: targetCorner.x - attackDir * 140, y: 212.5 };
+        dispatch({
+          type: 'ADD_SKATE_PATH',
+          path: {
+            ...createSkatePath(f2.id, attackTeam, [{ x: f2.x, y: f2.y }, { x: (f2.x + f2End.x) / 2, y: f2End.y }, f2End]),
+            mode: 'skate',
+            finish: 'coast',
+          },
+        });
+      }
+
+      // 4. Defending D route (if opposing skaters exist)
+      const defTeam = attackTeam === 'home' ? 'away' : 'home';
+      const defenders = state.drill.players.filter(p => p.team === defTeam && p.role !== 'G');
+      if (defenders.length > 0) {
+        const d1 = defenders[0];
+        for (const p of state.drill.skatePaths) {
+          if (p.ownerId === d1.id) {
+            dispatch({ type: 'REMOVE_SKATE_PATH', id: p.id });
+          }
+        }
+        const dEnd = { x: targetCorner.x - attackDir * 35, y: targetCorner.y + (targetCorner.y > 212.5 ? -35 : 35) };
+        dispatch({
+          type: 'ADD_SKATE_PATH',
+          path: {
+            ...createSkatePath(d1.id, defTeam, [{ x: d1.x, y: d1.y }, dEnd]),
+            mode: 'skate',
+            finish: 'stop',
+          },
+        });
+      }
+
+      // Ensure coach marker is placed near the blue line if none exists
+      if ((state.drill.coaches ?? []).length === 0) {
+        dispatch({ type: 'ADD_COACH', coach: createCoach(460, 65) });
+      }
+
+      dispatch({ type: 'SELECT_PLAYER', id: chaser.id });
+      notify.toast({ message: 'Dump & chase drill generated — F1 pursuing corner puck', type: 'success' });
+      return done();
+    },
+
+    generateCoachFeed(): CommandResult {
+      const state = getState();
+      if (state.ui.mode !== 'build') dispatch({ type: 'SET_MODE', mode: 'build' });
+
+      dispatch({ type: 'PUSH_UNDO' });
+
+      const holder = getCurrentPuckHolder(state.drill.players, state.drill.events);
+      const attackTeam: Team = holder ? holder.team : 'home';
+      const attackDir = attackTeam === 'home' ? 1 : -1;
+      const targetNet = attackingNetFor(attackTeam);
+
+      // 1. Feeder (passer from below goal line or half-wall)
+      const feedOrigin: Point = { x: attackTeam === 'home' ? 880 : 120, y: 350 };
+      let passer = state.drill.players.find(p => p.team === attackTeam && p.role !== 'G');
+      if (!passer) {
+        passer = createPlayer(feedOrigin.x, feedOrigin.y, attackTeam, nextPlayerNumber(state.drill.players, attackTeam), 'C');
+        dispatch({ type: 'ADD_PLAYER', player: passer });
+      } else {
+        dispatch({ type: 'MOVE_PLAYER', id: passer.id, x: feedOrigin.x, y: feedOrigin.y });
+      }
+      dispatch({ type: 'SET_PUCK_CARRIER', id: passer.id });
+
+      // 2. Shooter in the slot
+      const slotPos: Point = { x: attackTeam === 'home' ? 740 : 260, y: 212.5 };
+      let shooter = state.drill.players.find(p => p.team === attackTeam && p.role !== 'G' && p.id !== passer!.id);
+      if (!shooter) {
+        shooter = createPlayer(slotPos.x, slotPos.y, attackTeam, nextPlayerNumber([...state.drill.players, passer], attackTeam), 'RW');
+        dispatch({ type: 'ADD_PLAYER', player: shooter });
+      } else {
+        dispatch({ type: 'MOVE_PLAYER', id: shooter.id, x: slotPos.x, y: slotPos.y });
+      }
+
+      // Clear prior events for clean feed
+      for (const ev of state.drill.events) {
+        dispatch({ type: 'REMOVE_EVENT', id: ev.id });
+      }
+
+      // 3. Add Pass from feeder to slot shooter
+      const passEvent: PassEvent = {
+        id: generateId(),
+        type: 'pass',
+        fromPlayerId: passer.id,
+        toPlayerId: shooter.id,
+        fromPoint: feedOrigin,
+        toPoint: slotPos,
+        team: attackTeam,
+        at: 0.1,
+        arrivalAt: 0.35,
+        catchResult: 'caught',
+      };
+      dispatch({ type: 'ADD_PASS', event: passEvent });
+
+      // 4. Add One-Timer Shot from slot shooter to net
+      const shotEvent: ShotEvent = {
+        id: generateId(),
+        type: 'shot',
+        fromPlayerId: shooter.id,
+        fromPoint: slotPos,
+        toPoint: targetNet,
+        targetNet: attackTeam === 'home' ? 'R' : 'L',
+        team: attackTeam,
+        at: 0.45,
+        arrivalAt: 0.65,
+        result: 'goal',
+      };
+      dispatch({ type: 'ADD_SHOT', event: shotEvent });
+
+      // Ensure goalie is in the crease
+      const defTeam = attackTeam === 'home' ? 'away' : 'home';
+      if (!state.drill.players.some(p => p.team === defTeam && p.role === 'G')) {
+        dispatch({ type: 'ADD_PLAYER', player: createPlayer(targetNet.x, 212.5, defTeam, '30', 'G') });
+      }
+
+      // Ensure coach marker is near the slot/blue line observing
+      if ((state.drill.coaches ?? []).length === 0) {
+        dispatch({ type: 'ADD_COACH', coach: createCoach(feedOrigin.x - attackDir * 80, 80) });
+      }
+
+      dispatch({ type: 'SELECT_PLAYER', id: shooter.id });
+      notify.toast({ message: 'Coach feed & slot one-timer drill generated', type: 'success' });
+      return done();
+    },
+
+    generateCoachRim(): CommandResult {
+      const state = getState();
+      if (state.ui.mode !== 'build') dispatch({ type: 'SET_MODE', mode: 'build' });
+
+      dispatch({ type: 'PUSH_UNDO' });
+
+      const attackTeam: Team = 'home';
+
+      // Feeder at blue line boards
+      const rimOrigin: Point = { x: 580, y: 390 };
+      let rimmer = state.drill.players.find(p => p.team === attackTeam && p.role !== 'G');
+      if (!rimmer) {
+        rimmer = createPlayer(rimOrigin.x, rimOrigin.y, attackTeam, '11', 'D');
+        dispatch({ type: 'ADD_PLAYER', player: rimmer });
+      } else {
+        dispatch({ type: 'MOVE_PLAYER', id: rimmer.id, x: rimOrigin.x, y: rimOrigin.y });
+      }
+      dispatch({ type: 'SET_PUCK_CARRIER', id: rimmer.id });
+
+      // Far corner landing point around boards
+      const rimCorner: Point = { x: 885, y: 75 };
+
+      // Clear events
+      for (const ev of state.drill.events) {
+        dispatch({ type: 'REMOVE_EVENT', id: ev.id });
+      }
+
+      // Board rim dump event with waypoints following the rounded corner boards
+      const rimEvent: DumpEvent = {
+        id: generateId(),
+        type: 'dump',
+        fromPlayerId: rimmer.id,
+        fromPoint: rimOrigin,
+        toPoint: rimCorner,
+        targetNet: 'dump',
+        team: attackTeam,
+        at: 0.05,
+        arrivalAt: 0.40,
+        waypoints: [
+          { x: 740, y: 395 },
+          { x: 890, y: 390 },
+          { x: 940, y: 212.5 },
+          { x: 910, y: 100 },
+        ],
+        shape: 'spline',
+      };
+      dispatch({ type: 'ADD_DUMP', event: rimEvent });
+
+      // Winger sprinting down opposite boards to retrieve rim
+      const wingerStart: Point = { x: 620, y: 65 };
+      let winger = state.drill.players.find(p => p.team === attackTeam && p.role !== 'G' && p.id !== rimmer!.id);
+      if (!winger) {
+        winger = createPlayer(wingerStart.x, wingerStart.y, attackTeam, '13', 'LW');
+        dispatch({ type: 'ADD_PLAYER', player: winger });
+      } else {
+        dispatch({ type: 'MOVE_PLAYER', id: winger.id, x: wingerStart.x, y: wingerStart.y });
+      }
+
+      for (const p of state.drill.skatePaths) {
+        if (p.ownerId === winger.id) {
+          dispatch({ type: 'REMOVE_SKATE_PATH', id: p.id });
+        }
+      }
+
+      const wingerPathPoints: Point[] = [
+        wingerStart,
+        { x: 760, y: 70 },
+        rimCorner,
+      ];
+      dispatch({
+        type: 'ADD_SKATE_PATH',
+        path: {
+          ...createSkatePath(winger.id, attackTeam, wingerPathPoints),
+          mode: 'skate',
+          finish: 'stop',
+        },
+      });
+
+      if ((state.drill.coaches ?? []).length === 0) {
+        dispatch({ type: 'ADD_COACH', coach: createCoach(460, 65) });
+      }
+
+      dispatch({ type: 'SELECT_PLAYER', id: winger.id });
+      notify.toast({ message: 'Hard board rim & corner retrieval drill generated', type: 'success' });
+      return done();
     },
 
     mirrorDrill(axis: 'horizontal' | 'vertical' = 'horizontal') {

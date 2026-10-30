@@ -165,7 +165,7 @@ export function TacticalBar() {
   const { carrier } = usePuckActions();
   const { is3D, toggle3D, fit, zoomToZone } = useViewActions();
 
-  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools' | null>(null);
 
   const currentTool = state.ui.currentTool;
   const isMove = currentTool === 'move';
@@ -188,7 +188,7 @@ export function TacticalBar() {
   if (state.ui.mode !== 'build' || isCompactLandscape) return null;
 
   const closeMenu = () => setOpenMenu(null);
-  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip') => {
+  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools') => {
     setOpenMenu(prev => (prev === menu ? null : menu));
   };
 
@@ -423,6 +423,20 @@ export function TacticalBar() {
         >
           <span>🏒</span>
           <span>Shoot</span>
+        </button>
+
+        {/* Direct Action: Dump & Chase */}
+        <button
+          type="button"
+          onClick={() => {
+            void commands.generateDumpAndChase();
+          }}
+          aria-label="Dump puck & chase"
+          title="Dump puck into corner & have players chase it"
+          className="touch-target flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-bold text-white/80 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-emerald-200 transition-all"
+        >
+          <span>🎯</span>
+          <span>Dump</span>
         </button>
 
         {/* Quick Delete Selected Object */}
@@ -669,6 +683,92 @@ export function TacticalBar() {
             onClick={() => {
               closeMenu();
               commands.clearOpponents();
+            }}
+          />
+        </FlyoutMenu>
+
+        {/* Coach Tools & Drills Flyout */}
+        <FlyoutMenu
+          label="Coach"
+          icon="📋"
+          isOpen={openMenu === 'coach-tools'}
+          onToggle={() => toggleMenu('coach-tools')}
+          onClose={closeMenu}
+        >
+          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400/80">
+            Coach Drill Tools
+          </div>
+          <MenuItem
+            icon="🏒"
+            label="Dump & Chase (Corner Retrieval)"
+            sublabel="Puck sent deep; F1 & F2 pursue into corner"
+            onClick={() => {
+              closeMenu();
+              void commands.generateDumpAndChase();
+            }}
+          />
+          <MenuItem
+            icon="🌀"
+            label="Coach Rim & Retrieval"
+            sublabel="Hard rim along boards into corner for breakout"
+            onClick={() => {
+              closeMenu();
+              void commands.generateCoachRim();
+            }}
+          />
+          <MenuItem
+            icon="🎯"
+            label="Coach Feed & One-Timer"
+            sublabel="Crisp pass from goal line to slot for quick shot"
+            onClick={() => {
+              closeMenu();
+              void commands.generateCoachFeed();
+            }}
+          />
+          <MenuItem
+            icon="⚔️"
+            label="1-on-1 Corner Puck Battle"
+            sublabel="Loose puck in corner; forward & defender race"
+            onClick={() => {
+              closeMenu();
+              void commands.loadFormation('battle-1v1-right-bottom', true);
+            }}
+          />
+          <MenuItem
+            icon="⚔️"
+            label="2-on-2 Low Corner Cycle"
+            sublabel="2 forwards vs 2 defenders working puck down low"
+            onClick={() => {
+              closeMenu();
+              void commands.loadFormation('battle-2v2-right-bottom', true);
+            }}
+          />
+          <MenuItem
+            icon="⚡"
+            label="2-on-1 Rush Entry"
+            sublabel="Odd-man rush with trailer against defending D"
+            onClick={() => {
+              closeMenu();
+              void commands.loadFormation('rush-2v1', true);
+            }}
+          />
+          <MenuItem
+            icon="🚀"
+            label="5v5 Breakout & Regroup"
+            sublabel="Defensive zone exit & neutral zone regroup"
+            onClick={() => {
+              closeMenu();
+              void commands.loadFormation('breakout-5v5', true);
+            }}
+          />
+          <div className="my-1 border-t border-white/10" />
+          <MenuItem
+            icon="📋"
+            label="Coach Workspace (Teach)..."
+            sublabel="Objectives, cues, lineups & brief download"
+            onClick={() => {
+              closeMenu();
+              dispatch({ type: 'OPEN_SHEET', sheet: 'coach' });
             }}
           />
         </FlyoutMenu>
