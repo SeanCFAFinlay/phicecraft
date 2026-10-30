@@ -454,24 +454,51 @@ export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: numbe
   const resolution = samplePuck(compiled, timeSeconds);
   for (const [id, player] of compiled.players) {
     const base = players[id];
-    if (!base || player.role !== 'G') continue;
-    // React only to a shot that actually released, for this net's defending
-    // goalie. The pose is a save attempt, never a manufactured shot outcome.
-    const incoming = compiled.events.find(event =>
-      event.source.type === 'shot' &&
-      timeSeconds >= event.arrivalSeconds - 0.35 &&
-      timeSeconds <= event.arrivalSeconds + 0.55 &&
-      resolution.firedEventIndices.includes(event.index) &&
-      defendingGoalieAt(compiled, event.source as ShotEvent, event.arrivalSeconds)?.id === id
-    );
-    const goalie = sampleGoalie(base, resolution.puck, Boolean(incoming));
-    players[id] = {
-      ...base,
-      heading: goalie.heading,
-      goalieAction: goalie.action,
-      actionPhase: incoming ? contactPhase(timeSeconds, incoming.arrivalSeconds, 0.35, 0.55) : undefined,
-      bladePosition: getBladePosition(player, base.position, goalie.heading),
-    };
+    if (!base) continue;
+    if (player.role === 'G') {
+      // React only to a shot that actually released, for this net's defending
+      // goalie. The pose is a save attempt, never a manufactured shot outcome.
+      const incoming = compiled.events.find(event =>
+        event.source.type === 'shot' &&
+        timeSeconds >= event.arrivalSeconds - 0.35 &&
+        timeSeconds <= event.arrivalSeconds + 0.55 &&
+        resolution.firedEventIndices.includes(event.index) &&
+        defendingGoalieAt(compiled, event.source as ShotEvent, event.arrivalSeconds)?.id === id
+      );
+      const goalie = sampleGoalie(base, resolution.puck, Boolean(incoming));
+      players[id] = {
+        ...base,
+        heading: goalie.heading,
+        goalieAction: goalie.action,
+        actionPhase: incoming ? contactPhase(timeSeconds, incoming.arrivalSeconds, 0.35, 0.55) : undefined,
+        bladePosition: getBladePosition(player, base.position, goalie.heading),
+      };
+    } else {
+      // Skater heading intelligence: stationary skaters track the puck carrier or loose puck rather than staring eastward.
+      const route = compiled.routes.get(id);
+      const isStationary = !route || route.totalLength <= 0 || base.speed < 0.8;
+      if (isStationary && base.action !== 'shot' && base.action !== 'pass') {
+        let targetHeading: number | null = null;
+        if (resolution.puck && resolution.puck.carrierId !== id) {
+          const dx = resolution.puck.x - base.position.x;
+          const dy = resolution.puck.y - base.position.y;
+          if (dx * dx + dy * dy > 25) {
+            targetHeading = Math.atan2(dy, dx);
+          }
+        } else if (resolution.puck?.carrierId === id) {
+          targetHeading = player.team === 'away' ? Math.PI : 0;
+        } else if (!route || route.totalLength <= 0) {
+          targetHeading = player.team === 'away' ? Math.PI : 0;
+        }
+        if (targetHeading !== null) {
+          players[id] = {
+            ...base,
+            heading: targetHeading,
+            bladePosition: getBladePosition(player, base.position, targetHeading),
+          };
+        }
+      }
+    }
   }
   const terminal = timeSeconds >= compiled.durationSeconds - 0.000001;
   const hasAuthoredShot = compiled.events.some(event => event.source.type === 'shot');

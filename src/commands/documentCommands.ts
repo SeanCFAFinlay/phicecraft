@@ -229,6 +229,21 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
         name: template.document.metadata.title,
         createdAt: now,
         updatedAt: now,
+        settings: projected.settings
+          ? {
+              ...projected.settings,
+              coaching: projected.settings.coaching ?? {
+                teams: { home: 'Home', away: 'Away' },
+                objective:
+                  template.document.metadata.summary ||
+                  (Array.isArray(template.document.metadata.setupNotes)
+                    ? template.document.metadata.setupNotes.join(' ')
+                    : template.document.metadata.setupNotes) ||
+                  '',
+                cues: (template.document.metadata.coachingPoints ?? []).join(' · '),
+              },
+            }
+          : undefined,
       };
 
       dispatch({ type: 'STOP_PLAYBACK' });

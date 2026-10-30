@@ -338,3 +338,21 @@ describe('full-ice criss-cross route design', () => {
     }
   });
 });
+
+describe('skater puck-tracking intelligence', () => {
+  it('orients a stationary skater toward the active puck', () => {
+    const skater = buildPlayer({ id: 's1', x: 200, y: 150, team: 'home', role: 'C', hasPuck: false });
+    const drill = buildDrill({
+      players: [skater],
+      initialPuck: { x: 200, y: 300 },
+      skatePaths: [],
+      events: [],
+    });
+    const compiled = compileDrill(drill);
+    const frame = sampleFrame(compiled, 0);
+    const skaterFrame = frame.players['s1'];
+    expect(skaterFrame).toBeDefined();
+    // Puck is directly below skater at (200, 300) vs (200, 150), so dx = 0, dy = 150 -> heading is PI/2 (90 deg downward)
+    expect(skaterFrame.heading).toBeCloseTo(Math.PI / 2, 2);
+  });
+});

@@ -182,7 +182,7 @@ export function AppShell() {
 
         {mode !== 'present' && <ActionChip />}
         {!is3D && <SketchReference key={state.drill.id} />}
-        {is3D && <ReplayHud />}
+        {mode !== 'present' && <ReplayHud />}
         <UpdateBanner />
         <ToastHost />
         {mode !== 'present' && <ViewControls />}
