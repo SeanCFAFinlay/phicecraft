@@ -89,10 +89,10 @@ function FlyoutMenu({ label, icon, active, isOpen, onToggle, onClose, children }
         onClick={onToggle}
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        className={`touch-target flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
+        className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
           active || isOpen
             ? 'border border-app-cyan bg-app-cyan/20 text-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.3)]'
-            : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
+            : 'text-white/80 hover:bg-white/10 hover:text-white'
         }`}
       >
         <span>{icon}</span>
@@ -264,725 +264,739 @@ export function TacticalBar() {
       aria-label="Tactical whiteboard controls"
       className="app-chrome safe-x z-20 flex flex-shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#050e17]/95 px-2.5 py-1 backdrop-blur-md select-none"
     >
-      {/* LEFT: Tactical Whiteboard Verbs */}
-      <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-0.5">
-        {/* Pointer / Move tool */}
-        <button
-          type="button"
-          onClick={() => {
-            commands.cancelPendingAction();
-            selectTool('move');
-          }}
-          aria-label="Select and move players"
-          aria-pressed={isMove && !isDrawing}
-          className={`touch-target flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
-            isMove && !isDrawing
-              ? 'border border-app-cyan bg-app-cyan/20 text-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.3)]'
-              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
-          }`}
-        >
-          <span>👆</span>
-          <span>Move</span>
-        </button>
-
-        {/* Direct Add Player Buttons */}
-        <button
-          type="button"
-          onClick={addHomeSkater}
-          aria-label="Home skater"
-          title="Add Home skater (tap ice to place)"
-          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
-            currentTool === 'home'
-              ? 'border border-blue-400 bg-blue-500/25 text-blue-200 shadow-[0_0_8px_rgba(59,130,246,0.4)]'
-              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-blue-200'
-          }`}
-        >
-          <span>🔵</span>
-          <span>Home</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={addAwaySkater}
-          aria-label="Away skater"
-          title="Add Away skater (tap ice to place)"
-          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
-            currentTool === 'away'
-              ? 'border border-red-400 bg-red-500/25 text-red-200 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
-              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200'
-          }`}
-        >
-          <span>🔴</span>
-          <span>Away</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={addGoalie}
-          aria-label="Goalie"
-          title="Add Goalie (tap crease to place)"
-          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
-            currentTool === 'goalie'
-              ? 'border border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
-              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-200'
-          }`}
-        >
-          <span>🥅</span>
-          <span>Goalie</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={addCoach}
-          aria-label="Coach marker"
-          title="Add Coach marker (tap ice to place)"
-          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
-            currentTool === 'coach'
-              ? 'border border-emerald-400 bg-emerald-500/25 text-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-emerald-200'
-          }`}
-        >
-          <span>📋</span>
-          <span>Coach</span>
-        </button>
-
-        {/* Direct Action: Skate Route / Path */}
-        <button
-          type="button"
-          onClick={() => {
-            const targetPlayer =
-              selectedPlayer ??
-              carrier ??
-              state.drill.players.find(p => p.role !== 'G') ??
-              state.drill.players[0];
-            if (targetPlayer) {
-              commands.selectPlayer(targetPlayer.id);
-              commands.setTool('move');
-              commands.setPendingAction({ kind: 'draw-route', playerId: targetPlayer.id });
-            }
-          }}
-          aria-label="Draw skate path"
-          title={selectedPlayer ? `Draw #${selectedPlayer.number}'s skate path` : 'Draw skate path (drag or tap player)'}
-          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
-            state.pendingAction.kind === 'draw-route'
-              ? 'border border-cyan-400 bg-cyan-500/25 text-cyan-200 shadow-[0_0_8px_rgba(6,182,212,0.4)]'
-              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200'
-          }`}
-        >
-          <span>⛸️</span>
-          <span>Path</span>
-        </button>
-
-        {/* Direct Action: Pass */}
-        <button
-          type="button"
-          onClick={() => {
-            const targetCarrier =
-              carrier ??
-              state.drill.players.find(p => p.hasPuck) ??
-              selectedPlayer ??
-              state.drill.players.find(p => p.role !== 'G') ??
-              state.drill.players[0];
-            if (targetCarrier) {
-              if (!targetCarrier.hasPuck) void commands.setPuckCarrier(targetCarrier.id);
-              commands.setTool('move');
-              commands.setPendingAction({ kind: 'pass', playerId: targetCarrier.id });
-            }
-          }}
-          aria-label="Pass puck"
-          title={carrier ? `Pass puck from #${carrier.number}` : 'Pass puck'}
-          className={`touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-bold transition-all ${
-            state.pendingAction.kind === 'pass'
-              ? 'border border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
-              : 'border border-white/10 bg-white/[0.04] text-white/80 hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-200'
-          }`}
-        >
-          <span>⚡</span>
-          <span>Pass</span>
-        </button>
-
-        {/* Direct Action: Shoot */}
-        <button
-          type="button"
-          onClick={() => {
-            const targetCarrier =
-              carrier ??
-              state.drill.players.find(p => p.hasPuck) ??
-              selectedPlayer ??
-              state.drill.players.find(p => p.role !== 'G') ??
-              state.drill.players[0];
-            if (targetCarrier) {
-              if (!targetCarrier.hasPuck) void commands.setPuckCarrier(targetCarrier.id);
-              commands.setTool('move');
-              void commands.requestShot(targetCarrier.id, attackingNetFor(targetCarrier.team));
-            }
-          }}
-          aria-label="Shoot on net"
-          title="Shoot on net"
-          className="touch-target flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-bold text-white/80 hover:border-orange-400/40 hover:bg-orange-500/10 hover:text-orange-200 transition-all"
-        >
-          <span>🏒</span>
-          <span>Shoot</span>
-        </button>
-
-        {/* Direct Action: Dump & Chase */}
-        <button
-          type="button"
-          onClick={() => {
-            void commands.generateDumpAndChase();
-          }}
-          aria-label="Dump puck & chase"
-          title="Dump puck into corner & have players chase it"
-          className="touch-target flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-bold text-white/80 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-emerald-200 transition-all"
-        >
-          <span>🎯</span>
-          <span>Dump</span>
-        </button>
-
-        {/* Quick Delete Selected Object */}
-        {hasSelection && (
+      {/* LEFT: Segmented Tactical Whiteboard Groups */}
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-0.5">
+        {/* GROUP 1: ROSTER & CURSOR */}
+        <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm" role="group" aria-label="Roster selection and placement">
+          {/* Pointer / Move tool */}
           <button
             type="button"
-            onClick={() => commands.removeSelected()}
-            aria-label="Delete selected object"
-            title="Delete selected item (or press Delete/Backspace)"
-            className="touch-target flex items-center gap-1 rounded-lg border border-red-500/50 bg-red-500/25 px-2.5 py-1 text-[11.5px] font-black text-red-100 hover:border-red-400 hover:bg-red-500/35 hover:text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-in fade-in duration-100"
+            onClick={() => {
+              commands.cancelPendingAction();
+              selectTool('move');
+            }}
+            aria-label="Select and move players"
+            aria-pressed={isMove && !isDrawing}
+            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
+              isMove && !isDrawing
+                ? 'border border-app-cyan bg-app-cyan/20 text-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.3)]'
+                : 'text-white/80 hover:bg-white/10 hover:text-white'
+            }`}
           >
-            <span>🗑️</span>
-            <span>
-              {selectedPlayer
-                ? `Delete #${selectedPlayer.number}`
-                : selectedCoach
-                  ? 'Delete Coach'
-                  : selectedEquipment
-                    ? `Delete ${selectedEquipment.kind === 'mini-net' ? 'Net' : selectedEquipment.kind.charAt(0).toUpperCase() + selectedEquipment.kind.slice(1)}`
-                    : selectedEvent
-                      ? `Delete ${selectedEvent.type.toUpperCase()}`
-                      : 'Delete'}
-            </span>
+            <span>👆</span>
+            <span>Move</span>
           </button>
-        )}
 
-        {/* Quick Options to Remove Objects */}
-        <FlyoutMenu
-          label="Remove"
-          icon="🗑️"
-          isOpen={openMenu === 'remove'}
-          onToggle={() => toggleMenu('remove')}
-          onClose={closeMenu}
-        >
-          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-rose-400/80">
-            Quick Remove & Clear
-          </div>
-          {hasSelection && (
-            <MenuItem
-              icon="🗑️"
-              label={
-                selectedPlayer
-                  ? `Delete #${selectedPlayer.number} (${selectedPlayer.role})`
-                  : selectedCoach
-                    ? 'Delete Selected Coach'
-                    : selectedEquipment
-                      ? `Delete Selected ${selectedEquipment.kind}`
-                      : selectedEvent
-                        ? `Delete Selected ${selectedEvent.type}`
-                        : 'Delete Selected Item'
-              }
-              sublabel="Remove active selection from the ice"
-              tone="danger"
-              onClick={() => {
-                closeMenu();
-                commands.removeSelected();
-              }}
-            />
-          )}
-          <MenuItem
-            icon="🟠"
-            label="Clear All Gear & Equipment"
-            sublabel="Remove all cones, tires, nets and barriers"
-            tone="danger"
-            onClick={() => {
-              closeMenu();
-              commands.clearEquipment();
-            }}
-          />
-          <MenuItem
-            icon="⛸️"
-            label="Clear Skating Routes"
-            sublabel="Remove all skate paths, keep players"
-            tone="danger"
-            onClick={() => {
-              closeMenu();
-              void commands.clearMovementRoutes();
-            }}
-          />
-          <MenuItem
-            icon="⚡"
-            label="Clear Passes & Shots"
-            sublabel="Remove puck events, keep routes"
-            tone="danger"
-            onClick={() => {
-              closeMenu();
-              void commands.clearPuckActions();
-            }}
-          />
-          <MenuItem
-            icon="🛡️"
-            label="Clear Defending Opponents"
-            sublabel="Remove away team and defense movement"
-            tone="danger"
-            onClick={() => {
-              closeMenu();
-              commands.clearOpponents();
-            }}
-          />
-          <MenuItem
-            icon="↺"
-            label="Reset Entire Board"
-            sublabel="Restore default 5v5 lineup"
-            tone="danger"
-            onClick={() => {
-              closeMenu();
-              void commands.resetBoard();
-            }}
-          />
-        </FlyoutMenu>
+          {/* Direct Add Player Buttons */}
+          <button
+            type="button"
+            onClick={addHomeSkater}
+            aria-label="Home skater"
+            title="Add Home skater (tap ice to place)"
+            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
+              currentTool === 'home'
+                ? 'border border-blue-400 bg-blue-500/25 text-blue-200 shadow-[0_0_8px_rgba(59,130,246,0.4)]'
+                : 'text-white/80 hover:bg-blue-500/15 hover:text-blue-200'
+            }`}
+          >
+            <span>🔵</span>
+            <span className="hidden 2xl:inline">Home</span>
+          </button>
 
-        {/* Objects / Equipment Flyout */}
-        <FlyoutMenu
-          label="Gear"
-          icon="🔶"
-          active={isPlacingObject}
-          isOpen={openMenu === 'objects'}
-          onToggle={() => toggleMenu('objects')}
-          onClose={closeMenu}
-        >
-          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-gold/70">
-            Training Gear
-          </div>
-          <MenuItem
-            icon="🟠"
-            label="Add Cone"
-            sublabel="Agility / turning marker"
-            active={currentTool === 'cone'}
-            onClick={() => placeEquipment('cone')}
-          />
-          <MenuItem
-            icon="⚫"
-            label="Add Tire"
-            sublabel="Obstacle / screen dummy"
-            active={currentTool === 'tire'}
-            onClick={() => placeEquipment('tire')}
-          />
-          <MenuItem
-            icon="🥅"
-            label="Add Mini-Net"
-            sublabel="Small shooting target"
-            active={currentTool === 'mini-net'}
-            onClick={() => placeEquipment('mini-net')}
-          />
-          <MenuItem
-            icon="🚧"
-            label="Add Divider Barrier"
-            sublabel="Cross-ice drill bumper"
-            active={currentTool === 'barrier'}
-            onClick={() => placeEquipment('barrier')}
-          />
-          <div className="my-1 border-t border-white/10" />
-          <MenuItem
-            icon="🗑️"
-            label="Clear All Gear"
-            sublabel="Remove all equipment from ice"
-            tone="danger"
-            onClick={() => {
-              closeMenu();
-              commands.clearEquipment();
-            }}
-          />
-        </FlyoutMenu>
+          <button
+            type="button"
+            onClick={addAwaySkater}
+            aria-label="Away skater"
+            title="Add Away skater (tap ice to place)"
+            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
+              currentTool === 'away'
+                ? 'border border-red-400 bg-red-500/25 text-red-200 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+                : 'text-white/80 hover:bg-red-500/15 hover:text-red-200'
+            }`}
+          >
+            <span>🔴</span>
+            <span className="hidden 2xl:inline">Away</span>
+          </button>
 
-        {/* Defending / Opposing Team Movement Flyout */}
-        <FlyoutMenu
-          label="Defend"
-          icon="🛡️"
-          isOpen={openMenu === 'defense'}
-          onToggle={() => toggleMenu('defense')}
-          onClose={closeMenu}
-        >
-          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-rose-400/80">
-            Opposing Defense Tactics
-          </div>
-          <MenuItem
-            icon="🛡️"
-            label="Defensive Gap Control"
-            sublabel="D-pair backward retreat to slot"
+          <button
+            type="button"
+            onClick={addGoalie}
+            aria-label="Goalie"
+            title="Add Goalie (tap crease to place)"
+            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
+              currentTool === 'goalie'
+                ? 'border border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+                : 'text-white/80 hover:bg-amber-500/15 hover:text-amber-200'
+            }`}
+          >
+            <span>🥅</span>
+            <span className="hidden 2xl:inline">Goalie</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={addCoach}
+            aria-label="Coach marker"
+            title="Add Coach marker (tap ice to place)"
+            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
+              currentTool === 'coach'
+                ? 'border border-emerald-400 bg-emerald-500/25 text-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                : 'text-white/80 hover:bg-emerald-500/15 hover:text-emerald-200'
+            }`}
+          >
+            <span>📋</span>
+            <span className="hidden 2xl:inline">Coach</span>
+          </button>
+        </div>
+
+        {/* GROUP 2: PUCK & SKATING ACTIONS */}
+        <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm" role="group" aria-label="Routes and puck actions">
+          {/* Direct Action: Skate Route / Path */}
+          <button
+            type="button"
             onClick={() => {
-              closeMenu();
-              commands.generateOpposingDefense('gap');
-            }}
-          />
-          <MenuItem
-            icon="🦅"
-            label="Forecheck Pressure"
-            sublabel="F1/F2 angling pursuit on puck"
-            onClick={() => {
-              closeMenu();
-              commands.generateOpposingDefense('forecheck');
-            }}
-          />
-          <MenuItem
-            icon="📦"
-            label="PK Box Shift"
-            sublabel="Box slides toward puck quadrant"
-            onClick={() => {
-              closeMenu();
-              commands.generateOpposingDefense('box-shift');
-            }}
-          />
-          <MenuItem
-            icon="⚡"
-            label="Backcheck Through Middle"
-            sublabel="Forwards sprint back to slot"
-            onClick={() => {
-              closeMenu();
-              commands.generateOpposingDefense('backcheck');
-            }}
-          />
-          <MenuItem
-            icon="✏️"
-            label="Draw Opponent Route"
-            sublabel="Sketch path for nearest away player"
-            onClick={() => {
-              closeMenu();
-              const awaySkater = state.drill.players.find(p => p.team === 'away' && p.role !== 'G') || state.drill.players.find(p => p.team === 'away');
-              if (awaySkater) {
-                commands.selectPlayer(awaySkater.id);
+              const targetPlayer =
+                selectedPlayer ??
+                carrier ??
+                state.drill.players.find(p => p.role !== 'G') ??
+                state.drill.players[0];
+              if (targetPlayer) {
+                commands.selectPlayer(targetPlayer.id);
                 commands.setTool('move');
-                commands.setPendingAction({ kind: 'draw-route', playerId: awaySkater.id });
-              } else {
-                commands.addPlayer({ x: 680, y: 212.5 }, 'away');
+                commands.setPendingAction({ kind: 'draw-route', playerId: targetPlayer.id });
               }
             }}
-          />
-          <div className="my-1 border-t border-white/10" />
-          <MenuItem
-            icon="↺"
-            label="Clear Defending Routes"
-            sublabel="Remove opposing movement paths"
-            tone="danger"
-            onClick={() => {
-              closeMenu();
-              commands.clearOpposingRoutes();
-            }}
-          />
-          <MenuItem
-            icon="🗑️"
-            label="Remove All Opponents"
-            sublabel="Clear away team players & routes"
-            tone="danger"
-            onClick={() => {
-              closeMenu();
-              commands.clearOpponents();
-            }}
-          />
-        </FlyoutMenu>
+            aria-label="Draw skate path"
+            title={selectedPlayer ? `Draw #${selectedPlayer.number}'s skate path` : 'Draw skate path (drag or tap player)'}
+            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
+              state.pendingAction.kind === 'draw-route'
+                ? 'border border-cyan-400 bg-cyan-500/25 text-cyan-200 shadow-[0_0_8px_rgba(6,182,212,0.4)]'
+                : 'text-white/80 hover:bg-cyan-500/15 hover:text-cyan-200'
+            }`}
+          >
+            <span>⛸️</span>
+            <span>Path</span>
+          </button>
 
-        {/* Coach Tools & Drills Flyout */}
-        <FlyoutMenu
-          label="Coach"
-          icon="📋"
-          isOpen={openMenu === 'coach-tools'}
-          onToggle={() => toggleMenu('coach-tools')}
-          onClose={closeMenu}
-        >
-          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400/80">
-            Coach Drill Tools
-          </div>
-          <MenuItem
-            icon="🏒"
-            label="Dump & Chase (Corner Retrieval)"
-            sublabel="Puck sent deep; F1 & F2 pursue into corner"
+          {/* Direct Action: Pass */}
+          <button
+            type="button"
             onClick={() => {
-              closeMenu();
+              const targetCarrier =
+                carrier ??
+                state.drill.players.find(p => p.hasPuck) ??
+                selectedPlayer ??
+                state.drill.players.find(p => p.role !== 'G') ??
+                state.drill.players[0];
+              if (targetCarrier) {
+                if (!targetCarrier.hasPuck) void commands.setPuckCarrier(targetCarrier.id);
+                commands.setTool('move');
+                commands.setPendingAction({ kind: 'pass', playerId: targetCarrier.id });
+              }
+            }}
+            aria-label="Pass puck"
+            title={carrier ? `Pass puck from #${carrier.number}` : 'Pass puck'}
+            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
+              state.pendingAction.kind === 'pass'
+                ? 'border border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+                : 'text-white/80 hover:bg-amber-500/15 hover:text-amber-200'
+            }`}
+          >
+            <span>⚡</span>
+            <span>Pass</span>
+          </button>
+
+          {/* Direct Action: Shoot */}
+          <button
+            type="button"
+            onClick={() => {
+              const targetCarrier =
+                carrier ??
+                state.drill.players.find(p => p.hasPuck) ??
+                selectedPlayer ??
+                state.drill.players.find(p => p.role !== 'G') ??
+                state.drill.players[0];
+              if (targetCarrier) {
+                if (!targetCarrier.hasPuck) void commands.setPuckCarrier(targetCarrier.id);
+                commands.setTool('move');
+                void commands.requestShot(targetCarrier.id, attackingNetFor(targetCarrier.team));
+              }
+            }}
+            aria-label="Shoot on net"
+            title="Shoot on net"
+            className="flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold text-white/80 hover:bg-orange-500/15 hover:text-orange-200 transition-all"
+          >
+            <span>🏒</span>
+            <span>Shoot</span>
+          </button>
+
+          {/* Direct Action: Dump & Chase */}
+          <button
+            type="button"
+            onClick={() => {
               void commands.generateDumpAndChase();
             }}
-          />
-          <MenuItem
-            icon="🌀"
-            label="Coach Rim & Retrieval"
-            sublabel="Hard rim along boards into corner for breakout"
-            onClick={() => {
-              closeMenu();
-              void commands.generateCoachRim();
-            }}
-          />
-          <MenuItem
-            icon="🎯"
-            label="Coach Feed & One-Timer"
-            sublabel="Crisp pass from goal line to slot for quick shot"
-            onClick={() => {
-              closeMenu();
-              void commands.generateCoachFeed();
-            }}
-          />
-          <MenuItem
-            icon="⚔️"
-            label="1-on-1 Corner Puck Battle"
-            sublabel="Loose puck in corner; forward & defender race"
-            onClick={() => {
-              closeMenu();
-              void commands.loadFormation('battle-1v1-right-bottom', true);
-            }}
-          />
-          <MenuItem
-            icon="⚔️"
-            label="2-on-2 Low Corner Cycle"
-            sublabel="2 forwards vs 2 defenders working puck down low"
-            onClick={() => {
-              closeMenu();
-              void commands.loadFormation('battle-2v2-right-bottom', true);
-            }}
-          />
-          <MenuItem
-            icon="⚡"
-            label="2-on-1 Rush Entry"
-            sublabel="Odd-man rush with trailer against defending D"
-            onClick={() => {
-              closeMenu();
-              void commands.loadFormation('rush-2v1', true);
-            }}
-          />
-          <MenuItem
-            icon="🚀"
-            label="5v5 Breakout & Regroup"
-            sublabel="Defensive zone exit & neutral zone regroup"
-            onClick={() => {
-              closeMenu();
-              void commands.loadFormation('breakout-5v5', true);
-            }}
-          />
-          <div className="my-1 border-t border-white/10" />
-          <MenuItem
-            icon="📋"
-            label="Coach Workspace (Teach)..."
-            sublabel="Objectives, cues, lineups & brief download"
-            onClick={() => {
-              closeMenu();
-              dispatch({ type: 'OPEN_SHEET', sheet: 'coach' });
-            }}
-          />
-        </FlyoutMenu>
+            aria-label="Dump puck & chase"
+            title="Dump puck into corner & have players chase it"
+            className="flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold text-white/80 hover:bg-emerald-500/15 hover:text-emerald-200 transition-all"
+          >
+            <span>🎯</span>
+            <span>Dump</span>
+          </button>
 
-        {/* Formations Quick Find Button */}
-        <button
-          type="button"
-          onClick={() => {
-            closeMenu();
-            dispatch({ type: 'OPEN_SHEET', sheet: 'formations' });
-          }}
-          aria-label="Formations quick find"
-          title="Formations & Systems (F) — Quick Find"
-          className="touch-target flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11.5px] font-extrabold text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/25 hover:text-white transition-all shadow-sm"
-        >
-          <span>📋</span>
-          <span>Formations</span>
-          <kbd className="hidden sm:inline-block rounded bg-black/40 px-1 py-0.2 text-[9px] font-mono text-emerald-300/90 border border-emerald-500/30">F</kbd>
-        </button>
+          {/* Quick Delete Selected Object */}
+          {hasSelection && (
+            <button
+              type="button"
+              onClick={() => commands.removeSelected()}
+              aria-label="Delete selected object"
+              title="Delete selected item (or press Delete/Backspace)"
+              className="flex h-7 min-w-0 items-center gap-1 rounded-lg border border-red-500/50 bg-red-500/25 px-1.5 py-1 text-[11px] font-black text-red-100 hover:border-red-400 hover:bg-red-500/35 hover:text-white transition-all shadow-[0_0_8px_rgba(239,68,68,0.3)] animate-in fade-in duration-100"
+            >
+              <span>🗑️</span>
+              <span>
+                {selectedPlayer
+                  ? `#${selectedPlayer.number}`
+                  : selectedCoach
+                    ? 'Coach'
+                    : selectedEquipment
+                      ? (selectedEquipment.kind === 'mini-net' ? 'Net' : selectedEquipment.kind.charAt(0).toUpperCase() + selectedEquipment.kind.slice(1))
+                      : selectedEvent
+                        ? selectedEvent.type.toUpperCase()
+                        : 'Delete'}
+              </span>
+            </button>
+          )}
+        </div>
 
-        {/* Setups / Formations Flyout */}
-        <FlyoutMenu
-          label="Systems"
-          icon="⚡"
-          isOpen={openMenu === 'lineups'}
-          onToggle={() => toggleMenu('lineups')}
-          onClose={closeMenu}
-        >
-          <div className="flex items-center justify-between px-2 py-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400/80">
-              Tactical Formations
-            </span>
-          </div>
-          <MenuItem
+        {/* GROUP 3: COACH TACTICS, SYSTEMS & EQUIPMENT */}
+        <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm" role="group" aria-label="Tactical systems and equipment">
+          {/* Coach Tools & Drills Flyout */}
+          <FlyoutMenu
+            label="Coach"
             icon="📋"
-            label="All Formations & Placements..."
-            sublabel="Browse full tactical library"
+            isOpen={openMenu === 'coach-tools'}
+            onToggle={() => toggleMenu('coach-tools')}
+            onClose={closeMenu}
+          >
+            <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400/80">
+              Coach Drill Tools
+            </div>
+            <MenuItem
+              icon="🏒"
+              label="Dump & Chase (Corner Retrieval)"
+              sublabel="Puck sent deep; F1 & F2 pursue into corner"
+              onClick={() => {
+                closeMenu();
+                void commands.generateDumpAndChase();
+              }}
+            />
+            <MenuItem
+              icon="🌀"
+              label="Coach Rim & Retrieval"
+              sublabel="Hard rim along boards into corner for breakout"
+              onClick={() => {
+                closeMenu();
+                void commands.generateCoachRim();
+              }}
+            />
+            <MenuItem
+              icon="🎯"
+              label="Coach Feed & One-Timer"
+              sublabel="Crisp pass from goal line to slot for quick shot"
+              onClick={() => {
+                closeMenu();
+                void commands.generateCoachFeed();
+              }}
+            />
+            <MenuItem
+              icon="⚔️"
+              label="1-on-1 Corner Puck Battle"
+              sublabel="Loose puck in corner; forward & defender race"
+              onClick={() => {
+                closeMenu();
+                void commands.loadFormation('battle-1v1-right-bottom', true);
+              }}
+            />
+            <MenuItem
+              icon="⚔️"
+              label="2-on-2 Low Corner Cycle"
+              sublabel="2 forwards vs 2 defenders working puck down low"
+              onClick={() => {
+                closeMenu();
+                void commands.loadFormation('battle-2v2-right-bottom', true);
+              }}
+            />
+            <MenuItem
+              icon="⚡"
+              label="2-on-1 Rush Entry"
+              sublabel="Odd-man rush with trailer against defending D"
+              onClick={() => {
+                closeMenu();
+                void commands.loadFormation('rush-2v1', true);
+              }}
+            />
+            <MenuItem
+              icon="🚀"
+              label="5v5 Breakout & Regroup"
+              sublabel="Defensive zone exit & neutral zone regroup"
+              onClick={() => {
+                closeMenu();
+                void commands.loadFormation('breakout-5v5', true);
+              }}
+            />
+            <div className="my-1 border-t border-white/10" />
+            <MenuItem
+              icon="📋"
+              label="Coach Workspace (Teach)..."
+              sublabel="Objectives, cues, lineups & brief download"
+              onClick={() => {
+                closeMenu();
+                dispatch({ type: 'OPEN_SHEET', sheet: 'coach' });
+              }}
+            />
+          </FlyoutMenu>
+
+          {/* Formations Quick Find Button */}
+          <button
+            type="button"
             onClick={() => {
               closeMenu();
               dispatch({ type: 'OPEN_SHEET', sheet: 'formations' });
             }}
-          />
-          <MenuItem
-            icon="🏒"
-            label="1-3-1 Power Play"
-            sublabel="5v4 umbrella man-advantage"
-            onClick={() => applyFormation('pp-131')}
-          />
-          <MenuItem
-            icon="🛡️"
-            label="Penalty Kill Box"
-            sublabel="4-man defensive box"
-            onClick={() => applyFormation('pk-box')}
-          />
-          <MenuItem
+            aria-label="Formations quick find"
+            title="Formations & Systems (F) — Quick Find"
+            className="flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/20 hover:text-white transition-all"
+          >
+            <span>📋</span>
+            <span>Formations</span>
+            <kbd className="hidden 2xl:inline-block rounded bg-black/40 px-1 py-0.2 text-[9px] font-mono text-emerald-300/90 border border-emerald-500/30">F</kbd>
+          </button>
+
+          {/* Setups / Formations Flyout */}
+          <FlyoutMenu
+            label="Systems"
             icon="⚡"
-            label="3-on-2 Rush"
-            sublabel="Triangulation rush attack"
-            onClick={() => applyFormation('rush-3v2')}
-          />
-          <MenuItem
-            icon="⚡"
-            label="2-on-1 Rush"
-            sublabel="Odd-man rush with trailer"
-            onClick={() => applyFormation('rush-2v1')}
-          />
-          <MenuItem
-            icon="🚀"
-            label="5v5 Breakout"
-            sublabel="Regroup & breakout system"
-            onClick={() => applyFormation('breakout-5v5')}
-          />
-          <MenuItem
-            icon="🦅"
-            label="2-1-2 Forecheck"
-            sublabel="Heavy aggressive puck pursuit"
-            onClick={() => applyFormation('forecheck-212')}
-          />
-          <MenuItem
-            icon="🧱"
-            label="1-2-2 Neutral Trap"
-            sublabel="Neutral zone wall defense"
-            onClick={() => applyFormation('trap-122')}
-          />
-          <MenuItem
-            icon="⭕"
-            label="Centre Faceoff"
-            sublabel="5v5 regulation center drop"
-            onClick={() => applyFormation('faceoff-center')}
-          />
-          <MenuItem
-            icon="🎯"
-            label="O-Zone Faceoff"
-            sublabel="Offensive faceoff play"
-            onClick={() => applyFormation('faceoff-ozone')}
-          />
-          <MenuItem
+            isOpen={openMenu === 'lineups'}
+            onToggle={() => toggleMenu('lineups')}
+            onClose={closeMenu}
+          >
+            <div className="flex items-center justify-between px-2 py-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400/80">
+                Tactical Formations
+              </span>
+            </div>
+            <MenuItem
+              icon="📋"
+              label="All Formations & Placements..."
+              sublabel="Browse full tactical library"
+              onClick={() => {
+                closeMenu();
+                dispatch({ type: 'OPEN_SHEET', sheet: 'formations' });
+              }}
+            />
+            <MenuItem
+              icon="🏒"
+              label="1-3-1 Power Play"
+              sublabel="5v4 umbrella man-advantage"
+              onClick={() => applyFormation('pp-131')}
+            />
+            <MenuItem
+              icon="🛡️"
+              label="Penalty Kill Box"
+              sublabel="4-man defensive box"
+              onClick={() => applyFormation('pk-box')}
+            />
+            <MenuItem
+              icon="⚡"
+              label="3-on-2 Rush"
+              sublabel="Triangulation rush attack"
+              onClick={() => applyFormation('rush-3v2')}
+            />
+            <MenuItem
+              icon="⚡"
+              label="2-on-1 Rush"
+              sublabel="Odd-man rush with trailer"
+              onClick={() => applyFormation('rush-2v1')}
+            />
+            <MenuItem
+              icon="🚀"
+              label="5v5 Breakout"
+              sublabel="Regroup & breakout system"
+              onClick={() => applyFormation('breakout-5v5')}
+            />
+            <MenuItem
+              icon="🦅"
+              label="2-1-2 Forecheck"
+              sublabel="Heavy aggressive puck pursuit"
+              onClick={() => applyFormation('forecheck-212')}
+            />
+            <MenuItem
+              icon="🧱"
+              label="1-2-2 Neutral Trap"
+              sublabel="Neutral zone wall defense"
+              onClick={() => applyFormation('trap-122')}
+            />
+            <MenuItem
+              icon="⭕"
+              label="Centre Faceoff"
+              sublabel="5v5 regulation center drop"
+              onClick={() => applyFormation('faceoff-center')}
+            />
+            <MenuItem
+              icon="🎯"
+              label="O-Zone Faceoff"
+              sublabel="Offensive faceoff play"
+              onClick={() => applyFormation('faceoff-ozone')}
+            />
+            <MenuItem
+              icon="🛡️"
+              label="D-Zone Faceoff"
+              sublabel="Defensive zone coverage"
+              onClick={() => applyFormation('faceoff-dzone')}
+            />
+          </FlyoutMenu>
+
+          {/* Defending / Opposing Team Movement Flyout */}
+          <FlyoutMenu
+            label="Defend"
             icon="🛡️"
-            label="D-Zone Faceoff"
-            sublabel="Defensive zone coverage"
-            onClick={() => applyFormation('faceoff-dzone')}
-          />
-        </FlyoutMenu>        {/* Flip / Mirror Flyout */}
-        <FlyoutMenu
-          label="Flip"
-          icon="🔄"
-          isOpen={openMenu === 'flip'}
-          onToggle={() => toggleMenu('flip')}
-          onClose={closeMenu}
-        >
-          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-cyan-400/80">
-            Mirror & Reverse Ice
-          </div>
-          <MenuItem
-            icon="↕️"
-            label="Mirror Top ⇕ Bottom"
-            sublabel="Flip to opposite wing / boards"
-            onClick={() => {
-              closeMenu();
-              commands.mirrorDrill('horizontal');
-            }}
-          />
-          <MenuItem
-            icon="↔️"
-            label="Mirror Left ⇔ Right"
-            sublabel="Switch ends across center red line"
-            onClick={() => {
-              closeMenu();
-              commands.mirrorDrill('vertical');
-            }}
-          />
-        </FlyoutMenu>
+            isOpen={openMenu === 'defense'}
+            onToggle={() => toggleMenu('defense')}
+            onClose={closeMenu}
+          >
+            <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-rose-400/80">
+              Opposing Defense Tactics
+            </div>
+            <MenuItem
+              icon="🛡️"
+              label="Defensive Gap Control"
+              sublabel="D-pair backward retreat to slot"
+              onClick={() => {
+                closeMenu();
+                commands.generateOpposingDefense('gap');
+              }}
+            />
+            <MenuItem
+              icon="🦅"
+              label="Forecheck Pressure"
+              sublabel="F1/F2 angling pursuit on puck"
+              onClick={() => {
+                closeMenu();
+                commands.generateOpposingDefense('forecheck');
+              }}
+            />
+            <MenuItem
+              icon="📦"
+              label="PK Box Shift"
+              sublabel="Box slides toward puck quadrant"
+              onClick={() => {
+                closeMenu();
+                commands.generateOpposingDefense('box-shift');
+              }}
+            />
+            <MenuItem
+              icon="⚡"
+              label="Backcheck Through Middle"
+              sublabel="Forwards sprint back to slot"
+              onClick={() => {
+                closeMenu();
+                commands.generateOpposingDefense('backcheck');
+              }}
+            />
+            <MenuItem
+              icon="✏️"
+              label="Draw Opponent Route"
+              sublabel="Sketch path for nearest away player"
+              onClick={() => {
+                closeMenu();
+                const awaySkater = state.drill.players.find(p => p.team === 'away' && p.role !== 'G') || state.drill.players.find(p => p.team === 'away');
+                if (awaySkater) {
+                  commands.selectPlayer(awaySkater.id);
+                  commands.setTool('move');
+                  commands.setPendingAction({ kind: 'draw-route', playerId: awaySkater.id });
+                } else {
+                  commands.addPlayer({ x: 680, y: 212.5 }, 'away');
+                }
+              }}
+            />
+            <div className="my-1 border-t border-white/10" />
+            <MenuItem
+              icon="↺"
+              label="Clear Defending Routes"
+              sublabel="Remove opposing movement paths"
+              tone="danger"
+              onClick={() => {
+                closeMenu();
+                commands.clearOpposingRoutes();
+              }}
+            />
+            <MenuItem
+              icon="🗑️"
+              label="Remove All Opponents"
+              sublabel="Clear away team players & routes"
+              tone="danger"
+              onClick={() => {
+                closeMenu();
+                commands.clearOpponents();
+              }}
+            />
+          </FlyoutMenu>
 
-        {/* Direct In-App Print Preview Button */}
-        <button
-          type="button"
-          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'print-preview' })}
-          aria-label="Open print preview modal"
-          title="Print Preview (Bench Card / Practice Sheet)"
-          className="touch-target flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-bold text-white/80 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200 transition-all"
-        >
-          <span>🖨️</span>
-          <span>Preview</span>
-        </button>
+          {/* Objects / Equipment Flyout */}
+          <FlyoutMenu
+            label="Gear"
+            icon="🔶"
+            active={isPlacingObject}
+            isOpen={openMenu === 'objects'}
+            onToggle={() => toggleMenu('objects')}
+            onClose={closeMenu}
+          >
+            <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-gold/70">
+              Training Gear
+            </div>
+            <MenuItem
+              icon="🟠"
+              label="Add Cone"
+              sublabel="Agility / turning marker"
+              active={currentTool === 'cone'}
+              onClick={() => placeEquipment('cone')}
+            />
+            <MenuItem
+              icon="⚫"
+              label="Add Tire"
+              sublabel="Obstacle / screen dummy"
+              active={currentTool === 'tire'}
+              onClick={() => placeEquipment('tire')}
+            />
+            <MenuItem
+              icon="🥅"
+              label="Add Mini-Net"
+              sublabel="Small shooting target"
+              active={currentTool === 'mini-net'}
+              onClick={() => placeEquipment('mini-net')}
+            />
+            <MenuItem
+              icon="🚧"
+              label="Add Divider Barrier"
+              sublabel="Cross-ice drill bumper"
+              active={currentTool === 'barrier'}
+              onClick={() => placeEquipment('barrier')}
+            />
+            <div className="my-1 border-t border-white/10" />
+            <MenuItem
+              icon="🗑️"
+              label="Clear All Gear"
+              sublabel="Remove all equipment from ice"
+              tone="danger"
+              onClick={() => {
+                closeMenu();
+                commands.clearEquipment();
+              }}
+            />
+          </FlyoutMenu>
+        </div>
 
-        {/* Export / Share Flyout */}
-        <FlyoutMenu
-          label="Export"
-          icon="📥"
-          isOpen={openMenu === 'export'}
-          onToggle={() => toggleMenu('export')}
-          onClose={closeMenu}
-        >
-          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-cyan/70">
-            Export & Print
-          </div>
-          <MenuItem
-            icon="🖨️"
-            label="Print Preview (Card / Sheet)"
-            sublabel="Interactive print & cut preview"
-            onClick={() => {
-              closeMenu();
-              dispatch({ type: 'OPEN_SHEET', sheet: 'print-preview' });
-            }}
-          />
-          <MenuItem
-            icon="📷"
-            label="Drill Diagram (PNG)"
-            sublabel="High-resolution image"
-            onClick={() => {
-              closeMenu();
-              exportDrillImageFile(state.drill);
-            }}
-          />
-          <MenuItem
-            icon="✂️"
-            label="Print Cut-Out Card (PDF)"
-            sublabel="Printable bench pocket card"
-            onClick={() => {
-              closeMenu();
-              printSingleDrillCard(migrateV2ToV3(state.drill));
-            }}
-          />
-          <MenuItem
-            icon="💾"
-            label="Export Play Data (JSON)"
-            sublabel="Backup and sharing file"
-            onClick={() => {
-              closeMenu();
-              void commands.exportDrills();
-            }}
-          />
-        </FlyoutMenu>
+        {/* GROUP 4: WHITEBOARD UTILITIES & SHARE */}
+        <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm" role="group" aria-label="Whiteboard utilities">
+          {/* Flip / Mirror Flyout */}
+          <FlyoutMenu
+            label="Flip"
+            icon="🔄"
+            isOpen={openMenu === 'flip'}
+            onToggle={() => toggleMenu('flip')}
+            onClose={closeMenu}
+          >
+            <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-cyan-400/80">
+              Mirror & Reverse Ice
+            </div>
+            <MenuItem
+              icon="↕️"
+              label="Mirror Top ⇕ Bottom"
+              sublabel="Flip to opposite wing / boards"
+              onClick={() => {
+                closeMenu();
+                commands.mirrorDrill('horizontal');
+              }}
+            />
+            <MenuItem
+              icon="↔️"
+              label="Mirror Left ⇔ Right"
+              sublabel="Switch ends across center red line"
+              onClick={() => {
+                closeMenu();
+                commands.mirrorDrill('vertical');
+              }}
+            />
+          </FlyoutMenu>
 
-        {/* Reset Lineup Button */}
-        <button
-          type="button"
-          onClick={() => void commands.resetBoard()}
-          aria-label="Reset lineup to default"
-          title="Reset board lineup"
-          className="touch-target flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11.5px] font-bold text-white/70 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-300 transition-all"
-        >
-          <span>↺</span>
-          <span className="hidden md:inline">Reset</span>
-        </button>
+          {/* Direct In-App Print Preview Button */}
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'print-preview' })}
+            aria-label="Open print preview modal"
+            title="Print Preview (Bench Card / Practice Sheet)"
+            className="flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold text-white/80 hover:bg-cyan-500/15 hover:text-cyan-200 transition-all"
+          >
+            <span>🖨️</span>
+            <span className="hidden 2xl:inline">Preview</span>
+          </button>
+
+          {/* Export / Share Flyout */}
+          <FlyoutMenu
+            label="Export"
+            icon="📥"
+            isOpen={openMenu === 'export'}
+            onToggle={() => toggleMenu('export')}
+            onClose={closeMenu}
+          >
+            <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-cyan/70">
+              Export & Print
+            </div>
+            <MenuItem
+              icon="🖨️"
+              label="Print Preview (Card / Sheet)"
+              sublabel="Interactive print & cut preview"
+              onClick={() => {
+                closeMenu();
+                dispatch({ type: 'OPEN_SHEET', sheet: 'print-preview' });
+              }}
+            />
+            <MenuItem
+              icon="📷"
+              label="Drill Diagram (PNG)"
+              sublabel="High-resolution image"
+              onClick={() => {
+                closeMenu();
+                exportDrillImageFile(state.drill);
+              }}
+            />
+            <MenuItem
+              icon="✂️"
+              label="Print Cut-Out Card (PDF)"
+              sublabel="Printable bench pocket card"
+              onClick={() => {
+                closeMenu();
+                printSingleDrillCard(migrateV2ToV3(state.drill));
+              }}
+            />
+            <MenuItem
+              icon="💾"
+              label="Export Play Data (JSON)"
+              sublabel="Backup and sharing file"
+              onClick={() => {
+                closeMenu();
+                void commands.exportDrills();
+              }}
+            />
+          </FlyoutMenu>
+
+          {/* Quick Options to Remove Objects */}
+          <FlyoutMenu
+            label="Remove"
+            icon="🗑️"
+            isOpen={openMenu === 'remove'}
+            onToggle={() => toggleMenu('remove')}
+            onClose={closeMenu}
+          >
+            <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-rose-400/80">
+              Quick Remove & Clear
+            </div>
+            {hasSelection && (
+              <MenuItem
+                icon="🗑️"
+                label={
+                  selectedPlayer
+                    ? `Delete #${selectedPlayer.number} (${selectedPlayer.role})`
+                    : selectedCoach
+                      ? 'Delete Selected Coach'
+                      : selectedEquipment
+                        ? `Delete Selected ${selectedEquipment.kind}`
+                        : selectedEvent
+                          ? `Delete Selected ${selectedEvent.type}`
+                          : 'Delete Selected Item'
+                }
+                sublabel="Remove active selection from the ice"
+                tone="danger"
+                onClick={() => {
+                  closeMenu();
+                  commands.removeSelected();
+                }}
+              />
+            )}
+            <MenuItem
+              icon="🟠"
+              label="Clear All Gear & Equipment"
+              sublabel="Remove all cones, tires, nets and barriers"
+              tone="danger"
+              onClick={() => {
+                closeMenu();
+                commands.clearEquipment();
+              }}
+            />
+            <MenuItem
+              icon="⛸️"
+              label="Clear Skating Routes"
+              sublabel="Remove all skate paths, keep players"
+              tone="danger"
+              onClick={() => {
+                closeMenu();
+                void commands.clearMovementRoutes();
+              }}
+            />
+            <MenuItem
+              icon="⚡"
+              label="Clear Passes & Shots"
+              sublabel="Remove puck events, keep routes"
+              tone="danger"
+              onClick={() => {
+                closeMenu();
+                void commands.clearPuckActions();
+              }}
+            />
+            <MenuItem
+              icon="🛡️"
+              label="Clear Defending Opponents"
+              sublabel="Remove away team and defense movement"
+              tone="danger"
+              onClick={() => {
+                closeMenu();
+                commands.clearOpponents();
+              }}
+            />
+            <MenuItem
+              icon="↺"
+              label="Reset Entire Board"
+              sublabel="Restore default 5v5 lineup"
+              tone="danger"
+              onClick={() => {
+                closeMenu();
+                void commands.resetBoard();
+              }}
+            />
+          </FlyoutMenu>
+
+          {/* Reset Lineup Button */}
+          <button
+            type="button"
+            onClick={() => void commands.resetBoard()}
+            aria-label="Reset lineup to default"
+            title="Reset board lineup"
+            className="flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold text-white/70 hover:bg-red-500/15 hover:text-red-300 transition-all"
+          >
+            <span>↺</span>
+            <span className="hidden 2xl:inline">Reset</span>
+          </button>
+        </div>
       </div>
 
-      {/* RIGHT: BenchIQ-Style Direct Zone View Pills & Help */}
-      <div className="flex items-center gap-1 shrink-0 ml-1">
+      {/* RIGHT: Zone Views & Help */}
+      <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 ml-1.5 shadow-sm" role="group" aria-label="Rink view controls">
         <button
           type="button"
           onClick={() => zoomToZone('full')}
           aria-label="Full sheet view"
-          className="touch-target rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] font-bold text-white/80 hover:border-cyan-400/40 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
+          className="flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-bold text-white/80 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
         >
           Full
         </button>
@@ -991,7 +1005,7 @@ export function TacticalBar() {
           type="button"
           onClick={() => zoomToZone('offensive')}
           aria-label="Offensive zone view"
-          className="touch-target rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] font-bold text-white/80 hover:border-cyan-400/40 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
+          className="flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-bold text-white/80 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
         >
           O-Zone
         </button>
@@ -1000,7 +1014,7 @@ export function TacticalBar() {
           type="button"
           onClick={() => zoomToZone('defensive')}
           aria-label="Defensive zone view"
-          className="touch-target rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] font-bold text-white/80 hover:border-cyan-400/40 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
+          className="flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-bold text-white/80 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
         >
           D-Zone
         </button>
@@ -1009,10 +1023,10 @@ export function TacticalBar() {
           type="button"
           onClick={toggle3D}
           aria-label={is3D ? 'Switch to 2D view' : 'Switch to 3D tabletop view'}
-          className={`touch-target rounded-lg border px-2 py-1 text-[11px] font-black transition-all ${
+          className={`flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-black transition-all ${
             is3D
-              ? 'border-app-cyan bg-app-cyan text-[#041019] shadow-sm'
-              : 'border-white/10 bg-white/[0.04] text-app-cyan hover:bg-app-cyan/15'
+              ? 'border border-app-cyan bg-app-cyan text-[#041019] shadow-sm'
+              : 'text-app-cyan hover:bg-app-cyan/15'
           }`}
         >
           {is3D ? '2D' : '3D'}
@@ -1023,7 +1037,7 @@ export function TacticalBar() {
           onClick={fit}
           aria-label="Fit whole rink in view"
           title="Fit view"
-          className="touch-target rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] font-bold text-white/80 hover:border-white/25 hover:text-white transition-all"
+          className="flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-bold text-white/80 hover:text-white hover:bg-white/10 transition-all"
         >
           ⛶
         </button>
@@ -1033,7 +1047,7 @@ export function TacticalBar() {
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'help' })}
           aria-label="How to use the whiteboard"
           title="Coach Guide & Shortcuts"
-          className="touch-target flex h-7 w-7 items-center justify-center rounded-lg border border-cyan-400/35 bg-app-cyan/15 text-[12px] font-black text-app-cyan hover:bg-app-cyan/25 transition-all ml-0.5"
+          className="flex h-7 w-7 min-w-0 items-center justify-center rounded-lg border border-cyan-400/35 bg-app-cyan/15 text-[11px] font-black text-app-cyan hover:bg-app-cyan/25 transition-all"
         >
           ?
         </button>

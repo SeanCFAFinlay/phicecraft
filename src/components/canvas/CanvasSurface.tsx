@@ -764,19 +764,25 @@ export function CanvasSurface() {
       />
 
       {/* On-Ice Floating Quick-Action HUD */}
-      {selectedObj && screenPoint && state.pendingAction.kind === 'none' && !state.playback.isPlaying && (
-        <div
-          role="toolbar"
-          aria-label="Selected object actions"
-          style={{
-            position: 'absolute',
-            left: `${screenPoint.x}px`,
-            top: `${screenPoint.y - 34}px`,
-            transform: 'translate(-50%, -100%)',
-            zIndex: 30,
-          }}
-          className="pointer-events-auto flex items-center gap-1 rounded-full border border-cyan-400/50 bg-[#06121f]/95 px-2 py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-100 select-none"
-        >
+      {selectedObj && screenPoint && state.pendingAction.kind === 'none' && !state.playback.isPlaying && (() => {
+        const isNearTop = screenPoint.y < 95;
+        const containerWidth = layers.containerRef.current?.clientWidth ?? 1200;
+        const hudLeft = Math.max(160, Math.min(containerWidth - 160, screenPoint.x));
+        const hudTop = isNearTop ? screenPoint.y + 26 : screenPoint.y - 32;
+        const hudTransform = isNearTop ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)';
+        return (
+          <div
+            role="toolbar"
+            aria-label="Selected object actions"
+            style={{
+              position: 'absolute',
+              left: `${hudLeft}px`,
+              top: `${hudTop}px`,
+              transform: hudTransform,
+              zIndex: 30,
+            }}
+            className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-cyan-400/50 bg-[#06121f]/95 px-2.5 py-1 shadow-[0_4px_20px_rgba(0,0,0,0.7)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-100 select-none whitespace-nowrap"
+          >
           {selectedObj.kind === 'player' && (
             <>
               <button
@@ -930,7 +936,8 @@ export function CanvasSurface() {
             <span>🗑️</span>
           </button>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
