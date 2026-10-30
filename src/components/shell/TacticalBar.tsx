@@ -255,7 +255,7 @@ export function TacticalBar() {
 
   const applyFormation = async (preset: PlayFormationPreset) => {
     closeMenu();
-    await commands.loadFormation(preset);
+    await commands.loadFormation(preset, true);
   };
 
   return (

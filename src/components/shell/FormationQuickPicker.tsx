@@ -49,7 +49,7 @@ export function FormationQuickPicker({ onClose }: FormationQuickPickerProps) {
 
   const handleSelect = async (presetId: PlayFormationPreset) => {
     onClose();
-    await commands.loadFormation(presetId);
+    await commands.loadFormation(presetId, true);
   };
 
   const getCategoryBadgeClass = (cat: FormationPresetDefinition['category']) => {

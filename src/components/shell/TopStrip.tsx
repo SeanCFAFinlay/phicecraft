@@ -21,10 +21,14 @@ export function TopStrip() {
   const canUndo = state.undoStack.length > 0;
   const canRedo = state.redoStack.length > 0;
   const activeSheet = state.ui.openSheet;
+  const isPractice = activeSheet === 'practice';
+  const isLibrary = activeSheet === 'library';
+  const isCoach = activeSheet === 'coach';
+  const isRink = !isPractice && !isLibrary && !isCoach;
 
   return (
     <header
-      className="app-chrome safe-top safe-x z-30 flex flex-shrink-0 items-center justify-between border-b border-cyan-500/20 bg-[#06121d]/95 backdrop-blur-md px-2.5 shadow-sm select-none"
+      className="app-chrome safe-top safe-x z-[130] flex flex-shrink-0 items-center justify-between border-b border-cyan-500/20 bg-[#06121d]/95 backdrop-blur-md px-2.5 shadow-sm select-none"
       style={{ minHeight: 'calc(var(--top-strip-height) + var(--safe-top))' }}
     >
       {/* LEFT: Menu button, Brand Logo & Play Name */}
@@ -78,7 +82,7 @@ export function TopStrip() {
           type="button"
           onClick={() => dispatch({ type: 'CLOSE_SHEET' })}
           className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
-            !activeSheet
+            isRink
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
@@ -92,7 +96,7 @@ export function TopStrip() {
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'practice' })}
           aria-label="Practice session planner"
           className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
-            activeSheet === 'practice'
+            isPractice
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
@@ -106,7 +110,7 @@ export function TopStrip() {
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'library' })}
           aria-label="Drill playbook library"
           className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
-            activeSheet === 'library'
+            isLibrary
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
@@ -120,7 +124,7 @@ export function TopStrip() {
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'coach' })}
           aria-label="Coach workspace"
           className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
-            activeSheet === 'coach'
+            isCoach
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}

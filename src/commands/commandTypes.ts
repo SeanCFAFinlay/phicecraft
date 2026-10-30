@@ -233,7 +233,7 @@ export interface AuthoringCommands {
   clearPuckActions(): Promise<CommandResult>;
   clearMovementRoutes(): Promise<CommandResult>;
   resetBoard(): Promise<CommandResult>;
-  loadFormation(preset: PlayFormationPreset): Promise<CommandResult>;
+  loadFormation(preset: PlayFormationPreset, skipConfirm?: boolean): Promise<CommandResult>;
 
   undo(): void;
   redo(): void;

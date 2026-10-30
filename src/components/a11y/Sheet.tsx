@@ -70,13 +70,13 @@ export function Sheet({
   const panelClass = asBottomSheet
     ? 'sheet-enter safe-bottom absolute inset-x-0 bottom-0 max-h-[var(--sheet-max-height)] rounded-t-2xl border-t'
     : size === 'full'
-      ? 'sheet-enter safe-top safe-bottom absolute inset-0 max-h-full'
-      : `sheet-enter safe-top safe-bottom absolute inset-y-0 ${
+      ? 'sheet-enter safe-bottom absolute inset-0 max-h-full'
+      : `sheet-enter safe-bottom absolute inset-y-0 ${
           side === 'left' ? 'left-0 border-r' : 'right-0 border-l'
         } w-[min(360px,88vw)] max-h-full`;
 
   return (
-    <div className="fixed inset-0 z-[120]">
+    <div className="fixed inset-x-0 bottom-0 z-[120]" style={{ top: 'calc(var(--top-strip-height) + var(--safe-top))' }}>
       <div
         className="absolute inset-0 bg-black/55"
         onPointerDown={onClose}

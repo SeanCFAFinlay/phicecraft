@@ -57,8 +57,8 @@ export function CoachWorkspace() {
   const close = () => dispatch({ type: 'CLOSE_SHEET' });
   const save = () => { commands.setCoaching(coaching); setMessage('Coaching details applied. Use Save play to keep them.'); };
 
-  return <Sheet open title="Coach workspace" description="Draw it. Rehearse it. Explain it." onClose={close}>
-    <div className="space-y-4 px-3 pb-5">
+  return <Sheet open title="Coach workspace" description="Draw it. Rehearse it. Explain it." onClose={close} size="full">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-3 pb-16 safe-bottom">
       <div className="grid grid-cols-3 gap-2" role="group" aria-label="Coaching sections">
         {(['explain', 'teams', 'import'] as const).map(item => <button type="button" key={item} aria-pressed={tab === item} onClick={() => { setTab(item); setMessage(''); }} className={`${button} ${tab === item ? 'bg-cyan-400/25' : 'border-white/10 bg-white/5 text-white'}`}>{item === 'explain' ? 'Explain' : item === 'teams' ? 'Teams' : 'Import'}</button>)}
       </div>

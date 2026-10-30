@@ -1058,6 +1058,15 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       }
 
       dispatch({ type: 'PUSH_UNDO' });
+
+      // Remove any prior skate paths for these defending players so tactics don't duplicate
+      const defPlayerIds = new Set(defSkaters.map(p => p.id));
+      for (const existingPath of state.drill.skatePaths) {
+        if (defPlayerIds.has(existingPath.ownerId)) {
+          dispatch({ type: 'REMOVE_SKATE_PATH', id: existingPath.id });
+        }
+      }
+
       let routesCreated = 0;
 
       if (tactic === 'gap') {
@@ -1321,11 +1330,11 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       return done();
     },
 
-    async loadFormation(preset: PlayFormationPreset) {
+    async loadFormation(preset: PlayFormationPreset, skipConfirm = false) {
       const state = getState();
       if (state.ui.mode !== 'build') return reject('Switch to Build to apply a quick setup.');
       const hasContent = state.drill.skatePaths.length > 0 || state.drill.events.length > 0;
-      if (hasContent && !(await host.confirm(CONFIRMATIONS.loadFormation))) {
+      if (!skipConfirm && hasContent && !(await host.confirm(CONFIRMATIONS.loadFormation))) {
         return { status: 'cancelled' };
       }
 

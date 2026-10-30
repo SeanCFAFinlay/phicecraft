@@ -774,6 +774,22 @@ describe('loadFormation', () => {
     expect(harness.getState().drill.players.length).toBe(6);
   });
 
+  it('bypasses confirmation modal when skipConfirm is true', async () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h11', number: '11', hasPuck: true }),
+          buildPlayer({ id: 'h13', number: '13' }),
+        ],
+        events: [buildPass({ id: 'p1', fromPlayerId: 'h11', toPlayerId: 'h13' })],
+      })
+    );
+    const result = await harness.commands.loadFormation('rush-3v2', true);
+    expect(result.status).toBe('done');
+    expect(harness.getState().drill.events.length).toBe(0);
+    expect(harness.getState().drill.players.length).toBe(6);
+  });
+
   it('can be undone to restore the previous lineup', async () => {
     const originalCount = harness.getState().drill.players.length;
     await harness.commands.loadFormation('breakout-5v5');
@@ -813,6 +829,16 @@ describe('opposing defense movement', () => {
     expect(clearRes.status).toBe('done');
     const remainingOpposing = harness.getState().drill.skatePaths.filter(p => p.team === 'away');
     expect(remainingOpposing.length).toBe(0);
+  });
+
+  it('replaces previous defending routes when changing defense tactics instead of stacking', () => {
+    harness.commands.generateOpposingDefense('gap');
+    const firstCount = harness.getState().drill.skatePaths.filter(p => p.team === 'away').length;
+    expect(firstCount).toBeGreaterThan(0);
+
+    harness.commands.generateOpposingDefense('forecheck');
+    const secondCount = harness.getState().drill.skatePaths.filter(p => p.team === 'away').length;
+    expect(secondCount).toBe(firstCount);
   });
 });
 
