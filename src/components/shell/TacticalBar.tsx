@@ -169,7 +169,7 @@ export function TacticalBar() {
   const { carrier } = usePuckActions();
   const { is3D, toggle3D, fit, zoomToZone } = useViewActions();
 
-  const [openMenu, setOpenMenu] = useState<'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'drills' | 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools' | null>(null);
 
   const currentTool = state.ui.currentTool;
   const isMove = currentTool === 'move';
@@ -192,7 +192,7 @@ export function TacticalBar() {
   if (state.ui.mode !== 'build' || isCompactLandscape) return null;
 
   const closeMenu = () => setOpenMenu(null);
-  const toggleMenu = (menu: 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools') => {
+  const toggleMenu = (menu: 'drills' | 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools') => {
     setOpenMenu(prev => (prev === menu ? null : menu));
   };
 
@@ -475,6 +475,119 @@ export function TacticalBar() {
 
         {/* GROUP 3: COACH TACTICS, SYSTEMS & EQUIPMENT */}
         <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm" role="group" aria-label="Tactical systems and equipment">
+          {/* Pre-Done Drills Flyout */}
+          <FlyoutMenu
+            label="Drills"
+            icon="📚"
+            isOpen={openMenu === 'drills'}
+            onToggle={() => toggleMenu('drills')}
+            onClose={closeMenu}
+          >
+            <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-app-cyan/80">
+              Pre-Done Tactical Drills
+            </div>
+            <MenuItem
+              icon="🚀"
+              label="5v5 D-Zone Breakout & Wheel"
+              sublabel="Full breakout system with center middle support"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-play-dzone-breakout');
+              }}
+            />
+            <MenuItem
+              icon="⚡"
+              label="3-on-2 Rush: Triangulation"
+              sublabel="High trailer dish & drive to net"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-play-3v2-rush');
+              }}
+            />
+            <MenuItem
+              icon="🔄"
+              label="Czech 1v1 Continuous Regroup"
+              sublabel="European flow drill: D hinge, NZ loop & 1v1 attack"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-play-czech-1v1-continuous');
+              }}
+            />
+            <MenuItem
+              icon="🌊"
+              label="Corner Rim & 2v1 Breakout Attack"
+              sublabel="Pressure retrieval, wall chip & 2-on-1 counter"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-play-rim-retrieval-2v1');
+              }}
+            />
+            <MenuItem
+              icon="🎯"
+              label="1-3-1 Power Play: Flank & Bumper"
+              sublabel="Umbrella attack with bumper one-timer"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-play-131-power-play');
+              }}
+            />
+            <MenuItem
+              icon="🦅"
+              label="1-2-2 Forecheck: Seal & Turnover"
+              sublabel="Angling pursuit & neutral turnover counter"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-play-122-forecheck');
+              }}
+            />
+            <MenuItem
+              icon="🛡️"
+              label="Penalty Kill: Box Shift & Clear"
+              sublabel="4-man box shifting to pressure quadrant"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-play-pk-box');
+              }}
+            />
+            <MenuItem
+              icon="⚡"
+              label="2v2 Rush and Backcheck"
+              sublabel="Full ice odd-man rush with trailing pressure"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-2v2-rush-backcheck');
+              }}
+            />
+            <MenuItem
+              icon="⚔️"
+              label="Corner 2v1 Half-Wall Battle"
+              sublabel="Small area tight space puck battle"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-small-area-2v1-corner');
+              }}
+            />
+            <MenuItem
+              icon="🥅"
+              label="Gates Passing & Timing"
+              sublabel="Puck movement through cone obstacles"
+              onClick={() => {
+                closeMenu();
+                void commands.useTemplate('tpl-gates-passing');
+              }}
+            />
+            <div className="my-1 border-t border-white/10" />
+            <MenuItem
+              icon="📖"
+              label="Open Full Playbook Library..."
+              sublabel="Browse 32+ categorized drills with filters & plans"
+              onClick={() => {
+                closeMenu();
+                dispatch({ type: 'OPEN_SHEET', sheet: 'library' });
+              }}
+            />
+          </FlyoutMenu>
+
           {/* Coach Tools & Drills Flyout */}
           <FlyoutMenu
             label="Coach"

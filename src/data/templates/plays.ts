@@ -506,6 +506,163 @@ export const forecheck122: DrillTemplate = template({
   durationSeconds: 7,
 });
 
+// ----------------------------------------------------------------------------
+// 7. Czech 1-on-1 Continuous Regroup (Neutral Zone Flow)
+// ----------------------------------------------------------------------------
+
+export const czechOneOnOne: DrillTemplate = template({
+  id: 'tpl-play-czech-1v1-continuous',
+  title: 'Czech 1-on-1 Continuous Regroup',
+  summary:
+    'Full-ice European flow drill. Forward curls out of corner, feeds D at opposite blue line. D hinges and delivers return pass to curling forward, who attacks opposite D 1-on-1 with backward gap control.',
+  categories: ['transition', 'shooting', 'skating'],
+  tags: ['flow', '1v1', 'gap-control', 'regroup', 'full ice', 'timing'],
+  ageBands: ['u13', 'u15', 'u18', 'adult'],
+  skillLevel: 'developing',
+  rinkArea: 'full',
+  durationMinutes: 12,
+  equipmentSummary: ['pucks', '2 nets'],
+  setupNotes: [
+    'Forwards in diagonal corners with pucks (bottom-left corner at x=140, y=340).',
+    'Defensemen stationed on blue lines (D1 at x=620, y=100; D2 at x=380, y=320).',
+    'Both goalies in their respective nets.',
+  ],
+  coachingPoints: [
+    'Forward must present target stick on ice through the neutral zone turn.',
+    'Defenseman must walk the blue line with head up before executing the hinge pass.',
+    'Defending D establishes tight 1.5-stick-length gap, steering attacker wide.',
+    'Attacking forward drives wide, changes pace, and attacks net for shot and rebound.',
+  ],
+  progressions: [
+    'Turn into 2-on-1: trailing forward joins the rush for cross-ice backdoor option.',
+    'Defenseman takes a direct slapshot from the point instead of return pass.',
+  ],
+  variations: [
+    'Add an active backchecker chasing from the center red line.',
+  ],
+  actors: [
+    skater('f1', 'home', '9', { x: 140, y: 340 }, 'F'),
+    skater('d1', 'home', '4', { x: 620, y: 100 }, 'D'),
+    skater('d2', 'away', '2', { x: 380, y: 320 }, 'D'),
+    awayGoalieRight,
+    homeGoalieLeft,
+  ],
+  routes: [
+    route('f1', [
+      { x: 140, y: 340 },
+      { x: 260, y: 350 },
+      { x: 420, y: 260 },
+      { x: 540, y: 200 },
+      { x: 740, y: 170 },
+      { x: 840, y: 200 },
+    ]),
+    route('d1', [
+      { x: 620, y: 100 },
+      { x: 580, y: 120 },
+      { x: 530, y: 150 },
+    ]),
+    route('d2', [
+      { x: 380, y: 320 },
+      { x: 480, y: 290 },
+      { x: 680, y: 240 },
+      { x: 780, y: 215 },
+    ]),
+  ],
+  puck: {
+    from: 'f1',
+    actions: [
+      pass('f1', 'd1', { at: 1.5 }),
+      pass('d1', 'f1', { at: 3.2 }),
+      shot('f1', { at: 5.4 }),
+    ],
+  },
+  finishPolicy: 'finish-with-shot',
+  durationSeconds: 7,
+});
+
+// ----------------------------------------------------------------------------
+// 8. Corner Rim Retrieval to 2-on-1 Breakout Attack
+// ----------------------------------------------------------------------------
+
+export const rimRetrievalTwoOnOne: DrillTemplate = template({
+  id: 'tpl-play-rim-retrieval-2v1',
+  title: 'Corner Rim & 2v1 Breakout Attack',
+  summary:
+    'Game-situation drill. Coach or D rims puck hard into corner. Defenseman retrieves under pressure, rims to half-wall winger, who touch-passes to center slashing through middle for a 2-on-1 rush against defending D.',
+  categories: ['breakout', 'rush', 'transition'],
+  tags: ['rim', 'breakout', '2v1', 'half-wall', 'counter-attack', 'full ice'],
+  ageBands: ['u13', 'u15', 'u18', 'adult'],
+  skillLevel: 'advanced',
+  rinkArea: 'full',
+  durationMinutes: 12,
+  equipmentSummary: ['pucks', '2 nets'],
+  setupNotes: [
+    'Coach or D at point rims puck around left boards behind home net.',
+    'D1 retrieves puck in left corner (x=110, y=95).',
+    'LW (#11) anchors on left half-wall (x=240, y=85).',
+    'Center (#19) curls low through slot and breaks up ice (x=200, y=212).',
+    'Away defending D (#3) gaps up in neutral zone (x=580, y=190).',
+    'Both goalies in net.',
+  ],
+  coachingPoints: [
+    'D1 must absorb board bounce and protect puck with body before making pass.',
+    'Winger uses board-cushion or direct touch pass into the middle lane in stride.',
+    'Center supports with speed through the middle to push back the defending D.',
+    'LW and Center drive wide-lane triangulation with trailer for 2-on-1 finish.',
+  ],
+  progressions: [
+    'Add an aggressive F1 forechecker chasing the puck into the corner.',
+    'Defending D plays pass aggressively to force carrier to take the shot.',
+  ],
+  variations: [
+    'Chip-off-the-glass option if the half-wall passing lane is sealed.',
+  ],
+  actors: [
+    skater('d1', 'home', '5', { x: 110, y: 95 }, 'D'),
+    skater('lw', 'home', '11', { x: 240, y: 85 }, 'LW'),
+    skater('c', 'home', '19', { x: 190, y: L.centreY }, 'C'),
+    skater('ad', 'away', '3', { x: 580, y: 190 }, 'D'),
+    awayGoalieRight,
+    homeGoalieLeft,
+  ],
+  routes: [
+    route('d1', [
+      { x: 110, y: 95 },
+      { x: 130, y: 80 },
+    ]),
+    route('lw', [
+      { x: 240, y: 85 },
+      { x: 360, y: 110 },
+      { x: 540, y: 130 },
+      { x: 750, y: 160 },
+      { x: 840, y: 180 },
+    ]),
+    route('c', [
+      { x: 190, y: L.centreY },
+      { x: 300, y: 200 },
+      { x: 480, y: 220 },
+      { x: 680, y: 250 },
+      { x: 830, y: 240 },
+    ]),
+    route('ad', [
+      { x: 580, y: 190 },
+      { x: 660, y: 200 },
+      { x: 740, y: 210 },
+    ]),
+  ],
+  puck: {
+    from: 'd1',
+    actions: [
+      pass('d1', 'lw', { at: 1.2 }),
+      pass('lw', 'c', { at: 2.8 }),
+      pass('c', 'lw', { at: 4.5 }),
+      shot('lw', { at: 5.6 }),
+    ],
+  },
+  finishPolicy: 'finish-with-shot',
+  durationSeconds: 7,
+});
+
 export const PLAY_TEMPLATES: DrillTemplate[] = [
   powerPlay131,
   dZoneBreakout,
@@ -513,4 +670,6 @@ export const PLAY_TEMPLATES: DrillTemplate[] = [
   offensiveZoneFaceoff,
   penaltyKillBox,
   forecheck122,
+  czechOneOnOne,
+  rimRetrievalTwoOnOne,
 ];
