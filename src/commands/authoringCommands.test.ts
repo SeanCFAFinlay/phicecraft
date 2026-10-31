@@ -770,7 +770,7 @@ describe('loadFormation', () => {
     harness.answerConfirm(true);
     const confirmedResult = await harness.commands.loadFormation('rush-3v2');
     expect(confirmedResult.status).toBe('done');
-    expect(harness.getState().drill.events.length).toBe(0);
+    expect(harness.getState().drill.events.length).toBe(2);
     expect(harness.getState().drill.players.length).toBe(6);
   });
 
@@ -786,7 +786,7 @@ describe('loadFormation', () => {
     );
     const result = await harness.commands.loadFormation('rush-3v2', true);
     expect(result.status).toBe('done');
-    expect(harness.getState().drill.events.length).toBe(0);
+    expect(harness.getState().drill.events.length).toBe(2);
     expect(harness.getState().drill.players.length).toBe(6);
   });
 

@@ -256,12 +256,12 @@ export const threeOnTwoRush: DrillTemplate = template({
       { x: 670, y: 175 },
       { x: 770, y: 185 },
       { x: 825, y: 195 },
-    ]),
+    ], { movement: 'backward' }),
     route('d2', [
       { x: 670, y: 250 },
       { x: 770, y: 235 },
       { x: 825, y: 220 },
-    ]),
+    ], { movement: 'backward' }),
   ],
   puck: {
     from: 'lw',
@@ -566,7 +566,7 @@ export const czechOneOnOne: DrillTemplate = template({
       { x: 480, y: 290 },
       { x: 680, y: 240 },
       { x: 780, y: 215 },
-    ]),
+    ], { movement: 'backward' }),
   ],
   puck: {
     from: 'f1',
@@ -648,7 +648,7 @@ export const rimRetrievalTwoOnOne: DrillTemplate = template({
       { x: 580, y: 190 },
       { x: 660, y: 200 },
       { x: 740, y: 210 },
-    ]),
+    ], { movement: 'backward' }),
   ],
   puck: {
     from: 'd1',

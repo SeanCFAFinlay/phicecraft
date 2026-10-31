@@ -66,4 +66,15 @@ describe('FORMATION_PRESETS', () => {
       expect(skaters.filter(player => player.team === 'away')).toHaveLength(away);
     }
   });
+
+  it('assigns backward skating mode to defending defensemen in rush formations', () => {
+    for (const presetId of ['rush-3v2', 'rush-2v1'] as const) {
+      const preset = getFormationPreset(presetId);
+      const players = preset.players();
+      const seq = preset.sequence!(players);
+      const defendingRoutes = seq.skatePaths.filter(route => route.team === 'away');
+      expect(defendingRoutes.length).toBeGreaterThan(0);
+      expect(defendingRoutes.every(r => r.mode === 'backward')).toBe(true);
+    }
+  });
 });

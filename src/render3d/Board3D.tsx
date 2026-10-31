@@ -324,12 +324,34 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const puckActor = createPuck();
     puckActor.root.visible = false;
     actorGroup.add(puckActor.root);
-    const haloGeometry = new THREE.RingGeometry(0.57, 0.67, 40);
-    const haloMaterial = new THREE.MeshBasicMaterial({ color: '#ffd45c', side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
-    const possessionHalo = new THREE.Mesh(haloGeometry, haloMaterial);
-    possessionHalo.rotation.x = -Math.PI / 2;
+    const possessionHalo = new THREE.Group();
     possessionHalo.name = 'possession-halo';
     possessionHalo.visible = false;
+
+    // Multi-tier possession beacon for prominent 3D puck carrier tracking
+    const haloGeometry = new THREE.RingGeometry(0.66, 0.85, 48);
+    const haloMaterial = new THREE.MeshBasicMaterial({
+      color: '#f59e0b',
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const outerRing = new THREE.Mesh(haloGeometry, haloMaterial);
+    outerRing.rotation.x = -Math.PI / 2;
+    possessionHalo.add(outerRing);
+
+    const discGeometry = new THREE.CircleGeometry(0.64, 36);
+    const discMaterial = new THREE.MeshBasicMaterial({
+      color: '#fef08a',
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.28,
+    });
+    const innerDisc = new THREE.Mesh(discGeometry, discMaterial);
+    innerDisc.rotation.x = -Math.PI / 2;
+    innerDisc.position.y = -0.002;
+    possessionHalo.add(innerDisc);
+
     actorGroup.add(possessionHalo);
 
     const selectHaloGeometry = new THREE.RingGeometry(0.72, 0.84, 40);
@@ -387,7 +409,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       const holderFrame = frame.playerFrames[holder.id];
       const pos = holderFrame?.bladePosition ?? { x: holder.x, y: holder.y };
       const heading = holderFrame?.heading ?? 0;
-      const offset = CARRIED_PUCK_OFFSET_METERS / RINK_SCALE;
+      const offset = holderFrame?.bladePosition ? 0 : CARRIED_PUCK_OFFSET_METERS / RINK_SCALE;
       return { x: pos.x + Math.cos(heading) * offset, y: pos.y + Math.sin(heading) * offset };
     };
 
@@ -418,6 +440,10 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       if (carrier) {
         const world = rinkToWorld(frame.positions[carrier.id] ?? { x: carrier.x, y: carrier.y });
         possessionHalo.position.set(world.x, 0.025, world.z);
+        const timeSeconds = frame.progress * frame.durationSeconds;
+        const pulse = 1.0 + 0.06 * Math.sin(timeSeconds * 5.5);
+        possessionHalo.scale.set(pulse, 1, pulse);
+        outerRing.rotation.z += 0.015;
       }
 
       const selectedId = selectedPlayerIdRef.current;
@@ -509,6 +535,10 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       puckActor.dispose();
       haloGeometry.dispose();
       haloMaterial.dispose();
+      discGeometry.dispose();
+      discMaterial.dispose();
+      selectHaloGeometry.dispose();
+      selectHaloMaterial.dispose();
       scene.remove(actorGroup);
     };
   }, [playback, rosterSignature, sceneEpoch, announcer, quality]);

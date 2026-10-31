@@ -161,14 +161,15 @@ export function createNewDrill(name: string = 'Neutral Zone Entry'): Drill {
 export function createSkatePath(
   ownerId: ID,
   team: Team,
-  points: { x: number; y: number }[]
+  points: { x: number; y: number }[],
+  mode: 'skate' | 'backward' | 'glide' = 'skate'
 ): SkatePath {
   return {
     id: generateId(),
     ownerId,
     team,
     points: points.map(p => ({ x: p.x, y: p.y })),
-    mode: 'skate',
+    mode,
     finish: 'stop',
   };
 }

@@ -56,7 +56,8 @@ export function drawPlayer(
   const { isSelected, isDragging, isMoving, isPassFrom, isNodeActive, isPuckHolder, showInitialPuck, heading = 0, showRouteHandle = false, isPreparingReceive = false, playbackFrame, reducedEffects = false, trackedPuck, jersey, screenRotation = 0 } = options;
   const pr = PLAYER_RADIUS;
   const isHighlighted = isDragging || isNodeActive || isPassFrom;
-  const hasPuck = isPuckHolder || showInitialPuck;
+  const isCarrier = trackedPuck?.carrierId === player.id;
+  const hasPuck = isPuckHolder || showInitialPuck || isCarrier;
 
   // Puck carrier electric cyan glow aura
   if (hasPuck && !reducedEffects) {
