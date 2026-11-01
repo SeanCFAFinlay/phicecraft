@@ -21,13 +21,14 @@
 // the already-loaded mount tick that follows).
 // ============================================================================
 
-import { useAppState } from '@/hooks/useAppState';
+import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
 import { useViewActions } from '@/components/shell/useViewActions';
 import { FitIcon, RotateLeftIcon, RotateRightIcon } from '@/ui/icons';
 
 export function ViewControls() {
   const { dispatch } = useAppState();
+  const commands = useCommands();
   const { isCompactLandscape, isPhone } = useResponsive();
   const {
     is3D,
@@ -153,6 +154,18 @@ export function ViewControls() {
           className={`${button} text-[13px]`}
         >
           <FitIcon size={16} />
+        </button>
+      )}
+
+      {!is3D && (
+        <button
+          type="button"
+          onClick={() => commands.setupStationSplit('cross-ice-3', 'defensive')}
+          aria-label="Setup USA Hockey ADM 3-station cross ice bumpers"
+          title="USA Hockey ADM 3-Station Cross-Ice"
+          className={`${button} px-1 text-[9px] font-black text-amber-300 border-amber-400/30`}
+        >
+          ADM
         </button>
       )}
     </div>

@@ -100,12 +100,52 @@ export function ActionChip() {
       <div
         role="status"
         aria-live="polite"
-        className="rink-chip pointer-events-auto flex max-w-[min(560px,94vw)] items-center gap-3 rounded-2xl px-3 py-2"
+        className="rink-chip pointer-events-auto flex max-w-[min(640px,94vw)] items-center gap-3 rounded-2xl px-3 py-2"
       >
         <div className="min-w-0">
           <div className="truncate text-[13px] font-black text-app-gold">{instruction.label}</div>
           <div className="truncate text-[12px] text-white/70">{instruction.next}</div>
         </div>
+        {pending.kind === 'draw-route' && (
+          <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-lg border border-white/10 shrink-0" role="group" aria-label="Route drawing mode">
+            <button
+              type="button"
+              onClick={() => commands.setPendingAction({ ...pending, mode: 'skate' })}
+              className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
+                (pending.mode ?? 'skate') === 'skate'
+                  ? 'bg-amber-400 text-black shadow'
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
+              }`}
+              title="Forward skating route"
+            >
+              ➔ Forward
+            </button>
+            <button
+              type="button"
+              onClick={() => commands.setPendingAction({ ...pending, mode: 'backward' })}
+              className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
+                pending.mode === 'backward'
+                  ? 'bg-amber-400 text-black shadow'
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
+              }`}
+              title="Backward skating route with gap control"
+            >
+              ╌ Backward
+            </button>
+            <button
+              type="button"
+              onClick={() => commands.setPendingAction({ ...pending, mode: 'glide' })}
+              className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
+                pending.mode === 'glide'
+                  ? 'bg-amber-400 text-black shadow'
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
+              }`}
+              title="Glide or coast route"
+            >
+              ~ Glide
+            </button>
+          </div>
+        )}
         <button
           type="button"
           onClick={commands.cancelPendingAction}

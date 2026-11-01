@@ -464,7 +464,7 @@ export interface Toast {
 export type PendingEditorAction =
   | { kind: 'none' }
   | { kind: 'move-player'; playerId: ID }
-  | { kind: 'draw-route'; playerId: ID }
+  | { kind: 'draw-route'; playerId: ID; mode?: 'skate' | 'backward' | 'glide' }
   | { kind: 'pass'; playerId: ID }
   | { kind: 'shoot'; playerId: ID }
   | { kind: 'move-coach'; coachId: ID }
@@ -675,6 +675,7 @@ export type AppAction =
 
   // Equipment actions
   | { type: 'ADD_EQUIPMENT'; item: EquipmentItem }
+  | { type: 'SET_EQUIPMENT'; items: EquipmentItem[] }
   | { type: 'MOVE_EQUIPMENT'; id: ID; x: number; y: number }
   | { type: 'REMOVE_EQUIPMENT'; id: ID }
   | { type: 'CLEAR_EQUIPMENT' }

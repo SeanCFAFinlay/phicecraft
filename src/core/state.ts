@@ -124,6 +124,7 @@ const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'ADD_COACH',
   'REMOVE_COACH',
   'ADD_EQUIPMENT',
+  'SET_EQUIPMENT',
   'REMOVE_EQUIPMENT',
   'CLEAR_EQUIPMENT',
   'CLEAR_OPPONENTS',
@@ -503,6 +504,17 @@ function reduce(state: AppState, action: AppAction): AppState {
         drill: {
           ...state.drill,
           equipment: [...(state.drill.equipment ?? []), action.item],
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'SET_EQUIPMENT': {
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          equipment: action.items,
           updatedAt: Date.now(),
         },
       };

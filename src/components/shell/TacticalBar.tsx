@@ -1134,11 +1134,30 @@ export function TacticalBar() {
 
         <button
           type="button"
+          onClick={() => zoomToZone('neutral')}
+          aria-label="Neutral zone view"
+          className="flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-bold text-white/80 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
+        >
+          N-Zone
+        </button>
+
+        <button
+          type="button"
           onClick={() => zoomToZone('defensive')}
           aria-label="Defensive zone view"
           className="flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-bold text-white/80 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
         >
           D-Zone
+        </button>
+
+        <button
+          type="button"
+          onClick={() => commands.setupStationSplit('cross-ice-3', 'defensive')}
+          aria-label="Setup USA Hockey ADM 3-station cross ice bumpers"
+          title="USA Hockey ADM 3-Station Cross-Ice Split"
+          className="hidden xl:flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-bold text-amber-300 hover:bg-amber-400/15 transition-all"
+        >
+          ADM 3
         </button>
 
         <button

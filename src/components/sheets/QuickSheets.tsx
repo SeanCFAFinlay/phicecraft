@@ -407,6 +407,7 @@ export function ModeSheet() {
 
 export function ViewSheet() {
   const { state, dispatch } = useAppState();
+  const commands = useCommands();
   const open = state.ui.openSheet === 'view';
   const close = () => dispatch({ type: 'CLOSE_SHEET' });
   const view = useViewActions();
@@ -448,6 +449,27 @@ export function ViewSheet() {
           ))}
         </SheetSection>
       )}
+
+      <SheetSection title="Practice Stations / ADM Split">
+        <SheetItem
+          icon={<FitIcon />}
+          label="Full ice (clear bumpers)"
+          detail="Remove station divider foam bumpers"
+          onClick={run(() => commands.setupStationSplit('full'))}
+        />
+        <SheetItem
+          icon={<BarrierIcon />}
+          label="3-Station cross-ice (ADM)"
+          detail="Foam divider bumpers at both blue lines"
+          onClick={run(() => commands.setupStationSplit('cross-ice-3', 'defensive'))}
+        />
+        <SheetItem
+          icon={<BarrierIcon />}
+          label="2-Station half-ice split"
+          detail="Foam divider bumpers along the red line"
+          onClick={run(() => commands.setupStationSplit('split-2', 'defensive'))}
+        />
+      </SheetSection>
 
       {view.is3D && (
         <SheetSection title="3D Camera Angles">

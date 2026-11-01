@@ -250,6 +250,24 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
       dispatch({ type: 'LOAD_DRILL', drill: copy });
       dispatch({ type: 'CLOSE_MENU' });
       dispatch({ type: 'CLOSE_SHEET' });
+
+      // Frame camera immediately to the drill's designated tactical zone
+      const rinkArea = template.document.metadata.rinkArea;
+      if (rinkArea !== 'full') {
+        const actors = template.document.actors;
+        const avgX = actors.length > 0 ? actors.reduce((sum, a) => sum + a.position.x, 0) / actors.length : 500;
+        if (avgX < 400) {
+          host.camera.zoomToZone('defensive');
+        } else if (avgX > 600) {
+          host.camera.zoomToZone('offensive');
+        } else if (rinkArea === 'third') {
+          host.camera.zoomToZone('neutral');
+        } else {
+          host.camera.zoomToZone(avgX < 500 ? 'defensive' : 'offensive');
+        }
+      } else {
+        host.camera.zoomToZone('full');
+      }
       // Mark `copy` pending BEFORE attempting the save, not after: the editor
       // has already switched to it above, so if `saveDocumentV3` below fails,
       // `retrySave` needs something to retry. Calling `coordinator.reset()`

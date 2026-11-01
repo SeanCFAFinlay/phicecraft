@@ -1040,4 +1040,72 @@ describe('bulk removal and object timing', () => {
     harness.commands.undo();
     expect(harness.getState().drill.players.find(pl => pl.id === p.id)!.x).toBeCloseTo(300, 0);
   });
+  describe('USA Hockey ADM / Station Splits & Route Drawing Modes', () => {
+    it('sets up 3-station cross-ice divider barriers at both blue lines', () => {
+      const res = harness.commands.setupStationSplit('cross-ice-3', 'defensive');
+      expect(res.status).toBe('done');
+
+      const equipment = harness.getState().drill.equipment ?? [];
+      const bumpers = equipment.filter(e => e.kind === 'barrier');
+      expect(bumpers.length).toBe(10); // 5 at x=375 and 5 at x=625
+      expect(bumpers.every(b => b.rotation === Math.PI / 2)).toBe(true);
+
+      const blueLeft = bumpers.filter(b => b.position.x === 375);
+      const blueRight = bumpers.filter(b => b.position.x === 625);
+      expect(blueLeft.length).toBe(5);
+      expect(blueRight.length).toBe(5);
+    });
+
+    it('sets up 2-station half-ice split barriers along the red line', () => {
+      const res = harness.commands.setupStationSplit('split-2', 'defensive');
+      expect(res.status).toBe('done');
+
+      const equipment = harness.getState().drill.equipment ?? [];
+      const bumpers = equipment.filter(e => e.kind === 'barrier');
+      expect(bumpers.length).toBe(5);
+      expect(bumpers.every(b => b.position.x === 500)).toBe(true);
+    });
+
+    it('clears station split bumpers when switching back to full ice', () => {
+      harness.commands.setupStationSplit('cross-ice-3');
+      expect(harness.getState().drill.equipment?.length).toBeGreaterThan(0);
+
+      const res = harness.commands.setupStationSplit('full');
+      expect(res.status).toBe('done');
+      const bumpers = (harness.getState().drill.equipment ?? []).filter(e => e.label?.startsWith('station-divider'));
+      expect(bumpers.length).toBe(0);
+    });
+
+    it('commits route with backward skating mode and gap control', () => {
+      const player = harness.getState().drill.players[0];
+      const res = harness.commands.commitRoute(player.id, [
+        { x: 300, y: 200 },
+        { x: 250, y: 200 },
+        { x: 200, y: 200 },
+      ], 'backward');
+
+      expect(res.status).toBe('done');
+      if (res.status === 'done') {
+        const route = harness.getState().drill.skatePaths.find(r => r.id === res.value);
+        expect(route).toBeDefined();
+        expect(route?.mode).toBe('backward');
+      }
+    });
+
+    it('commits route with glide mode', () => {
+      const player = harness.getState().drill.players[0];
+      const res = harness.commands.commitRoute(player.id, [
+        { x: 300, y: 200 },
+        { x: 350, y: 200 },
+        { x: 400, y: 200 },
+      ], 'glide');
+
+      expect(res.status).toBe('done');
+      if (res.status === 'done') {
+        const route = harness.getState().drill.skatePaths.find(r => r.id === res.value);
+        expect(route).toBeDefined();
+        expect(route?.mode).toBe('glide');
+      }
+    });
+  });
 });

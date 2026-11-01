@@ -27,6 +27,7 @@ import type {
   UnsavedExportChoice,
 } from '@/persistence';
 import type { CameraStore } from '@/camera/CameraStore';
+import type { Zone } from '@/camera/cameraMath';
 import type { PlaybackStore } from '@/playback/PlaybackStore';
 import type { PlayFormationPreset } from '@/engine/formations';
 
@@ -192,7 +193,7 @@ export interface AuthoringCommands {
   clearOpponents(): CommandResult<number>;
   removeSelected(): CommandResult;
 
-  commitRoute(ownerId: ID, rawPoints: Point[]): CommandResult<ID>;
+  commitRoute(ownerId: ID, rawPoints: Point[], mode?: 'skate' | 'backward' | 'glide'): CommandResult<ID>;
   updateRouteStyle(pathId: ID, updates: { mode?: 'skate' | 'glide' | 'backward'; finish?: 'coast' | 'stop' }): void;
   removeRoute(pathId: ID): CommandResult;
 
@@ -233,6 +234,8 @@ export interface AuthoringCommands {
   generateDumpAndChase(corner?: 'bottom-right' | 'top-right' | 'bottom-left' | 'top-left'): CommandResult;
   generateCoachFeed(): CommandResult;
   generateCoachRim(): CommandResult;
+
+  setupStationSplit(type: 'full' | 'half' | 'cross-ice-3' | 'split-2', stationZone?: Zone): CommandResult;
 
   clearPuckActions(): Promise<CommandResult>;
   clearMovementRoutes(): Promise<CommandResult>;

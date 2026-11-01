@@ -22,6 +22,7 @@ import type {
   SkatePath,
   Team,
 } from '@/core/types';
+import type { Zone } from '@/camera/cameraMath';
 import {
   createCoach,
   createPlayer,
@@ -458,10 +459,13 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
     // Routes
     // ------------------------------------------------------------------------
 
-    commitRoute(ownerId, rawPoints) {
+    commitRoute(ownerId, rawPoints, mode) {
       const owner = findPlayer(ownerId);
       if (!owner) return rejected('That player is no longer on the ice.');
       if (rawPoints.length < 2) return rejected('That route was too short to keep.');
+
+      const pending = getState().pendingAction;
+      const effectiveMode = mode ?? (pending?.kind === 'draw-route' ? pending.mode : undefined) ?? 'skate';
 
       // Hundreds of raw pointer samples become a handful of CONTROL POINTS,
       // every one of which is a grabbable handle. The route is stored as that
@@ -469,13 +473,13 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       const points = simplifyToControls(rawPoints, ROUTE_CONTROL_TARGET).map(point =>
         constrainToRink(point, RINK_MARGIN)
       );
-      const path: SkatePath = createSkatePath(ownerId, owner.team, points);
+      const path: SkatePath = createSkatePath(ownerId, owner.team, points, effectiveMode);
 
       dispatch({ type: 'ADD_SKATE_PATH', path });
       dispatch({ type: 'SELECT_PLAYER', id: ownerId });
       dispatch({ type: 'CANCEL_PENDING_ACTION' });
       notify.toast({
-        message: `Route drawn for #${owner.number} — drag its handles to reshape`,
+        message: `${effectiveMode === 'backward' ? 'Backward route' : effectiveMode === 'glide' ? 'Glide route' : 'Route'} drawn for #${owner.number} — drag its handles to reshape`,
         type: 'success',
         dedupeKey: 'route-drawn',
       });
@@ -1641,6 +1645,62 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
         dedupeKey: 'recover-off-rink',
       });
       return done(recovered);
+    },
+
+    setupStationSplit(type, stationZone?: Zone) {
+      const state = getState();
+      dispatch({ type: 'PUSH_UNDO' });
+
+      // Retain existing equipment except any previously auto-placed station dividers
+      const existing = (state.drill.equipment ?? []).filter(e => !e.label?.startsWith('station-divider'));
+
+      const newBarriers: EquipmentItem[] = [];
+
+      const createBumper = (x: number, y: number, index: number, lineName: string): EquipmentItem => ({
+        id: `station-divider-${lineName}-${index}-${Date.now().toString(36)}`,
+        kind: 'barrier',
+        position: { x, y },
+        size: { width: 70, height: 16 },
+        rotation: Math.PI / 2,
+        label: `station-divider-${lineName}`,
+      });
+
+      // 5 bumper barriers span vertically across the rink
+      const yStops = [55, 135, 212.5, 290, 370];
+
+      if (type === 'cross-ice-3') {
+        // Place dividers along left blue line (x = 375) and right blue line (x = 625)
+        yStops.forEach((y, i) => {
+          newBarriers.push(createBumper(375, y, i, 'blue-l'));
+          newBarriers.push(createBumper(625, y, i, 'blue-r'));
+        });
+        dispatch({ type: 'SET_EQUIPMENT', items: [...existing, ...newBarriers] });
+        host.camera.zoomToZone(stationZone ?? 'defensive');
+        notify.toast({
+          message: 'USA Hockey ADM 3-Station Cross-Ice setup applied with divider bumpers',
+          type: 'success',
+        });
+      } else if (type === 'split-2' || type === 'half') {
+        // Place dividers along center red line (x = 500)
+        yStops.forEach((y, i) => {
+          newBarriers.push(createBumper(500, y, i, 'red-center'));
+        });
+        dispatch({ type: 'SET_EQUIPMENT', items: [...existing, ...newBarriers] });
+        host.camera.zoomToZone(stationZone ?? 'defensive');
+        notify.toast({
+          message: type === 'split-2' ? '2-Station Half-Ice Split applied' : 'Half-Ice divider setup applied',
+          type: 'success',
+        });
+      } else {
+        // 'full'
+        dispatch({ type: 'SET_EQUIPMENT', items: existing });
+        host.camera.zoomToZone('full');
+        notify.toast({
+          message: 'Full Ice view restored (station dividers removed)',
+          type: 'info',
+        });
+      }
+      return done();
     },
 
     // ------------------------------------------------------------------------

@@ -34,6 +34,7 @@ const announceSpy = vi.fn();
 vi.mock('@/hooks/useAppState', () => ({
   useAppServices: () => ({ announcer: { announce: announceSpy } }),
   useAppState: () => ({ dispatch: vi.fn() }),
+  useCommands: () => ({ setupStationSplit: vi.fn() }),
 }));
 
 let store: CameraStore;

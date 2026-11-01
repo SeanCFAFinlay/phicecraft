@@ -29,6 +29,7 @@ const ANIMATION_MS = 380;
 export const VIEW_AREAS: { zone: Zone; label: string; description: string }[] = [
   { zone: 'full', label: 'FULL', description: 'the whole sheet' },
   { zone: 'defensive', label: 'D ZONE', description: 'the left end, to the blue line' },
+  { zone: 'neutral', label: 'N ZONE', description: 'the neutral zone between blue lines' },
   { zone: 'offensive', label: 'O ZONE', description: 'the right end, to the blue line' },
 ];
 

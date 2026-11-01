@@ -45,7 +45,7 @@ export const BOARD_ROTATION_VERTICAL = -Math.PI / 2;
 export const BOARD_ROTATION_HORIZONTAL = 0;
 
 /** The named views a coach can jump between. */
-export type Zone = 'full' | 'offensive' | 'defensive';
+export type Zone = 'full' | 'offensive' | 'defensive' | 'neutral';
 
 /** A rectangle of ice, in world units. */
 export interface WorldRect {
