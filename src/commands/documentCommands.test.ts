@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestHarness, toasted, type TestHarness } from '@/test/commandHost';
 import { buildDrill, buildDistinctiveRoute, buildPlayer, FIXED_NOW } from '@/test/builders';
+import { installFakeLocalStorage } from '@/test/utils';
 import { RINK } from '@/core/constants';
 import { isOnIce } from '@/domain/v3/types';
 import { isReviewComplete } from './playbackCommands';
@@ -532,6 +533,12 @@ describe('import', () => {
     expect(toasted(harness, /Nothing could be imported/)).toBe(true);
   });
 
+  it('falls back to a generic message when a bare empty array has no per-entry failures', async () => {
+    const result = await harness.commands.prepareImport(JSON.stringify([]));
+    expect(result.status).toBe('rejected');
+    expect(toasted(harness, /No drills were found in that file/)).toBe(true);
+  });
+
   it('commits as copies and opens the exact imported drill', async () => {
     const prepared = await harness.commands.prepareImport(drillJson());
     if (prepared.status !== 'done') throw new Error('expected a preview');
@@ -562,6 +569,23 @@ describe('import', () => {
     await harness.commands.commitImport(prepared.value, []);
     expect(harness.toasts.some(toast => toast.message.includes('players was not an array'))).toBe(true);
   });
+
+  it('replaces the colliding local drill when the decision says replace', async () => {
+    const existing = buildDrill({ id: 'local-1', name: 'Old Version' });
+    harness.repository.drills.set(existing.id, existing);
+
+    const prepared = await harness.commands.prepareImport(drillJson({ id: 'local-1', name: 'New Version' }));
+    if (prepared.status !== 'done') throw new Error('expected a preview');
+    expect(prepared.value.candidates[0].collidesWith?.id).toBe('local-1');
+
+    const result = await harness.commands.commitImport(prepared.value, [
+      { sourceIndex: 0, mode: 'replace' },
+    ]);
+    expect(result.status).toBe('done');
+    expect(harness.getState().drill.name).toBe('New Version');
+    expect(harness.getState().drill.id).toBe('local-1');
+    expect(harness.repository.drills.size).toBe(1);
+  });
 });
 
 // ----------------------------------------------------------------------------
@@ -589,6 +613,22 @@ describe('recovery', () => {
     const result = await harness.commands.downloadRecoveryBundle();
     expect(result.status).toBe('done');
     expect(JSON.parse(harness.downloads[0].contents).records).toHaveLength(1);
+  });
+
+  it('is rejected when the browser blocks the recovery download', async () => {
+    await harness.repository.putRecovery({
+      id: 'r1',
+      source: 'import',
+      reference: 'broken.json',
+      raw: '{ half a file',
+      reason: 'invalid JSON',
+      capturedAt: FIXED_NOW,
+    });
+    harness.breakDownloads();
+
+    const result = await harness.commands.downloadRecoveryBundle();
+    expect(result.status).toBe('rejected');
+    expect(harness.downloads).toHaveLength(0);
   });
 
   it('retries a failed save', async () => {
@@ -627,6 +667,17 @@ describe('initialize', () => {
     expect(toasted(harness, /Storage is unavailable/)).toBe(true);
   });
 
+  it('reports a read failure (other than not-found) when reopening the last drill', async () => {
+    const stored = buildDrill({ id: 'previous', name: 'Previous Session' });
+    harness.repository.drills.set(stored.id, stored);
+    await harness.repository.setCurrentDrillId('previous');
+    harness.repository.meta.set('legacyMigrationCompletedAt', FIXED_NOW);
+    harness.repository.failOperation('read', { code: 'quota-exceeded', message: 'disk full' });
+
+    await harness.commands.initialize();
+    expect(toasted(harness, /Could not reopen your last play/)).toBe(true);
+  });
+
   it('saves the initial drill when there is nothing to reopen', async () => {
     vi.stubGlobal('localStorage', undefined);
     await harness.commands.initialize();
@@ -641,6 +692,30 @@ describe('initialize', () => {
 
     await harness.commands.initialize();
     expect(harness.getState().drill.name).toBe('Previous Session');
+  });
+
+  it('migrates a legacy localStorage library into the repository and reports it', async () => {
+    const legacy = buildDrill({ id: 'legacy-1', name: 'Legacy Breakout' });
+    const storage = installFakeLocalStorage({
+      phicecraft_drills: JSON.stringify([{ id: 'legacy-1', name: 'Legacy Breakout', updatedAt: FIXED_NOW }]),
+      [`phicecraft_drills_${legacy.id}`]: JSON.stringify(legacy),
+    });
+    vi.stubGlobal('localStorage', storage);
+
+    await harness.commands.initialize();
+    expect(toasted(harness, /Moved 1 saved play/)).toBe(true);
+    expect(harness.repository.drills.has('legacy-1')).toBe(true);
+  });
+
+  it('reports when a legacy document could not be migrated and is kept for recovery', async () => {
+    const storage = installFakeLocalStorage({
+      phicecraft_drills: JSON.stringify([{ id: 'broken', name: 'Broken', updatedAt: FIXED_NOW }]),
+      phicecraft_drills_broken: 'not valid json',
+    });
+    vi.stubGlobal('localStorage', storage);
+
+    await harness.commands.initialize();
+    expect(toasted(harness, /could not be read and were kept for recovery/)).toBe(true);
   });
 });
 

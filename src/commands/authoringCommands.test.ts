@@ -188,6 +188,15 @@ describe('requestPass', () => {
     harness.commands.requestPass('h11', 'h13');
     expect(harness.getState().pendingAction).toEqual({ kind: 'none' });
   });
+
+  it('releases the pass from an explicit origin point on the route, not the player', () => {
+    harness.commands.commitRoute('h11', [{ x: 360, y: 212.5 }, { x: 450, y: 212.5 }]);
+    const origin = { x: 420, y: 212.5 };
+    const result = harness.commands.requestPass('h11', 'h13', { fromPoint: origin });
+    expect(result.status).toBe('done');
+    const pass = harness.getState().drill.events[0];
+    expect(pass.fromPoint.x).toBeGreaterThan(360);
+  });
 });
 
 describe('requestShot', () => {
@@ -255,6 +264,19 @@ describe('retargetPass', () => {
     expect(harness.commands.retargetPass(eventId, 'ghost').status).toBe('rejected');
   });
 
+  it('rejects retargeting a pass whose passer is no longer on the ice', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h13', number: '13', team: 'home' }),
+          buildPlayer({ id: 'h44', number: '44', team: 'home' }),
+        ],
+        events: [buildPass({ id: 'p1', fromPlayerId: 'ghost-passer', toPlayerId: 'h13' })],
+      })
+    );
+    expect(harness.commands.retargetPass('p1', 'h44').status).toBe('rejected');
+  });
+
   it('rejects retargeting something that is not a pass', () => {
     harness.loadDrill(
       buildDrill({
@@ -296,6 +318,26 @@ describe('convertDumpToPass', () => {
     expect(harness.commands.convertDumpToPass(eventId, 'a87').status).toBe('rejected');
     expect(harness.getState().drill.events[0].type).toBe('dump');
   });
+
+  it('refuses to convert a dump whose source player is no longer on the ice', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [buildPlayer({ id: 'h13', number: '13', team: 'home' })],
+        events: [
+          {
+            id: 'dump-1',
+            type: 'dump',
+            fromPlayerId: 'ghost-dumper',
+            fromPoint: { x: 0, y: 0 },
+            toPoint: { x: 100, y: 100 },
+            targetNet: 'dump',
+            team: 'home',
+          },
+        ],
+      })
+    );
+    expect(harness.commands.convertDumpToPass('dump-1', 'h13').status).toBe('rejected');
+  });
 });
 
 describe('requestPickup', () => {
@@ -311,6 +353,27 @@ describe('requestPickup', () => {
 
     expect(result.status).toBe('rejected');
     expect(toasted(harness, /cannot reach the puck/)).toBe(true);
+  });
+
+  it('recovers a loose puck when the skater is positioned to reach it', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h11', number: '11', team: 'home', hasPuck: true, x: 360, y: 212.5 }),
+          // Parked right where the dump below lands, so the timeline search
+          // finds a sample within the 32px pickup radius.
+          buildPlayer({ id: 'h13', number: '13', team: 'home', x: 700, y: 300 }),
+        ],
+      })
+    );
+    harness.commands.requestDump('h11', { x: 700, y: 300 });
+
+    const result = harness.commands.requestPickup('h13');
+    expect(result.status).toBe('done');
+    const pickup = harness.getState().drill.events.find(e => e.type === 'pickup');
+    expect(pickup).toBeDefined();
+    expect(pickup?.fromPlayerId).toBe('h13');
+    expect(toasted(harness, /recovers the puck/)).toBe(true);
   });
 });
 
@@ -382,6 +445,21 @@ describe('routes', () => {
     expect(route.finish).toBe('coast');
   });
 
+  it('keeps the existing mode when only finish is given', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [buildPlayer({ id: 'h13', hasPuck: true })],
+        skatePaths: [buildDistinctiveRoute('h13')],
+      })
+    );
+
+    harness.commands.updateRouteStyle('route-distinct', { finish: 'stop' });
+    const route = harness.getState().drill.skatePaths[0];
+    // `mode` was 'backward' and must not have been reset by a partial update.
+    expect(route.mode).toBe('backward');
+    expect(route.finish).toBe('stop');
+  });
+
   it('ignores a style update for a route that is gone', () => {
     harness.commands.updateRouteStyle('ghost', { mode: 'glide' });
     expect(harness.getState().drill.skatePaths).toEqual([]);
@@ -397,6 +475,121 @@ describe('routes', () => {
 
     expect(harness.commands.removeRoute(id).status).toBe('done');
     expect(harness.getState().drill.skatePaths).toEqual([]);
+  });
+});
+
+describe('route control point editing', () => {
+  function threePointRoute() {
+    harness.commands.commitRoute('h13', [
+      { x: 280, y: 122.5 },
+      { x: 380, y: 122.5 },
+      { x: 480, y: 160 },
+    ]);
+    return harness.getState().drill.skatePaths[0].id;
+  }
+
+  it('moves an interior control point', () => {
+    const id = threePointRoute();
+    const result = harness.commands.moveRouteControl(id, 1, { x: 390, y: 150 });
+    expect(result.status).toBe('done');
+    const route = harness.getState().drill.skatePaths.find(p => p.id === id)!;
+    expect(route.points[1]).toMatchObject({ x: 390, y: 150 });
+  });
+
+  it('refuses to move the starting point, which is pinned to the player', () => {
+    const id = threePointRoute();
+    const result = harness.commands.moveRouteControl(id, 0, { x: 390, y: 150 });
+    expect(result.status).toBe('rejected');
+  });
+
+  it('refuses to move a point on a route that is gone', () => {
+    expect(harness.commands.moveRouteControl('ghost', 1, { x: 1, y: 1 }).status).toBe('rejected');
+  });
+
+  it('inserts a new control point at an index', () => {
+    const id = threePointRoute();
+    const before = harness.getState().drill.skatePaths.find(p => p.id === id)!.points.length;
+    const result = harness.commands.insertRouteControl(id, 1, { x: 330, y: 130 });
+    expect(result.status).toBe('done');
+    const route = harness.getState().drill.skatePaths.find(p => p.id === id)!;
+    expect(route.points.length).toBe(before + 1);
+  });
+
+  it('refuses to insert a control point on a route that is gone', () => {
+    expect(harness.commands.insertRouteControl('ghost', 1, { x: 1, y: 1 }).status).toBe('rejected');
+  });
+
+  it('removes an interior control point', () => {
+    const id = threePointRoute();
+    const before = harness.getState().drill.skatePaths.find(p => p.id === id)!.points.length;
+    const result = harness.commands.removeRouteControl(id, 1);
+    expect(result.status).toBe('done');
+    const route = harness.getState().drill.skatePaths.find(p => p.id === id)!;
+    expect(route.points.length).toBe(before - 1);
+  });
+
+  it('refuses to remove the starting point', () => {
+    const id = threePointRoute();
+    const result = harness.commands.removeRouteControl(id, 0);
+    expect(result.status).toBe('rejected');
+  });
+
+  it('refuses to remove a point once the route is down to the minimum', () => {
+    harness.commands.commitRoute('h13', [{ x: 280, y: 122.5 }, { x: 380, y: 122.5 }]);
+    const id = harness.getState().drill.skatePaths[0].id;
+    const result = harness.commands.removeRouteControl(id, 1);
+    expect(result.status).toBe('rejected');
+  });
+
+  it('refuses to remove a control point on a route that is gone', () => {
+    expect(harness.commands.removeRouteControl('ghost', 1).status).toBe('rejected');
+  });
+
+  it('is a no-op when setRouteShape is given the shape already in effect', () => {
+    const id = threePointRoute();
+    const before = harness.getState().drill.skatePaths.find(p => p.id === id)!.shape ?? 'spline';
+    const result = harness.commands.setRouteShape(id, before);
+    expect(result.status).toBe('done');
+    expect(toasted(harness, /curves|straight/)).toBe(false);
+  });
+
+  it('changes the route shape and announces it', () => {
+    const id = threePointRoute();
+    const result = harness.commands.setRouteShape(id, 'polyline');
+    expect(result.status).toBe('done');
+    expect(harness.getState().drill.skatePaths.find(p => p.id === id)!.shape).toBe('polyline');
+    expect(toasted(harness, /straight/)).toBe(true);
+  });
+
+  it('refuses setRouteShape for a route that is gone', () => {
+    expect(harness.commands.setRouteShape('ghost', 'polyline').status).toBe('rejected');
+  });
+
+  it('simplifies a route with many points down to a comfortable handful', () => {
+    harness.commands.commitRoute('h13', [{ x: 280, y: 122.5 }, { x: 480, y: 160 }]);
+    const id = harness.getState().drill.skatePaths[0].id;
+    // commitRoute already simplifies down to ROUTE_CONTROL_TARGET, so force a
+    // route with more than MAX_COMFORTABLE_CONTROLS points directly.
+    harness.dispatch({
+      type: 'UPDATE_SKATE_POINTS',
+      id,
+      points: Array.from({ length: 20 }, (_, i) => ({ x: 280 + i * 20, y: 122.5 + (i % 2) * 10 })),
+    });
+
+    const result = harness.commands.simplifyRoute(id);
+    expect(result.status).toBe('done');
+    const route = harness.getState().drill.skatePaths.find(p => p.id === id)!;
+    expect(route.points.length).toBeLessThan(20);
+  });
+
+  it('refuses to simplify a route that already has a handful of points', () => {
+    const id = threePointRoute();
+    const result = harness.commands.simplifyRoute(id);
+    expect(result.status).toBe('rejected');
+  });
+
+  it('refuses to simplify a route that is gone', () => {
+    expect(harness.commands.simplifyRoute('ghost').status).toBe('rejected');
   });
 });
 
@@ -504,6 +697,14 @@ describe('destructive clears', () => {
 
     expect(harness.getState().drill.skatePaths).toEqual([]);
     expect(authoredEvents(harness.getState().drill.events)).toHaveLength(1);
+  });
+
+  it('clearMovementRoutes cancels cleanly', async () => {
+    harness.answerConfirm(false);
+    const result = await harness.commands.clearMovementRoutes();
+
+    expect(result.status).toBe('cancelled');
+    expect(harness.getState().drill.skatePaths).toHaveLength(1);
   });
 
   it('resetBoard restores the lineup but keeps the name', async () => {
@@ -821,6 +1022,67 @@ describe('opposing defense movement', () => {
     expect(opposingRoutes[0].mode).toBe('skate');
   });
 
+  it('gives all three forecheckers distinct roles when the opposing team has a full line', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h11', number: '11', team: 'home', hasPuck: true, x: 500, y: 212.5 }),
+          buildPlayer({ id: 'a1', number: '1', team: 'away', x: 600, y: 150 }),
+          buildPlayer({ id: 'a2', number: '2', team: 'away', x: 650, y: 250 }),
+          buildPlayer({ id: 'a3', number: '3', team: 'away', x: 700, y: 180 }),
+        ],
+      })
+    );
+    const res = harness.commands.generateOpposingDefense('forecheck');
+    expect(res.status).toBe('done');
+    const opposingRoutes = harness.getState().drill.skatePaths.filter(p => p.team === 'away');
+    // Every skater beyond the first two gets the "support the far side" role.
+    expect(opposingRoutes.length).toBe(3);
+  });
+
+  it('presses the puck location, not the holder, when no one has possession yet', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h11', number: '11', team: 'home' }),
+          buildPlayer({ id: 'a87', number: '87', team: 'away' }),
+        ],
+        initialPuck: { x: 250, y: 100 },
+      })
+    );
+    const res = harness.commands.generateOpposingDefense('forecheck');
+    expect(res.status).toBe('done');
+    const route = harness.getState().drill.skatePaths.find(p => p.team === 'away')!;
+    // Presses toward the initial puck spot (250, 100), not a default centre.
+    expect(route.points[route.points.length - 1].x).toBeLessThan(400);
+  });
+
+  it('generates box-shift routes that slide toward the puck quadrant', () => {
+    const res = harness.commands.generateOpposingDefense('box-shift');
+    expect(res.status).toBe('done');
+    if (res.status === 'done') {
+      expect(res.value).toBeGreaterThan(0);
+    }
+    const opposingRoutes = harness.getState().drill.skatePaths.filter(p => p.team === 'away');
+    expect(opposingRoutes.length).toBeGreaterThan(0);
+    expect(opposingRoutes[0].mode).toBe('glide');
+    expect(opposingRoutes[0].finish).toBe('stop');
+  });
+
+  it('generates backcheck routes sprinting through the middle lane', () => {
+    const res = harness.commands.generateOpposingDefense('backcheck');
+    expect(res.status).toBe('done');
+    if (res.status === 'done') {
+      expect(res.value).toBeGreaterThan(0);
+    }
+    const opposingRoutes = harness.getState().drill.skatePaths.filter(p => p.team === 'away');
+    expect(opposingRoutes.length).toBeGreaterThan(0);
+    expect(opposingRoutes[0].mode).toBe('skate');
+    expect(opposingRoutes[0].finish).toBe('stop');
+    // Backcheck is a three-point route through the middle lane (212.5).
+    expect(opposingRoutes[0].points.length).toBe(3);
+  });
+
   it('clears opposing routes while preserving home routes', () => {
     harness.commands.generateOpposingDefense('gap');
     expect(harness.getState().drill.skatePaths.length).toBeGreaterThan(0);
@@ -840,6 +1102,24 @@ describe('opposing defense movement', () => {
     const secondCount = harness.getState().drill.skatePaths.filter(p => p.team === 'away').length;
     expect(secondCount).toBe(firstCount);
   });
+
+  it('rejects clearing opposing routes when there are none', () => {
+    const res = harness.commands.clearOpposingRoutes();
+    expect(res.status).toBe('rejected');
+  });
+
+  it('creates a canonical defending D-pair when the opposing team has no skaters on the ice', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [buildPlayer({ id: 'h11', number: '11', team: 'home', hasPuck: true })],
+      })
+    );
+    const res = harness.commands.generateOpposingDefense('gap');
+    expect(res.status).toBe('done');
+    const awaySkaters = harness.getState().drill.players.filter(p => p.team === 'away');
+    expect(awaySkaters.length).toBe(2);
+    expect(awaySkaters.every(p => p.role === 'D')).toBe(true);
+  });
 });
 
 describe('coach drill tools and dump & chase', () => {
@@ -857,6 +1137,86 @@ describe('coach drill tools and dump & chase', () => {
     expect(chasePath).toBeDefined();
   });
 
+  it('clears the dumper route and every prior puck action when regenerated on a staged sheet', () => {
+    harness.commands.generateDumpAndChase('bottom-right');
+    expect(harness.getState().drill.events.length).toBeGreaterThan(0);
+
+    const res = harness.commands.generateDumpAndChase('top-left');
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    expect(state.drill.events.length).toBe(1);
+    expect(state.drill.events[0].toPoint).toMatchObject({ x: 115, y: 75 });
+  });
+
+  it('creates a chaser when the attacking team has only the dumper on the ice', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h11', number: '11', team: 'home', hasPuck: true }),
+          buildPlayer({ id: 'a87', number: '87', team: 'away' }),
+        ],
+      })
+    );
+    const before = harness.getState().drill.players.length;
+
+    const res = harness.commands.generateDumpAndChase('bottom-right');
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    expect(state.drill.players.length).toBe(before + 1);
+    const chaser = state.drill.players.find(p => p.team === 'home' && p.id !== 'h11')!;
+    expect(chaser).toBeDefined();
+    expect(chaser.role).toBe('LW');
+  });
+
+  it('creates a dumper from scratch when the attacking team has only a goalie on the ice', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h-goalie', number: '30', team: 'home', role: 'G' }),
+          buildPlayer({ id: 'a87', number: '87', team: 'away', hasPuck: true }),
+        ],
+      })
+    );
+
+    const res = harness.commands.generateDumpAndChase('bottom-right');
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    // Away was holding the puck, so it's the attacking team; it had no
+    // non-goalie skater, so one was created from scratch to dump it in.
+    const dumper = state.drill.players.find(p => p.team === 'away')!;
+    expect(dumper).toBeDefined();
+    expect(dumper.role).toBe('C');
+    expect(dumper.hasPuck).toBe(true);
+  });
+
+  it('picks the corner from the selected dumper and adds an F2 support route with a third attacker', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h11', number: '11', team: 'home', hasPuck: true, y: 100 }),
+          buildPlayer({ id: 'h13', number: '13', team: 'home', y: 150 }),
+          buildPlayer({ id: 'h77', number: '77', team: 'home', y: 200 }),
+          buildPlayer({ id: 'a87', number: '87', team: 'away' }),
+        ],
+      })
+    );
+    harness.commands.selectPlayer('h11');
+
+    // No corner argument: falls back to the selected dumper's y to pick top/bottom.
+    const res = harness.commands.generateDumpAndChase();
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    const dump = state.drill.events.find(e => e.type === 'dump')!;
+    expect(dump.toPoint.y).toBe(75);
+
+    const f2Path = state.drill.skatePaths.find(p => p.ownerId === 'h77');
+    expect(f2Path).toBeDefined();
+    expect(f2Path?.finish).toBe('coast');
+
+    const defenderPath = state.drill.skatePaths.find(p => p.ownerId === 'a87');
+    expect(defenderPath).toBeDefined();
+  });
+
   it('generates coach feed and one-timer shot on net', () => {
     const res = harness.commands.generateCoachFeed();
     expect(res.status).toBe('done');
@@ -868,6 +1228,16 @@ describe('coach drill tools and dump & chase', () => {
     expect(shot?.result).toBe('goal');
   });
 
+  it('clears prior puck actions when the coach feed is regenerated on an already-staged sheet', () => {
+    harness.commands.generateCoachFeed();
+    expect(harness.getState().drill.events.length).toBeGreaterThan(0);
+
+    const res = harness.commands.generateCoachFeed();
+    expect(res.status).toBe('done');
+    // Regenerating replaces, not stacks: still just a pass and a shot.
+    expect(harness.getState().drill.events.length).toBe(2);
+  });
+
   it('generates hard board rim and corner retrieval route', () => {
     const res = harness.commands.generateCoachRim();
     expect(res.status).toBe('done');
@@ -877,6 +1247,51 @@ describe('coach drill tools and dump & chase', () => {
     expect(rimDump?.waypoints?.length).toBeGreaterThan(0);
     const retrieval = state.drill.skatePaths.find(p => p.points.some(pt => pt.x === 885 && pt.y === 75));
     expect(retrieval).toBeDefined();
+  });
+
+  it('clears the prior rim event and winger route when the coach rim drill is regenerated', () => {
+    harness.commands.generateCoachRim();
+    const firstWinger = harness.getState().drill.skatePaths.find(p =>
+      p.points.some(pt => pt.x === 885 && pt.y === 75)
+    )!;
+    expect(firstWinger).toBeDefined();
+
+    const res = harness.commands.generateCoachRim();
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    expect(state.drill.events.filter(e => e.type === 'dump').length).toBe(1);
+    expect(state.drill.skatePaths.filter(p => p.ownerId === firstWinger.ownerId).length).toBe(1);
+  });
+
+  it('creates every needed player from an empty sheet instead of relying on an existing roster', () => {
+    // Dump & chase with fewer than two players on the ice takes the "apply
+    // the full tactical preset" branch rather than assembling dumper/chaser
+    // from an existing lineup.
+    harness.loadDrill(buildDrill({ players: [] }));
+    const res = harness.commands.generateDumpAndChase();
+    expect(res.status).toBe('done');
+    expect(harness.getState().drill.coaches?.length).toBeGreaterThan(0);
+    expect(harness.getState().drill.events.some(e => e.type === 'dump')).toBe(true);
+  });
+
+  it('creates a feeder, shooter, defending goalie and coach from a bare sheet for the coach feed', () => {
+    harness.loadDrill(buildDrill({ players: [] }));
+    const res = harness.commands.generateCoachFeed();
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    expect(state.drill.players.filter(p => p.team === 'home').length).toBe(2);
+    expect(state.drill.players.some(p => p.team === 'away' && p.role === 'G')).toBe(true);
+    expect(state.drill.coaches?.length).toBeGreaterThan(0);
+  });
+
+  it('creates a rimmer and winger from a bare sheet for the coach rim drill', () => {
+    harness.loadDrill(buildDrill({ players: [] }));
+    const res = harness.commands.generateCoachRim();
+    expect(res.status).toBe('done');
+    const state = harness.getState();
+    expect(state.drill.players.filter(p => p.team === 'home').length).toBe(2);
+    expect(state.drill.players.some(p => p.role === 'D')).toBe(true);
+    expect(state.drill.players.some(p => p.role === 'LW')).toBe(true);
   });
 });
 
@@ -968,6 +1383,17 @@ describe('bulk removal and object timing', () => {
     expect(harness.getState().drill.equipment?.length).toBe(2);
   });
 
+  it('rejects clearing equipment when there is none', () => {
+    const res = harness.commands.clearEquipment();
+    expect(res.status).toBe('rejected');
+  });
+
+  it('uses the singular when clearing exactly one piece of equipment', () => {
+    harness.commands.addEquipment('cone', { x: 300, y: 200 });
+    harness.commands.clearEquipment();
+    expect(toasted(harness, 'Cleared 1 equipment item')).toBe(true);
+  });
+
   it('clears opposing team players and supports undo', () => {
     harness.commands.addPlayer({ x: 600, y: 200 }, 'away');
     harness.commands.addPlayer({ x: 650, y: 250 }, 'away');
@@ -982,6 +1408,29 @@ describe('bulk removal and object timing', () => {
     expect(harness.getState().drill.players.filter(p => p.team === 'away').length).toBe(awayCount);
   });
 
+  it('rejects clearing opponents when there are none', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [buildPlayer({ id: 'h11', number: '11', team: 'home', hasPuck: true })],
+      })
+    );
+    const res = harness.commands.clearOpponents();
+    expect(res.status).toBe('rejected');
+  });
+
+  it('uses the singular when clearing exactly one opposing player', () => {
+    harness.loadDrill(
+      buildDrill({
+        players: [
+          buildPlayer({ id: 'h11', number: '11', team: 'home', hasPuck: true }),
+          buildPlayer({ id: 'a87', number: '87', team: 'away' }),
+        ],
+      })
+    );
+    harness.commands.clearOpponents();
+    expect(toasted(harness, 'Removed 1 opposing player')).toBe(true);
+  });
+
   it('removes selected object via removeSelected', () => {
     const addRes = harness.commands.addEquipment('mini-net', { x: 400, y: 200 });
     if (addRes.status !== 'done') throw new Error('addEquipment failed');
@@ -990,6 +1439,108 @@ describe('bulk removal and object timing', () => {
     const removeRes = harness.commands.removeSelected();
     expect(removeRes.status).toBe('done');
     expect(harness.getState().drill.equipment?.some(e => e.id === addRes.value)).toBe(false);
+  });
+
+  it('removes the selected player via removeSelected', async () => {
+    harness.commands.selectPlayer('h13');
+    const removeRes = harness.commands.removeSelected();
+    expect(removeRes.status).toBe('done');
+    // removeSelected hands off to the async removePlayer (which confirms
+    // first) without awaiting it, so give that confirmation a tick to settle.
+    await Promise.resolve();
+    expect(harness.getState().drill.players.some(p => p.id === 'h13')).toBe(false);
+  });
+
+  it('removes the selected coach via removeSelected', () => {
+    const addRes = harness.commands.addCoach({ x: 450, y: 80 });
+    if (addRes.status !== 'done') throw new Error('addCoach failed');
+    harness.commands.selectCoach(addRes.value);
+
+    const removeRes = harness.commands.removeSelected();
+    expect(removeRes.status).toBe('done');
+    expect(harness.getState().drill.coaches?.some(c => c.id === addRes.value)).toBe(false);
+  });
+
+  it('removes the selected puck event via removeSelected', () => {
+    harness.commands.requestPass('h11', 'h13');
+    const eventId = harness.getState().drill.events[0].id;
+    harness.commands.selectEvent(eventId);
+
+    const removeRes = harness.commands.removeSelected();
+    expect(removeRes.status).toBe('done');
+    expect(harness.getState().drill.events.some(e => e.id === eventId)).toBe(false);
+  });
+
+  it('rejects removeSelected when nothing is selected', () => {
+    const removeRes = harness.commands.removeSelected();
+    expect(removeRes.status).toBe('rejected');
+  });
+
+  it('is a no-op when setEventShape is given the shape already in effect', () => {
+    harness.commands.requestPass('h11', 'h13');
+    const eventId = harness.getState().drill.events[0].id;
+    const before = harness.getState().drill.events[0].shape ?? 'spline';
+
+    const res = harness.commands.setEventShape(eventId, before);
+    expect(res.status).toBe('done');
+    expect(toasted(harness, /curves|straight/)).toBe(false);
+  });
+
+  it('changes the puck line shape and announces it', () => {
+    harness.commands.requestPass('h11', 'h13');
+    const eventId = harness.getState().drill.events[0].id;
+
+    const res = harness.commands.setEventShape(eventId, 'polyline');
+    expect(res.status).toBe('done');
+    expect(harness.getState().drill.events[0].shape).toBe('polyline');
+    expect(toasted(harness, /straight/)).toBe(true);
+  });
+
+  it('rejects setEventShape for a puck action that no longer exists', () => {
+    expect(harness.commands.setEventShape('ghost', 'polyline').status).toBe('rejected');
+  });
+
+  it('snaps the shot origin onto a nearby route point without moving the player', () => {
+    harness.commands.commitRoute('h11', [{ x: 360, y: 212.5 }, { x: 500, y: 212.5 }, { x: 650, y: 212.5 }]);
+    harness.commands.requestShot('h11', { x: RINK.netRightX, y: RINK.netRightY });
+    const shotEvent = harness.getState().drill.events[0];
+
+    // 500,212.5 sits on the route, well within the 25px snap radius, so the
+    // snap-to-route branch (not the "no route" or "far from route" branch)
+    // runs. The blade position is sampled from the authored animation, so
+    // it lands near the route rather than exactly on the clicked point.
+    const res = harness.commands.setEventSource(shotEvent.id, { x: 500, y: 212.5 });
+    expect(res.status).toBe('done');
+    const moved = harness.getState().drill.events[0];
+    expect(moved.fromPoint.x).toBeGreaterThan(360);
+    expect(moved.fromPoint.x).toBeLessThan(650);
+    expect(harness.getState().drill.players.find(p => p.id === 'h11')!.x).toBe(360);
+  });
+
+  it('extends the route to a far drag point when adjusting the shot origin', () => {
+    harness.commands.commitRoute('h11', [{ x: 360, y: 212.5 }, { x: 500, y: 212.5 }]);
+    harness.commands.requestShot('h11', { x: RINK.netRightX, y: RINK.netRightY });
+    const shotEvent = harness.getState().drill.events[0];
+
+    // Far from the existing route (>25px), so the last route point is
+    // replaced with the drag target instead of snapping onto it.
+    const res = harness.commands.setEventSource(shotEvent.id, { x: 500, y: 300 });
+    expect(res.status).toBe('done');
+    const route = harness.getState().drill.skatePaths.find(p => p.ownerId === 'h11')!;
+    expect(route.points[route.points.length - 1]).toMatchObject({ x: 500, y: 300 });
+  });
+
+  it('moves the shooter directly when adjusting the shot origin with no authored route', () => {
+    harness.commands.requestShot('h11', { x: RINK.netRightX, y: RINK.netRightY });
+    const shotEvent = harness.getState().drill.events[0];
+
+    const res = harness.commands.setEventSource(shotEvent.id, { x: 500, y: 300 });
+    expect(res.status).toBe('done');
+    expect(harness.getState().drill.players.find(p => p.id === 'h11')!).toMatchObject({ x: 500, y: 300 });
+  });
+
+  it('rejects setEventSource for a puck action that no longer exists', () => {
+    expect(harness.commands.setEventSource('ghost', { x: 500, y: 300 }).status).toBe('rejected');
   });
 
   it('adjusts event timing via setEventTiming and syncs with skater route', () => {
@@ -1040,6 +1591,35 @@ describe('bulk removal and object timing', () => {
     harness.commands.undo();
     expect(harness.getState().drill.players.find(pl => pl.id === p.id)!.x).toBeCloseTo(300, 0);
   });
+
+  it('mirrors coaches, equipment, routes and puck action geometry along with players', () => {
+    harness.commands.addCoach({ x: 450, y: 80 });
+    harness.commands.addEquipment('cone', { x: 300, y: 100 });
+    harness.commands.commitRoute('h13', [{ x: 280, y: 122.5 }, { x: 300, y: 90 }]);
+    harness.commands.requestPass('h11', 'h13');
+
+    const before = harness.getState().drill;
+    const coachBefore = before.coaches![0];
+    const equipBefore = before.equipment![0];
+    const routeBefore = before.skatePaths.find(p => p.ownerId === 'h13')!;
+    const eventBefore = before.events[0];
+
+    const res = harness.commands.mirrorDrill('horizontal');
+    expect(res.status).toBe('done');
+
+    const after = harness.getState().drill;
+    const coachAfter = after.coaches!.find(c => c.id === coachBefore.id)!;
+    const equipAfter = after.equipment!.find(e => e.id === equipBefore.id)!;
+    const routeAfter = after.skatePaths.find(p => p.id === routeBefore.id)!;
+    const eventAfter = after.events.find(e => e.id === eventBefore.id)!;
+
+    expect(coachAfter.y).toBeCloseTo(425 - coachBefore.y, 0);
+    expect(equipAfter.position.y).toBeCloseTo(425 - equipBefore.position.y, 0);
+    expect(routeAfter.points[0].y).toBeCloseTo(425 - routeBefore.points[0].y, 0);
+    expect(eventAfter.fromPoint.y).toBeCloseTo(425 - eventBefore.fromPoint.y, 0);
+    expect(eventAfter.toPoint.y).toBeCloseTo(425 - eventBefore.toPoint.y, 0);
+  });
+
   describe('USA Hockey ADM / Station Splits & Route Drawing Modes', () => {
     it('sets up 3-station cross-ice divider barriers at both blue lines', () => {
       const res = harness.commands.setupStationSplit('cross-ice-3', 'defensive');
