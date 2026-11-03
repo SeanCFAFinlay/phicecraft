@@ -214,10 +214,21 @@ export function CanvasSurface() {
     scheduler.requestAll();
   }, [scheduler]);
 
-  // Dynamic updates only need to repaint the dynamic canvas layer,
-  // NOT the heavy static ice rink canvas!
+  // Runs after every commit (no deps array) so it also covers the one case
+  // neither effect above does: the WebGL renderer resolves asynchronously
+  // (dynamic import + GPU context init), so `useCanvasLayers`'s
+  // `forceRerenderOnRendererReady` is the only signal this component gets
+  // that a previously-null renderer just became available. If the initial
+  // mount's `requestAll()` above landed on an earlier frame where
+  // `getRenderer()` was still null, `drawStatic`/`drawDynamic` silently
+  // bailed and that dirty flag is gone for good - InvalidationScheduler
+  // clears it whether or not the callback actually painted. Requesting
+  // `requestAll()` here (not just dynamic) re-arms the static layer on every
+  // such render; `drawStatic`'s own `staticLayerKey` memoization makes the
+  // extra request a cheap no-op on every OTHER render, where nothing
+  // actually changed.
   useEffect(() => {
-    scheduler.requestDynamic();
+    scheduler.requestAll();
   });
 
   useEffect(() => camera.subscribe(() => {
