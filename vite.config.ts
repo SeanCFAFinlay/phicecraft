@@ -26,6 +26,22 @@ export default defineConfig({
     // list from the build the first visit leaves the JS uncached and the next
     // offline start has nothing to boot from.
     manifest: true,
+    rollupOptions: {
+      output: {
+        // Vendor code changes far less often than the app itself. Splitting
+        // it into its own chunk means a release that only touches app code
+        // (the common case) reuses the cached vendor chunk on a repeat
+        // visit, instead of re-downloading react/zod/idb/uuid every time.
+        // This does not shrink the first-load transfer; it only improves
+        // what a *returning* visitor has to re-fetch. The remaining >500 kB
+        // chunk warning is otherwise expected for a feature-rich SPA whose
+        // first screen needs its own command layer and 2D renderer
+        // immediately.
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'zod', 'idb', 'uuid'],
+        },
+      },
+    },
   },
   test: {
     // Pure logic suites stay in `node`; anything that renders React or touches
