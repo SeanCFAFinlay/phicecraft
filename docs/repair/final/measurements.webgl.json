@@ -2,12 +2,12 @@
   "recordedAt": "perf",
   "renderer": "webgl",
   "rinkHeights": {
-    "phone-320-portrait": 331,
-    "phone-360-portrait": 563,
-    "phone-390-portrait": 607,
-    "phone-667-landscape": 261,
-    "phone-844-landscape": 270,
-    "tablet-768": 787,
-    "desktop-1366": 520
+    "phone-320-portrait": 349,
+    "phone-360-portrait": 581,
+    "phone-390-portrait": 625,
+    "phone-667-landscape": 267,
+    "phone-844-landscape": 282,
+    "tablet-768": 811,
+    "desktop-1366": 552
   }
 }
