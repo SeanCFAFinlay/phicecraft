@@ -19,8 +19,8 @@ async function waitForSaved(page: Page): Promise<void> {
 /** Draw a route for #13, then open its inspector. */
 async function drawRouteAndOpenDetails(page: Page): Promise<void> {
   await dragWorld(page, LINEUP.home13, { x: 560, y: 120 });
-  await expect(page.getByRole('button', { name: 'Details' })).toBeVisible();
-  await page.getByRole('button', { name: 'Details' }).click();
+  await expect(page.getByRole('button', { name: 'Details', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Details', exact: true }).click();
   await expect(page.getByRole('dialog', { name: /^#13/ })).toBeVisible();
 }
 
@@ -64,7 +64,7 @@ function passMidpoint() {
 /** Tap a puck line to select it, and wait for its selection chip. */
 async function selectPuckLine(page: Page, at: { x: number; y: number }): Promise<void> {
   await clickWorld(page, at);
-  await expect(page.getByRole('button', { name: 'Details' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Details', exact: true })).toBeVisible();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -169,7 +169,7 @@ test('a pass line can be bent, and the puck then takes longer to arrive', async 
   await selectPuckLine(page, midpoint);
 
   const inspector = page.getByRole('dialog', { name: /Puck action 1/ });
-  await page.getByRole('button', { name: 'Details' }).click();
+  await page.getByRole('button', { name: 'Details', exact: true }).click();
   await expect(inspector).toBeVisible();
   await expect(inspector).toContainText('Bend points');
   await inspector.getByRole('button', { name: 'Close' }).click();
@@ -198,7 +198,7 @@ test('a puck line can be switched between curved and straight', async ({ page })
   await waitForSaved(page);
 
   await selectPuckLine(page, passMidpoint());
-  await page.getByRole('button', { name: 'Details' }).click();
+  await page.getByRole('button', { name: 'Details', exact: true }).click();
 
   const inspector = page.getByRole('dialog', { name: /Puck action 1/ });
   const shapes = inspector.getByRole('radiogroup', { name: 'Puck line shape' });
@@ -216,7 +216,7 @@ test('the event inspector reports how far the puck actually travels', async ({ p
   await waitForSaved(page);
 
   await selectPuckLine(page, passMidpoint());
-  await page.getByRole('button', { name: 'Details' }).click();
+  await page.getByRole('button', { name: 'Details', exact: true }).click();
 
   const inspector = page.getByRole('dialog', { name: /Puck action 1/ });
   await expect(inspector).toContainText('Puck travels');

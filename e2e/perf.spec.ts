@@ -104,7 +104,7 @@ test('a route drag does not put a React render on every pointer sample', async (
   // re-fitting the camera. Selecting first keeps this measuring what it is
   // named for: repaints per pointer sample, not the one after the commit.
   await clickWorld(page, LINEUP.home13);
-  await expect(page.getByRole('group', { name: 'Selection' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Selection', exact: true })).toBeVisible();
   const heightWhileSelected = (await rinkBox(page)).height;
 
   // Driven by hand rather than `dragWorld`, so counters can be read BEFORE

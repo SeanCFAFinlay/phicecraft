@@ -236,7 +236,7 @@ export interface DrillRepository {
    */
   readDocumentV3(id: ID): PersistenceResult<DrillDocumentV3>;
   /** Writes the drill and its list entry in one transaction. */
-  save(drill: Drill): PersistenceResult<void>;
+  save(drill: Drill, options?: SaveOptions): PersistenceResult<void>;
   /** Writes every drill in a single transaction; all or nothing. */
   saveMany(drills: Drill[]): PersistenceResult<ID[]>;
   /**
@@ -260,4 +260,9 @@ export interface DrillRepository {
   listRecovery(): PersistenceResult<RecoveryRecord[]>;
   clearRecovery(): PersistenceResult<void>;
   close(): void;
+}
+
+export interface SaveOptions {
+  /** Keep the durable title when this tab has not renamed the play. */
+  preserveTitle?: boolean;
 }

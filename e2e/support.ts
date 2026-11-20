@@ -101,6 +101,22 @@ const RENDERER_QUERY = REQUESTED_RENDERER ? `?renderer=${REQUESTED_RENDERER}` : 
  * so there is no window where a previous spec's drills are visible.
  */
 export async function openEditor(page: Page): Promise<void> {
+  // `reducedMotion: 'reduce'` is set globally in playwright.config.ts's `use`
+  // block, but that context-level option does not reliably take effect
+  // before the FIRST navigation in this Playwright version - observed live:
+  // `matchMedia('(prefers-reduced-motion: reduce)').matches` can still read
+  // `false` immediately after a fresh page's first `goto()`, even though the
+  // same check reads `true` a moment later (e.g. after a reload). The app
+  // reads this media query once on mount (`useResponsive`'s `prefersReducedMotion`)
+  // to decide whether to apply `animate-pulse` to its two "live" indicator
+  // dots (ReplayHud, IntelligenceBadge) - if the query reads `false` on that
+  // first mount, the dot animates indefinitely and a11y specs that wait for
+  // "no animations in flight" (`seriousViolations` below) hang until their
+  // timeout. An explicit `page.emulateMedia()` call is NOT subject to this
+  // race (confirmed directly: it reads `true` immediately), so set it here
+  // rather than relying on the context option alone.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+
   await page.addInitScript(() => {
     // Init scripts run on EVERY navigation, including page.reload(). Guarding
     // on sessionStorage (which survives a reload but not a new context) means

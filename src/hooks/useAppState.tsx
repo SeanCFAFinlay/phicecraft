@@ -167,6 +167,23 @@ export function AppProvider({ children, services, now, autoInitialize = true }: 
   }, [state.drill, coordinator]);
 
   useEffect(() => {
+    const flush = () => {
+      if (coordinator.hasUnsavedChanges) void coordinator.flush();
+    };
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!coordinator.hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      window.removeEventListener('beforeunload', warnBeforeUnload);
+    };
+  }, [coordinator]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       void coordinator.flush();
     }, AUTOSAVE_DELAY);

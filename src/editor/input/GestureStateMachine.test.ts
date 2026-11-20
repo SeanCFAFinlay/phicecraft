@@ -465,6 +465,55 @@ describe('puck drags', () => {
     );
   });
 
+  // Regression test: Move is the app's default, always-active tool (there is
+  // no separate "select" mode a coach has to leave), so isMoveToolActive is
+  // true for the overwhelming majority of real gestures. If it were checked
+  // before the carrier-drag branch, the carrier could never be dragged to
+  // pass at all without first arming Skate on them - which is not how
+  // "drag the puck carrier to pass" is supposed to work.
+  it('still drags the carrier to pass, not to reposition, when isMoveToolActive is true', () => {
+    context.isMoveToolActive = true;
+    const machine = build(
+      buildHitTester({
+        playerAt: () => ({ id: 'carrier', isCarrier: true }),
+        passReceiverAt: () => 'mate',
+      })
+    );
+
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerMove(touch(1, 200, 150));
+    scheduler.flushFrames();
+
+    expect(machine.current).toEqual({
+      kind: 'drag-puck',
+      playerId: 'carrier',
+      from: { x: 100, y: 100 },
+    });
+    expect(handlers.onPlayerMove).not.toHaveBeenCalled();
+    expect(handlers.onPuckDragPreview).toHaveBeenCalledWith(
+      'carrier',
+      { x: 100, y: 100 },
+      { x: 200, y: 150 },
+      'mate'
+    );
+  });
+
+  it('moves the carrier instead when the carrier is specifically armed with Move', () => {
+    context.isMoveToolActive = true;
+    context.armedMovePlayerId = 'carrier';
+    const machine = build(
+      buildHitTester({
+        playerAt: () => ({ id: 'carrier', isCarrier: true }),
+      })
+    );
+
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerMove(touch(1, 200, 150));
+
+    expect(machine.current).toEqual({ kind: 'move-player', playerId: 'carrier' });
+    expect(handlers.onPuckDragPreview).not.toHaveBeenCalled();
+  });
+
   it('starts a puck drag from a point on a route', () => {
     const machine = build(
       buildHitTester({

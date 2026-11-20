@@ -10,7 +10,8 @@ import { projectToV2 } from './projectToV2';
  */
 export function mergeEditedIntoStored(
   stored: DrillDocumentV3,
-  edited: DrillDocumentV3
+  edited: DrillDocumentV3,
+  options: { preserveTitle?: boolean } = {}
 ): DrillDocumentV3 {
   const phases = stored.phases.length > 1 ? stored.phases : edited.phases;
   const validPhaseIds = new Set(phases.map(phase => phase.id));
@@ -28,7 +29,10 @@ export function mergeEditedIntoStored(
 
   return {
     ...edited,
-    metadata: { ...stored.metadata, title: edited.metadata.title },
+    metadata: {
+      ...stored.metadata,
+      title: options.preserveTitle ? stored.metadata.title : edited.metadata.title,
+    },
     groups: stored.groups,
     equipment: stored.equipment,
     annotations: stored.annotations,

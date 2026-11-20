@@ -70,7 +70,7 @@ test('the rink keeps a usable height', async ({ page }, testInfo) => {
 test('the rink keeps a usable height with a player selected', async ({ page }, testInfo) => {
   await clickWorld(page, LINEUP.home11);
   const selectionShown = page
-    .getByRole('group', { name: 'Selection' })
+    .getByRole('group', { name: 'Selection', exact: true })
     .or(page.getByRole('navigation', { name: 'Editing tools' }).getByRole('button', { name: 'Delete' }));
   await expect(selectionShown).toBeVisible();
 

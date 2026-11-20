@@ -204,6 +204,8 @@ describe('deleteDrill', () => {
 
     expect(harness.getState().drill.id).not.toBe(id);
     expect(harness.getState().drill.players.length).toBeGreaterThan(0);
+    expect(harness.repository.drills.has(harness.getState().drill.id)).toBe(true);
+    expect(harness.repository.drills.has(id)).toBe(false);
   });
 });
 

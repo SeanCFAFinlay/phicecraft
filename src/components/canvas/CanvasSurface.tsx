@@ -678,7 +678,9 @@ export function CanvasSurface() {
           stateRef.current.pendingAction.kind === 'draw-route'
             ? stateRef.current.pendingAction.playerId
             : null,
-        isMoveToolActive: stateRef.current.ui.currentTool === 'move',
+        // Move is the neutral authoring surface: dragging a skater draws a
+        // route, while the selection chip explicitly arms repositioning.
+        isMoveToolActive: false,
         isAddToolActive: ['home', 'away', 'goalie', 'coach', 'cone', 'tire', 'mini-net', 'barrier'].includes(
           stateRef.current.ui.currentTool
         ),

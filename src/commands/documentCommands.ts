@@ -8,7 +8,7 @@
 
 import type { Drill, DrillMeta, ID } from '@/core/types';
 import type { DrillDocumentV3 } from '@/domain/v3/types';
-import { duplicateDrill } from '@/engine/drill';
+import { createNewDrill, duplicateDrill } from '@/engine/drill';
 import { generateId } from '@/utils/id';
 import {
   commitImport as commitImportToRepository,
@@ -458,9 +458,9 @@ export function createDocumentCommands(host: CommandHost): DocumentCommands {
           openDrill(replacement.value);
         } else {
           dispatch({ type: 'STOP_PLAYBACK' });
-          dispatch({ type: 'NEW_DRILL' });
+          const fresh = createNewDrill();
+          dispatch({ type: 'LOAD_DRILL', drill: fresh });
           coordinator.reset();
-          const fresh = getState().drill;
           await coordinator.save(fresh);
           await repository.setCurrentDrillId(fresh.id);
           await refreshDrillList();

@@ -45,6 +45,13 @@ describe('mergeEditedIntoStored', () => {
     expect(merged.metadata.categories).toEqual(stored.metadata.categories);
   });
 
+  it('can preserve the durable title for a non-rename edit from another tab', () => {
+    const { drill } = projectToV2(stored);
+    drill.players[0] = { ...drill.players[0], x: drill.players[0].x + 10 };
+    const merged = mergeEditedIntoStored(stored, migrateV2ToV3(drill), { preserveTitle: true });
+    expect(merged.metadata.title).toBe(stored.metadata.title);
+  });
+
   it('takes the edited jerseys, reducedEffects and duration, but keeps the stored defaultView', () => {
     const { drill } = projectToV2(stored);
     drill.settings = {

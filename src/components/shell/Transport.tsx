@@ -114,17 +114,24 @@ export function Transport({
         </button>
       )}
 
-      {/* Progress: a labelled bar, plus interactive scrubbing slider */}
-      <div
-        className="relative min-w-0 flex-1 flex items-center group py-2"
-        role="progressbar"
-        aria-label="Playback position"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={snapshot.progressPercent}
-        aria-valuetext={formatClock(progress, snapshot.durationSeconds)}
-      >
-        <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10 transition-all group-hover:h-3 pointer-events-none">
+      {/*
+        Progress: a labelled bar, plus interactive scrubbing slider.
+        The range input is a SIBLING of the `progressbar` div, not a
+        descendant of it - axe's `nested-interactive` rule (and ARIA itself)
+        forbids a focusable descendant inside `role="progressbar"`. Both
+        elements are absolutely overlaid in the same box via `relative`/
+        `absolute inset-0` so they still occupy one visual control.
+      */}
+      <div className="relative min-w-0 flex-1 flex items-center group py-2">
+        <div
+          className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10 transition-all group-hover:h-3 pointer-events-none"
+          role="progressbar"
+          aria-label="Playback position"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={snapshot.progressPercent}
+          aria-valuetext={formatClock(progress, snapshot.durationSeconds)}
+        >
           <div
             className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.7)]"
             style={{ width: `${snapshot.progressPercent}%` }}

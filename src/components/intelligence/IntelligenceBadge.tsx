@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAppState } from '@/hooks/useAppState';
+import { useResponsive } from '@/ui/useResponsive';
 import type { DrillValidationReport } from '@/domain/validation/coachIntelligence';
 
 export function IntelligenceBadge({
@@ -17,6 +18,7 @@ export function IntelligenceBadge({
   onToggle?: () => void;
 } = {}) {
   const { state } = useAppState();
+  const { prefersReducedMotion } = useResponsive();
   const [report, setReport] = useState<DrillValidationReport | null>(null);
 
   useEffect(() => {
@@ -91,7 +93,9 @@ export function IntelligenceBadge({
           ? `${issueCount} Tactical Note${issueCount > 1 ? 's' : ''}`
           : 'Intelligence: Verified'}
       </span>
-      {hasIssues && <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />}
+      {hasIssues && (
+        <span className={`flex h-2 w-2 rounded-full bg-amber-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
+      )}
     </button>
   );
 }

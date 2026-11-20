@@ -281,13 +281,15 @@ export function loadPracticeSessions(): PracticeSession[] {
 /**
  * Saves all practice sessions to storage and marks initialized.
  */
-export function savePracticeSessions(sessions: PracticeSession[]): void {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+export function savePracticeSessions(sessions: PracticeSession[]): boolean {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return false;
   try {
     localStorage.setItem(PRACTICE_STORAGE_KEY, JSON.stringify(sessions));
     localStorage.setItem(PRACTICE_INITIALIZED_KEY, 'true');
+    return true;
   } catch (err) {
     console.error('Failed to save practice sessions', err);
+    return false;
   }
 }
 
@@ -302,7 +304,7 @@ export function getPracticeSession(id: string): PracticeSession | null {
 /**
  * Adds or updates a practice session.
  */
-export function upsertPracticeSession(session: PracticeSession): void {
+export function upsertPracticeSession(session: PracticeSession): boolean {
   const sessions = loadPracticeSessions();
   const index = sessions.findIndex(s => s.id === session.id);
   const updated = {
@@ -315,7 +317,7 @@ export function upsertPracticeSession(session: PracticeSession): void {
   } else {
     sessions.unshift(updated);
   }
-  savePracticeSessions(sessions);
+  return savePracticeSessions(sessions);
 }
 
 /**

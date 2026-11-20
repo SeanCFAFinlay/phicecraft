@@ -126,7 +126,7 @@ export interface GestureContext {
    * skating in and shooting. Arming Skate says "this drag is a route".
    */
   armedRoutePlayerId: ID | null;
-  /** True when the primary Move tool is active on the tool dock. */
+  /** Optional host override for a direct move tool; the editor arms moves explicitly. */
   isMoveToolActive?: boolean;
   isAddToolActive?: boolean;
 }

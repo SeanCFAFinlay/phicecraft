@@ -33,6 +33,7 @@ export class SaveCoordinator {
   private revision = 0;
   /** The most recent document handed to us, used by `flush`. */
   private pending: Drill | null = null;
+  private baselineName: string | null = null;
 
   constructor(private readonly repository: DrillRepository) {}
 
@@ -75,6 +76,7 @@ export class SaveCoordinator {
   markDirty(drill: Drill): number {
     this.revision += 1;
     this.pending = drill;
+    if (this.baselineName === null) this.baselineName = drill.name;
     this.setStatus({
       state: this.status.state === 'error' ? 'error' : 'dirty',
       dirtyRevision: this.revision,
@@ -89,6 +91,7 @@ export class SaveCoordinator {
   adoptSaved(drill: Drill, savedAt: number = Date.now()): void {
     this.revision += 1;
     this.pending = drill;
+    this.baselineName = drill.name;
     this.setStatus({
       state: 'clean',
       dirtyRevision: this.revision,
@@ -102,6 +105,7 @@ export class SaveCoordinator {
   reset(): void {
     this.revision = 0;
     this.pending = null;
+    this.baselineName = null;
     this.status = { ...INITIAL_PERSISTENCE_STATUS };
     for (const listener of this.listeners) listener();
   }
@@ -159,7 +163,9 @@ export class SaveCoordinator {
   private async performSave(drill: Drill, revision: number): Promise<SaveOutcome> {
     this.setStatus({ state: 'saving' });
 
-    const result = await this.repository.save(drill);
+    const result = await this.repository.save(drill, {
+      preserveTitle: this.baselineName !== null && drill.name === this.baselineName,
+    });
 
     if (!result.ok) {
       this.setStatus({ state: 'error', error: result.error });
@@ -177,6 +183,7 @@ export class SaveCoordinator {
       lastSavedAt: Date.now(),
       error: null,
     });
+    this.baselineName = drill.name;
 
     return ok(undefined);
   }

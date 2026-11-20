@@ -29,6 +29,7 @@ import {
   type DrillRepository,
   type PersistenceResult,
   type RecoveryRecord,
+  type SaveOptions,
   type StoredDrillRecord,
 } from './types';
 import { parseStorableDrill, parseStoredDrillRecord } from './schema';
@@ -315,12 +316,15 @@ function versionSkewSnapshot(
  */
 function prepareForWrite(
   drill: Drill,
-  existing: StoredDrillRecord | undefined
+  existing: StoredDrillRecord | undefined,
+  options: SaveOptions = {}
 ): { ok: true; record: StoredDrillRecord; recoverySnapshot?: RecoveryRecord } | { ok: false; message: string } {
   const migrated = migrateV2ToV3(drill);
   const existingDocument = existing ? parseDrillDocumentV3(existing.document) : null;
   const recoverySnapshot = versionSkewSnapshot(existing, existingDocument);
-  const next = existingDocument?.ok ? mergeEditedIntoStored(existingDocument.document, migrated) : migrated;
+  const next = existingDocument?.ok
+    ? mergeEditedIntoStored(existingDocument.document, migrated, options)
+    : migrated;
   const parsed = parseDrillDocumentV3(next);
   if (!parsed.ok) return { ok: false, message: parsed.message };
   return { ok: true, record: toStoredRecord(parsed.document), recoverySnapshot };
@@ -467,8 +471,8 @@ export class IndexedDbDrillRepository implements DrillRepository {
     }
   }
 
-  async save(drill: Drill): PersistenceResult<void> {
-    const result = await this.saveMany([drill]);
+  async save(drill: Drill, options: SaveOptions = {}): PersistenceResult<void> {
+    const result = await this.saveMany([drill], options);
     return result.ok ? ok(undefined) : err(result.error);
   }
 
@@ -501,7 +505,7 @@ export class IndexedDbDrillRepository implements DrillRepository {
     }
   }
 
-  async saveMany(drills: Drill[]): PersistenceResult<ID[]> {
+  async saveMany(drills: Drill[], options: SaveOptions = {}): PersistenceResult<ID[]> {
     if (drills.length === 0) return ok([]);
 
     for (const drill of drills) {
@@ -529,7 +533,7 @@ export class IndexedDbDrillRepository implements DrillRepository {
       const recoverySnapshots: RecoveryRecord[] = [];
       for (const drill of drills) {
         const existing = await store.get(drill.id);
-        const prepared = prepareForWrite(drill, existing);
+        const prepared = prepareForWrite(drill, existing, options);
         if (!prepared.ok) {
           return err(
             persistenceError('validation-failed', 'save', `Drill "${drill.name}" failed validation: ${prepared.message}`)

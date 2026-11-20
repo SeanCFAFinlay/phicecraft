@@ -322,23 +322,32 @@ export class GestureStateMachine {
           break;
         }
 
-        if (context.isMoveToolActive || target.playerId === context.armedMovePlayerId) {
-          this.gesture = { kind: 'move-player', playerId: target.playerId };
-          handlers.onPlayerMove(target.playerId, hitTester.toWorld(position));
-          break;
-        }
-        // Skate wins over the carrier's default drag-to-pass, so the player
-        // with the puck can be given a route like anybody else.
-        if (target.isCarrier && target.playerId !== context.armedRoutePlayerId) {
+        // The carrier's default drag is a pass, not a reposition - this has
+        // to be checked BEFORE isMoveToolActive. Move is the app's default,
+        // always-active tool (there is no separate "select" mode to leave),
+        // so if isMoveToolActive won this race the carrier could never be
+        // dragged to pass at all without first arming Skate on them, which
+        // defeats the entire point of a direct carrier-drag-to-pass gesture.
+        // Only Skate (armedRoutePlayerId, handled above) and an explicit
+        // Move-button arm (armedMovePlayerId, handled below) are allowed to
+        // override this.
+        if (target.isCarrier && target.playerId !== context.armedMovePlayerId) {
           this.gesture = {
             kind: 'drag-puck',
             playerId: target.playerId,
             from: hitTester.toWorld(origin),
           };
-        } else {
-          this.gesture = { kind: 'draw-route', ownerId: target.playerId };
-          this.routeSamples = [hitTester.toWorld(origin)];
+          break;
         }
+
+        if (context.isMoveToolActive || target.playerId === context.armedMovePlayerId) {
+          this.gesture = { kind: 'move-player', playerId: target.playerId };
+          handlers.onPlayerMove(target.playerId, hitTester.toWorld(position));
+          break;
+        }
+
+        this.gesture = { kind: 'draw-route', ownerId: target.playerId };
+        this.routeSamples = [hitTester.toWorld(origin)];
         break;
 
       case 'coach':
