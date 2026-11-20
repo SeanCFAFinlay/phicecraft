@@ -62,7 +62,7 @@ export function ReplayHud() {
     return (
       <div
         className="pointer-events-none absolute left-2 top-2 z-20 flex max-w-[calc(100vw-110px)] items-center gap-1.5"
-        aria-label="Drill information summary"
+        aria-label="Drill replay display"
       >
         <div className="pointer-events-auto flex items-center gap-2 rounded-xl border border-white/20 bg-slate-950/90 px-3 py-1.5 text-xs text-white shadow-xl backdrop-blur-md">
           <span className={`flex h-2 w-2 rounded-full bg-cyan-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
@@ -70,6 +70,15 @@ export function ReplayHud() {
             {state.drill.name || 'Tactical Drill'}
           </span>
           <span className="text-[10px] font-mono text-cyan-300/80">{currentTime}s</span>
+          {/* Folded, the HUD still says what is happening - one line, and the
+              full commentary for a screen reader. */}
+          <span
+            className="hidden max-w-[220px] truncate border-l border-white/15 pl-2 text-[11px] font-bold text-cyan-200 sm:inline"
+            aria-live="polite"
+          >
+            {narration.title}
+          </span>
+          <span className="sr-only">{narration.detail}</span>
           <button
             type="button"
             onClick={() => setIsExpanded(true)}
@@ -86,7 +95,7 @@ export function ReplayHud() {
   return (
     <div
       className="pointer-events-none absolute left-2 sm:left-3 top-2 sm:top-3 z-20 w-80 max-w-[calc(100vw-110px)] sm:max-w-md overflow-hidden rounded-xl border border-white/20 bg-slate-950/92 text-white shadow-2xl backdrop-blur-md"
-      aria-label="Drill information display"
+      aria-label="Drill replay display"
     >
       {/* Top Banner */}
       <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-black tracking-widest text-cyan-200">

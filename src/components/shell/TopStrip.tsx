@@ -76,8 +76,12 @@ export function TopStrip() {
         <SaveStatus compact={isPhone} />
       </div>
 
-      {/* CENTER: Workspace Selector Segmented Pills */}
-      <nav aria-label="Workspaces" className="flex items-center gap-1 rounded-xl bg-black/40 p-0.5 border border-white/10">
+      {/* CENTER: Workspace Selector Segmented Pills.
+          Not on phones: four 44px tabs left no room for the menu, the play
+          name or the save state - they were drawn underneath the tabs, and
+          at 320px the More button fell off the screen. Every one of these
+          destinations is in the main menu. */}
+      <nav aria-label="Workspaces" className="hidden items-center gap-1 rounded-xl bg-black/40 p-0.5 border border-white/10 sm:flex">
         <button
           type="button"
           onClick={() => dispatch({ type: 'CLOSE_SHEET' })}

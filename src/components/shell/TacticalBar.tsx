@@ -342,7 +342,10 @@ export function TacticalBar() {
                 state.drill.players.find(p => p.role !== 'G') ??
                 state.drill.players[0];
               if (targetCarrier) {
-                if (!targetCarrier.hasPuck) void commands.setPuckCarrier(targetCarrier.id);
+                // `hasPuck` marks who STARTS with the puck; after a pass the
+            // current holder is someone else, and re-assigning the start
+            // would offer to clear every puck action.
+            if (targetCarrier.id !== carrier?.id) void commands.setPuckCarrier(targetCarrier.id);
                 commands.setTool('move');
                 void commands.requestShot(targetCarrier.id, attackingNetFor(targetCarrier.team));
               }

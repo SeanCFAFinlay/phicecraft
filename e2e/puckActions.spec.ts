@@ -195,9 +195,14 @@ test('the Move button also lets the player be dragged straight away', async ({ p
   // No 0.7s hold first: the press itself is the move.
   await page.mouse.move(to.x, to.y, { steps: 12 });
   await page.mouse.up();
-  await waitForSaved(page);
 
-  const { players } = await storedDrill(page);
-  const moved = players.find(player => player.number === '13')!;
-  expect(Math.hypot(moved.x - 430, moved.y - 330)).toBeLessThan(30);
+  // Poll the stored drill itself: "Saved" can still be showing from before
+  // the drag when the debounced save has not started yet.
+  await expect
+    .poll(async () => {
+      const { players } = await storedDrill(page);
+      const moved = players.find(player => player.number === '13')!;
+      return Math.hypot(moved.x - 430, moved.y - 330);
+    }, { timeout: 20_000 })
+    .toBeLessThan(30);
 });

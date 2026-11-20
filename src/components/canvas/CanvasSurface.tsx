@@ -25,7 +25,7 @@ import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { EMPTY_TRAILS } from '@/playback/playbackFrame';
 import { RINK, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
 import { distance, screenToWorld, worldToScreen } from '@/utils/geometry';
-import { authoredEvents, getAimedNetTarget, attackingNetFor } from '@/engine/puck';
+import { authoredEvents, getAimedNetTarget, attackingNetFor, getCurrentPuckHolder } from '@/engine/puck';
 import {
   eligibleReceivers,
   resolvePassTarget,
@@ -816,7 +816,7 @@ export function CanvasSurface() {
                 type="button"
                 onClick={e => {
                   e.stopPropagation();
-                  if (!selectedObj.player.hasPuck) void commands.setPuckCarrier(selectedObj.id);
+                  if (getCurrentPuckHolder(state.drill.players, state.drill.events)?.id !== selectedObj.id) void commands.setPuckCarrier(selectedObj.id);
                   commands.setTool('move');
                   commands.setPendingAction({ kind: 'pass', playerId: selectedObj.id });
                 }}
@@ -830,7 +830,7 @@ export function CanvasSurface() {
                 type="button"
                 onClick={e => {
                   e.stopPropagation();
-                  if (!selectedObj.player.hasPuck) void commands.setPuckCarrier(selectedObj.id);
+                  if (getCurrentPuckHolder(state.drill.players, state.drill.events)?.id !== selectedObj.id) void commands.setPuckCarrier(selectedObj.id);
                   commands.setTool('move');
                   void commands.requestShot(selectedObj.id, attackingNetFor(selectedObj.player.team));
                 }}
@@ -844,7 +844,7 @@ export function CanvasSurface() {
                 type="button"
                 onClick={e => {
                   e.stopPropagation();
-                  if (!selectedObj.player.hasPuck) void commands.setPuckCarrier(selectedObj.id);
+                  if (getCurrentPuckHolder(state.drill.players, state.drill.events)?.id !== selectedObj.id) void commands.setPuckCarrier(selectedObj.id);
                   commands.setTool('move');
                   void commands.generateDumpAndChase();
                 }}

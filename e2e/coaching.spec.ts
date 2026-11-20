@@ -79,6 +79,16 @@ test('quick commands place special teams, a chosen faceoff and a playable dump-i
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     return page.getByRole('dialog', { name: 'Add to the rink' });
   };
+  // Replacing a lineup that already has routes or puck actions asks first.
+  // Replacing a lineup that already has routes or puck actions asks first;
+  // an empty one does not. Either way the quick command must land.
+  const applyQuick = async (builder: ReturnType<typeof page.getByRole>, name: RegExp) => {
+    await builder.getByRole('button', { name }).click();
+    const apply = page.getByRole('alertdialog').getByRole('button', { name: 'Apply formation', exact: true });
+    // The sheet closes first, then the prompt (if any) opens straight away.
+    const asked = await apply.waitFor({ timeout: 2_000 }).then(() => true, () => false);
+    if (asked) await apply.click();
+  };
   let builder = await openBuilder();
   await expect(builder.getByRole('button', { name: /Centre faceoff/ })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('quick-drill-commands.png'), animations: 'disabled' });
@@ -88,17 +98,17 @@ test('quick commands place special teams, a chosen faceoff and a playable dump-i
     return [players.filter(player => player.team === 'home').length, players.filter(player => player.team === 'away').length];
   }).toEqual([5, 4]);
   builder = await openBuilder();
-  await builder.getByRole('button', { name: /4v5 penalty kill/ }).click();
+  await applyQuick(builder, /4v5 penalty kill/);
   await expect.poll(async () => (await storedDrill(page)).players.filter(player => player.team === 'home' && player.role !== 'G').length).toBe(4);
   builder = await openBuilder();
   await builder.getByLabel('Rink end').selectOption('left');
   await builder.getByLabel('Board side').selectOption('top');
-  await builder.getByRole('button', { name: /Zone faceoff/ }).click();
+  await applyQuick(builder, /Zone faceoff/);
   await expect.poll(async () => (await storedDrill(page)).initialPuck).toEqual({ x: 155, y: 102.5 });
   await page.reload();
   await expect(page.getByRole('button', { name: 'Puck loose', exact: true })).toBeVisible();
   builder = await openBuilder();
-  await builder.getByRole('button', { name: /Dump-in/ }).click();
+  await applyQuick(builder, /Dump-in/);
   await expect.poll(async () => (await storedDrill(page)).events[0]?.type).toBe('dump');
   await expect.poll(async () => (await storedDrill(page)).skatePaths.length).toBe(2);
   await page.getByRole('button', { name: 'Play drill' }).click();
