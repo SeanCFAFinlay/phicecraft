@@ -17,11 +17,31 @@ from hockey_body import rebuild_body
 from hockey_motion import add_stick_bone, author_motion
 
 
+def ensure_material(name, color, alpha):
+    """A material the original .blend predates. Alpha < 1 exports as glTF BLEND."""
+    material = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    if hasattr(material, 'use_nodes'):
+        try:
+            material.use_nodes = True
+        except Exception:
+            pass
+    shader = next(node for node in material.node_tree.nodes if node.type == 'BSDF_PRINCIPLED')
+    shader.inputs['Base Color'].default_value = color
+    shader.inputs['Alpha'].default_value = alpha
+    if hasattr(material, 'surface_render_method'):
+        material.surface_render_method = 'BLENDED'
+    material.use_backface_culling = False
+    return material
+
+
 def refine(name):
     bpy.ops.wm.open_mainfile(filepath=str(ROOT / 'assets-src/models' / f'{name}.blend'), load_ui=False, use_scripts=False)
     mesh = next(obj for obj in bpy.data.objects if obj.type == 'MESH')
     rig = next(obj for obj in bpy.data.objects if obj.type == 'ARMATURE')
     add_stick_bone(rig, goalie=name == 'hockey_goalie')
+    # `number` is invisible until the renderer prints a player's number on it.
+    ensure_material('number', (1, 1, 1, 1), 0.0)
+    ensure_material('visor', (0.78, 0.88, 0.96, 1), 0.32)
     bpy.context.view_layer.objects.active = mesh
     bpy.ops.object.select_all(action='DESELECT')
     mesh.select_set(True)
@@ -52,6 +72,7 @@ def refine(name):
         'jersey': (0.86, 0.0), 'accent': (0.8, 0.0), 'pants': (0.94, 0.0),
         'skin': (0.6, 0.0), 'white': (0.65, 0.0), 'dark': (0.42, 0.0),
         'steel': (0.24, 0.8), 'stick': (0.46, 0.15),
+        'number': (0.8, 0.0), 'visor': (0.06, 0.0),
     }
     for material in bpy.data.materials:
         if not material.use_nodes:
@@ -105,8 +126,23 @@ def refine(name):
         scene.render.resolution_percentage = 100
         target = ROOT / 'output/playwright/models'
         target.mkdir(parents=True, exist_ok=True)
-        scene.render.filepath = str(target / f'{name}.png')
-        bpy.ops.render.render(write_still=True)
+        scene.cycles.samples = 16
+        poses = ['goalie_idle', 'goalie_save'] if name == 'hockey_goalie' else ['idle', 'stride', 'stop', 'shot']
+        views = {'front': (3.0, -4.8, 2.5), 'back': (-2.6, 4.9, 2.3)}
+        for pose_name in poses:
+            action = bpy.data.actions.get(pose_name)
+            if action is None:
+                continue
+            rig.animation_data.action = action
+            if hasattr(rig.animation_data, 'action_slot') and action.slots:
+                rig.animation_data.action_slot = action.slots[0]
+            start, end = action.frame_range
+            scene.frame_set(int(start + (end - start) * 0.5))
+            for view, location in views.items():
+                scene.camera.location = location
+                scene.camera.rotation_euler = (Vector((0, 0, 0.95)) - scene.camera.location).to_track_quat('-Z', 'Y').to_euler()
+                scene.render.filepath = str(target / f'{name}-{pose_name}-{view}.png')
+                bpy.ops.render.render(write_still=True)
 
 
 for model in ['hockey_player', 'hockey_goalie']:

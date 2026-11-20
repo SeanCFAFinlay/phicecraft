@@ -17,6 +17,7 @@ import { headingToYaw, rinkToWorld } from '../worldMap';
 import { tintActorMaterials } from './tintMaterials';
 import { CLIP_FADE_SECONDS, isMovementClip, selectClipName } from './clipSelector';
 import { createNumberSprite } from './numberSprite';
+import { applyJerseyNumber } from './jerseyNumber';
 import type { RenderQuality } from '@/render/quality';
 
 /** Rink-units/second at which the `skate` clip plays at its authored (1x) speed. */
@@ -158,6 +159,14 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
     pants: PANTS_COLOR,
   });
 
+  // The number on the back of the sweater itself, for this player only.
+  const jerseyNumber = applyJerseyNumber(
+    root,
+    opts.number,
+    { jersey: opts.jersey, accent: opts.accent },
+    opts.quality
+  );
+
   const numberSprite = opts.number
     ? createNumberSprite(opts.number, { jersey: opts.jersey }, opts.quality, opts.name)
     : null;
@@ -281,6 +290,7 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
       mixer.stopAllAction();
       mixer.uncacheRoot(root);
       numberSprite?.dispose();
+      jerseyNumber.dispose();
       // Only the per-actor tint clones are this actor's own to dispose - the
       // mesh geometries and every untinted named material (skin/white/dark/
       // steel/stick) are shared with the module-scope cached GLTF (and every
@@ -291,49 +301,64 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
 }
 
 // ----------------------------------------------------------------------------
-// Coaches — no GLB. A plain capsule body on a disc base, in a flat neutral
-// grey per the brief - NOT a match for the 2D coach token, which is a
-// detailed bearded-man illustration with its own jacket/skin/beard/toque
-// palette (`src/canvas/CoachRenderer.ts`); this presentation has no GLB coach
-// model to render instead, and a plain marker was the brief-mandated
-// placeholder rather than an attempt to mirror the 2D token's colourway.
+// Coaches - no GLB. A simple figure built from primitives: track pants and
+// skates, a team jacket with a white collar, a head and a toque, standing on
+// a disc base so a coach still reads as a board marker from the overhead
+// view. Roughly a skater's height, so the scale of a drill reads correctly
+// when a coach stands among the players. The named `coach-capsule` (the
+// jacket) and `coach-disc` meshes are the parts the tests and callers rely on.
 // ----------------------------------------------------------------------------
 
 const COACH_JACKET_COLOR = '#1e293b';
 const COACH_COLLAR_COLOR = '#f8fafc';
 const COACH_DISC_COLOR = '#0f172a';
-const COACH_CAPSULE_RADIUS = 0.5;
-const COACH_CAPSULE_LENGTH = 1.1;
+const COACH_PANTS_COLOR = '#111827';
+const COACH_SKIN_COLOR = '#d9a184';
+const COACH_TOQUE_COLOR = '#0ea5e9';
 const COACH_DISC_RADIUS = 0.62;
 const COACH_DISC_HEIGHT = 0.06;
 
 export function createCoachMarker(): MarkerActor {
-  const jacketMaterial = new THREE.MeshStandardMaterial({ color: COACH_JACKET_COLOR, roughness: 0.6 });
-  const collarMaterial = new THREE.MeshStandardMaterial({ color: COACH_COLLAR_COLOR, roughness: 0.4 });
-  const discMaterial = new THREE.MeshStandardMaterial({ color: COACH_DISC_COLOR, roughness: 0.7 });
-
-  const capsuleGeometry = new THREE.CapsuleGeometry(COACH_CAPSULE_RADIUS, COACH_CAPSULE_LENGTH, 4, 12);
-  const capsule = new THREE.Mesh(capsuleGeometry, jacketMaterial);
-  capsule.name = 'coach-capsule';
-  capsule.position.y = COACH_DISC_HEIGHT + COACH_CAPSULE_LENGTH / 2 + COACH_CAPSULE_RADIUS;
-  capsule.castShadow = true;
-
-  // Tracksuit white chest / collar accent ring
-  const collarGeometry = new THREE.CylinderGeometry(COACH_CAPSULE_RADIUS * 1.02, COACH_CAPSULE_RADIUS * 1.02, 0.12, 16);
-  const collar = new THREE.Mesh(collarGeometry, collarMaterial);
-  collar.name = 'coach-collar';
-  collar.position.y = capsule.position.y + 0.18;
-  collar.castShadow = true;
-
-  const discGeometry = new THREE.CylinderGeometry(COACH_DISC_RADIUS, COACH_DISC_RADIUS, COACH_DISC_HEIGHT, 24);
-  const disc = new THREE.Mesh(discGeometry, discMaterial);
-  disc.name = 'coach-disc';
-  disc.position.y = COACH_DISC_HEIGHT / 2;
-  disc.castShadow = true;
-
+  const materials = {
+    jacket: new THREE.MeshStandardMaterial({ color: COACH_JACKET_COLOR, roughness: 0.7 }),
+    collar: new THREE.MeshStandardMaterial({ color: COACH_COLLAR_COLOR, roughness: 0.5 }),
+    disc: new THREE.MeshStandardMaterial({ color: COACH_DISC_COLOR, roughness: 0.7 }),
+    pants: new THREE.MeshStandardMaterial({ color: COACH_PANTS_COLOR, roughness: 0.8 }),
+    skin: new THREE.MeshStandardMaterial({ color: COACH_SKIN_COLOR, roughness: 0.6 }),
+    toque: new THREE.MeshStandardMaterial({ color: COACH_TOQUE_COLOR, roughness: 0.9 }),
+  };
+  const geometries: THREE.BufferGeometry[] = [];
   const root = new THREE.Group();
   root.name = 'coach';
-  root.add(disc, capsule, collar);
+
+  const add = (
+    name: string,
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material,
+    position: [number, number, number],
+    rotationZ = 0
+  ): THREE.Mesh => {
+    geometries.push(geometry);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = name;
+    mesh.position.set(...position);
+    mesh.rotation.z = rotationZ;
+    mesh.castShadow = true;
+    root.add(mesh);
+    return mesh;
+  };
+
+  const base = COACH_DISC_HEIGHT;
+  add('coach-disc', new THREE.CylinderGeometry(COACH_DISC_RADIUS, COACH_DISC_RADIUS, COACH_DISC_HEIGHT, 24), materials.disc, [0, base / 2, 0]);
+  for (const side of [-1, 1]) {
+    add(`coach-leg-${side < 0 ? 'l' : 'r'}`, new THREE.CapsuleGeometry(0.09, 0.62, 4, 10), materials.pants, [side * 0.12, base + 0.42, 0]);
+    add(`coach-skate-${side < 0 ? 'l' : 'r'}`, new THREE.BoxGeometry(0.12, 0.1, 0.3), materials.pants, [side * 0.12, base + 0.06, 0.04]);
+    add(`coach-arm-${side < 0 ? 'l' : 'r'}`, new THREE.CapsuleGeometry(0.075, 0.48, 4, 10), materials.jacket, [side * 0.29, base + 1.13, 0], side * 0.12);
+  }
+  add('coach-capsule', new THREE.CapsuleGeometry(0.24, 0.42, 6, 16), materials.jacket, [0, base + 1.17, 0]);
+  add('coach-collar', new THREE.CylinderGeometry(0.13, 0.17, 0.08, 16), materials.collar, [0, base + 1.5, 0]);
+  add('coach-head', new THREE.SphereGeometry(0.12, 16, 12), materials.skin, [0, base + 1.66, 0]);
+  add('coach-toque', new THREE.SphereGeometry(0.125, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), materials.toque, [0, base + 1.69, 0]);
 
   return {
     root,
@@ -342,12 +367,8 @@ export function createCoachMarker(): MarkerActor {
       root.position.set(world.x, world.y, world.z);
     },
     dispose() {
-      capsuleGeometry.dispose();
-      collarGeometry.dispose();
-      discGeometry.dispose();
-      jacketMaterial.dispose();
-      collarMaterial.dispose();
-      discMaterial.dispose();
+      for (const geometry of geometries) geometry.dispose();
+      for (const material of Object.values(materials)) material.dispose();
     },
   };
 }

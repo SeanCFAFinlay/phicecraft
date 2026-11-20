@@ -45,8 +45,8 @@ there has been resolved.
 
 | Asset | Origin | Licence | Status |
 |---|---|---|---|
-| `hockey_player.glb` (skater, `skate` animation) | First-party (PhiceCraft) — authored in Blender by the project owner (sources in `assets-src/models/`) | Owned | ✅ Clear |
-| `hockey_goalie.glb` (goalie, `goalie_idle` animation) | First-party (PhiceCraft) — authored in Blender by the project owner (sources in `assets-src/models/`) | Owned | ✅ Clear |
+| `hockey_player.glb` (skater; `idle`, `skate`, `stride`, `glide`, `turn`, `stop`, `pass`, `shot`, `receive`, `recover`, `faceoff`) | First-party (PHormation) — rig authored in Blender by the project owner (sources in `assets-src/models/`); body, kit and clips generated from it by `scripts/refine-hockey-models.py` | Owned | ✅ Clear |
+| `hockey_goalie.glb` (goalie; `goalie_idle`, `goalie_shuffle`, `goalie_save`) | First-party (PHormation) — rig authored in Blender by the project owner (sources in `assets-src/models/`); body, kit and clips generated from it by `scripts/refine-hockey-models.py` | Owned | ✅ Clear |
 
 Both are rigged, single-skin glTF 2.0 binaries with eight solid-colour
 materials (jersey/accent/pants/skin/white/dark/steel/stick) — no third-party

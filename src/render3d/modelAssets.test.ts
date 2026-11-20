@@ -80,6 +80,8 @@ describe.each([
     // part instead of failing anywhere obvious - every actor would render in
     // the GLB's baked default colour.
     expect(materialNames).toEqual(expect.arrayContaining(['jersey', 'accent', 'pants']));
+    // `number` is the back panel jerseyNumber.ts prints each player's number on.
+    expect(materialNames).toContain('number');
   });
 
   it('ships distinct hockey action clips within a one MiB per-model budget', () => {

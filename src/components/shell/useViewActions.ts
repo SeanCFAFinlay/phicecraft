@@ -7,7 +7,8 @@
 // ============================================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAppServices } from '@/hooks/useAppState';
+import { useAppServices, useAppState } from '@/hooks/useAppState';
+import { actionFrame } from '@/camera/actionZone';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { useCameraSnapshot } from '@/playback/usePlaybackSnapshot';
 import { useResponsive } from '@/ui/useResponsive';
@@ -42,6 +43,8 @@ const CUSTOM_AREA = { label: 'VIEW', description: 'a custom view' };
 
 export function useViewActions() {
   const { camera } = useEditorRuntime();
+  const { state } = useAppState();
+  const drill = state.drill;
   const { announcer } = useAppServices();
   const snapshot = useCameraSnapshot(camera);
   const { prefersReducedMotion } = useResponsive();
@@ -65,13 +68,17 @@ export function useViewActions() {
   );
 
   const animateTo = useCallback(
-    (targetRotation: number, targetTilt: number, fitAfter = false) => {
+    (targetRotation: number, targetTilt: number, after: boolean | (() => void) = false) => {
+      const finish = () => {
+        if (typeof after === 'function') after();
+        else if (after) camera.fit();
+      };
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
       // Reduced motion: change the view, just don't animate the change.
       if (prefersReducedMotion) {
         camera.setCamera({ ...camera.camera, rotation: targetRotation, tilt: targetTilt });
-        if (fitAfter) camera.fit();
+        finish();
         return;
       }
 
@@ -89,7 +96,7 @@ export function useViewActions() {
           tilt: startTilt + (targetTilt - startTilt) * k,
         });
         rafRef.current = raw < 1 ? requestAnimationFrame(step) : null;
-        if (raw === 1 && fitAfter) camera.fit();
+        if (raw === 1) finish();
       };
 
       rafRef.current = requestAnimationFrame(step);
@@ -133,6 +140,41 @@ export function useViewActions() {
   );
   const fit = useCallback(() => camera.fit(), [camera]);
 
+  /**
+   * Zone framing is computed for the flat board; seen in perspective, that
+   * leaves the zone small in the middle of most of the sheet. Tighten about
+   * the screen centre so the zone, not the rink, fills the view.
+   */
+  const tighten = useCallback(
+    (factor: number) => {
+      const { viewport } = camera.getSnapshot();
+      camera.zoomAt(factor, { x: viewport.width / 2, y: viewport.height / 2 });
+    },
+    [camera]
+  );
+
+  // Frame the play, not the whole sheet: the zone the skaters work in.
+  const frameAction = useCallback(() => {
+    const { zone } = actionFrame(drill);
+    if (zone === 'full') {
+      camera.fit();
+      return;
+    }
+    camera.zoomToZone(zone);
+    tighten(1.45);
+  }, [camera, drill, tighten]);
+
+  // Low behind the net the play attacks, looking back up the ice at it.
+  const behindTheNet = useCallback(() => {
+    const { zone, attackedNet } = actionFrame(drill);
+    const rotation = attackedNet === 'right' ? Math.PI / 2 : -Math.PI / 2;
+    const endZone = attackedNet === 'right' ? 'offensive' : 'defensive';
+    animateTo(rotation, 0.95, () => {
+      camera.zoomToZone(zone === 'full' ? endZone : zone);
+      tighten(1.5);
+    });
+  }, [animateTo, camera, drill, tighten]);
+
   return {
     currentArea,
     nextArea,
@@ -142,8 +184,8 @@ export function useViewActions() {
     toggle3D,
     spinLeft: () => spin(-0.35),
     spinRight: () => spin(0.35),
-    setPresetBroadcast: () => animateTo(0, 0.65, true),
-    setPresetEndZone: () => animateTo(Math.PI / 2, 0.65, true),
+    setPresetBroadcast: () => animateTo(0, 0.65, frameAction),
+    setPresetEndZone: behindTheNet,
     setPresetTactical: () => animateTo(0, 0.35, true),
     setPresetPOV: () => animateTo(0, 1.25, false),
     zoomToZone,

@@ -55,15 +55,33 @@ def author_motion(rig, goalie=False):
         stride = math.sin(phase*math.tau)
         moving = kind in ('stride','skate')
         saving = kind == 'goalie_save'
-        crouch = .11 + (.32*pulse if saving else .025*pulse if kind in ('recover','faceoff','stop') else 0)
+        crouch = .11 + (.32*pulse if saving else .08*pulse if kind == 'stop'
+                        else .025*pulse if kind in ('recover','faceoff') else 0)
         rig.pose.bones['hips'].location.y = -crouch
         if kind == 'goalie_shuffle':
             rig.pose.bones['hips'].location.x = .025*stride
         from mathutils import Euler
-        rig.pose.bones['spine'].rotation_quaternion = Euler((.23,0,.05*stride if moving else 0)).to_quaternion()
-        rig.pose.bones['chest'].rotation_quaternion = Euler((.1,0,.16*math.sin(math.tau*phase) if kind in ('pass','shot') else 0)).to_quaternion()
-        rig.pose.bones['head'].rotation_quaternion = Euler((-.25,0,0)).to_quaternion()
+        # Spine bones: local X leans forward, local Y twists about the vertical,
+        # local Z bends sideways.
+        # A hockey stop turns the hips and skates side-on while the shoulders
+        # stay square to the play.
+        yaw = .95*pulse if kind == 'stop' else 0
+        # Shoulders: wind back and drive through on a release; counter the
+        # legs in the stride.
+        twist = 0.0
+        if kind in ('pass', 'shot'):
+            twist = (.42 if kind == 'shot' else .24)*math.sin(math.tau*phase)
+            rig.pose.bones['hips'].location.x = (.05 if kind == 'shot' else .025)*-math.sin(math.tau*phase)
+        elif moving:
+            twist = -.09*stride
+        rig.pose.bones['hips'].rotation_quaternion = Euler((0, yaw, 0)).to_quaternion()
+        rig.pose.bones['spine'].rotation_quaternion = Euler((.23 - .08*pulse*(kind == 'stop'), -yaw*.8, .05*stride if moving else 0)).to_quaternion()
+        rig.pose.bones['chest'].rotation_quaternion = Euler((.1, twist, .16*math.sin(math.tau*phase) if kind in ('pass','shot') else 0)).to_quaternion()
+        # Eyes up the ice, and into the turn.
+        look = .22*pulse if kind == 'turn' else 0
+        rig.pose.bones['head'].rotation_quaternion = Euler((-.25, look - twist*.6, 0)).to_quaternion()
         bpy.context.view_layer.update()
+        turn_legs = Matrix.Rotation(yaw, 3, 'Z')
 
         for sign,suffix in [(1,'L'),(-1,'R')]:
             wave = stride*sign
@@ -71,11 +89,19 @@ def author_motion(rig, goalie=False):
             lift = max(0,-wave)*.055 if moving else 0
             spread = .17 + push*.16 + (.22*pulse if saving else 0)
             ankle = Vector((sign*spread, .12*wave if moving else -.015, .12+lift))
-            if kind == 'stop':
-                ankle.y += sign*.08*pulse
             knee = Vector((sign*.22,-.4,.5))
+            toe = Vector((sign*.07*push,-.2,-.08))
+            if kind == 'stop':
+                # Edges dug in, front skate leading, weight back over the heels.
+                ankle = Vector((sign*(.2+.06*pulse), -sign*.1*pulse, .12))
+            if saving:
+                # Butterfly: knees drop toward the ice, pads flare out wide.
+                ankle = Vector((sign*(.17+.30*pulse), -.015+.24*pulse, .12-.03*pulse))
+                knee = Vector((sign*(.22-.2*pulse), -.4-.25*pulse, .5-.48*pulse))
+                toe = Vector((sign*.22*pulse, -.2+.12*pulse, -.08))
+            ankle, knee, toe = turn_legs @ ankle, turn_legs @ knee, turn_legs @ toe
             end = limb('thigh_'+suffix,'shin_'+suffix,ankle,knee)
-            aim('foot_'+suffix,end,end+Vector((sign*.07*push,-.2,-.08)))
+            aim('foot_'+suffix,end,end+toe)
 
         grip = Vector((-.08,-.31,1.04-crouch*.2))
         # Right-handed simulation blade offset: 24.84 rink units forward,
@@ -87,6 +113,11 @@ def author_motion(rig, goalie=False):
             blade.x += strength*sweep
             grip.x += strength*.2*sweep
             grip.y -= .07*pulse
+            if kind == 'shot' and phase > .55:
+                # Follow-through: the blade finishes high toward the target.
+                finish = (phase-.55)/.45
+                blade.z += .38*finish
+                grip.z += .08*finish
         if kind == 'turn':
             grip.x -= .08*pulse
             blade.x -= .16*pulse
