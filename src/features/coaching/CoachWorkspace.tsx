@@ -146,7 +146,7 @@ export function CoachWorkspace() {
         </section>
         <section className="space-y-3 rounded-xl border border-white/15 p-3">
           <h3 className="font-bold">Import saved plays</h3>
-          <p className="text-sm text-slate-300">PhiceCraft JSON files include editable routes and puck actions. You can review the import before adding copies to your library.</p>
+          <p className="text-sm text-slate-300">PHormation JSON files include editable routes and puck actions. You can review the import before adding copies to your library.</p>
           <label className="block text-sm">Play file (JSON)<input className="mt-2 w-full text-sm" type="file" accept="application/json,.json" disabled={!editable || busy} onChange={async event => {
             const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
             if (file.size > 10 * 1024 * 1024) { setMessage('Choose a play file smaller than 10 MB.'); return; }

@@ -26,7 +26,7 @@ export function HelpSheet() {
   return (
     <Sheet
       open={open}
-      title="How to use PhiceCraft"
+      title="How to use PHormation"
       description="Everything is available from Select at any time; the workflow steps are only a guide."
       onClose={() => dispatch({ type: 'CLOSE_SHEET' })}
     >
@@ -78,7 +78,7 @@ export function HelpSheet() {
         />
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-black tracking-wide text-white">
-            PhiceCraft: Hockey Practice
+            PHormation: Hockey Practice
           </div>
           <div className="text-[10.5px] font-bold text-app-cyan">
             Train · Play · Improve

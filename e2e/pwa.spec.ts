@@ -38,7 +38,7 @@ test('the app declares a web manifest a browser can install from', async ({ page
   });
 
   expect(manifest).not.toBeNull();
-  expect(manifest.name).toContain('PhiceCraft');
+  expect(manifest.name).toContain('PHormation');
   expect(manifest.display).toBe('standalone');
   expect(manifest.start_url).toBe('/');
   // Without an icon a browser will not offer to install it.

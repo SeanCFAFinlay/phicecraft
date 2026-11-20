@@ -198,7 +198,7 @@ describe('sheets', () => {
 
   it('has nothing focusable from the menu while it is closed', () => {
     renderApp();
-    expect(screen.queryByRole('dialog', { name: 'PhiceCraft' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'PHormation' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Save play/ })).not.toBeInTheDocument();
   });
 });

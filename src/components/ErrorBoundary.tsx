@@ -36,7 +36,7 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // Diagnostic logging, kept deliberately: this is the only trace of a crash
     // in a local-first app with no server to report to.
-    console.error('PhiceCraft crashed:', error, info.componentStack);
+    console.error('PHormation crashed:', error, info.componentStack);
     this.setState(state => ({ crashCount: state.crashCount + 1 }));
   }
 
@@ -48,7 +48,7 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     const ok = downloadTextFile(
-      `phicecraft-recovered-${drill.name || 'drill'}.json`,
+      `phormation-recovered-${drill.name || 'drill'}.json`,
       JSON.stringify(
         {
           format: 'phicecraft-drills',
@@ -95,7 +95,7 @@ export class ErrorBoundary extends Component<Props, State> {
           className="selectable w-full max-w-md rounded-2xl border border-red-400/40 bg-app-surface p-5 shadow-2xl"
         >
           <h1 id="crash-title" className="text-lg font-black text-red-200">
-            PhiceCraft hit an error
+            PHormation hit an error
           </h1>
           <p id="crash-body" className="mt-2 text-[13px] leading-relaxed text-white/70">
             Your saved plays are untouched. Export the drill you were working on first — that copy

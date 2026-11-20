@@ -36,7 +36,7 @@ test('possession lives on the transport and the guide lives in the menu', async 
   // main menu, as a "Guide - Step N of 4" item.
   await expect(page.getByRole('button', { name: /^Step 1 of 4/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  const menu = page.getByRole('dialog', { name: 'PhiceCraft' });
+  const menu = page.getByRole('dialog', { name: 'PHormation' });
   await expect(menu).toBeVisible();
 
   await menu.getByRole('button', { name: /^Guide · Step 1 of 4/ }).click();
@@ -52,7 +52,7 @@ test('selecting a player shows a tray row, not a panel; Details opens the inspec
 
   // The selection lives in its own labelled group in the tray, not a chip
   // floating over the ice.
-  const selection = page.getByRole('group', { name: 'Selection' });
+  const selection = page.getByRole('group', { name: 'Selection', exact: true });
   await expect(selection).toBeVisible();
   await expect(selection.getByRole('button', { name: /^Move #/ })).toBeVisible();
   await expect(selection.getByRole('button', { name: 'Details' })).toBeVisible();
@@ -174,7 +174,7 @@ test('a phone switches to Preview and Present through the Mode sheet', async ({ 
   await expect(page.getByRole('navigation', { name: 'Editing tools' })).toHaveCount(0);
 
   await clickWorld(page, LINEUP.home11);
-  await expect(page.getByRole('group', { name: 'Selection' })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Selection', exact: true })).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // Present: chrome-free full-bleed playback. The top strip (and the mode

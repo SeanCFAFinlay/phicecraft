@@ -190,7 +190,7 @@ test('tabletop rink', async ({ page }) => {
 test('selected player chip', async ({ page }) => {
   await openFixture(page);
   await clickWorld(page, { x: 360, y: 212.5 });
-  await expect(page.getByRole('button', { name: 'Details' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Details', exact: true })).toBeVisible();
   await expect(page).toHaveScreenshot('selected-player-chip.png', SHOT_OPTIONS);
 });
 
@@ -217,7 +217,7 @@ test('active route action', async ({ page }) => {
 test('player inspector sheet', async ({ page }) => {
   await openFixture(page);
   await clickWorld(page, { x: 360, y: 212.5 });
-  await page.getByRole('button', { name: 'Details' }).click();
+  await page.getByRole('button', { name: 'Details', exact: true }).click();
   await expect(page.getByRole('dialog', { name: /^#11/ })).toBeVisible();
   await expect(page).toHaveScreenshot('player-inspector.png', SHOT_OPTIONS);
 });
@@ -283,8 +283,8 @@ test('save failure state', async ({ page }) => {
   });
 
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  await page.getByRole('dialog', { name: 'PhiceCraft' }).getByRole('button', { name: 'Save play' }).click();
-  await page.getByRole('dialog', { name: 'PhiceCraft' }).getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('dialog', { name: 'PHormation' }).getByRole('button', { name: 'Save play' }).click();
+  await page.getByRole('dialog', { name: 'PHormation' }).getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Save failed' }).first()).toBeVisible();
   await expect(page).toHaveScreenshot('save-failure.png', SHOT_OPTIONS);
 });
@@ -292,7 +292,7 @@ test('save failure state', async ({ page }) => {
 test('main menu sheet', async ({ page }) => {
   await openFixture(page);
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  await expect(page.getByRole('dialog', { name: 'PhiceCraft' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'PHormation' })).toBeVisible();
   await expect(page).toHaveScreenshot('main-menu.png', SHOT_OPTIONS);
 });
 

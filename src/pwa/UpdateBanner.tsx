@@ -34,7 +34,7 @@ export function UpdateBanner() {
   // panel over the controls.
   const offlineReady = state.offlineReady;
   useEffect(() => {
-    if (offlineReady) announcer.announce('PhiceCraft is saved on this device and will open without a network.');
+    if (offlineReady) announcer.announce('PHormation is saved on this device and will open without a network.');
   }, [offlineReady, announcer]);
 
   if (!state.updateReady || dismissed) return null;

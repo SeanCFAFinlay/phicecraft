@@ -45,7 +45,7 @@ describe('when a child throws', () => {
     );
 
     const dialog = screen.getByRole('alertdialog');
-    expect(dialog).toHaveTextContent('PhiceCraft hit an error');
+    expect(dialog).toHaveTextContent('PHormation hit an error');
     expect(dialog).toHaveTextContent('deliberate test explosion');
   });
 

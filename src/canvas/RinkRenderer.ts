@@ -492,7 +492,7 @@ function drawCenterIceLogo(ctx: CanvasRenderingContext2D): void {
     // Wordmark beneath
     ctx.fillStyle = 'rgba(240, 246, 252, 0.9)';
     ctx.font = `800 ${R * 0.14}px Arial, sans-serif`;
-    ctx.fillText('PHICECRAFT', 0, R * 0.52);
+    ctx.fillText('PHORMATION', 0, R * 0.52);
   }
 
   ctx.restore();

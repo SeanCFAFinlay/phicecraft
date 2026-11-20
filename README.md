@@ -1,4 +1,4 @@
-# PhiceCraft — Hockey Drill Designer
+# PHormation — Hockey Drill Designer
 
 Design, animate and review hockey drills on a full-size NHL rink. Local-first:
 no account, no server, and it keeps working offline.
@@ -268,7 +268,7 @@ working on before anything else, because that copy may only exist in the tab.
 *Reset interface state* clears interface preferences only and never touches your
 saved plays.
 
-Drills from an older version of PhiceCraft are migrated automatically on first
+Drills from an older version of PHormation (formerly PhiceCraft) are migrated automatically on first
 run, in one transaction, and read back before the migration is marked complete.
 The old `localStorage` data is left in place as a backup.
 

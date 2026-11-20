@@ -135,6 +135,11 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
         return;
       }
       const restored = restorePracticeBundle(validation.bundle);
+      if (!loadPracticeSessions().some(session => session.id === restored.session.id)) {
+        setImportMessage({ text: 'Import could not be saved on this device. Free space and try again.', isError: true });
+        setTimeout(() => setImportMessage(null), 5000);
+        return;
+      }
       setSessions(loadPracticeSessions());
       setActiveSessionId(restored.session.id);
       setImportMessage({ text: `Successfully imported "${restored.session.title}"`, isError: false });
@@ -345,7 +350,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[16px] font-black tracking-wider text-white">
-                  PHORM<span className="text-app-cyan">ATION</span> PRACTICE WORKSPACE
+                  PH<span className="text-app-cyan">ORMATION</span> PRACTICE WORKSPACE
                 </span>
                 <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[9.5px] font-black tracking-widest text-emerald-400 uppercase">
                   Pro Planner

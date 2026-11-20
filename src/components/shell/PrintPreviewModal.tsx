@@ -238,7 +238,7 @@ export function PrintPreviewModal({ onClose }: PrintPreviewModalProps) {
 
               {/* Footer */}
               <div className="mt-3.5 flex items-center justify-between border-t border-slate-200 pt-2 pl-3 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                <span>PhiceCraft Pocket Bench Card</span>
+                <span>PHormation Pocket Bench Card</span>
                 <span>Cut & Laminate for Rinkside Use</span>
               </div>
             </div>
@@ -332,7 +332,7 @@ export function PrintPreviewModal({ onClose }: PrintPreviewModalProps) {
               </div>
 
               <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-3 text-[10px] font-bold text-slate-400">
-                <span>Created with PhiceCraft Tactical Whiteboard</span>
+                <span>Created with PHormation Tactical Whiteboard</span>
                 <span>https://phicecraft.vercel.app</span>
               </div>
             </div>

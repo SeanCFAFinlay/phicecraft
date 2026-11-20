@@ -268,7 +268,7 @@ export function printSingleDrillCard(
     <body>
       <div class="preview-toolbar no-print">
         <div>
-          <div class="toolbar-title">✂ PHICECRAFT · PRINT & CUT BENCH CARD PREVIEW</div>
+          <div class="toolbar-title">✂ PHORMATION · PRINT & CUT BENCH CARD PREVIEW</div>
           <div style="font-size: 11px; color: #94a3b8;">Review layout on screen before printing. Use scissors to cut along the dashed guide.</div>
         </div>
         <div class="toolbar-actions">
@@ -323,7 +323,7 @@ export function printSingleDrillCard(
           }
 
           <div class="card-footer">
-            <span>PhiceCraft Bench Card System</span>
+            <span>PHormation Bench Card System</span>
             <span>Train · Play · Improve</span>
           </div>
         </div>

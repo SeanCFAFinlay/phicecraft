@@ -11,7 +11,7 @@ describe('exportPracticePlan', () => {
   it('formats practice plan into plain text summary with schedule and equipment', () => {
     const text = formatPracticePlanText(preset);
 
-    expect(text).toContain('PHICECRAFT HOCKEY PRACTICE PLAN');
+    expect(text).toContain('PHORMATION HOCKEY PRACTICE PLAN');
     expect(text).toContain('PRACTICE TIMELINE');
     expect(text).toContain('CONSOLIDATED EQUIPMENT CHECKLIST');
     expect(text).toContain('Four Dot Flow Warm-up');

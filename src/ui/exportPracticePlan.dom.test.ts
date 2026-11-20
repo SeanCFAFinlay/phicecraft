@@ -16,7 +16,7 @@ describe('exportPracticePlan', () => {
   it('formats practice plan into comprehensive structured text', () => {
     const text = formatPracticePlanText(session);
 
-    expect(text).toContain('PHICECRAFT HOCKEY PRACTICE PLAN');
+    expect(text).toContain('PHORMATION HOCKEY PRACTICE PLAN');
     expect(text).toContain('--- PRACTICE TIMELINE ---');
     expect(text).toContain('00:00 - 10:00');
     expect(text).toContain('Four Dot Flow Warm-up');
@@ -56,7 +56,7 @@ describe('exportPracticePlan', () => {
 
     const result = await copyPracticePlanText(session);
     expect(result).toBe(true);
-    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('PHICECRAFT HOCKEY PRACTICE PLAN'));
+    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('PHORMATION HOCKEY PRACTICE PLAN'));
   });
 
   it('exports practice plan JSON using downloadText', () => {

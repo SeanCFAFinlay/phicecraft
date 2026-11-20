@@ -99,7 +99,7 @@ test('the initial editor has no serious violations', async ({ page }) => {
 
 test('the open menu has no serious violations', async ({ page }) => {
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  await expect(page.getByRole('dialog', { name: 'PhiceCraft' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'PHormation' })).toBeVisible();
   await expectAccessible(page, 'main menu');
 });
 
@@ -118,7 +118,7 @@ test('a destructive confirmation has no serious violations', async ({ page }) =>
 
 test('the player inspector has no serious violations', async ({ page }) => {
   await clickWorld(page, LINEUP.home11);
-  await page.getByRole('button', { name: 'Details' }).click();
+  await page.getByRole('button', { name: 'Details', exact: true }).click();
   await expect(page.getByRole('dialog', { name: /^#11/ })).toBeVisible();
   await expectAccessible(page, 'player inspector');
 });
@@ -126,7 +126,7 @@ test('the player inspector has no serious violations', async ({ page }) => {
 test('the event inspector has no serious violations', async ({ page }) => {
   await dragWorld(page, LINEUP.home11, LINEUP.home13);
   await clickWorld(page, { x: 320, y: 168 });
-  const details = page.getByRole('button', { name: 'Details' });
+  const details = page.getByRole('button', { name: 'Details', exact: true });
   if (await details.isVisible()) await details.click();
   await expectAccessible(page, 'event inspector');
 });
@@ -162,8 +162,8 @@ test('the save-failure recovery state has no serious violations', async ({ page 
   });
 
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  await page.getByRole('dialog', { name: 'PhiceCraft' }).getByRole('button', { name: 'Save play' }).click();
-  await page.getByRole('dialog', { name: 'PhiceCraft' }).getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('dialog', { name: 'PHormation' }).getByRole('button', { name: 'Save play' }).click();
+  await page.getByRole('dialog', { name: 'PHormation' }).getByRole('button', { name: 'Close' }).click();
 
   await expect(page.getByRole('alert').filter({ hasText: 'Save failed' }).first()).toBeVisible();
   await expectAccessible(page, 'save failure recovery');
@@ -171,8 +171,8 @@ test('the save-failure recovery state has no serious violations', async ({ page 
 
 test('the help sheet has no serious violations', async ({ page }) => {
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  await page.getByRole('button', { name: /How to use PhiceCraft/ }).click();
-  await expect(page.getByRole('dialog', { name: 'How to use PhiceCraft' })).toBeVisible();
+  await page.getByRole('button', { name: /How to use PHormation/ }).click();
+  await expect(page.getByRole('dialog', { name: 'How to use PHormation' })).toBeVisible();
   await expectAccessible(page, 'help sheet');
 });
 
@@ -218,9 +218,9 @@ test('focus is contained inside an open sheet', async ({ page }) => {
 
 test('the help content is a list, not a row of no-op buttons', async ({ page }) => {
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  await page.getByRole('button', { name: /How to use PhiceCraft/ }).click();
+  await page.getByRole('button', { name: /How to use PHormation/ }).click();
 
-  const sheet = page.getByRole('dialog', { name: 'How to use PhiceCraft' });
+  const sheet = page.getByRole('dialog', { name: 'How to use PHormation' });
   await expect(sheet.getByRole('listitem').first()).toBeVisible();
 
   // The only button in the sheet is Close.

@@ -85,7 +85,7 @@ export function MenuSheet() {
   };
 
   return (
-    <Sheet open={state.ui.showMenu} title="PhiceCraft" side="left" onClose={close}>
+    <Sheet open={state.ui.showMenu} title="PHormation" side="left" onClose={close}>
       <div className="mx-2 mb-3 mt-1 flex items-center gap-3.5 rounded-2xl border border-app-border bg-gradient-to-r from-white/[0.06] to-white/[0.02] p-3 shadow-md">
         <img
           src="/assets/ph-logo-badge.webp"
@@ -98,7 +98,7 @@ export function MenuSheet() {
         />
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-black tracking-wider text-white">
-            PHICE<span className="text-app-cyan">CRAFT</span>
+            PH<span className="text-app-cyan">ORMATION</span>
           </div>
           <div className="text-[11px] font-bold text-white/70">
             Hockey Practice & Plays
@@ -267,7 +267,7 @@ export function MenuSheet() {
       <SheetSection title="Help">
         <SheetItem
           icon={<HelpIcon />}
-          label="How to use PhiceCraft"
+          label="How to use PHormation"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'help' })}
         />
       </SheetSection>

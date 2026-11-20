@@ -57,7 +57,7 @@ export function TopStrip() {
           />
           {!isCompactLandscape && (
             <span className="hidden text-[13px] font-black tracking-wider text-white lg:inline">
-              PHORM<span className="text-app-cyan">ATION</span>
+              PH<span className="text-app-cyan">ORMATION</span>
             </span>
           )}
         </div>
@@ -81,7 +81,7 @@ export function TopStrip() {
         <button
           type="button"
           onClick={() => dispatch({ type: 'CLOSE_SHEET' })}
-          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
+          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
             isRink
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -95,7 +95,7 @@ export function TopStrip() {
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'practice' })}
           aria-label="Practice session planner"
-          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
+          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
             isPractice
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -109,7 +109,7 @@ export function TopStrip() {
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'library' })}
           aria-label="Drill playbook library"
-          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
+          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
             isLibrary
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -123,7 +123,7 @@ export function TopStrip() {
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'coach' })}
           aria-label="Coach workspace"
-          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-bold transition-all ${
+          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
             isCoach
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
