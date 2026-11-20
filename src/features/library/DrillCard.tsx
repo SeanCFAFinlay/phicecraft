@@ -101,6 +101,11 @@ export function DrillCard({ entry, onOpen, onToggleFavourite, onUse }: DrillCard
       <p className="mt-2 line-clamp-3 text-[13px] leading-snug text-white/60">{entry.summary}</p>
 
       <div className="mt-2 flex flex-wrap gap-1">
+        {entry.tags.includes('top 10') && (
+          <span className="rounded-full bg-app-gold/20 px-2 py-0.5 text-[11px] font-black text-app-gold">
+            Top 10 scoring pack
+          </span>
+        )}
         <span className="rounded-full bg-app-cyan/12 px-2 py-0.5 text-[11px] font-bold text-app-cyan">
           {AREA_LABELS[entry.rinkArea] ?? entry.rinkArea}
         </span>

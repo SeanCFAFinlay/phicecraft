@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { DRILL_TEMPLATES, findTemplate } from './registry';
+import { TOP_TEN_TEMPLATES } from './topTen';
 import { RINK_LANDMARKS } from './builder';
 import { validateV3Document } from '@/domain/v3/validation';
 import { projectToV2 } from '@/domain/v3/projectToV2';
@@ -16,6 +17,7 @@ import { sampleFrame } from '@/sim/sampleFrame';
 import { RINK } from '@/core/constants';
 import { validateDrillMechanics } from '@/engine/drillValidation';
 import { distance } from '@/utils/geometry';
+import { validateDrillIntelligence } from '@/domain/validation/coachIntelligence';
 
 describe('every template', () => {
   for (const item of DRILL_TEMPLATES) {
@@ -93,6 +95,26 @@ describe('every template', () => {
         expect(blocking, JSON.stringify(blocking, null, 1)).toEqual([]);
       });
 
+      it('opens with a clean coaching report', () => {
+        // The editor runs this same check the moment a coach opens the drill.
+        // A shipped drill that greets them with "pass arrives 5s early" is a
+        // drill they stop trusting, so the catalogue holds itself to zero.
+        const notes = validateDrillIntelligence(item.document).issues.map(
+          issue => `${issue.title}: ${issue.message}`
+        );
+        expect(notes, notes.join(' | ')).toEqual([]);
+      });
+
+      it('completes every puck action it draws', () => {
+        const { drill } = projectToV2(item.document);
+        const compiled = compileDrill(drill);
+        const finished = sampleFrame(compiled, compiled.durationSeconds);
+        const unfinished = finished.eventExecutions
+          .map((execution, index) => `${compiled.events[index]?.source.type ?? index}#${index + 1}: ${execution.status}`)
+          .filter(line => !line.endsWith('completed'));
+        expect(unfinished, unfinished.join(' | ')).toEqual([]);
+      });
+
       it('only asks for a finishing shot when it means it', () => {
         const policy = item.document.phases[0].finishPolicy;
         const hasShot = item.document.puckTracks.some(track =>
@@ -107,6 +129,17 @@ describe('every template', () => {
 });
 
 describe('the catalogue', () => {
+  it('ships a preloaded top ten pack with passing and scoring in every drill', () => {
+    expect(TOP_TEN_TEMPLATES).toHaveLength(10);
+    for (const item of TOP_TEN_TEMPLATES) {
+      const actions = item.document.puckTracks.flatMap(track => track.actions);
+      expect(actions.some(action => action.type === 'pass'), item.id).toBe(true);
+      expect(actions.some(action => action.type === 'shot'), item.id).toBe(true);
+      expect(item.document.phases[0].finishPolicy, item.id).toBe('finish-with-shot');
+      expect(item.document.metadata.tags).toContain('top 10');
+    }
+  });
+
   it('holds the catalogue the market review asks for', () => {
     // 24 originals across passing/warm-up, small-area games and
     // transition/rush. Four examples in a menu sheet is what scored 2/10.

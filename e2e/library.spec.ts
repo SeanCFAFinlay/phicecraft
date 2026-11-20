@@ -19,6 +19,14 @@ async function openLibrary(page: Page) {
 
 const cards = (page: Page) => page.getByRole('article');
 
+/** Every drill the catalogue ships. Kept in step with DRILL_TEMPLATES. */
+const CATALOGUE = 57;
+
+/** Age, area and requirement chips sit behind the Filters button. */
+async function showFilters(page: Page) {
+  await page.getByRole('button', { name: /^Filters/ }).click();
+}
+
 async function waitForSaved(page: Page) {
   await expect(page.getByRole('status', { name: /^Save status:/ })).toHaveAccessibleName(
     'Save status: Saved',
@@ -33,8 +41,8 @@ test.beforeEach(async ({ page }) => {
 test('opens a real catalogue, not a handful of examples', async ({ page }) => {
   const library = await openLibrary(page);
 
-  await expect(library).toContainText('24 of 24 drills');
-  expect(await cards(page).count()).toBe(24);
+  await expect(library).toContainText(`${CATALOGUE} of ${CATALOGUE} drills`);
+  expect(await cards(page).count()).toBe(CATALOGUE);
 });
 
 test('a drill card says what a coach decides from', async ({ page }) => {
@@ -53,7 +61,7 @@ test('search narrows the catalogue', async ({ page }) => {
 
   const count = await cards(page).count();
   expect(count).toBeGreaterThan(0);
-  expect(count).toBeLessThan(24);
+  expect(count).toBeLessThan(CATALOGUE);
   await expect(cards(page).first()).toContainText(/backcheck/i);
 });
 
@@ -67,11 +75,12 @@ test('search that matches nothing says so, rather than showing an empty page', a
 
 test('filters compose the way a coach expects', async ({ page }) => {
   const library = await openLibrary(page);
+  await showFilters(page);
 
   // One value narrows.
   await page.getByRole('button', { name: 'U9' }).click();
   const afterAge = await cards(page).count();
-  expect(afterAge).toBeLessThan(24);
+  expect(afterAge).toBeLessThan(CATALOGUE);
 
   // A second value in the SAME filter widens.
   await page.getByRole('button', { name: 'U13' }).click();
@@ -79,18 +88,19 @@ test('filters compose the way a coach expects', async ({ page }) => {
 
   // A value in a DIFFERENT filter narrows again.
   await page.getByRole('button', { name: 'No goalie' }).click();
-  expect(await cards(page).count()).toBeLessThan(24);
+  expect(await cards(page).count()).toBeLessThan(CATALOGUE);
 
   await expect(library).toContainText(/Clear 3/);
 });
 
 test('clearing the filters brings the catalogue back', async ({ page }) => {
   const library = await openLibrary(page);
+  await showFilters(page);
   await page.getByRole('button', { name: 'U9' }).click();
-  expect(await cards(page).count()).toBeLessThan(24);
+  expect(await cards(page).count()).toBeLessThan(CATALOGUE);
 
   await page.getByRole('button', { name: /^Clear/ }).click();
-  await expect(library).toContainText('24 of 24 drills');
+  await expect(library).toContainText(`${CATALOGUE} of ${CATALOGUE} drills`);
 });
 
 test('details show the coaching content that makes a drill usable', async ({ page }) => {
@@ -102,7 +112,7 @@ test('details show the coaching content that makes a drill usable', async ({ pag
   await expect(details).toContainText('Setup');
   await expect(details).toContainText('At a glance');
   // Provenance, because a template with no recorded source is not cleared to ship.
-  await expect(details).toContainText('PhiceCraft');
+  await expect(details).toContainText('PHormation');
 });
 
 test('a drill can be starred, and the star survives a reload', async ({ page }) => {
@@ -162,7 +172,7 @@ test('every card carries a diagram of the drill', async ({ page }) => {
   // A coach scanning twenty-four drills decides from the shape of the thing
   // far faster than from a sentence.
   const images = page.getByRole('article').locator('img');
-  expect(await images.count()).toBe(24);
+  expect(await images.count()).toBe(CATALOGUE);
 
   // Really rendered, not a broken source.
   const rendered = await images.first().evaluate(

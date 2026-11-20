@@ -92,7 +92,7 @@ export function FirstRunHint() {
         role="status"
         aria-live="polite"
         className="pointer-events-auto flex w-full items-center justify-between gap-2 rounded-xl border border-app-cyan/30 bg-[#071522]/90 px-3 py-1 shadow-xl backdrop-blur-md">
-        <div className="min-w-0 flex-1 truncate text-[12px] font-bold leading-tight text-app-gold">
+        <div className="min-w-0 flex-1 text-[12px] font-bold leading-tight text-app-gold">
           {MESSAGE[stage]}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">

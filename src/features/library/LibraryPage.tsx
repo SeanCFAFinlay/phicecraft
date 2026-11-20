@@ -14,6 +14,7 @@ import { Sheet } from '@/components/a11y/Sheet';
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { DRILL_TEMPLATES, findTemplate } from '@/data/templates/registry';
 import {
+  COLLECTIONS,
   EMPTY_FILTERS,
   activeFilterCount,
   availableFacets,
@@ -93,6 +94,7 @@ export function LibraryPage() {
   const [filters, setFilters] = useState<LibraryFilters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<LibrarySort>('featured');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const open = state.ui.openSheet === 'library';
   const close = () => {
@@ -107,6 +109,15 @@ export function LibraryPage() {
   );
 
   const activeCount = activeFilterCount(filters);
+  // What the "Filters" button is hiding: everything except the search box,
+  // the shelf and the star, which stay on screen and show their own state.
+  const hiddenCount =
+    filters.categories.length +
+    filters.ageBands.length +
+    filters.rinkAreas.length +
+    (filters.noGoalie ? 1 : 0) +
+    (filters.noEquipment ? 1 : 0) +
+    (filters.maxMinutes > 0 ? 1 : 0);
   const openTemplate = openId ? findTemplate(openId) : null;
 
   const patch = (changes: Partial<LibraryFilters>) =>
@@ -122,7 +133,7 @@ export function LibraryPage() {
         size="full"
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-3 pb-16 safe-bottom">
-          <div className="flex items-center gap-3.5 rounded-2xl border border-app-border bg-gradient-to-r from-white/[0.05] to-white/[0.02] p-3 shadow-sm">
+          <div className="hidden items-center gap-3.5 rounded-2xl border border-app-border bg-gradient-to-r from-white/[0.05] to-white/[0.02] p-3 shadow-sm lg:flex">
             <img
               src="/assets/ph-logo.webp"
               alt=""
@@ -134,7 +145,7 @@ export function LibraryPage() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[15px] font-black tracking-wider text-white">
-                  PHICE<span className="text-app-cyan">CRAFT</span> PLAYBOOK
+                  PH<span className="text-app-cyan">ORMATION</span> PLAYBOOK
                 </span>
                 <span className="rounded-full border border-app-cyan/30 bg-app-cyan/15 px-2 py-0.5 text-[9.5px] font-black tracking-widest text-app-cyan uppercase">
                   Train · Play · Improve
@@ -157,18 +168,73 @@ export function LibraryPage() {
             />
           </label>
 
+          {/* The shelves: what a coach came for, one tap, no filter arithmetic. */}
           <div
-            className="flex items-center gap-1.5 overflow-x-auto pb-1"
+            className="-mx-3 flex items-center gap-1.5 overflow-x-auto px-3 pb-1"
             role="group"
-            aria-label="Sort drills"
+            aria-label="Collections"
           >
-            {SORTS.map(option => (
-              <Chip key={option.value} active={sort === option.value} onClick={() => setSort(option.value)}>
-                {option.label}
+            <Chip active={filters.collection === null} onClick={() => patch({ collection: null })}>
+              All drills
+            </Chip>
+            {COLLECTIONS.map(collection => (
+              <Chip
+                key={collection.id}
+                active={filters.collection === collection.id}
+                onClick={() =>
+                  patch({ collection: filters.collection === collection.id ? null : collection.id })
+                }
+              >
+                {collection.label}
               </Chip>
             ))}
+            <Chip
+              active={filters.favouritesOnly}
+              onClick={() => patch({ favouritesOnly: !filters.favouritesOnly })}
+            >
+              Starred
+            </Chip>
           </div>
 
+          <div className="-mx-3 flex items-center gap-1.5 overflow-x-auto px-3 pb-1">
+            <button
+              type="button"
+              onClick={() => setShowFilters(current => !current)}
+              aria-expanded={showFilters}
+              aria-controls="library-filters"
+              className={`touch-target shrink-0 rounded-full border px-3.5 text-[12px] font-black transition-colors ${
+                showFilters || hiddenCount > 0
+                  ? 'border-app-cyan bg-app-cyan/15 text-app-cyan'
+                  : 'border-app-border bg-white/10 text-white/80 hover:bg-white/15'
+              }`}
+            >
+              {hiddenCount > 0 ? `Filters · ${hiddenCount}` : 'Filters'}
+              <span aria-hidden="true" className="ml-1.5">
+                {showFilters ? '▴' : '▾'}
+              </span>
+            </button>
+            {activeCount > 0 && (
+              <Chip active={false} onClick={() => setFilters(EMPTY_FILTERS)}>
+                Clear {activeCount}
+              </Chip>
+            )}
+            <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-white/15" />
+            <div className="flex items-center gap-1.5" role="group" aria-label="Sort drills">
+              {SORTS.map(option => (
+                <Chip key={option.value} active={sort === option.value} onClick={() => setSort(option.value)}>
+                  {option.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          <div
+            id="library-filters"
+            hidden={!showFilters}
+            className={`flex-col gap-3 rounded-2xl border border-app-border bg-white/[0.03] p-3 ${
+              showFilters ? 'flex' : ''
+            }`}
+          >
           {facets.categories.length > 0 && (
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by category">
               {facets.categories.map(cat => (
@@ -223,17 +289,7 @@ export function LibraryPage() {
             >
               8 min or less
             </Chip>
-            <Chip
-              active={filters.favouritesOnly}
-              onClick={() => patch({ favouritesOnly: !filters.favouritesOnly })}
-            >
-              Starred
-            </Chip>
-            {activeCount > 0 && (
-              <Chip active={false} onClick={() => setFilters(EMPTY_FILTERS)}>
-                Clear {activeCount}
-              </Chip>
-            )}
+          </div>
           </div>
 
           {entries.length === 0 ? (

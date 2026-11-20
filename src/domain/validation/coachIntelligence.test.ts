@@ -27,10 +27,10 @@ describe('coachIntelligence', () => {
       variations: [],
       actors: [
         skater('skater-1', 'home', '9', { x: 0, y: 0 }, 'LW'),
-        skater('skater-2', 'home', '17', { x: 20, y: 20 }, 'C'),
+        skater('skater-2', 'home', '17', { x: 100, y: 100 }, 'C'),
       ],
       routes: [
-        route('skater-2', [{ x: 20, y: 20 }, { x: 50, y: 20 }], { durationSeconds: 5 }),
+        route('skater-2', [{ x: 100, y: 100 }, { x: 400, y: 100 }], { durationSeconds: 5 }),
       ],
     });
 
@@ -95,7 +95,7 @@ describe('coachIntelligence', () => {
       fromPoint: { x: 0, y: 0 },
       toActorId: 'skater-2',
       targetMode: 'actor',
-      target: { x: 50, y: 20 },
+      target: { x: 400, y: 100 },
       releaseAt: 4.0,
       arrivalAt: 2.0, // Error: arrival before release!
       waypoints: [],
@@ -135,7 +135,7 @@ describe('coachIntelligence', () => {
       fromPoint: { x: 0, y: 0 },
       toActorId: 'skater-2',
       targetMode: 'actor',
-      target: { x: 50, y: 20 },
+      target: { x: 400, y: 100 },
       releaseAt: 0.5,
       arrivalAt: 1.5,
       waypoints: [],
@@ -161,13 +161,56 @@ describe('coachIntelligence', () => {
     // Apply synchronized timing proposal
     const synced = mismatchIssue!.proposal!.apply(drill);
     const syncedPass = synced.puckTracks[0].actions[0] as PassAction;
-    expect(syncedPass.arrivalAt).toBeCloseTo(5.0, 0.5);
+    // Playback skates the 60 ft at skating speed, so the receiver is there a
+    // little after four seconds - and that, not the authored five, is when
+    // the puck should land.
+    expect(syncedPass.arrivalAt).toBeGreaterThan(3.5);
+    expect(syncedPass.arrivalAt).toBeLessThan(4.75);
+    expect(
+      validateDrillIntelligence(synced).issues.filter(i => i.kind === 'timing_mismatch')
+    ).toEqual([]);
+  });
+
+  it('flags a pass the receiver never gets to, and can aim it at them', () => {
+    const drill = createTestDrill();
+    drill.actorTracks = [];
+    drill.puckTracks.push({
+      id: 'puck-track-1',
+      initialSource: { kind: 'actor', actorId: 'skater-1' },
+      actions: [
+        {
+          id: 'pass-wide-1',
+          phaseId: drill.phases[0].id,
+          fromActorId: 'skater-1',
+          fromPoint: { x: 0, y: 0 },
+          toActorId: 'skater-2',
+          targetMode: 'actor',
+          // skater-2 stands at (100, 100) and is going nowhere.
+          target: { x: 400, y: 300 },
+          releaseAt: 0.5,
+          arrivalAt: 1.5,
+          waypoints: [],
+          shape: 'spline',
+          passType: 'flat',
+          receiveMode: 'control',
+          type: 'pass',
+        },
+      ],
+    });
+
+    const issue = validateDrillIntelligence(drill).issues.find(i => i.id === 'pass-target-pass-wide-1');
+    expect(issue?.title).toBe('Pass Misses Receiver');
+    expect(issue?.message).toMatch(/lands \d+ ft away/);
+
+    const aimed = issue!.proposal!.apply(drill);
+    expect((aimed.puckTracks[0].actions[0] as PassAction).target).toEqual({ x: 100, y: 100 });
+    expect(validateDrillIntelligence(aimed).issues.filter(i => i.kind === 'timing_mismatch')).toEqual([]);
   });
 
   it('detects overlapping starting positions and offers an offset proposal', () => {
     const drill = createTestDrill();
     // Place skater-2 at the same position as skater-1
-    drill.actors[1].position = { x: 0.5, y: 0.5 }; // within 3ft
+    drill.actors[1].position = { x: 5, y: 5 }; // within 3ft
 
     const report = validateDrillIntelligence(drill);
     const spaceIssue = report.issues.find(i => i.kind === 'space_conflict');
@@ -175,7 +218,7 @@ describe('coachIntelligence', () => {
     expect(spaceIssue?.proposal).toBeDefined();
 
     const fixed = spaceIssue!.proposal!.apply(drill);
-    expect(fixed.actors[1].position.x).toBeGreaterThan(5);
+    expect(fixed.actors[1].position.x).toBeGreaterThan(25);
   });
 
   it('flags equipment shortages when contextual inventory is limited', () => {
@@ -203,7 +246,7 @@ describe('coachIntelligence', () => {
       team: 'away',
       number: '44',
       role: 'D',
-      position: { x: 25, y: 0.5 }, // Directly in passing corridor
+      position: { x: 200, y: 5 }, // Directly in passing corridor
     });
 
     const passAction: PassAction = {
@@ -213,7 +256,7 @@ describe('coachIntelligence', () => {
       fromPoint: { x: 0, y: 0 },
       toActorId: 'skater-2',
       targetMode: 'actor',
-      target: { x: 50, y: 0 },
+      target: { x: 400, y: 0 },
       releaseAt: 1.0,
       arrivalAt: 2.5,
       type: 'pass',
@@ -243,7 +286,7 @@ describe('coachIntelligence', () => {
       kind: 'goalie',
       team: 'away',
       number: '30',
-      position: { x: 89, y: 20 }, // Off-angle
+      position: { x: 945, y: 312.5 }, // Off-angle
     });
 
     drill.puckTracks.push({
@@ -256,8 +299,8 @@ describe('coachIntelligence', () => {
           type: 'shot',
           fromActorId: 'skater-1',
           targetNet: 'right',
-          fromPoint: { x: 40, y: 0 },
-          target: { x: 89, y: 0 },
+          fromPoint: { x: 700, y: 212.5 },
+          target: { x: 945, y: 212.5 },
           releaseAt: 2.0,
           arrivalAt: 2.8,
           waypoints: [],
@@ -273,6 +316,8 @@ describe('coachIntelligence', () => {
 
     const squared = goalieIssue!.proposal!.apply(drill);
     const fixedGoalie = squared.actors.find(a => a.id === 'g-defend');
-    expect(Math.abs(fixedGoalie!.position.y)).toBeLessThan(5);
+    expect(Math.abs(fixedGoalie!.position.y - 212.5)).toBeLessThan(5);
+    expect(fixedGoalie!.position.x).toBeLessThan(945);
+    expect(fixedGoalie!.position.x).toBeGreaterThan(900);
   });
 });

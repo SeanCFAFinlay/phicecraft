@@ -2,13 +2,13 @@
 // TACTICAL BAR
 //
 // BenchIQ-grade whiteboard toolbar for hockey coaches:
-// - Move (Select & Drag pointer)
-// - Players ▾ (Home, Away, Goalie, Coach, Reset)
+// - Add players (Home, Away, Goalie, Coach)
+// - Shoot and Dump (Move, Pass and Skate live in the bottom dock, and only
+//   there: one button per action, one name per action)
 // - Objects ▾ (Cone, Tire, Mini-Net, Barrier)
-// - Draw ▾ (Skate Route, Pass, Shoot on Net, Dump In)
 // - Lineups ▾ (Power Play, Penalty Kill, 3v2 Rush, Breakout, Faceoff)
 // - Export ▾ (Diagram PNG, Printable PDF, JSON)
-// - Zone View Pills (Full, O-Zone, D-Zone, 2D/3D, Fit, Help ?)
+// - Zone View Pills (Full, O-Zone, D-Zone, Fit, Help ?) - 3D is on the view rail
 // ============================================================================
 
 import { useState, useRef, useEffect, type ReactNode } from 'react';
@@ -18,7 +18,6 @@ import { usePuckActions } from '@/hooks/usePuckActions';
 import { useViewActions } from './useViewActions';
 import { useResponsive } from '@/ui/useResponsive';
 import { attackingNetFor } from '@/engine/puck';
-import type { Tool } from '@/core/types';
 import type { PlayFormationPreset } from '@/engine/formations';
 
 interface FlyoutProps {
@@ -167,14 +166,12 @@ export function TacticalBar() {
   const commands = useCommands();
   const { isCompactLandscape } = useResponsive();
   const { carrier } = usePuckActions();
-  const { is3D, toggle3D, fit, zoomToZone } = useViewActions();
+  const { fit, zoomToZone } = useViewActions();
 
   const [openMenu, setOpenMenu] = useState<'drills' | 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools' | null>(null);
 
   const currentTool = state.ui.currentTool;
-  const isMove = currentTool === 'move';
   const isPlacingObject = currentTool === 'cone' || currentTool === 'tire' || currentTool === 'mini-net' || currentTool === 'barrier';
-  const isDrawing = state.pendingAction.kind !== 'none';
   const selectedPlayer = state.selection.selectedPlayerId
     ? state.drill.players.find(p => p.id === state.selection.selectedPlayerId)
     : null;
@@ -194,11 +191,6 @@ export function TacticalBar() {
   const closeMenu = () => setOpenMenu(null);
   const toggleMenu = (menu: 'drills' | 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools') => {
     setOpenMenu(prev => (prev === menu ? null : menu));
-  };
-
-  const selectTool = (tool: Tool) => {
-    commands.setTool(tool);
-    closeMenu();
   };
 
   const addHomeSkater = () => {
@@ -272,25 +264,7 @@ export function TacticalBar() {
       <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-0.5">
         {/* GROUP 1: ROSTER & CURSOR */}
         <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm" role="group" aria-label="Roster selection and placement">
-          {/* Pointer / Move tool */}
-          <button
-            type="button"
-            onClick={() => {
-              commands.cancelPendingAction();
-              selectTool('move');
-            }}
-            aria-label="Select and move players"
-            aria-pressed={isMove && !isDrawing}
-            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
-              isMove && !isDrawing
-                ? 'border border-app-cyan bg-app-cyan/20 text-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.3)]'
-                : 'text-white/80 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <span>👆</span>
-            <span>Move</span>
-          </button>
-
+          {/* Move lives in the bottom dock, the one place every screen size has it. */}
           {/* Direct Add Player Buttons */}
           <button
             type="button"
@@ -355,61 +329,8 @@ export function TacticalBar() {
 
         {/* GROUP 2: PUCK & SKATING ACTIONS */}
         <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm" role="group" aria-label="Routes and puck actions">
-          {/* Direct Action: Skate Route / Path */}
-          <button
-            type="button"
-            onClick={() => {
-              const targetPlayer =
-                selectedPlayer ??
-                carrier ??
-                state.drill.players.find(p => p.role !== 'G') ??
-                state.drill.players[0];
-              if (targetPlayer) {
-                commands.selectPlayer(targetPlayer.id);
-                commands.setTool('move');
-                commands.setPendingAction({ kind: 'draw-route', playerId: targetPlayer.id });
-              }
-            }}
-            aria-label="Draw skate path"
-            title={selectedPlayer ? `Draw #${selectedPlayer.number}'s skate path` : 'Draw skate path (drag or tap player)'}
-            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
-              state.pendingAction.kind === 'draw-route'
-                ? 'border border-cyan-400 bg-cyan-500/25 text-cyan-200 shadow-[0_0_8px_rgba(6,182,212,0.4)]'
-                : 'text-white/80 hover:bg-cyan-500/15 hover:text-cyan-200'
-            }`}
-          >
-            <span>⛸️</span>
-            <span>Path</span>
-          </button>
-
-          {/* Direct Action: Pass */}
-          <button
-            type="button"
-            onClick={() => {
-              const targetCarrier =
-                carrier ??
-                state.drill.players.find(p => p.hasPuck) ??
-                selectedPlayer ??
-                state.drill.players.find(p => p.role !== 'G') ??
-                state.drill.players[0];
-              if (targetCarrier) {
-                if (!targetCarrier.hasPuck) void commands.setPuckCarrier(targetCarrier.id);
-                commands.setTool('move');
-                commands.setPendingAction({ kind: 'pass', playerId: targetCarrier.id });
-              }
-            }}
-            aria-label="Pass puck"
-            title={carrier ? `Pass puck from #${carrier.number}` : 'Pass puck'}
-            className={`flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold transition-all ${
-              state.pendingAction.kind === 'pass'
-                ? 'border border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
-                : 'text-white/80 hover:bg-amber-500/15 hover:text-amber-200'
-            }`}
-          >
-            <span>⚡</span>
-            <span>Pass</span>
-          </button>
-
+          {/* Skate and Pass live in the bottom dock. Two buttons for one action,
+              under two names ("Path" here, "Skate" there), read as two actions. */}
           {/* Direct Action: Shoot */}
           <button
             type="button"
@@ -1150,29 +1071,7 @@ export function TacticalBar() {
           D-Zone
         </button>
 
-        <button
-          type="button"
-          onClick={() => commands.setupStationSplit('cross-ice-3', 'defensive')}
-          aria-label="Setup USA Hockey ADM 3-station cross ice bumpers"
-          title="USA Hockey ADM 3-Station Cross-Ice Split"
-          className="hidden xl:flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-bold text-amber-300 hover:bg-amber-400/15 transition-all"
-        >
-          ADM 3
-        </button>
-
-        <button
-          type="button"
-          onClick={toggle3D}
-          aria-label={is3D ? 'Switch to 2D view' : 'Switch to 3D tabletop view'}
-          className={`flex h-7 min-w-0 items-center justify-center rounded-lg px-2 py-1 text-[11px] font-black transition-all ${
-            is3D
-              ? 'border border-app-cyan bg-app-cyan text-[#041019] shadow-sm'
-              : 'text-app-cyan hover:bg-app-cyan/15'
-          }`}
-        >
-          {is3D ? '2D' : '3D'}
-        </button>
-
+        {/* 3D and the ADM split are on the view rail over the rink. */}
         <button
           type="button"
           onClick={fit}

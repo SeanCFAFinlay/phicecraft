@@ -280,7 +280,11 @@ describe('PHormation 12-Step Master Journey Verification', () => {
     // ------------------------------------------------------------------------
     const mismatchDrill: DrillDocumentV3 = structuredClone(template.document);
     // Set receiver arrival at 5.0s, pass arrives at 1.5s
-    const passAction = mismatchDrill.puckTracks[0]?.actions.find(a => a.type === 'pass') as PassAction | undefined;
+    // The LAST pass: its receiver is still at the far point when the puck is
+    // sent this early, and only skates onto the target seconds later.
+    const passAction = mismatchDrill.puckTracks[0]?.actions
+      .filter(a => a.type === 'pass')
+      .pop() as PassAction | undefined;
     if (passAction && passAction.toActorId) {
       passAction.releaseAt = 0.5;
       passAction.arrivalAt = 1.5; // Puck arrives before receiver gets there
@@ -353,7 +357,7 @@ describe('PHormation 12-Step Master Journey Verification', () => {
     // STEP 12: Export clipboard plain text & markdown summaries
     // ------------------------------------------------------------------------
     const plainText = formatPracticePlanText(storedSession!);
-    expect(plainText).toContain('PHICECRAFT HOCKEY PRACTICE PLAN');
+    expect(plainText).toContain('PHORMATION HOCKEY PRACTICE PLAN');
     expect(plainText).toContain('PRACTICE TIMELINE');
 
     const markdownText = formatPracticePlanMarkdown(storedSession!);

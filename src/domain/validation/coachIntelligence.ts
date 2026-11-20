@@ -18,6 +18,25 @@ import type {
 } from '@/domain/v3/types';
 import { isSkater, isGoalie, isOnIce } from '@/domain/v3/types';
 import type { Point } from '@/core/types';
+import { FT, NET_LEFT, NET_RIGHT } from '@/core/constants';
+import { projectToV2 } from '@/domain/v3/projectToV2';
+import { compileDrill } from '@/sim/compileDrill';
+import { sampleFrame } from '@/sim/sampleFrame';
+
+// Documents are stored in board units (FT of them to one foot of real ice).
+// Every threshold below is written in feet and converted here, and every
+// distance shown to a coach is converted back, so "15 ft" means 15 ft.
+const RECEPTION_REACH = 8 * FT;
+const START_OVERLAP = 3 * FT;
+const STICK_REACH = 4 * FT;
+const GOALIE_OFF_ANGLE = 5.5 * FT;
+const GOALIE_DEPTH = 4.5 * FT;
+/** A goalie further than this from a net is not the one defending it. */
+const GOALIE_NET_RANGE = 25 * FT;
+
+function feet(boardUnits: number): number {
+  return boardUnits / FT;
+}
 
 export type ValidationIssueSeverity = 'error' | 'warning' | 'suggestion';
 
@@ -121,11 +140,50 @@ export function estimateActorPositionAtTime(
   return { position: lastPt, isAtSegmentEnd: true, arrivalTimeSec: lastEnd };
 }
 
+type Locator = (actor: Actor, timeSec: number) => Point;
+
+/**
+ * Where everybody is at a given moment, ACCORDING TO PLAYBACK.
+ *
+ * The simulator paces a skater along their route to meet the puck; a straight
+ * read of the authored segment does not. Judging a pass against the authored
+ * segment therefore reports "arrives 5s early" on drills that play back with
+ * the puck landing on the tape. The coach sees playback, so playback is what
+ * is measured. The authored segment is only the fallback for a document the
+ * simulator cannot compile.
+ */
+function createLocator(drill: DrillDocumentV3): Locator {
+  const authored: Locator = (actor, timeSec) => {
+    const segments = drill.actorTracks.find(t => t.actorId === actor.id)?.segments ?? [];
+    return estimateActorPositionAtTime(actor, segments, timeSec).position;
+  };
+
+  try {
+    const compiled = compileDrill(projectToV2(drill).drill);
+    const frames = new Map<number, ReturnType<typeof sampleFrame>>();
+    return (actor, timeSec) => {
+      const key = Math.round(timeSec * 100);
+      let frame = frames.get(key);
+      if (!frame) {
+        frame = sampleFrame(compiled, Math.max(0, Math.min(compiled.durationSeconds, timeSec)));
+        frames.set(key, frame);
+      }
+      const position = frame.players[actor.id]?.position;
+      return position && Number.isFinite(position.x) && Number.isFinite(position.y)
+        ? position
+        : authored(actor, timeSec);
+    };
+  } catch {
+    return authored;
+  }
+}
+
 /**
  * Validates pass timing against receiver routes.
  */
 function validatePassTiming(
   drill: DrillDocumentV3,
+  locate: Locator,
   issues: DrillValidationIssue[]
 ): void {
   for (const track of (drill.puckTracks || [])) {
@@ -169,22 +227,18 @@ function validatePassTiming(
         const receiver = drill.actors.find(a => a.id === pass.toActorId);
         if (!receiver) continue;
 
-        const receiverTrack = drill.actorTracks.find(t => t.actorId === receiver.id);
-        const segments = receiverTrack ? receiverTrack.segments : [];
+        // Where the receiver is at the moment the puck arrives
+        const distToTarget = distance(locate(receiver, pass.arrivalAt), pass.target);
 
-        // Estimate where receiver is at the moment the puck arrives
-        const receiverState = estimateActorPositionAtTime(receiver, segments, pass.arrivalAt);
-        const distToTarget = distance(receiverState.position, pass.target);
-
-        // If target is farther than 15 feet from where the receiver is at that moment
-        if (distToTarget > 15) {
+        // The receiver has to be within reach of the puck when it lands.
+        if (distToTarget > RECEPTION_REACH) {
           // Find when the receiver actually gets closest to pass.target
-          let bestTimeSec = receiverState.arrivalTimeSec;
+          let bestTimeSec = pass.arrivalAt;
           let minDistance = distToTarget;
 
           // Sample along receiver route
           for (let t = pass.releaseAt; t <= pass.arrivalAt + 5; t += 0.25) {
-            const pos = estimateActorPositionAtTime(receiver, segments, t).position;
+            const pos = locate(receiver, t);
             const d = distance(pos, pass.target);
             if (d < minDistance) {
               minDistance = d;
@@ -193,6 +247,35 @@ function validatePassTiming(
           }
 
           const mismatchSec = Math.abs(pass.arrivalAt - bestTimeSec);
+          const receiverName = (receiver as SkaterActor).number || receiver.label || receiver.id;
+          if (mismatchSec < 0.5 && minDistance > RECEPTION_REACH) {
+            // Not a timing problem: the receiver never gets there at all.
+            const reception = locate(receiver, pass.arrivalAt);
+            issues.push({
+              id: `pass-target-${pass.id}`,
+              kind: 'timing_mismatch',
+              severity: 'warning',
+              title: 'Pass Misses Receiver',
+              message: `Pass to #${receiverName} lands ${feet(distToTarget).toFixed(0)} ft away from them, and their route never brings them to it.`,
+              affectedActorIds: [receiver.id, pass.fromActorId],
+              affectedActionIds: [pass.id],
+              timestamp: pass.arrivalAt,
+              proposal: {
+                id: `aim-pass-${pass.id}`,
+                label: 'Aim at Receiver',
+                description: `Moves the pass onto #${receiverName}'s stick where they are when it arrives.`,
+                apply: (d) => {
+                  const clone = structuredClone(d);
+                  for (const trk of clone.puckTracks) {
+                    for (const act of trk.actions) {
+                      if (act.id === pass.id) act.target = { x: reception.x, y: reception.y };
+                    }
+                  }
+                  return clone;
+                },
+              },
+            });
+          }
           if (mismatchSec >= 0.5) {
             const receiverLabel = (receiver as SkaterActor).number || receiver.label || receiver.id;
             const arrivalDiffStr =
@@ -205,7 +288,7 @@ function validatePassTiming(
               kind: 'timing_mismatch',
               severity: 'warning',
               title: 'Pass-Receiver Timing Mismatch',
-              message: `Pass to #${receiverLabel} lands ${distToTarget.toFixed(0)}ft away from receiver position at ${pass.arrivalAt.toFixed(1)}s. ${arrivalDiffStr}`,
+              message: `Pass to #${receiverLabel} lands ${feet(distToTarget).toFixed(0)} ft away from receiver position at ${pass.arrivalAt.toFixed(1)}s. ${arrivalDiffStr}`,
               affectedActorIds: [receiver.id, pass.fromActorId],
               affectedActionIds: [pass.id],
               timestamp: pass.arrivalAt,
@@ -267,7 +350,7 @@ function validateRolesAndAttendance(
             team: 'home',
             number: '31',
             label: 'G31',
-            position: { x: 89, y: 0 },
+            position: { x: NET_RIGHT.x - GOALIE_DEPTH, y: NET_RIGHT.y },
           };
           clone.actors.push(newGoalie);
           return clone;
@@ -314,13 +397,13 @@ function validateSpatialConflicts(
       const a1 = actors[i];
       const a2 = actors[j];
       const d = distance(a1.position, a2.position);
-      if (d < 3.0) {
+      if (d < START_OVERLAP) {
         issues.push({
           id: `space-overlap-${a1.id}-${a2.id}`,
           kind: 'space_conflict',
           severity: 'warning',
           title: 'Overlapping Starting Positions',
-          message: `${a1.label || a1.id} and ${a2.label || a2.id} are placed at nearly the same starting spot (${d.toFixed(1)}ft apart).`,
+          message: `${a1.label || a1.id} and ${a2.label || a2.id} are placed at nearly the same starting spot (${feet(d).toFixed(1)} ft apart).`,
           affectedActorIds: [a1.id, a2.id],
           proposal: {
             id: `separate-actors-${a1.id}-${a2.id}`,
@@ -330,7 +413,7 @@ function validateSpatialConflicts(
               const clone = structuredClone(dDoc);
               const target = clone.actors.find(a => a.id === a2.id);
               if (target) {
-                target.position.x += 5;
+                target.position.x += 5 * FT;
               }
               return clone;
             },
@@ -404,6 +487,7 @@ function distToSegment(p: Point, a: Point, b: Point): number {
  */
 function validateTacticalLaneAndNetAngles(
   drill: DrillDocumentV3,
+  locate: Locator,
   issues: DrillValidationIssue[]
 ): void {
   const actorsById = new Map<string, Actor>(drill.actors.map(a => [a.id, a]));
@@ -422,18 +506,17 @@ function validateTacticalLaneAndNetAngles(
           if (actor.team === passer.team) continue; // Only check opponents
 
           const midTime = (pass.releaseAt + pass.arrivalAt) / 2;
-          const segments = (drill.actorTracks || []).find(t => t.actorId === actor.id)?.segments || [];
-          const oppPos = estimateActorPositionAtTime(actor, segments, midTime).position;
+          const oppPos = locate(actor, midTime);
 
           const dist = distToSegment(oppPos, pass.fromPoint, pass.target);
-          if (dist < 4.0) {
+          if (dist < STICK_REACH) {
             const oppLabel = ('number' in actor ? actor.number : '') || actor.label || 'opponent';
             issues.push({
               id: `lane-obstructed-${pass.id}-${actor.id}`,
               kind: 'passing_lane_obstruction',
               severity: 'warning',
               title: 'Passing Lane Obstructed',
-              message: `Pass trajectory passes within stick intercept reach (${dist.toFixed(1)}ft) of defending opponent #${oppLabel}.`,
+              message: `Pass trajectory passes within stick intercept reach (${feet(dist).toFixed(1)} ft) of defending opponent #${oppLabel}.`,
               affectedActorIds: [passer.id, actor.id],
               affectedActionIds: [pass.id],
               timestamp: pass.releaseAt,
@@ -443,18 +526,19 @@ function validateTacticalLaneAndNetAngles(
       } else if (action.type === 'shot') {
         // Goalie angle bisector coverage
         const shot = action;
-        const netX = shot.target.x >= 0 ? 89 : -89;
-        const defendingGoalie = goalies.find(g => (netX > 0 ? g.position.x > 0 : g.position.x < 0));
+        const netCenter: Point = shot.targetNet === 'left' ? NET_LEFT : NET_RIGHT;
+        const defendingGoalie = goalies
+          .filter(g => distance(g.position, netCenter) <= GOALIE_NET_RANGE)
+          .sort((g1, g2) => distance(g1.position, netCenter) - distance(g2.position, netCenter))[0];
         if (defendingGoalie) {
-          const netCenter: Point = { x: netX, y: 0 };
           const distFromBisector = distToSegment(defendingGoalie.position, netCenter, shot.fromPoint);
-          if (distFromBisector > 5.5) {
+          if (distFromBisector > GOALIE_OFF_ANGLE) {
             issues.push({
               id: `goalie-angle-${shot.id}-${defendingGoalie.id}`,
               kind: 'goalie_coverage_angle',
               severity: 'suggestion',
               title: 'Goaltender Off-Angle Coverage',
-              message: `Defending goalie #${defendingGoalie.number || '31'} is caught off-angle (${distFromBisector.toFixed(1)}ft lateral deviation) from the shot release angle.`,
+              message: `Defending goalie #${defendingGoalie.number || '31'} is caught off-angle (${feet(distFromBisector).toFixed(1)} ft lateral deviation) from the shot release angle.`,
               affectedActorIds: [defendingGoalie.id],
               affectedActionIds: [shot.id],
               timestamp: shot.releaseAt,
@@ -466,12 +550,12 @@ function validateTacticalLaneAndNetAngles(
                   const clone = structuredClone(dDoc);
                   const g = clone.actors.find(a => a.id === defendingGoalie.id);
                   if (g) {
-                    const dirX = shot.fromPoint.x - netX;
-                    const dirY = shot.fromPoint.y - 0;
+                    const dirX = shot.fromPoint.x - netCenter.x;
+                    const dirY = shot.fromPoint.y - netCenter.y;
                     const len = Math.hypot(dirX, dirY) || 1;
                     g.position = {
-                      x: netX + (dirX / len) * 4.5,
-                      y: (dirY / len) * 4.5,
+                      x: netCenter.x + (dirX / len) * GOALIE_DEPTH,
+                      y: netCenter.y + (dirY / len) * GOALIE_DEPTH,
                     };
                   }
                   return clone;
@@ -491,11 +575,13 @@ export function validateDrillIntelligence(
 ): DrillValidationReport {
   const issues: DrillValidationIssue[] = [];
 
-  validatePassTiming(drill, issues);
+  const locate = createLocator(drill);
+
+  validatePassTiming(drill, locate, issues);
   validateRolesAndAttendance(drill, context, issues);
   validateSpatialConflicts(drill, issues);
   validateEquipmentSufficiency(drill, context, issues);
-  validateTacticalLaneAndNetAngles(drill, issues);
+  validateTacticalLaneAndNetAngles(drill, locate, issues);
 
   const errorCount = issues.filter(i => i.severity === 'error').length;
   const warningCount = issues.filter(i => i.severity === 'warning').length;

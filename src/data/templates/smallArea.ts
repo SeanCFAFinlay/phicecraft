@@ -99,7 +99,7 @@ export const cornerHalfWall2v1: DrillTemplate = template({
   actors: [
     skater('a1', 'home', '12', { x: 190, y: 330 }),
     skater('a2', 'home', '18', { x: 260, y: 250 }),
-    skater('x1', 'away', '4', { x: 165, y: 250 }, 'D'),
+    skater('x1', 'away', '4', { x: 130, y: 275 }, 'D'),
     { kind: 'goalie' as const, id: 'gk', team: 'away' as const, number: '35', position: { x: 80, y: L.centreY } },
   ],
   routes: [

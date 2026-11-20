@@ -18,12 +18,14 @@ import { replayNarration } from '@/features/coaching/replayNarration';
 export function ReplayHud() {
   const { state, dispatch } = useAppState();
   const { playback } = useEditorRuntime();
-  const { isPhone } = useResponsive();
+  const { prefersReducedMotion } = useResponsive();
   const snapshot = usePlaybackSnapshot(playback);
   const frame = playback.getFrame();
 
-  // On phones default to compact so the ice isn't crowded; on desktop default to expanded
-  const [isExpanded, setIsExpanded] = useState(!isPhone);
+  // Starts folded on every screen. Open, the panel covers a quarter of the
+  // rink - including the players standing under it - before the coach has
+  // asked for anything. One tap opens it.
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const carrierId =
     frame.puck?.carrierId ??
@@ -63,7 +65,7 @@ export function ReplayHud() {
         aria-label="Drill information summary"
       >
         <div className="pointer-events-auto flex items-center gap-2 rounded-xl border border-white/20 bg-slate-950/90 px-3 py-1.5 text-xs text-white shadow-xl backdrop-blur-md">
-          <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+          <span className={`flex h-2 w-2 rounded-full bg-cyan-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
           <span className="max-w-[140px] sm:max-w-[200px] truncate font-bold text-cyan-100">
             {state.drill.name || 'Tactical Drill'}
           </span>
@@ -160,7 +162,7 @@ export function ReplayHud() {
       {/* Play-by-Play Live Narration Ticker */}
       <div className="px-3 py-2 bg-cyan-950/20">
         <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-400">
-          <span className="flex h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          <span className={`flex h-1.5 w-1.5 rounded-full bg-cyan-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
           <span>Live Play-by-Play</span>
         </div>
         <p className="mt-0.5 text-xs font-bold text-cyan-100">{narration.title}</p>

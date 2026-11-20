@@ -45,7 +45,7 @@ test.beforeEach(async ({ page }) => {
 
 test('jerseys survive undo, redo, save and reload', async ({ page }) => {
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  const menu = page.getByRole('dialog', { name: 'PhiceCraft' });
+  const menu = page.getByRole('dialog', { name: 'PHormation' });
   await expect(menu).toBeVisible();
 
   await menu.getByRole('radiogroup', { name: 'home jersey colour' }).getByRole('radio', { name: 'Green' }).click();
@@ -88,9 +88,9 @@ test('jerseys survive undo, redo, save and reload', async ({ page }) => {
 test('Save As New preserves a backward, coasting route', async ({ page }) => {
   // Draw a route for #13 by dragging them.
   await dragWorld(page, LINEUP.home13, { x: 520, y: 90 });
-  await expect(page.getByRole('button', { name: 'Details' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Details', exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Details' }).click();
+  await page.getByRole('button', { name: 'Details', exact: true }).click();
   const inspector = page.getByRole('dialog', { name: /^#13/ });
   await expect(inspector).toBeVisible();
 
@@ -100,7 +100,7 @@ test('Save As New preserves a backward, coasting route', async ({ page }) => {
   await inspector.getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  const menu = page.getByRole('dialog', { name: 'PhiceCraft' });
+  const menu = page.getByRole('dialog', { name: 'PHormation' });
   await menu.getByRole('button', { name: /Save as a new play/ }).click();
 
   const prompt = page.getByRole('dialog', { name: 'Save as a new play' });
@@ -150,7 +150,7 @@ const ID_LESS_DRILL = JSON.stringify({
 
 async function importFile(page: Page, contents: string, filename = 'import.json') {
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  const menu = page.getByRole('dialog', { name: 'PhiceCraft' });
+  const menu = page.getByRole('dialog', { name: 'PHormation' });
   await expect(menu).toBeVisible();
 
   await page.setInputFiles('input[type="file"]', {
@@ -181,7 +181,7 @@ test('an ID-less drill imports with a fresh, visible ID', async ({ page }) => {
   // And it is in the visible library.
   await page.getByRole('button', { name: 'Open main menu' }).click();
   await expect(
-    page.getByRole('dialog', { name: 'PhiceCraft' }).getByRole('button', { name: 'No Identity', exact: true })
+    page.getByRole('dialog', { name: 'PHormation' }).getByRole('button', { name: 'No Identity', exact: true })
   ).toBeVisible();
 });
 
@@ -361,7 +361,11 @@ test('every Play surface applies the same validation', async ({ page }) => {
 
 async function buildRouteAndPass(page: Page): Promise<void> {
   await dragWorld(page, LINEUP.home13, { x: 520, y: 90 });
-  await page.getByRole('button', { name: 'Pass' }).click();
+  // The dock's Pass: a selected player also offers a quick-action Pass chip.
+  await page
+    .getByRole('navigation', { name: 'Editing tools' })
+    .getByRole('button', { name: 'Pass' })
+    .click();
   await clickWorld(page, LINEUP.home44);
   await waitForSaved(page);
 
@@ -408,7 +412,7 @@ test('menu, dialog and inspector open and close by keyboard, restoring focus', a
   await menuButton.focus();
   await page.keyboard.press('Enter');
 
-  const menu = page.getByRole('dialog', { name: 'PhiceCraft' });
+  const menu = page.getByRole('dialog', { name: 'PHormation' });
   await expect(menu).toBeVisible();
   await expect(menu.getByRole('button', { name: 'Close' })).toBeFocused();
 
@@ -426,7 +430,7 @@ test('menu, dialog and inspector open and close by keyboard, restoring focus', a
 
   // An inspector, opened from the selection chip.
   await clickWorld(page, LINEUP.home11);
-  const details = page.getByRole('button', { name: 'Details' });
+  const details = page.getByRole('button', { name: 'Details', exact: true });
   await details.focus();
   await page.keyboard.press('Enter');
 
@@ -488,7 +492,7 @@ test('a save failure is reported, not announced as success', async ({ page }) =>
   });
 
   await page.getByRole('button', { name: 'Open main menu' }).click();
-  await page.getByRole('dialog', { name: 'PhiceCraft' }).getByRole('button', { name: 'Save play' }).click();
+  await page.getByRole('dialog', { name: 'PHormation' }).getByRole('button', { name: 'Save play' }).click();
 
   // The top-strip status is the persistent one; a toast may also appear.
   const failure = page.getByRole('alert').filter({ hasText: 'Save failed' }).first();

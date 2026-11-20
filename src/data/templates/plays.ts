@@ -55,7 +55,7 @@ export const powerPlay131: DrillTemplate = template({
     // Penalty killers in defensive box
     skater('pk_ld', 'away', '2', { x: 830, y: 160 }, 'D'),
     skater('pk_rd', 'away', '4', { x: 830, y: 265 }, 'D'),
-    skater('pk_lw', 'away', '12', { x: 710, y: 165 }, 'F'),
+    skater('pk_lw', 'away', '12', { x: 700, y: 205 }, 'F'),
     skater('pk_rw', 'away', '14', { x: 710, y: 260 }, 'F'),
     awayGoalieRight,
   ],
@@ -83,9 +83,10 @@ export const powerPlay131: DrillTemplate = template({
       { x: 885, y: 220 },
     ]),
     // PK movement
+    // The high forward pressures the point and gives up the flank pass.
     route('pk_lw', [
-      { x: 710, y: 165 },
-      { x: 725, y: 145 },
+      { x: 700, y: 205 },
+      { x: 685, y: 212 },
     ]),
     route('pk_ld', [
       { x: 830, y: 160 },
@@ -309,21 +310,21 @@ export const offensiveZoneFaceoff: DrillTemplate = template({
     'Direct one-timer: Winger passes back to RD, RD touches across to LD for the one-timer.',
   ],
   actors: [
-    skater('c', 'home', '9', { x: L.faceoffRightX, y: L.faceoffBottomY }, 'C'),
+    skater('c', 'home', '9', { x: L.faceoffRightX - 9, y: L.faceoffBottomY }, 'C'),
     skater('lw', 'home', '17', { x: 790, y: 280 }, 'LW'),
     skater('rw', 'home', '88', { x: 880, y: 375 }, 'RW'),
     skater('ld', 'home', '5', { x: 645, y: 240 }, 'D'),
     skater('rd', 'home', '27', { x: 645, y: 340 }, 'D'),
     // Opposing defense
-    skater('ac', 'away', '11', { x: L.faceoffRightX + 1, y: L.faceoffBottomY }, 'C'),
+    skater('ac', 'away', '11', { x: L.faceoffRightX + 9, y: L.faceoffBottomY }, 'C'),
     skater('ad1', 'away', '2', { x: 870, y: 290 }, 'D'),
     skater('ad2', 'away', '4', { x: 800, y: 360 }, 'D'),
     awayGoalieRight,
   ],
   routes: [
     route('c', [
-      { x: L.faceoffRightX, y: L.faceoffBottomY },
-      { x: 848, y: 320 },
+      { x: L.faceoffRightX - 9, y: L.faceoffBottomY },
+      { x: 842, y: 320 },
     ]),
     route('lw', [
       { x: 790, y: 280 },

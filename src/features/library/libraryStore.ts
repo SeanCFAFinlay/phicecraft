@@ -22,12 +22,65 @@ import type {
   RinkArea,
   SkillLevel,
 } from '@/domain/v3/types';
+import { TOP_TEN_TEMPLATES } from '@/data/templates/topTen';
 
 export type LibrarySort = 'featured' | 'newest' | 'shortest' | 'title';
+
+/**
+ * A shelf in the library.
+ *
+ * Sixteen category chips answer "show me everything tagged forecheck". They do
+ * not answer the question a coach actually arrives with - "what do I run for
+ * special teams tonight?" - without knowing which three chips add up to it.
+ * A collection is that answer, one tap.
+ */
+export type CollectionId =
+  | 'top-ten'
+  | 'special-teams'
+  | 'team-systems'
+  | 'small-games'
+  | 'skills'
+  | 'goalies';
+
+export interface LibraryCollection {
+  id: CollectionId;
+  label: string;
+  matches: (entry: LibraryEntry) => boolean;
+}
+
+const inAny = (entry: LibraryEntry, categories: DrillCategory[]) =>
+  categories.some(category => entry.categories.includes(category));
+
+export const COLLECTIONS: LibraryCollection[] = [
+  { id: 'top-ten', label: 'Top Ten', matches: entry => entry.tags.includes('top 10') },
+  {
+    id: 'special-teams',
+    label: 'Special Teams',
+    matches: entry => inAny(entry, ['power-play', 'penalty-kill']),
+  },
+  {
+    id: 'team-systems',
+    label: 'Team Systems',
+    matches: entry => inAny(entry, ['forecheck', 'defensive-zone', 'breakout']),
+  },
+  {
+    id: 'small-games',
+    label: 'Small-Area Games',
+    matches: entry => inAny(entry, ['small-area-game', 'battle']),
+  },
+  {
+    id: 'skills',
+    label: 'Skills & Warm-Ups',
+    matches: entry => inAny(entry, ['warm-up', 'puck-handling', 'skating']),
+  },
+  { id: 'goalies', label: 'Goalies', matches: entry => inAny(entry, ['goalie']) },
+];
 
 export interface LibraryFilters {
   /** Free text, matched against title, summary and tags. */
   query: string;
+  /** One shelf of the library, or null for all of it. */
+  collection: CollectionId | null;
   categories: DrillCategory[];
   ageBands: AgeBand[];
   skillLevels: SkillLevel[];
@@ -44,6 +97,7 @@ export interface LibraryFilters {
 
 export const EMPTY_FILTERS: LibraryFilters = {
   query: '',
+  collection: null,
   categories: [],
   ageBands: [],
   skillLevels: [],
@@ -123,6 +177,10 @@ function overlaps<T>(chosen: T[], has: T[]): boolean {
 
 export function matchesFilters(entry: LibraryEntry, filters: LibraryFilters): boolean {
   if (!matchesQuery(entry, filters.query)) return false;
+  if (filters.collection) {
+    const collection = COLLECTIONS.find(item => item.id === filters.collection);
+    if (collection && !collection.matches(entry)) return false;
+  }
   if (!overlaps(filters.categories, entry.categories)) return false;
   if (!overlaps(filters.ageBands, entry.ageBands)) return false;
   if (!overlaps(filters.skillLevels, [entry.skillLevel])) return false;
@@ -143,7 +201,11 @@ export function matchesFilters(entry: LibraryEntry, filters: LibraryFilters): bo
  * before elite, less equipment before more, shorter before longer.
  */
 function featuredRank(entry: LibraryEntry): number {
+  const topTenIndex = TOP_TEN_TEMPLATES.findIndex(item => item.id === entry.id);
   const skill = { beginner: 0, developing: 1, advanced: 2, elite: 3 }[entry.skillLevel];
+  // Keep the easiest existing drills first for a brand-new coach, then show
+  // the curated pack in its authored order before the remaining catalogue.
+  if (topTenIndex >= 0) return 50 + topTenIndex;
   return skill * 100 + Math.min(entry.equipmentCount, 9) * 10 + Math.min(entry.durationMinutes, 9);
 }
 
@@ -214,6 +276,7 @@ export function availableFacets(templates: DrillTemplate[]) {
 export function activeFilterCount(filters: LibraryFilters): number {
   return (
     (filters.query.trim() ? 1 : 0) +
+    (filters.collection ? 1 : 0) +
     filters.categories.length +
     filters.ageBands.length +
     filters.skillLevels.length +

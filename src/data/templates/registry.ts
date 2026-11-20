@@ -21,12 +21,16 @@ import { PASSING_TEMPLATES } from './passing';
 import { PLAY_TEMPLATES } from './plays';
 import { SMALL_AREA_TEMPLATES } from './smallArea';
 import { TRANSITION_TEMPLATES } from './transition';
+import { TOP_TEN_TEMPLATES } from './topTen';
+import { SYSTEM_TEMPLATES } from './systems';
 
 export const DRILL_TEMPLATES: DrillTemplate[] = [
+  ...TOP_TEN_TEMPLATES,
   ...PLAY_TEMPLATES,
   ...PASSING_TEMPLATES,
   ...SMALL_AREA_TEMPLATES,
   ...TRANSITION_TEMPLATES,
+  ...SYSTEM_TEMPLATES,
 ];
 
 const BY_ID = new Map(DRILL_TEMPLATES.map(item => [item.id, item]));

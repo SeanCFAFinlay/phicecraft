@@ -43,6 +43,9 @@ import {
   type SkaterPosition,
   type SkillLevel,
 } from '@/domain/v3/types';
+import { projectToV2 } from '@/domain/v3/projectToV2';
+import { compileDrill } from '@/sim/compileDrill';
+import { sampleFrame } from '@/sim/sampleFrame';
 
 export const RINK_LANDMARKS = {
   goalLineLeft: 55,
@@ -269,7 +272,9 @@ function buildActions(
   spec: TemplateSpec,
   chain: { from: string | Point; actions: ActionSpec[] },
   duration: number,
-  idPrefix: string
+  idPrefix: string,
+  /** Collects the ids of actions whose target the author placed by hand. */
+  pinned: Set<string>
 ): PuckAction[] {
   const actions: PuckAction[] = [];
   let clock = 0;
@@ -291,6 +296,8 @@ function buildActions(
       waypoints: (item.waypoints ?? []).map(point => ({ ...point })),
       shape: 'spline' as const,
     };
+
+    if (item.target) pinned.add(base.id);
 
     if (item.kind === 'pass') {
       const target = item.target ?? (item.to ? arrivalPointFor(spec, item.to) : from);
@@ -343,6 +350,46 @@ function sourceFor(spec: TemplateSpec, source: string | Point): PuckSource {
     : { kind: 'actor', actorId };
 }
 
+/**
+ * Put every pass on the receiver's tape.
+ *
+ * Playback paces a skater along their route at skating speed; it does not
+ * stretch the route to fill the drill. So "the puck meets them at the end of
+ * their route" is only true if the author happened to time the pass for the
+ * moment they get there - and a pass timed any earlier points at ice the
+ * receiver has not reached yet.
+ *
+ * Rather than ask every template to do that arithmetic, the document is run
+ * through the same simulator playback uses, and each pass to a player is
+ * aimed at where that player actually is when it lands: a pass in stride.
+ * Releases are moved to where the passer actually is, for the same reason.
+ * A target the author placed by hand is left exactly where they put it.
+ */
+function aimPassesInStride(document: DrillDocumentV3, pinned: ReadonlySet<string>): void {
+  if (document.puckTracks.every(track => track.actions.length === 0)) return;
+
+  const compiled = compileDrill(projectToV2(document).drill);
+  const whereIs = (actorId: string, seconds: number): Point | null => {
+    const clamped = Math.max(0, Math.min(compiled.durationSeconds, seconds));
+    const position = sampleFrame(compiled, clamped).players[actorId]?.position;
+    return position && Number.isFinite(position.x) && Number.isFinite(position.y)
+      ? { x: position.x, y: position.y }
+      : null;
+  };
+
+  for (const track of document.puckTracks) {
+    for (const action of track.actions) {
+      const release = whereIs(action.fromActorId, action.releaseAt);
+      if (release) action.fromPoint = release;
+
+      if (action.type === 'pass' && action.toActorId && !pinned.has(action.id)) {
+        const reception = whereIs(action.toActorId, action.arrivalAt);
+        if (reception) action.target = reception;
+      }
+    }
+  }
+}
+
 export function template(spec: TemplateSpec): DrillTemplate {
   const duration = spec.durationSeconds ?? (spec.rinkArea === 'full' ? 12 : 9);
   const skaters = spec.actors.filter(actor => actor.kind === 'skater').length;
@@ -358,19 +405,20 @@ export function template(spec: TemplateSpec): DrillTemplate {
     finishPolicy: spec.finishPolicy,
   };
 
+  const pinned = new Set<string>();
   const puckTracks: PuckTrack[] = [];
   if (spec.puck) {
     puckTracks.push({
       id: 'puck-1',
       initialSource: sourceFor(spec, spec.puck.from),
-      actions: buildActions(spec, spec.puck, duration, 'act'),
+      actions: buildActions(spec, spec.puck, duration, 'act', pinned),
     });
   }
   for (const [index, chain] of (spec.extraPucks ?? []).entries()) {
     puckTracks.push({
       id: `puck-${index + 2}`,
       initialSource: sourceFor(spec, chain.from),
-      actions: buildActions(spec, chain, duration, `act${index + 2}`),
+      actions: buildActions(spec, chain, duration, `act${index + 2}`, pinned),
     });
   }
 
@@ -393,7 +441,7 @@ export function template(spec: TemplateSpec): DrillTemplate {
       coachingPoints: spec.coachingPoints,
       progressions: spec.progressions ?? [],
       variations: spec.variations ?? [],
-      source: { author: 'PhiceCraft', license: 'First-party' },
+      source: { author: 'PHormation', license: 'First-party' },
     },
     rink: {
       area: spec.rinkArea,
@@ -417,6 +465,8 @@ export function template(spec: TemplateSpec): DrillTemplate {
     createdAt: 0,
     updatedAt: 0,
   };
+
+  aimPassesInStride(document, pinned);
 
   return { id: spec.id, document };
 }
