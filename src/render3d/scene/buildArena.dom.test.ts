@@ -195,12 +195,15 @@ describe('buildArena', () => {
   });
 
   describe('lights', () => {
-    it('has one HemisphereLight and one DirectionalLight', () => {
+    it('has one HemisphereLight, a key DirectionalLight and a shadowless rim light', () => {
       const { root } = buildArena(fakeIceCanvas());
       const lights = root.getObjectByName('lights') as THREE.Group;
       expect(lights).toBeInstanceOf(THREE.Group);
       expect(lights.children.filter(c => c instanceof THREE.HemisphereLight)).toHaveLength(1);
-      expect(lights.children.filter(c => c instanceof THREE.DirectionalLight)).toHaveLength(1);
+      const directional = lights.children.filter((c): c is THREE.DirectionalLight => c instanceof THREE.DirectionalLight);
+      expect(directional).toHaveLength(2);
+      const rim = directional.find(light => light.name === 'rim-light');
+      expect(rim?.castShadow).toBe(false);
     });
 
     it('casts shadows only at quality "high"', () => {

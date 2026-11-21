@@ -23,6 +23,9 @@ const { loadAsyncMock } = vi.hoisted(() => ({ loadAsyncMock: vi.fn() }));
 // is still a real `vi.fn()`, reconfigured per test in `beforeEach` below.
 vi.mock('three/addons/loaders/GLTFLoader.js', () => ({
   GLTFLoader: class {
+    setMeshoptDecoder() {
+      return this;
+    }
     loadAsync(...args: unknown[]) {
       return loadAsyncMock(...args);
     }

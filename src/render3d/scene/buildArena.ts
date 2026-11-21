@@ -248,6 +248,15 @@ function buildLightsGroup(quality: RenderQuality): THREE.Group {
   }
   group.add(directional, directional.target);
 
+  // A cool, low back light from the far side: it rims every player's
+  // shoulders and helmet so a dark sweater separates from the ice it stands
+  // on, from any camera angle. No shadow - it only shapes.
+  const rim = new THREE.DirectionalLight(0xcfe6ff, 0.85);
+  rim.name = 'rim-light';
+  rim.position.set(-ICE_WIDTH * 0.3, 14, ICE_HEIGHT * 0.6);
+  rim.target.position.set(0, 0, 0);
+  group.add(rim, rim.target);
+
   return group;
 }
 

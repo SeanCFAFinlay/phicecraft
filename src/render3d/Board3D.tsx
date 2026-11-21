@@ -39,6 +39,10 @@ import { createGoalNets } from './scene/goalNet';
 import { createRouteOverlay3D } from './scene/routeOverlay';
 import { createEquipmentOverlay3D } from './scene/equipment3D';
 import { actorSignature } from './actorSignature';
+import { applyArenaEnvironment } from './scene/environment';
+import { createContactShadows } from './scene/contactShadows';
+import { createIceSpray } from './scene/iceSpray';
+import { createPuckTrail } from './scene/puckTrail';
 import { getTargetNet } from '@/engine/puck';
 import {
   createActor,
@@ -73,6 +77,14 @@ const ACCENT_COLOR = '#ffffff';
  * puck sits outside the actor's silhouette instead of inside/occluded by it.
  */
 const CARRIED_PUCK_OFFSET_METERS = 0.45;
+/** Contact-shadow radii (world metres) under each kind of figure on the ice. */
+const SKATER_SHADOW_RADIUS = 0.62;
+const GOALIE_SHADOW_RADIUS = 0.9;
+const COACH_SHADOW_RADIUS = 0.58;
+const PUCK_SHADOW_RADIUS = 0.16;
+/** A flying puck's streak: this many seconds of travel, never longer than the cap (metres). */
+const PUCK_TRAIL_SECONDS = 0.085;
+const PUCK_TRAIL_MAX_METERS = 2.6;
 
 export interface Board3DProps {
   /**
@@ -93,6 +105,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
   const { announcer } = useAppServices();
   const containerRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const draggingPlayerRef = useRef<{ id: ID; hasMoved: boolean } | null>(null);
   const draggingCoachRef = useRef<{ id: ID; hasMoved: boolean } | null>(null);
   const icePlaneRef = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
@@ -146,6 +159,11 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1 : quality === 'medium' ? 1.5 : MAX_DEVICE_PIXEL_RATIO));
     renderer.shadowMap.enabled = quality === 'high';
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // The shadow map is redrawn only when something on the ice moved, not on
+    // every camera change: orbiting, zooming or a preset flight re-skins
+    // every player once per frame instead of twice.
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.12;
         // Transparent: the scene sits over the container's own CSS gradient
@@ -157,6 +175,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     // flat 2D pair, there is exactly one of these and it is the only canvas
     // mounted while the 3D view is active.
     renderer.domElement.setAttribute('data-board3d', '');
+    rendererRef.current = renderer;
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -165,6 +184,15 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     scene.add(arena.root);
     const goalNets = createGoalNets(quality);
     scene.add(goalNets.root);
+    // Nothing in the arena or the nets ever moves: compute their matrices
+    // once rather than on every frame.
+    for (const fixed of [arena.root, goalNets.root]) {
+      fixed.updateMatrixWorld(true);
+      fixed.traverse(node => {
+        node.matrixAutoUpdate = false;
+      });
+    }
+    const removeEnvironment = applyArenaEnvironment(renderer, scene, quality);
     sceneRef.current = scene;
     setSceneEpoch(epoch => epoch + 1);
 
@@ -227,7 +255,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       perspectiveCamera.lookAt(target.x, target.y, target.z);
     };
 
-    const render = () => {
+    /** `cameraOnly`: nothing on the ice moved, so the shadow map can be reused. */
+    const render = (cameraOnly = false) => {
+      if (!cameraOnly) renderer.shadowMap.needsUpdate = true;
       applyOrbit();
       const start = performance.now();
       renderer.render(scene, perspectiveCamera);
@@ -252,7 +282,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     // Re-render on every camera change: a pan, a pinch, or ViewControls'
     // rAF-driven spin/tilt animation, all synchronously - the same contract
     // CanvasSurface's own camera subscription follows.
-    const unsubscribe = cameraStore.subscribe(render);
+    const unsubscribe = cameraStore.subscribe(() => render(true));
     render();
 
     // A lost-then-restored WebGL context (a mobile GPU reclaiming memory
@@ -293,12 +323,14 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       } catch {
         /* already lost - nothing left to release */
       }
+      removeEnvironment();
       goalNets.dispose();
       arena.dispose();
       iceTexture.dispose();
       scene.clear();
       sceneRef.current = null;
       cameraRef.current = null;
+      rendererRef.current = null;
       renderRef.current = () => {};
     };
   }, [cameraStore, quality, playback]);
@@ -362,6 +394,13 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     selectionHalo.visible = false;
     actorGroup.add(selectionHalo);
 
+    const contactShadows = createContactShadows();
+    actorGroup.add(contactShadows.root);
+    const iceSpray = createIceSpray();
+    actorGroup.add(iceSpray.root);
+    const puckTrail = createPuckTrail();
+    actorGroup.add(puckTrail.root);
+
     // dt for the mixers is a PROGRESS delta times duration, not wall-clock
     // time - see the module header: scrubbing the timeline must move the
     // stride exactly as far as playing it would, and a paused rAF clock
@@ -423,6 +462,12 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
      * currently playing or being scrubbed.
      */
     const renderFrame = () => {
+      positionFrame();
+      renderRef.current();
+    };
+
+    /** Places every actor, shadow, spray and the puck for the current frame, without drawing. */
+    const positionFrame = () => {
       const frame = playback.getFrame();
       // `wrapped` is the same test `resolveMixerDelta` used internally to
       // zero out `dt` on a loop wrap, computed again here because a wrapped
@@ -453,22 +498,59 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         const world = rinkToWorld(frame.positions[selected.id] ?? { x: selected.x, y: selected.y });
         selectionHalo.position.set(world.x, 0.02, world.z);
       }
-      for (const player of drill.players) {
+      contactShadows.begin();
+      iceSpray.begin();
+      drill.players.forEach((player, index) => {
         const actor = skaterActors.get(player.id);
-        if (!actor) continue;
+        if (!actor) return;
         const pos = frame.positions[player.id] ?? { x: player.x, y: player.y };
-        actor.update(pos, frame.playerFrames[player.id], dt, wrapped);
-      }
+        const playerFrame = frame.playerFrames[player.id];
+        actor.update(pos, playerFrame, dt, wrapped);
+        const world = actor.root.position;
+        contactShadows.place(world.x, world.z, player.role === 'G' ? GOALIE_SHADOW_RADIUS : SKATER_SHADOW_RADIUS);
+        if (playerFrame?.action === 'stop' && player.role !== 'G') {
+          const speed = Math.hypot(playerFrame.velocity.x, playerFrame.velocity.y);
+          if (speed > 0) {
+            iceSpray.emit({
+              seed: index + 1,
+              x: world.x,
+              z: world.z,
+              dirX: playerFrame.velocity.x / speed,
+              dirZ: playerFrame.velocity.y / speed,
+              speed: playerFrame.speed,
+              timeSeconds: playerFrame.animationTimeSeconds ?? frame.progress * frame.durationSeconds,
+            });
+          }
+        }
+      });
 
       for (const coach of drill.coaches ?? []) {
-        coachMarkers.get(coach.id)?.setPosition({ x: coach.x, y: coach.y });
+        const marker = coachMarkers.get(coach.id);
+        if (!marker) continue;
+        marker.setPosition({ x: coach.x, y: coach.y });
+        contactShadows.place(marker.root.position.x, marker.root.position.z, COACH_SHADOW_RADIUS);
       }
 
       const puckPosition = resolvePuckPosition();
       puckActor.root.visible = puckPosition !== null;
-      if (puckPosition) puckActor.setPosition(puckPosition);
-
-      renderRef.current();
+      puckTrail.hide();
+      if (puckPosition) {
+        puckActor.setPosition(puckPosition);
+        contactShadows.place(puckActor.root.position.x, puckActor.root.position.z, PUCK_SHADOW_RADIUS);
+        const puck = frame.puck;
+        const velocity = puck?.velocity;
+        const flying = puck && (puck.state === 'in_flight' || puck.state === 'shot');
+        const speed = velocity ? Math.hypot(velocity.x, velocity.y) : 0;
+        if (flying && velocity && speed > 1) {
+          puckTrail.show(
+            { x: puckActor.root.position.x, z: puckActor.root.position.z },
+            { x: velocity.x / speed, z: velocity.y / speed },
+            Math.min(PUCK_TRAIL_MAX_METERS, speed * RINK_SCALE * PUCK_TRAIL_SECONDS)
+          );
+        }
+      }
+      contactShadows.end();
+      iceSpray.end();
     };
 
     const buildActors = async () => {
@@ -520,6 +602,24 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       // Position every actor just built from the current frame - see
       // `renderFrame`'s own doc comment for why this cannot just be
       // `renderRef.current()`.
+      positionFrame();
+      // Compile the skinned player shaders off the main thread where the
+      // browser can (KHR_parallel_shader_compile) before the first frame that
+      // needs them: otherwise that frame compiles them synchronously and the
+      // whole page stalls for hundreds of milliseconds on tilting into 3D.
+      const renderer = rendererRef.current;
+      const camera = cameraRef.current;
+      // Only where the browser really compiles in parallel: without
+      // the extension three polls a synchronous compile on timers, which is
+      // slower than simply letting the first frame compile.
+      if (renderer && camera && renderer.extensions.has('KHR_parallel_shader_compile')) {
+        try {
+          await renderer.compileAsync(scene, camera);
+        } catch {
+          /* the first render compiles them instead */
+        }
+      }
+      if (cancelled) return;
       renderFrame();
       markBoard3DActorsBuilt();
     };
@@ -533,6 +633,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       unsubscribeFrames();
       disposeActors();
       puckActor.dispose();
+      contactShadows.dispose();
+      iceSpray.dispose();
+      puckTrail.dispose();
       haloGeometry.dispose();
       haloMaterial.dispose();
       discGeometry.dispose();

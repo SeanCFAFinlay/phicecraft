@@ -2,6 +2,8 @@
 
 Run: blender --background --factory-startup --python scripts/refine-hockey-models.py
 Optional: append -- --preview to render a close-up under output/playwright/models/.
+Afterwards the exports are packed by scripts/compress-models.mjs (run here, or
+by hand with `npm run models:compress`).
 The original .blend files remain the reproducible input; only runtime GLBs change.
 """
 from pathlib import Path
@@ -147,3 +149,6 @@ def refine(name):
 
 for model in ['hockey_player', 'hockey_goalie']:
     refine(model)
+
+import subprocess
+subprocess.run(['node', str(ROOT / 'scripts/compress-models.mjs')], check=True)

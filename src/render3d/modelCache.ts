@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { MODEL_URLS, type ModelKey } from './modelAssets';
 import type { ParsedActorModel } from './scene/actors';
 
@@ -32,6 +33,9 @@ export function loadModel(key: ModelKey): Promise<ParsedActorModel> {
   if (cached) return cached;
 
   const loader = new GLTFLoader();
+  // Both GLBs ship meshopt-packed and quantized (scripts/compress-models.mjs):
+  // about a third of the bytes of a plain export, decoded off a WASM fast path.
+  loader.setMeshoptDecoder(MeshoptDecoder);
   const promise = loader.loadAsync(MODEL_URLS[key]).then(
     gltf => ({ scene: gltf.scene, animations: gltf.animations }),
     error => {

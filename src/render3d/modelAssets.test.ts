@@ -23,6 +23,7 @@ const JSON_CHUNK_TYPE = 0x4e4f534a; // 'JSON'
 interface ParsedGlb {
   json: {
     skins?: unknown[];
+    extensionsRequired?: string[];
     animations?: { name?: string }[];
     materials?: { name?: string }[];
   };
@@ -91,5 +92,12 @@ describe.each([
       ? ['idle', 'stride', 'glide', 'turn', 'stop', 'pass', 'shot', 'receive', 'recover']
       : ['goalie_idle', 'goalie_shuffle', 'goalie_save']));
     expect(buffer.length).toBeLessThan(1024 * 1024);
+  });
+
+  it('ships compressed, as scripts/compress-models.mjs writes it', () => {
+    // A fresh Blender export is three times the size: run `npm run models:compress` after it.
+    const { json } = parseGlb(readFileSync(absolutePath));
+    expect(json.extensionsRequired).toEqual(expect.arrayContaining(['EXT_meshopt_compression', 'KHR_mesh_quantization']));
+    expect(readFileSync(absolutePath).length).toBeLessThan(512 * 1024);
   });
 });

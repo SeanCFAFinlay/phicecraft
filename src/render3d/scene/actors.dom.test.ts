@@ -132,6 +132,52 @@ describe('absolute simulation pose sampling', () => {
     played.dispose();
   });
 
+  it('blends a movement change over playback, but lands a seek outright', () => {
+    const gltf = () => buildFakeGltfMulti([
+      { name: 'glide', endRotationY: 2 },
+      { name: 'stop', endRotationY: -4 },
+    ]);
+    const played = createActor(gltf(), { kind: 'skater', jersey: '#fff', accent: '#fff' });
+    played.update(CENTER_ICE, playerFrame({ action: 'glide', animationTimeSeconds: 1, stridePhase: 0.5, speed: 100 }), 0);
+    const gliding = rigYaw(played.root);
+    expect(gliding).toBeCloseTo(1);
+    // Hard stop: `stopPhase` holds the dip at the clip's midpoint (yaw -2).
+    played.update(CENTER_ICE, playerFrame({ action: 'stop', animationTimeSeconds: 1.05, speed: 100 }), 0.05);
+    played.update(CENTER_ICE, playerFrame({ action: 'stop', animationTimeSeconds: 1.1, speed: 100 }), 0.05);
+    const midBlend = rigYaw(played.root);
+    expect(midBlend).toBeLessThan(gliding);
+    expect(midBlend).toBeGreaterThan(-2);
+    played.update(CENTER_ICE, playerFrame({ action: 'stop', animationTimeSeconds: 1.3, speed: 100 }), 0.2);
+    expect(rigYaw(played.root)).toBeCloseTo(-2);
+
+    const seeked = createActor(gltf(), { kind: 'skater', jersey: '#fff', accent: '#fff' });
+    seeked.update(CENTER_ICE, playerFrame({ action: 'glide', animationTimeSeconds: 1, stridePhase: 0.5, speed: 100 }), 0);
+    seeked.update(CENTER_ICE, playerFrame({ action: 'stop', animationTimeSeconds: 4, speed: 100 }), 0);
+    expect(rigYaw(seeked.root)).toBeCloseTo(-2);
+    played.dispose();
+    seeked.dispose();
+  });
+
+  it('eases a pass in from the skating pose by its own phase, identically however it is reached', () => {
+    const gltf = () => buildFakeGltfMulti([
+      { name: 'stride', endRotationY: 2 },
+      { name: 'pass', endRotationY: -4 },
+    ]);
+    const actor = createActor(gltf(), { kind: 'skater', jersey: '#fff', accent: '#fff' });
+    const early = playerFrame({ action: 'pass', animationTimeSeconds: 2, actionPhase: 0.1, stridePhase: 0.5, speed: 100 });
+    actor.update(CENTER_ICE, early, 0, true);
+    const blended = rigYaw(actor.root);
+    // Neither the pure stride pose (1) nor the pure pass pose (-0.4) at phase 0.1.
+    expect(blended).toBeLessThan(1);
+    expect(blended).toBeGreaterThan(-0.4);
+    const other = createActor(gltf(), { kind: 'skater', jersey: '#fff', accent: '#fff' });
+    other.update(CENTER_ICE, playerFrame({ action: 'stride', animationTimeSeconds: 1.95, stridePhase: 0.45, speed: 100 }), 0);
+    other.update(CENTER_ICE, early, 0.05);
+    expect(rigYaw(other.root)).toBeCloseTo(blended);
+    actor.dispose();
+    other.dispose();
+  });
+
   it('samples goalie save contact and returns to idle without a lingering save blend', () => {
     const actor = createActor(buildFakeGltfMulti([
       { name: 'goalie_idle', endRotationY: 1 }, { name: 'goalie_save', endRotationY: -4 },

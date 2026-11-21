@@ -40,8 +40,11 @@ same whether the clip has the arms tucked in or the stick swung wide.
     <script type="module">
       import * as THREE from 'three';
       import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+      import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
       const loader = new GLTFLoader();
+      // The shipped GLBs are meshopt-packed (scripts/compress-models.mjs).
+      loader.setMeshoptDecoder(MeshoptDecoder);
 
       /** Centre of `box` on the ground plane: (centre-x, min-y, centre-z) - the "skate contact centroid". */
       function groundTarget(box) {

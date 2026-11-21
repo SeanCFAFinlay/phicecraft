@@ -27,6 +27,41 @@ export const SKATE_FREEZE_SPEED = 4;
 /** Where in the clip a frozen skater's pose sits - an athletic ready stance, not the clip's dead frame 0. */
 export const SKATE_FROZEN_POSE_FRACTION = 0.15;
 const SKATE_TIME_SCALE_MIN = 0.2;
+/**
+ * Simulated frames this far apart (seconds) or further, or running
+ * backward, are a seek rather than playback: the clip lands outright
+ * instead of blending in from wherever the playhead jumped from.
+ */
+const CONTINUOUS_FRAME_GAP = 0.25;
+/** Above this speed a braking skater holds the deepest point of the stop; below it they rise out of it. */
+const STOP_HOLD_SPEED = 40;
+
+/**
+ * Where in the `stop` clip a braking skater at `speed` sits. The clip dips
+ * into a two-skate side-on stop at its midpoint and rises out of it again;
+ * looping it for the whole brake made a long stop bob up and down. Instead
+ * a hard stop holds the dip, and the last of the speed bleeds off as the
+ * skater straightens up - landing on the same standing pose `idle` starts
+ * from.
+ */
+/** Share of an event's phase spent blending in at the start and out at the end. */
+const EVENT_BLEND_PHASE = 0.2;
+
+/**
+ * How much of an event clip (pass, shot, save...) shows over the movement
+ * pose at `phase`: easing in over the first fifth, fully committed through
+ * stick contact at 0.5, easing back out over the last fifth.
+ */
+export function eventWeight(phase: number): number {
+  const edge = Math.min(phase, 1 - phase) / EVENT_BLEND_PHASE;
+  const t = clamp(edge, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+export function stopPhase(speed: number): number {
+  if (speed >= STOP_HOLD_SPEED) return 0.5;
+  return 0.5 + 0.5 * (1 - Math.max(0, speed) / STOP_HOLD_SPEED);
+}
 const SKATE_TIME_SCALE_MAX = 2.5;
 
 /**
@@ -225,7 +260,20 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
     }
   }
 
+  /** The pose under a pass or a save: skating if the player is moving, set if not. */
+  function baseClipName(frame: PlaybackPlayerFrame): string {
+    if (opts.kind === 'goalie') return selectClipName('goalie', undefined, availableClipNames);
+    const action = frame.speed < SKATE_FREEZE_SPEED ? 'idle' : 'stride';
+    return selectClipName('skater', { ...frame, action }, availableClipNames);
+  }
+
   let currentClipName = selectClipName(opts.kind, undefined, availableClipNames);
+  // A clip change on simulated frames blends out of the outgoing clip over
+  // `CLIP_FADE_SECONDS` of simulation time. Kept as data, not as a running
+  // three.js fade, so the blend is a function of the playhead: pausing holds
+  // it, and any seek simply drops it.
+  let simFade: { from: ClipEntry; fromTime: number; start: number } | null = null;
+  let lastSimTime: number | undefined;
   const initialEntry = getOrCreateEntry(currentClipName);
   if (initialEntry) activate(initialEntry);
 
@@ -260,13 +308,58 @@ export function createActor(gltf: ParsedActorModel, opts: CreateActorOptions): A
       // action time directly makes direct seeks, reverse scrubs and replay
       // identical, including large jumps that the legacy dt guard ignores.
       if (frame?.animationTimeSeconds !== undefined) {
-        snapTo(nextClipName);
-        currentClipName = nextClipName;
+        const t = frame.animationTimeSeconds;
         const movement = isMovementClip(nextClipName);
+        // Passes, shots, receptions and saves carry their own phase: they
+        // blend from the skater's movement pose by that phase alone (below),
+        // so seeking to any instant of one gives the pose playing reaches.
+        const eventClip = frame.actionPhase !== undefined && !movement;
+        const continuous = !wrapped && lastSimTime !== undefined && t >= lastSimTime && t - lastSimTime < CONTINUOUS_FRAME_GAP;
+        if (eventClip) {
+          simFade = null;
+        } else if (nextClipName !== currentClipName) {
+          const outgoing = entriesByName.get(currentClipName);
+          simFade = continuous && outgoing ? { from: outgoing, fromTime: outgoing.action.time, start: t } : null;
+        } else if (!continuous) {
+          simFade = null;
+        }
+        lastSimTime = t;
+        currentClipName = nextClipName;
+
         const duration = nextEntry.clip.duration;
         const phase = movement
           ? frame.speed < SKATE_FREEZE_SPEED ? SKATE_FROZEN_POSE_FRACTION : frame.stridePhase
-          : frame.actionPhase ?? ((frame.animationTimeSeconds % duration) / duration);
+          : nextClipName === 'stop' && frame.actionPhase === undefined
+            ? stopPhase(frame.speed)
+            : frame.actionPhase ?? ((t % duration) / duration);
+
+        const blend = simFade ? clamp((t - simFade.start) / CLIP_FADE_SECONDS, 0, 1) : 1;
+        if (blend >= 1) simFade = null;
+        snapTo(nextClipName);
+        if (simFade) {
+          // The outgoing clip keeps moving through the blend instead of freezing.
+          const from = simFade.from;
+          from.action.enabled = true;
+          from.action.weight = 1 - blend;
+          from.action.timeScale = 1;
+          from.action.time = (simFade.fromTime + (t - simFade.start)) % from.clip.duration;
+          nextEntry.action.weight = blend;
+        }
+        if (eventClip) {
+          const base = getOrCreateEntry(baseClipName(frame));
+          const weight = eventWeight(frame.actionPhase ?? 0.5);
+          if (base && base !== nextEntry && weight < 1) {
+            base.action.enabled = true;
+            base.action.weight = 1 - weight;
+            base.action.timeScale = 1;
+            const baseMoving = isMovementClip(base.name);
+            const basePhase = baseMoving
+              ? frame.speed < SKATE_FREEZE_SPEED ? SKATE_FROZEN_POSE_FRACTION : frame.stridePhase
+              : (t % base.clip.duration) / base.clip.duration;
+            base.action.time = clamp(basePhase, 0, 1 - 1e-7) * base.clip.duration;
+            nextEntry.action.weight = weight;
+          }
+        }
         nextEntry.action.paused = false;
         nextEntry.action.timeScale = 1;
         nextEntry.action.time = clamp(phase, 0, 1 - 1e-7) * duration;
