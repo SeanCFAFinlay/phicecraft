@@ -11,6 +11,7 @@
 //   CameraStore / PlaybackStore -> high-frequency state, read directly
 // ============================================================================
 
+import { subscribeCentreIceLogo } from '@/render/teamLogo';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppState, useAppServices } from '@/hooks/useAppState';
 import type { AppState } from '@/core/types';
@@ -236,6 +237,9 @@ export function CanvasSurface() {
   }), [camera, scheduler]);
 
   useEffect(() => playback.subscribeToFrames(() => scheduler.requestDynamic()), [playback, scheduler]);
+
+  // A new team logo repaints centre ice.
+  useEffect(() => subscribeCentreIceLogo(() => scheduler.requestAll()), [scheduler]);
 
   // The generated sprite atlas loads asynchronously; repaint once it arrives.
   useEffect(() => subscribeToHockeySpriteAtlas(() => scheduler.requestDynamic()), [scheduler]);

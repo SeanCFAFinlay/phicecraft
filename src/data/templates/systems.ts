@@ -285,6 +285,7 @@ const neutralZoneTrap = template({
     'The three across slide together toward the puck; the far one becomes the safety.',
     'Close on the wall player as the pass arrives, not after.',
     'Turnover: the first pass goes forward to the far side, where nobody is.',
+    'The first forward is deep when the puck turns over: tag up at the blue line, then follow the play to the net.',
   ],
   progressions: ['Let the breakout try the long cross-ice pass; the safety has to read it.'],
   variations: ['Drop to a 1-2-2 against a team that dumps it in.'],
@@ -301,7 +302,11 @@ const neutralZoneTrap = template({
     awayGoalie,
   ],
   routes: [
-    route('f1', [{ x: 640, y: 215 }, { x: 705, y: 262 }]),
+    route('f1', [{ x: 640, y: 215 }, { x: 705, y: 262 }], { startAt: 0 }),
+    // On the turnover the forechecker is deep in the zone: tag up at the blue
+    // line so the counter-attack is onside, then drive the net behind it.
+    route('f1', [{ x: 705, y: 262 }, { x: 650, y: 268 }, { x: 612, y: 240 }], { startAt: 2.8 }),
+    route('f1', [{ x: 612, y: 240 }, { x: 720, y: 220 }, { x: 860, y: 205 }], { startAt: 5.6 }),
     route('aw1', [{ x: 655, y: 72 }, { x: 600, y: 66 }], { startAt: 1.6 }),
     route('f2', [{ x: 540, y: 95 }, { x: 562, y: 100 }], { startAt: 1.6 }),
     route('m', [{ x: 540, y: 212 }, { x: 562, y: 150 }], { startAt: 1.4 }),
@@ -472,7 +477,8 @@ const ppBreakoutDrop = template({
   routes: [
     route('d1', [{ x: 115, y: 240 }, { x: 250, y: 215 }, { x: 420, y: 212 }]),
     route('sp', [{ x: 85, y: 150 }, { x: 200, y: 195 }, { x: 330, y: 212 }, { x: 480, y: 262 }, { x: 640, y: 310 }, { x: 760, y: 300 }], { startAt: 1.2 }),
-    route('f3', [{ x: 585, y: 362 }, { x: 615, y: 365 }, { x: 720, y: 368 }], { startAt: 5 }),
+    // The wide winger holds at the line and times the entry: the puck crosses first.
+    route('f3', [{ x: 585, y: 362 }, { x: 615, y: 365 }, { x: 720, y: 368 }], { startAt: 6 }),
     route('k1', [{ x: 520, y: 195 }, { x: 470, y: 190 }], { startAt: 1.5, movement: 'backward' }),
   ],
   puck: {

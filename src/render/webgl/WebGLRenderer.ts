@@ -29,7 +29,8 @@ import type { BoardRenderer, RendererHost } from '@/render/BoardRenderer';
 import { staticLayerKey, type StaticLayerInput } from '@/components/canvas/renderStatic';
 import type { DynamicLayerInput } from '@/components/canvas/renderDynamic';
 import { cameraMatrix } from '@/utils/geometry';
-import { buildRinkScene } from './rinkScene';
+import { applyCentreIceLogo, buildRinkScene } from './rinkScene';
+import { centreIceLogo, centreIceLogoVersion } from '@/render/teamLogo';
 import { buildGameScene, destroyGameScene, updateGameScene, type GameScene } from './gameScene';
 
 /**
@@ -99,6 +100,7 @@ export class WebGLRenderer implements BoardRenderer {
   readonly kind = 'webgl' as const;
 
   private lastStaticKey = '';
+  private lastLogoVersion = -1;
   private staticRenderer: PixiWebGLRenderer | null = null;
   private dynamicRenderer: PixiWebGLRenderer | null = null;
   /** Built once; re-rendered every frame under the camera transform. */
@@ -157,6 +159,12 @@ export class WebGLRenderer implements BoardRenderer {
     const key = staticLayerKey(input);
     if (key === this.lastStaticKey) return;
     this.lastStaticKey = key;
+
+    const logoVersion = centreIceLogoVersion();
+    if (logoVersion !== this.lastLogoVersion) {
+      this.lastLogoVersion = logoVersion;
+      applyCentreIceLogo(this.rinkScene, centreIceLogo());
+    }
 
     const m = cameraMatrix(input.camera);
     this.rinkScene.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.e, m.f));

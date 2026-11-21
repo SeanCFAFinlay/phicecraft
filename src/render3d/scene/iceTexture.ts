@@ -58,6 +58,8 @@ export const FLAT_CAMERA: Camera = {
 
 export interface IceTexture {
   canvas: HTMLCanvasElement;
+  /** Repaint the sheet - after the centre-ice logo changes. */
+  redraw(): void;
   dispose(): void;
 }
 
@@ -130,8 +132,9 @@ export function createIceTexture(): IceTexture {
   canvas.width = ICE_TEXTURE_WIDTH;
   canvas.height = ICE_TEXTURE_HEIGHT;
 
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
+  const paint = () => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     drawStaticLayer(ctx, {
       camera: FLAT_CAMERA,
       width: ICE_TEXTURE_WIDTH,
@@ -139,10 +142,12 @@ export function createIceTexture(): IceTexture {
       dpr: 1,
     });
     drawSkateScratches(ctx, ICE_TEXTURE_WIDTH, ICE_TEXTURE_HEIGHT);
-  }
+  };
+  paint();
 
   return {
     canvas,
+    redraw: paint,
     dispose() {
       // Release the backing pixel buffer promptly rather than waiting on GC -
       // the same reasoning WebGLRenderer.dispose() callers already follow.

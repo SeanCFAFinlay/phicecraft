@@ -22,6 +22,7 @@ import { FT, NET_LEFT, NET_RIGHT } from '@/core/constants';
 import { projectToV2 } from '@/domain/v3/projectToV2';
 import { compileDrill } from '@/sim/compileDrill';
 import { sampleFrame } from '@/sim/sampleFrame';
+import { validatePositioning } from './positioningIntelligence';
 
 // Documents are stored in board units (FT of them to one foot of real ice).
 // Every threshold below is written in feet and converted here, and every
@@ -47,7 +48,9 @@ export type ValidationIssueKind =
   | 'equipment_shortage'
   | 'duration_mismatch'
   | 'passing_lane_obstruction'
-  | 'goalie_coverage_angle';
+  | 'goalie_coverage_angle'
+  | 'offside'
+  | 'positioning';
 
 export interface CorrectiveProposal {
   id: string;
@@ -582,6 +585,7 @@ export function validateDrillIntelligence(
   validateSpatialConflicts(drill, issues);
   validateEquipmentSufficiency(drill, context, issues);
   validateTacticalLaneAndNetAngles(drill, locate, issues);
+  validatePositioning(drill, issues);
 
   const errorCount = issues.filter(i => i.severity === 'error').length;
   const warningCount = issues.filter(i => i.severity === 'warning').length;

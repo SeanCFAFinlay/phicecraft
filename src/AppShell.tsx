@@ -20,6 +20,7 @@ import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { useCameraSnapshot } from '@/playback/usePlaybackSnapshot';
 import { TABLETOP_MIN_TILT } from '@/core/constants';
 import { loadBoard3D } from '@/render3d/loadBoard3D';
+import { setCentreIceLogo } from '@/render/teamLogo';
 import { CanvasSurface } from '@/components/canvas/CanvasSurface';
 import { TopStrip } from '@/components/shell/TopStrip';
 import { TacticalBar } from '@/components/shell/TacticalBar';
@@ -151,6 +152,10 @@ export function AppShell() {
   );
 
   useKeyboardShortcuts();
+
+  // The home team's logo is painted at centre ice by every renderer.
+  const homeLogo = state.drill.settings?.coaching?.logos?.home;
+  useEffect(() => setCentreIceLogo(homeLogo), [homeLogo]);
 
   const mode = state.ui.mode;
 

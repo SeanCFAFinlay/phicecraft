@@ -6,6 +6,7 @@
 // pointer move.
 // ============================================================================
 
+import { centreIceLogoVersion } from '@/render/teamLogo';
 import type { Camera } from '@/core/types';
 import { drawRink } from '@/canvas/RinkRenderer';
 import { cameraMatrix } from '@/utils/geometry';
@@ -29,6 +30,8 @@ export function staticLayerKey(input: StaticLayerInput): string {
     width,
     height,
     Math.round(dpr * 100),
+    // A new centre-ice logo repaints the sheet.
+    centreIceLogoVersion(),
   ].join(':');
 }
 

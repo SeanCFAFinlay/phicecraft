@@ -86,6 +86,17 @@ export const SkatePathSchema = z.looseObject({
   mode: z.enum(['skate', 'glide', 'backward']).optional(),
   finish: z.enum(['coast', 'stop']).optional(),
   startAtSeconds: finiteNumber.min(0).max(3600).optional(),
+  legs: z
+    .array(
+      z.object({
+        points: z.array(PointSchema).min(1).max(IMPORT_LIMITS.maxPointsPerRoute),
+        startAtSeconds: finiteNumber.min(0).max(3600),
+        mode: z.enum(['skate', 'glide', 'backward']).optional(),
+        finish: z.enum(['coast', 'stop']).optional(),
+      })
+    )
+    .max(IMPORT_LIMITS.maxPointsPerRoute)
+    .optional(),
 });
 
 const baseEventFields = {

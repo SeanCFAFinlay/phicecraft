@@ -5,35 +5,14 @@ import { sampleMotionProfile } from './movementCurves';
 import { solvePassInterception } from './passSolver';
 import { sampleFrame } from './sampleFrame';
 import { sampleSkater } from './skaterMotor';
-import type { MotionProfile } from './types';
-
-function timeAtDistance(profile: MotionProfile, requestedDistance: number): number {
-  const target = Math.max(0, Math.min(profile.distance, requestedDistance));
-  if (target <= 0 || profile.distance <= 0) return 0;
-  const acceleration = profile.peakSpeed / Math.max(profile.accelerationTime, 0.0001);
-  if (target <= profile.accelerationDistance) {
-    return Math.sqrt((2 * target) / Math.max(acceleration, 0.0001));
-  }
-
-  const afterAcceleration = target - profile.accelerationDistance;
-  if (afterAcceleration <= profile.cruiseDistance) {
-    return profile.accelerationTime + afterAcceleration / Math.max(profile.peakSpeed, 0.0001);
-  }
-
-  const braking = profile.peakSpeed / Math.max(profile.brakingTime, 0.0001);
-  const brakingDistance = afterAcceleration - profile.cruiseDistance;
-  const discriminant = Math.max(0, profile.peakSpeed ** 2 - 2 * braking * brakingDistance);
-  const brakingTime = (profile.peakSpeed - Math.sqrt(discriminant)) / Math.max(braking, 0.0001);
-  return profile.accelerationTime + profile.cruiseTime + brakingTime;
-}
+import { timeAtRouteDistance } from './routeCompiler';
 
 export function getAuthoredReleaseProgress(drill: Drill, playerId: ID, point: Point): number {
   const compiled = compileDrill(drill);
   const route = compiled.routes.get(playerId);
   if (!route || route.totalLength <= 0) return 0;
   const closest = closestPointOnPolyline(route.points, point);
-  const seconds = (route.source?.startAtSeconds ?? 0) +
-    timeAtDistance(route.motion, closest.t * route.totalLength);
+  const seconds = timeAtRouteDistance(route, closest.t * route.totalLength);
   return Math.max(0, Math.min(0.98, seconds / compiled.durationSeconds));
 }
 

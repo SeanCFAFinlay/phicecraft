@@ -7,6 +7,7 @@
 // of the rink size.
 // ============================================================================
 
+import { centreIceLogo, fitInCircle } from '@/render/teamLogo';
 import { RINK, RINK_MARKS as M, COLORS, FT } from '@/core/constants';
 
 /**
@@ -448,7 +449,13 @@ function drawCenterIceLogo(ctx: CanvasRenderingContext2D): void {
   ctx.arc(0, 0, R * 0.91, 0, Math.PI * 2);
   ctx.stroke();
 
-  if (centerLogoBadge && centerLogoBadge.complete && centerLogoBadge.naturalWidth > 0) {
+  const teamLogo = centreIceLogo();
+  if (teamLogo && teamLogo.naturalWidth > 0) {
+    // The team's own logo, whole and undistorted inside the rings.
+    const size = fitInCircle(teamLogo.naturalWidth, teamLogo.naturalHeight, R * 0.84);
+    ctx.globalAlpha = 0.8;
+    ctx.drawImage(teamLogo, -size.width / 2, -size.height / 2, size.width, size.height);
+  } else if (centerLogoBadge && centerLogoBadge.complete && centerLogoBadge.naturalWidth > 0) {
     const badgeR = R * 0.84;
     ctx.save();
     ctx.beginPath();

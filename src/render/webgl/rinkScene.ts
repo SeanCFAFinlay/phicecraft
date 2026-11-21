@@ -40,7 +40,8 @@
 // faint, low-alpha gradient) — small enough not to be worth trimming.
 // ============================================================================
 
-import { Container, Graphics, Text, FillGradient, type TextStyleOptions } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, Texture, FillGradient, type TextStyleOptions } from 'pixi.js';
+import { fitInCircle } from '@/render/teamLogo';
 import { RINK, RINK_MARKS as M, COLORS, FT } from '@/core/constants';
 
 /** Text is baked into the static scene at this resolution so labels and the centre crest stay crisp when zoomed. */
@@ -122,7 +123,13 @@ function buildCenterLogo(): Container {
     .stroke({ color: 'rgba(22, 163, 74, 0.55)', width: 1.6 });
   logo.addChild(rings);
 
-  logo.addChild(
+  // The PHormation crest: hidden while a team logo is shown instead.
+  const crest = new Container({ label: 'ph-crest' });
+  logo.addChild(crest);
+  const teamLogo = new Sprite({ label: 'team-logo', anchor: 0.5, visible: false });
+  logo.addChild(teamLogo);
+
+  crest.addChild(
     buildArcText('TRAIN · PLAY · IMPROVE', R * 0.72, 0.115, {
       fontSize: R * 0.14,
       fontWeight: '800',
@@ -150,7 +157,7 @@ function buildCenterLogo(): Container {
   });
   monogram.anchor.set(0.5);
   monogram.position.set(0, -R * 0.04);
-  logo.addChild(monogram);
+  crest.addChild(monogram);
 
   const wordmark = new Text({
     text: 'HOCKEY PRACTICE',
@@ -164,9 +171,34 @@ function buildCenterLogo(): Container {
   });
   wordmark.anchor.set(0.5);
   wordmark.position.set(0, R * 0.52);
-  logo.addChild(wordmark);
+  crest.addChild(wordmark);
 
   return logo;
+}
+
+/**
+ * Show the team's logo at centre ice, or the PHormation crest when there is
+ * none. The previous logo's texture is released when it is replaced.
+ */
+export function applyCentreIceLogo(root: Container, image: HTMLImageElement | null): void {
+  const logo = root.getChildByLabel('center-logo', true);
+  const crest = logo?.getChildByLabel('ph-crest');
+  const sprite = logo?.getChildByLabel('team-logo') as Sprite | null | undefined;
+  if (!logo || !crest || !sprite) return;
+  const previous = sprite.texture;
+  if (!image || image.naturalWidth === 0) {
+    sprite.visible = false;
+    crest.visible = true;
+    sprite.texture = Texture.EMPTY;
+  } else {
+    const size = fitInCircle(image.naturalWidth, image.naturalHeight, 19 * FT * 0.84);
+    sprite.texture = Texture.from(image);
+    sprite.width = size.width;
+    sprite.height = size.height;
+    sprite.visible = true;
+    crest.visible = false;
+  }
+  if (previous && previous !== Texture.EMPTY && previous !== sprite.texture) previous.destroy(true);
 }
 
 // ----------------------------------------------------------------------------

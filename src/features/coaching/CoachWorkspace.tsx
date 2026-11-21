@@ -1,3 +1,4 @@
+import { importLogo } from './importLogo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CoachingDetails, Player, PlayerRole } from '@/core/types';
 import { jerseyColor } from '@/core/types';
@@ -110,16 +111,29 @@ export function CoachWorkspace() {
       {tab === 'teams' && <>
         <p className="text-sm text-slate-300">Use your actual team names and on-ice lineup. Names, numbers, roles and colours travel with the saved play.</p>
         <fieldset disabled={!editable} className="space-y-3">
-          {(['home', 'away'] as const).map(team => <div key={team} className="flex items-end gap-3">
+          {(['home', 'away'] as const).map(team => <div key={team} className="flex flex-wrap items-end gap-3">
             <label className="min-w-0 flex-1 text-sm capitalize">{team} team<input aria-label={`${team === 'home' ? 'Home' : 'Away'} team`} className={control} maxLength={80} value={coaching.teams[team]} onChange={event => setCoaching({ ...coaching, teams: { ...coaching.teams, [team]: event.target.value } })} /></label>
             <label className="text-xs">Jersey<input aria-label={`${team} jersey colour`} className="block h-11 w-12 rounded" type="color" value={jerseyColor(team, state.drill.settings)} onChange={event => commands.setJersey(team, event.target.value)} /></label>
+            <TeamLogoControl
+              team={team}
+              logo={coaching.logos?.[team]}
+              onChange={logo => {
+                const logos = { ...coaching.logos, [team]: logo };
+                if (!logo) delete logos[team];
+                const next = { ...coaching, logos };
+                setCoaching(next);
+                commands.setCoaching(next);
+                setMessage(logo ? `${team === 'home' ? 'Home' : 'Away'} logo added${team === 'home' ? ' - it is painted at centre ice' : ''}. Save the play to keep it.` : 'Logo removed.');
+              }}
+              onError={setMessage}
+            />
           </div>)}
           <button className={button} onClick={save}>Apply team names</button>
         </fieldset>
         {(['home', 'away'] as const).map(team => <section key={team} className="space-y-2">
-          <TeamLibrary team={team} name={coaching.teams[team]} colour={jerseyColor(team, state.drill.settings)} players={state.drill.players.filter(player => player.team === team)} disabled={!editable} onChoose={profile => {
+          <TeamLibrary team={team} name={coaching.teams[team]} colour={jerseyColor(team, state.drill.settings)} logo={coaching.logos?.[team]} players={state.drill.players.filter(player => player.team === team)} disabled={!editable} onChoose={profile => {
             setRosters(current => ({ ...current, [team]: profile.roster }));
-            const next = { ...coaching, teams: { ...coaching.teams, [team]: profile.name } };
+            const next = { ...coaching, teams: { ...coaching.teams, [team]: profile.name }, ...(profile.logo ? { logos: { ...coaching.logos, [team]: profile.logo } } : {}) };
             setCoaching(next); commands.setCoaching(next); commands.setJersey(team, profile.colour);
           }} />
           <h3 className="font-bold">{coaching.teams[team] || team} lineup</h3>
@@ -157,4 +171,30 @@ export function CoachWorkspace() {
       </div>}
     </div>
   </Sheet>;
+}
+
+/** Upload, preview and remove one team's logo. */
+function TeamLogoControl({ team, logo, onChange, onError }: {
+  team: 'home' | 'away';
+  logo?: string;
+  onChange: (logo: string | undefined) => void;
+  onError: (message: string) => void;
+}) {
+  const label = team === 'home' ? 'Home' : 'Away';
+  return <div className="flex items-end gap-1.5 text-xs">
+    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border border-white/15 bg-white/5">
+      {logo ? <img src={logo} alt={`${label} team logo`} className="h-full w-full object-contain" /> : <span aria-hidden="true" className="text-white/30">Logo</span>}
+    </div>
+    <label className="touch-target flex h-11 cursor-pointer items-center rounded-lg border border-white/20 bg-white/5 px-2 font-bold">
+      {logo ? 'Change' : 'Add logo'}
+      <input aria-label={`${label} team logo`} className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={async event => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        try { onChange(await importLogo(file)); }
+        catch (error) { onError(error instanceof Error ? error.message : 'Could not read that logo.'); }
+      }} />
+    </label>
+    {logo && <button type="button" aria-label={`Remove ${label.toLowerCase()} team logo`} className="touch-target h-11 rounded-lg border border-white/20 bg-white/5 px-2 font-bold" onClick={() => onChange(undefined)}>✕</button>}
+  </div>;
 }

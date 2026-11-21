@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { logoSchema } from '@/domain/coachingSchema';
 
 export const rosterPlayerSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -9,6 +10,8 @@ export const savedTeamSchema = z.object({
   id: z.string(), name: z.string().trim().min(1).max(80),
   colour: z.string().regex(/^#[0-9a-f]{6}$/i),
   roster: z.array(rosterPlayerSchema).min(1).max(100),
+  /** The team's logo, so choosing a saved team brings its crest along. */
+  logo: logoSchema.optional(),
 });
 export const savedTeamsSchema = z.array(savedTeamSchema).max(100);
 export type RosterPlayer = z.infer<typeof rosterPlayerSchema>;

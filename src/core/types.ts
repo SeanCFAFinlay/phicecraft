@@ -150,6 +150,22 @@ export interface SkatePath {
   /** Optional authored route behaviour. Legacy paths default to a forward skate. */
   mode?: 'skate' | 'glide' | 'backward';
   finish?: 'coast' | 'stop';
+  /**
+   * The same route as timed legs: skate, stop, then go again - forward one
+   * way, backward the next. Joined end to end the legs are exactly `points`;
+   * once the route is redrawn by hand and they no longer match, they are
+   * ignored and the route plays as one continuous skate.
+   */
+  legs?: SkateLeg[];
+}
+
+/** One timed part of a route: where it goes, when it starts, how it is skated. */
+export interface SkateLeg {
+  points: Point[];
+  /** Drill seconds. A leg never starts before the previous one has finished. */
+  startAtSeconds: number;
+  mode?: 'skate' | 'glide' | 'backward';
+  finish?: 'coast' | 'stop';
 }
 
 // ============================================================================
@@ -293,6 +309,8 @@ export interface CoachingDetails {
   objective: string;
   cues: string;
   referenceImage?: string;
+  /** Team logos as small image data URLs; the home logo is painted at centre ice. */
+  logos?: { home?: string; away?: string };
 }
 
 /** Selectable jersey colours, shown in the jersey switcher. */

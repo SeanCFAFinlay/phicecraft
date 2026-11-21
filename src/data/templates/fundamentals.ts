@@ -23,7 +23,6 @@ import {
 import type { Point } from '@/core/types';
 
 const rightGoalie = goalie('gr', 'away', '30', { x: 922, y: L.centreY });
-const leftGoalie = goalie('gl', 'home', '31', { x: 78, y: L.centreY });
 
 // ============================================================================
 // SKATING
@@ -93,15 +92,18 @@ const figureEightEdges = template({
 });
 
 /**
- * One skater's lane, first rep: sprint from the goal line and stop on the
- * blue line. The diagram shows that rep; the notes take it line to line.
- * (A player's legs play back as one continuous path, so a stop in the middle
- * of a route cannot be drawn - each rep is its own sprint.)
+ * One skater's lane: sprint and stop on each line, then a backward stretch
+ * and a pivot into the last sprint. Every leg starts from a dead stop.
  */
 function lane(id: string, number: string, y: number) {
   return {
     actor: skater(id, 'home', number, { x: 70, y }),
-    routes: [route(id, [{ x: 70, y }, { x: L.blueLineLeft, y }], { startAt: 0.5, durationSeconds: 5 })],
+    routes: [
+      route(id, [{ x: 70, y }, { x: L.blueLineLeft, y }], { startAt: 0.5 }),
+      route(id, [{ x: L.blueLineLeft, y }, { x: L.centreX, y }], { startAt: 5.2 }),
+      route(id, [{ x: L.centreX, y }, { x: L.blueLineLeft, y }], { startAt: 8.4, movement: 'backward' as const }),
+      route(id, [{ x: L.blueLineLeft, y }, { x: L.blueLineRight, y }], { startAt: 12 }),
+    ],
   };
 }
 
@@ -111,34 +113,31 @@ const stopsAndStarts = template({
   id: 'tpl-skate-stops-starts-ladder',
   title: 'Stops & Starts: Line to Line',
   summary:
-    'Skaters sprint from the goal line on the whistle and stop dead on the blue line; on the next whistle they go again to the red line, then the far blue line and the far goal line.',
+    'On each whistle: sprint from the goal line and stop dead on the blue line, sprint to the red line and stop, skate backward to the blue line, then pivot and sprint through the far blue line.',
   categories: ['skating', 'conditioning'],
-  tags: ['stops', 'starts', 'acceleration', 'no puck', 'no goalie'],
+  tags: ['stops', 'starts', 'pivots', 'backward skating', 'no puck', 'no goalie'],
   ageBands: ['u9', 'u11', 'u13', 'u15', 'u18', 'adult'],
   skillLevel: 'beginner',
-  rinkArea: 'half',
+  rinkArea: 'full',
   durationMinutes: 6,
-  durationSeconds: 6,
+  durationSeconds: 16,
   equipmentSummary: ['none'],
   setupNotes: [
     'Skaters spread along the goal line, a stick length apart.',
-    'Each whistle is one sprint and one stop: blue line, red line, far blue line, far goal line.',
+    'One whistle per leg: nobody moves until it goes, so every start is from a dead stop.',
   ],
   coachingPoints: [
     'First three strides short and quick, on the toes, before lengthening out.',
     'Stop on both skates right on the line, shoulders square - no rolling through it.',
-    'Out of the stop, the first push comes from the skate that did the stopping.',
-    'Alternate which way you face on each stop so both sides get worked.',
+    'From the red-line stop, push straight into backward skating with no glide in between.',
+    'Pivot forward with the hips open and the head up, and accelerate out of it.',
   ],
-  progressions: [
-    'Skate backward from the red line to the far blue line.',
-    'Carry a puck through all of it.',
-  ],
+  progressions: ['Alternate which way you face on each stop.', 'Carry a puck through all of it.'],
   variations: ['Lateral shuffle between the lines for defencemen.'],
   actors: lanes.map(item => item.actor),
   routes: lanes.flatMap(item => item.routes),
-  // Skating only: the pucks stay in the corner until the progression.
-  puck: { from: { x: 70, y: 395 }, actions: [] },
+  // Skating only: the pucks wait in the far corner, the way the skaters face.
+  puck: { from: { x: 945, y: 395 }, actions: [] },
   finishPolicy: 'none',
 });
 
@@ -146,14 +145,14 @@ const crossoverCircleShot = template({
   id: 'tpl-skate-crossover-circle-shot',
   title: 'Crossover Circle & Cut to the Net',
   summary:
-    'With the puck, each skater takes a full lap of crossovers around a faceoff circle, then cuts hard to the net and shoots - one line on each circle.',
+    'With the puck, a skater takes a full lap of crossovers around the faceoff circle, then cuts hard to the net and shoots. Run a line on each circle and alternate them.',
   categories: ['skating', 'puck-handling', 'shooting'],
   tags: ['crossovers', 'edges', 'puck control', 'shot in stride'],
   ageBands: ['u9', 'u11', 'u13', 'u15', 'u18'],
   skillLevel: 'developing',
   rinkArea: 'half',
   durationMinutes: 8,
-  durationSeconds: 11,
+  durationSeconds: 9,
   equipmentSummary: ['pucks', '1 net'],
   setupNotes: [
     'Two lines at the blue line, one on each wall, each with pucks.',
@@ -169,7 +168,6 @@ const crossoverCircleShot = template({
   variations: ['Reverse direction so the crossovers go the other way.'],
   actors: [
     skater('s1', 'home', '17', { x: 650, y: 360 }, 'RW'),
-    skater('s2', 'home', '19', { x: 650, y: 65 }, 'LW'),
     rightGoalie,
   ],
   routes: [
@@ -177,16 +175,11 @@ const crossoverCircleShot = template({
       { x: 650, y: 360 }, { x: 760, y: 330 }, { x: 845, y: 240 }, { x: 928, y: 322 },
       { x: 845, y: 402 }, { x: 765, y: 322 }, { x: 820, y: 262 }, { x: 860, y: 238 },
     ], { startAt: 0, durationSeconds: 7.5 }),
-    route('s2', [
-      { x: 650, y: 65 }, { x: 760, y: 95 }, { x: 845, y: 185 }, { x: 928, y: 103 },
-      { x: 845, y: 24 }, { x: 765, y: 103 }, { x: 820, y: 163 }, { x: 860, y: 187 },
-    ], { startAt: 1.5, durationSeconds: 7.5 }),
   ],
   puck: {
     from: 's1',
     actions: [shot('s1', { at: 7.7 })],
   },
-  extraPucks: [{ from: 's2', actions: [shot('s2', { at: 9.2 })] }],
   finishPolicy: 'finish-with-shot',
 });
 
@@ -198,7 +191,7 @@ const circleFlow = template({
   id: 'tpl-flow-swing-pass-shoot',
   title: 'Full-Ice Flow: Swing, Take the Pass & Shoot',
   summary:
-    'From opposite corners, a skater from each group goes up the wall, swings through the neutral zone, takes a pass from their own corner and attacks the far net - both ends at once, so nobody waits.',
+    'A skater comes out of the corner, up the wall and swings through the neutral zone, takes a pass in stride from the next player in line and attacks the far net. Run it from both ends at once so nobody waits.',
   categories: ['warm-up', 'passing', 'shooting', 'skating'],
   tags: ['flow', 'full ice', 'continuous', 'swing', 'pass in stride', 'warm-up'],
   ageBands: ['u9', 'u11', 'u13', 'u15', 'u18', 'adult'],
@@ -208,7 +201,7 @@ const circleFlow = template({
   durationSeconds: 10,
   equipmentSummary: ['pucks', '2 nets'],
   setupNotes: [
-    'Two groups in diagonally opposite corners, each with pucks, and a goalie in each net.',
+    'Two groups in diagonally opposite corners, each with pucks, and a goalie in each net; both ends go on the same whistle.',
     'The first player in each line goes; the second player in that line is the passer, then goes next.',
   ],
   coachingPoints: [
@@ -222,9 +215,6 @@ const circleFlow = template({
   actors: [
     skater('a', 'home', '11', { x: 95, y: 355 }, 'F'),
     skater('pa', 'home', '14', { x: 125, y: 300 }, 'F'),
-    skater('b', 'away', '21', { x: 905, y: 70 }, 'F'),
-    skater('pb', 'away', '24', { x: 875, y: 125 }, 'F'),
-    leftGoalie,
     rightGoalie,
   ],
   routes: [
@@ -232,24 +222,11 @@ const circleFlow = template({
       { x: 95, y: 355 }, { x: 200, y: 385 }, { x: 330, y: 352 }, { x: 400, y: 262 },
       { x: 520, y: 232 }, { x: 690, y: 215 }, { x: 830, y: 212 },
     ], { startAt: 0, durationSeconds: 8.5 }),
-    route('b', [
-      { x: 905, y: 70 }, { x: 800, y: 40 }, { x: 670, y: 73 }, { x: 600, y: 163 },
-      { x: 480, y: 193 }, { x: 310, y: 210 }, { x: 170, y: 213 },
-    ], { startAt: 0, durationSeconds: 8.5 }),
   ],
   puck: {
     from: 'pa',
     actions: [pass('pa', 'a', { at: 2.9, flightSeconds: 1 }), shot('a', { at: 7.8 })],
   },
-  extraPucks: [
-    {
-      from: 'pb',
-      actions: [
-        pass('pb', 'b', { at: 2.9, flightSeconds: 1 }),
-        shot('b', { at: 7.8, target: { x: L.goalLineLeft, y: L.centreY } }),
-      ],
-    },
-  ],
   finishPolicy: 'finish-with-shot',
 });
 

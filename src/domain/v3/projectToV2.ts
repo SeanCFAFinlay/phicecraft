@@ -38,6 +38,7 @@ import {
   orderedSegments,
   type Actor,
   type DrillDocumentV3,
+  type MovementKind,
   type PuckAction,
   type PuckTrack,
 } from './types';
@@ -91,6 +92,10 @@ function joinSegments(points: Point[][]): Point[] {
     }
   }
   return joined;
+}
+
+function skateMode(movement: MovementKind | undefined): 'skate' | 'glide' | 'backward' {
+  return movement === 'backward' ? 'backward' : movement === 'glide' ? 'glide' : 'skate';
 }
 
 function fraction(seconds: number, duration: number): number {
@@ -228,15 +233,6 @@ export function projectionLosses(document: DrillDocumentV3): ProjectionLoss[] {
     });
   }
 
-  const multiSegment = document.actorTracks.filter(track => track.segments.length > 1);
-  if (multiSegment.length > 0) {
-    losses.push({
-      kind: 'joined-segments',
-      count: multiSegment.length,
-      detail: 'Multi-part routes play as one continuous path; the pauses between are not timed.',
-    });
-  }
-
   const track = firstTrack(document);
   if (track) {
     const toSpace = track.actions.filter(
@@ -295,14 +291,20 @@ export function projectToV2(document: DrillDocumentV3): ProjectionResult {
         team: owner.team,
         points,
         shape: segments[0].curve,
-        mode:
-          segments[0].movement === 'backward'
-            ? ('backward' as const)
-            : segments[0].movement === 'glide'
-              ? ('glide' as const)
-              : ('skate' as const),
+        mode: skateMode(segments[0].movement),
         finish: segments[0].finish ?? 'stop',
         ...(segments[0].startAtSeconds > 0 ? { startAtSeconds: segments[0].startAtSeconds } : {}),
+        // Several segments keep their timing as legs: skate, stop, go again.
+        ...(segments.length > 1
+          ? {
+              legs: segments.map(segment => ({
+                points: segment.points.map(point => ({ x: point.x, y: point.y })),
+                startAtSeconds: segment.startAtSeconds,
+                mode: skateMode(segment.movement),
+                finish: segment.finish ?? 'stop',
+              })),
+            }
+          : {}),
       };
     })
     .filter((path): path is SkatePath => path !== null);

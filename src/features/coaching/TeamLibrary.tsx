@@ -6,8 +6,8 @@ import { parseRosterCsv, rosterCsv, savedTeamSchema, savedTeamsSchema, TEAMS_KEY
 
 const button = 'touch-target rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm font-bold disabled:opacity-40';
 
-export function TeamLibrary({ team, name, colour, players, disabled, onChoose }: {
-  team: Team; name: string; colour: string; players: Player[]; disabled: boolean;
+export function TeamLibrary({ team, name, colour, logo, players, disabled, onChoose }: {
+  team: Team; name: string; colour: string; logo?: string; players: Player[]; disabled: boolean;
   onChoose: (profile: SavedTeam) => void;
 }) {
   const { repository } = useAppServices();
@@ -47,7 +47,7 @@ export function TeamLibrary({ team, name, colour, players, disabled, onChoose }:
     <p className="text-xs text-slate-400">Columns: name,number,role. Example: Alex,27,C</p>
     <div className="flex flex-wrap gap-2">
       <button type="button" className={button} onClick={async () => {
-        const parsed = savedTeamSchema.safeParse({ id: crypto.randomUUID(), name, colour, roster: lineup });
+        const parsed = savedTeamSchema.safeParse({ id: crypto.randomUUID(), name, colour, roster: lineup, ...(logo ? { logo } : {}) });
         if (!parsed.success) { setMessage('Give the team a name and add 1–100 roster players.'); return; }
         setBusy(true);
         // Read again so saving another side cannot overwrite its new profile.

@@ -457,6 +457,7 @@ export const forecheck122: DrillTemplate = template({
     'F2 reads F1’s angle and commits to the boards before the breakout pass is released.',
     'F3 provides central safety and backs up any missed pinch.',
     'Upon turnover, immediately look for F1 cutting back to the high-danger slot.',
+    'F2 makes the pass and goes straight to the net - screen the goalie, stop for the rebound.',
   ],
   progressions: [
     '2-1-2 Aggressive Forecheck: F1 and F2 both penetrate below the goal line.',
@@ -485,7 +486,13 @@ export const forecheck122: DrillTemplate = template({
       { x: 580, y: 115 },
       { x: 670, y: 110 },
       { x: 720, y: 130 },
-    ]),
+    ], { startAt: 0 }),
+    // Pass and go: F2 drives the net for the screen and the rebound.
+    route('f2', [
+      { x: 720, y: 130 },
+      { x: 820, y: 160 },
+      { x: 885, y: 196 },
+    ], { startAt: 3.6 }),
     route('d1', [
       { x: 440, y: 140 },
       { x: 530, y: 125 },
@@ -500,7 +507,7 @@ export const forecheck122: DrillTemplate = template({
     actions: [
       pass('ad', 'f2', { at: 1.8 }),
       pass('f2', 'f1', { at: 3.5 }),
-      shot('f1', { at: 5.0 }),
+      shot('f1', { at: 5.5 }),
     ],
   },
   finishPolicy: 'finish-with-shot',
@@ -610,6 +617,7 @@ export const rimRetrievalTwoOnOne: DrillTemplate = template({
     'Winger uses board-cushion or direct touch pass into the middle lane in stride.',
     'Center supports with speed through the middle to push back the defending D.',
     'LW and Center drive wide-lane triangulation with trailer for 2-on-1 finish.',
+    'Winger: stay level with the puck at the blue line - the carrier crosses first, then you go.',
   ],
   progressions: [
     'Add an aggressive F1 forechecker chasing the puck into the corner.',
@@ -631,13 +639,19 @@ export const rimRetrievalTwoOnOne: DrillTemplate = template({
       { x: 110, y: 95 },
       { x: 130, y: 80 },
     ]),
+    // The winger stays level with the puck and onside at the blue line...
     route('lw', [
       { x: 240, y: 85 },
       { x: 360, y: 110 },
       { x: 540, y: 130 },
+      { x: 612, y: 136 },
+    ], { startAt: 0 }),
+    // ...and drives once the centre has carried it over.
+    route('lw', [
+      { x: 612, y: 136 },
       { x: 750, y: 160 },
       { x: 840, y: 180 },
-    ]),
+    ], { startAt: 4.4 }),
     route('c', [
       { x: 190, y: L.centreY },
       { x: 300, y: 200 },
@@ -656,12 +670,12 @@ export const rimRetrievalTwoOnOne: DrillTemplate = template({
     actions: [
       pass('d1', 'lw', { at: 1.2 }),
       pass('lw', 'c', { at: 2.8 }),
-      pass('c', 'lw', { at: 4.5 }),
-      shot('lw', { at: 5.6 }),
+      pass('c', 'lw', { at: 4.7 }),
+      shot('lw', { at: 6.8 }),
     ],
   },
   finishPolicy: 'finish-with-shot',
-  durationSeconds: 7,
+  durationSeconds: 8,
 });
 
 export const PLAY_TEMPLATES: DrillTemplate[] = [

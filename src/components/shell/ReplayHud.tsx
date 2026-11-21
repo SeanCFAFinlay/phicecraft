@@ -127,10 +127,19 @@ export function ReplayHud() {
             <span key={team} className="contents">
               {index === 1 && <span className="text-[9px] text-slate-500">VS</span>}
               <span
-                className="min-w-0 truncate border-l-4 pl-1.5 text-[11px]"
+                className="flex min-w-0 items-center gap-1 truncate border-l-4 pl-1.5 text-[11px]"
                 style={{ borderColor: jerseyColor(team, state.drill.settings) }}
               >
-                {state.drill.settings?.coaching?.teams[team] || (team === 'home' ? 'Home' : 'Away')}
+                {state.drill.settings?.coaching?.logos?.[team] && (
+                  <img
+                    src={state.drill.settings.coaching.logos[team]}
+                    alt=""
+                    className="h-4 w-4 shrink-0 object-contain"
+                  />
+                )}
+                <span className="truncate">
+                  {state.drill.settings?.coaching?.teams[team] || (team === 'home' ? 'Home' : 'Away')}
+                </span>
               </span>
             </span>
           ))}

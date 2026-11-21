@@ -51,6 +51,21 @@ export interface CompiledRoute {
   durationSeconds: number;
   motion: MotionProfile;
   warnings: string[];
+  /**
+   * Present when the route skates in timed legs. `points` and the lengths
+   * above are then the legs joined end to end, and each leg's distances are
+   * measured from `distanceOffset` along them.
+   */
+  legs?: CompiledLeg[];
+}
+
+export interface CompiledLeg {
+  startAtSeconds: number;
+  /** Where along the whole route this leg begins. */
+  distanceOffset: number;
+  length: number;
+  motion: MotionProfile;
+  mode: 'skate' | 'glide' | 'backward';
 }
 
 export interface CompiledEvent {

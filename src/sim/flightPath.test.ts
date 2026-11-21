@@ -199,8 +199,11 @@ describe('the simulated puck follows the drawn line', () => {
   });
 
   it('gives the puck a velocity along the curve, not toward the target', () => {
-    const bent = puckMidFlight([{ x: 500, y: 60 }]);
-    // Past the apex of an upward bend the puck is heading back down.
+    // Well past the apex of an upward bend (the flight runs 1.6s-4.8s) the
+    // puck is heading back down. Sampled late rather than at the exact middle:
+    // where the apex falls depends on the passer's blade, which turns to face
+    // the receiver.
+    const bent = puckMidFlight([{ x: 500, y: 60 }], 3.9);
     expect(bent!.velocity!.y).toBeGreaterThan(0);
     expect(bent!.velocity!.x).toBeGreaterThan(0);
   });

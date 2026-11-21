@@ -26,7 +26,7 @@ export function IntelligencePanel({
   const { state, dispatch } = useAppState();
   const commands = useCommands();
   const [appliedIssues, setAppliedIssues] = useState<Record<string, boolean>>({});
-  const [filter, setFilter] = useState<'all' | 'timing' | 'roles' | 'spacing'>('all');
+  const [filter, setFilter] = useState<'all' | 'timing' | 'roles' | 'spacing' | 'positioning'>('all');
 
   // Real-time analysis of the working drill
   const v3Doc = useMemo(() => {
@@ -55,6 +55,13 @@ export function IntelligencePanel({
   const timingIssues = report.issues.filter(i => i.kind === 'timing_mismatch');
   const roleIssues = report.issues.filter(i => i.kind === 'role_shortage');
   const spatialIssues = report.issues.filter(i => i.kind === 'space_conflict');
+  // Hockey positioning: offside, the net front, the point, passing lanes, goalie angles.
+  const positioningIssues = report.issues.filter(i =>
+    i.kind === 'offside' ||
+    i.kind === 'positioning' ||
+    i.kind === 'passing_lane_obstruction' ||
+    i.kind === 'goalie_coverage_angle'
+  );
 
   const displayedIssues =
     filter === 'timing'
@@ -63,7 +70,9 @@ export function IntelligencePanel({
         ? roleIssues
         : filter === 'spacing'
           ? spatialIssues
-          : report.issues;
+          : filter === 'positioning'
+            ? positioningIssues
+            : report.issues;
 
   return (
     <>
@@ -189,6 +198,19 @@ export function IntelligencePanel({
                 🥅 Roles ({roleIssues.length})
               </button>
             )}
+            {positioningIssues.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilter('positioning')}
+                className={`rounded-lg px-2 py-1 transition-all ${
+                  filter === 'positioning'
+                    ? 'bg-emerald-400 text-[#041019] font-black shadow-sm'
+                    : 'bg-white/5 text-emerald-200/80 hover:bg-white/10'
+                }`}
+              >
+                🏒 Positioning ({positioningIssues.length})
+              </button>
+            )}
             {spatialIssues.length > 0 && (
               <button
                 type="button"
@@ -222,8 +244,14 @@ export function IntelligencePanel({
               const isTiming = issue.kind === 'timing_mismatch';
               const isRole = issue.kind === 'role_shortage';
               const isSpatial = issue.kind === 'space_conflict';
+              const isOffside = issue.kind === 'offside';
+              const isPositioning = issue.kind === 'positioning';
 
-              const borderClass = isTiming
+              const borderClass = isOffside
+                ? 'border-orange-400/40 bg-orange-500/10 text-orange-100'
+                : isPositioning
+                  ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-100'
+                  : isTiming
                 ? 'border-amber-400/35 bg-amber-500/10 text-amber-100'
                 : isRole
                   ? 'border-cyan-400/35 bg-app-cyan/10 text-cyan-100'
@@ -239,7 +267,7 @@ export function IntelligencePanel({
                     ? 'text-red-300'
                     : 'text-white/90';
 
-              const icon = isTiming ? '⏱️' : isRole ? '🥅' : isSpatial ? '↔️' : '💡';
+              const icon = isOffside ? '🚩' : isPositioning ? '🏒' : isTiming ? '⏱️' : isRole ? '🥅' : isSpatial ? '↔️' : '💡';
 
               return (
                 <div
@@ -277,13 +305,7 @@ export function IntelligencePanel({
                                 : 'border-red-400/50 bg-red-400/25 text-red-200 hover:bg-red-400/35 active:scale-95'
                         } disabled:opacity-50`}
                       >
-                        {appliedIssues[issue.id]
-                          ? '✓ Applied'
-                          : isTiming
-                            ? 'Auto-Sync'
-                            : isRole
-                              ? 'Add Goalie'
-                              : 'Space Out'}
+                        {appliedIssues[issue.id] ? '✓ Applied' : issue.proposal.label}
                       </button>
                     </div>
                   )}

@@ -53,6 +53,7 @@ const {
   buildArenaFloor,
   buildIceSurface,
   buildZoneTints,
+  applyCentreIceLogo,
   buildCenterLogo,
   buildMarkings,
   buildBoardFixtures,
@@ -115,9 +116,14 @@ describe('buildCenterLogo', () => {
   it('has the rings, the arc-text tagline, the monogram and the wordmark', () => {
     const logo = buildCenterLogo();
     expect(logo).toBeInstanceOf(Container);
-    expect(logo.children).toHaveLength(4);
+    // Rings, the PHormation crest, and a (hidden) slot for a team logo.
+    expect(logo.children).toHaveLength(3);
+    const [rings, crest, teamLogo] = logo.children;
+    expect(crest.label).toBe('ph-crest');
+    expect(teamLogo.label).toBe('team-logo');
+    expect(teamLogo.visible).toBe(false);
 
-    const [rings, tagline, monogram, wordmark] = logo.children;
+    const [tagline, monogram, wordmark] = (crest as Container).children;
     expect(rings).toBeInstanceOf(Graphics);
     expect(monogram).toBeInstanceOf(Text);
     expect((monogram as Text).text).toBe('PH');
@@ -129,6 +135,17 @@ describe('buildCenterLogo', () => {
     const tagText = 'TRAIN · PLAY · IMPROVE';
     expect((tagline as Container).children).toHaveLength(tagText.length);
     expect((tagline as Container).children.every(child => child instanceof Text)).toBe(true);
+  });
+});
+
+describe('applyCentreIceLogo', () => {
+  it('shows the crest when there is no team logo', () => {
+    const root = new Container();
+    root.addChild(buildCenterLogo());
+    applyCentreIceLogo(root, null);
+    const logo = root.getChildByLabel('center-logo', true)!;
+    expect(logo.getChildByLabel('ph-crest')!.visible).toBe(true);
+    expect(logo.getChildByLabel('team-logo')!.visible).toBe(false);
   });
 });
 

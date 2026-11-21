@@ -305,7 +305,7 @@ const pp131WallCycle = template({
     'Half wall and goal line rotate: one carries up, the other drops below them - the killer has to choose.',
     'Bumper lives in the soft spot between the four killers and gives one-touch passes.',
     'Weak-side flank: off the wall and into the lane as the puck goes to the bumper.',
-    'Shoot for the far pad; the goal-line player is there for the rebound.',
+    'Shoot for the far pad; the low forward is at the top of the crease for the screen and the rebound.',
   ],
   progressions: ['The killers are live; the bumper must find the seam or reset to the top.'],
   variations: ['The bumper shoots it himself when the high killer cheats to the flank.'],
@@ -332,6 +332,8 @@ const pp131WallCycle = template({
     route('b', [{ x: 790, y: 212 }, { x: 795, y: 235 }], { startAt: 2.6, durationSeconds: 0.7 }),
     // The weak-side flank steps off the wall into the lane.
     route('ws', [{ x: 770, y: 80 }, { x: 790, y: 110 }], { startAt: 3.2, durationSeconds: 0.9 }),
+    // Now low, the half-wall forward steps to the top of the crease for the screen.
+    route('hw', [{ x: 915, y: 322 }, { x: 905, y: 282 }, { x: 892, y: 250 }], { startAt: 3.5 }),
     // The high killer collapses on the bumper, a step too late.
     route('k1', [{ x: 720, y: 245 }, { x: 742, y: 232 }], { startAt: 3.3, durationSeconds: 0.7 }),
   ],
@@ -405,7 +407,180 @@ const pp5v3Triangle = template({
   finishPolicy: 'finish-with-shot',
 });
 
+// ============================================================================
+// CYCLE READS - stop, change direction, find the seam
+// ============================================================================
+
+const stopUpCycle = template({
+  id: 'tpl-cycle-stop-up-escape',
+  title: 'Stop-Up Cycle: Escape Up the Wall to the Point',
+  summary:
+    'The winger drives deep with a defender chasing, stops hard on the wall, and escapes back up it as the defender over-commits to the corner; the puck goes to the point for a shot through the centre’s screen.',
+  categories: ['puck-handling', 'passing', 'shooting', 'battle'],
+  tags: ['cycle', 'o-zone', 'stop up', 'puck protection', 'low to high', 'screen'],
+  ageBands: ['u11', 'u13', 'u15', 'u18', 'adult'],
+  skillLevel: 'developing',
+  rinkArea: 'half',
+  durationMinutes: 10,
+  durationSeconds: 6.5,
+  equipmentSummary: ['pucks', '1 net'],
+  setupNotes: [
+    'Winger with the puck on the half wall, centre in the high slot, a defenceman at the near point.',
+    'One defender starts at the faceoff dot and chases the winger into the corner.',
+  ],
+  coachingPoints: [
+    'Drive deep enough to pull the defender below the goal line with you.',
+    'Stop on the inside edges with the puck on the boards side - body between the defender and the puck.',
+    'Out of the stop, the first stride is up the wall, away from the defender’s momentum.',
+    'Centre goes to the net as soon as the winger stops: the point shot needs a screen.',
+    'Point: walk to the middle and shoot low for a tip or a rebound.',
+  ],
+  progressions: ['The defender is live: if they do not over-commit, the winger takes the puck to the net instead.'],
+  variations: ['Stop up and hit the centre in the slot instead of the point.'],
+  actors: [
+    skater('f1', 'home', '17', { x: 760, y: 370 }, 'RW'),
+    skater('f2', 'home', '11', { x: 800, y: 290 }, 'C'),
+    skater('d1', 'home', '4', { x: 660, y: 335 }, 'D'),
+    skater('x1', 'away', '5', { x: 870, y: 318 }, 'D'),
+    awayGoalie,
+  ],
+  routes: [
+    // Drive deep...
+    route('f1', [{ x: 760, y: 370 }, { x: 850, y: 380 }, { x: 905, y: 368 }], { startAt: 0 }),
+    // ...stop, and escape back up the wall.
+    route('f1', [{ x: 905, y: 368 }, { x: 862, y: 380 }, { x: 805, y: 372 }], { startAt: 2.3 }),
+    // The defender chases and over-commits to the corner.
+    route('x1', [{ x: 870, y: 318 }, { x: 900, y: 340 }, { x: 918, y: 358 }], { startAt: 0.4 }),
+    // ...and has to turn back to the net front.
+    route('x1', [{ x: 918, y: 358 }, { x: 900, y: 300 }, { x: 893, y: 262 }], { startAt: 3.2 }),
+    // The centre goes to the net for the screen.
+    route('f2', [{ x: 800, y: 290 }, { x: 860, y: 250 }, { x: 885, y: 228 }], { startAt: 1.8 }),
+    // The point walks to the middle for a lane.
+    route('d1', [{ x: 660, y: 335 }, { x: 670, y: 290 }], { startAt: 3 }),
+  ],
+  puck: {
+    from: 'f1',
+    actions: [pass('f1', 'd1', { at: 3.9, flightSeconds: 0.6 }), shot('d1', { at: 5 })],
+  },
+  finishPolicy: 'finish-with-shot',
+});
+
+const reverseBehindNet = template({
+  id: 'tpl-cycle-reverse-behind-net',
+  title: 'Behind-the-Net Reverse & Walk-Out',
+  summary:
+    'The carrier takes the puck behind the net; the defender jumps the near post to stop the wrap-around, so the carrier reverses it back along the end boards to the forward trailing the play, who walks out from the goal line and shoots.',
+  categories: ['passing', 'puck-handling', 'shooting'],
+  tags: ['cycle', 'o-zone', 'reverse', 'behind the net', 'walk out', 'back door'],
+  ageBands: ['u13', 'u15', 'u18', 'adult'],
+  skillLevel: 'advanced',
+  rinkArea: 'quarter',
+  durationMinutes: 10,
+  durationSeconds: 6,
+  equipmentSummary: ['pucks', '1 net'],
+  setupNotes: [
+    'Two forwards in the right corner, the carrier ahead of the trailer.',
+    'One defender at the top of the circle who reads the carrier.',
+  ],
+  coachingPoints: [
+    'Carrier: go behind the net with speed and look for the defender - if they jump the post, the reverse is open.',
+    'Reverse the puck hard along the boards, behind your own skates, to where the trailer is going.',
+    'Trailer: stay a stick length behind and below the carrier so the reverse comes to you in stride.',
+    'Walk off the goal line toward the slot before shooting - make the goalie move with you.',
+    'The carrier keeps going around to the back door for the rebound.',
+  ],
+  progressions: ['The defender reads it live and may take the wrap or the reverse.'],
+  variations: ['If the defender stays home, the carrier wraps it on the far side.'],
+  actors: [
+    skater('f1', 'home', '19', { x: 880, y: 360 }, 'LW'),
+    skater('f2', 'home', '91', { x: 820, y: 332 }, 'C'),
+    skater('x1', 'away', '4', { x: 850, y: 290 }, 'D'),
+    awayGoalie,
+  ],
+  routes: [
+    // Behind the net, heading for the far side.
+    route('f1', [{ x: 880, y: 360 }, { x: 935, y: 335 }, { x: 972, y: 262 }, { x: 972, y: 190 }], { startAt: 0 }),
+    // On around to the back door once the puck is gone.
+    route('f1', [{ x: 972, y: 190 }, { x: 958, y: 148 }, { x: 918, y: 172 }], { startAt: 2.7 }),
+    // The defender jumps the near post to take away the wrap-around.
+    route('x1', [{ x: 850, y: 290 }, { x: 912, y: 282 }, { x: 932, y: 232 }], { startAt: 0.5 }),
+    // The trailer follows into the corner, below the carrier.
+    route('f2', [{ x: 820, y: 332 }, { x: 895, y: 372 }, { x: 942, y: 352 }], { startAt: 0.7 }),
+    // ...takes the reverse, and walks off the goal line.
+    route('f2', [{ x: 942, y: 352 }, { x: 915, y: 302 }, { x: 878, y: 266 }], { startAt: 3.1 }),
+  ],
+  puck: {
+    from: 'f1',
+    actions: [pass('f1', 'f2', { at: 2.3, flightSeconds: 0.6 }), shot('f2', { at: 5 })],
+  },
+  finishPolicy: 'finish-with-shot',
+});
+
+const weakSideSneak = template({
+  id: 'tpl-cycle-weak-side-d-sneak',
+  title: 'Weak-Side D Sneak to the Back Door',
+  summary:
+    'While the forwards hold the puck low on the strong side, the weak-side defenceman sneaks down to the back door. The goal-line forward draws the net-front defender to the post and bumps it up to the half wall, and the half-wall forward hits the sneak through the seam for a one-timer.',
+  categories: ['passing', 'shooting'],
+  tags: ['cycle', 'o-zone', 'd activation', 'back door', 'seam pass', 'one-timer'],
+  ageBands: ['u15', 'u18', 'adult'],
+  skillLevel: 'advanced',
+  rinkArea: 'half',
+  durationMinutes: 10,
+  durationSeconds: 5,
+  equipmentSummary: ['pucks', '1 net'],
+  setupNotes: [
+    'Strong side: a forward on the goal line with the puck, one on the half wall, a defenceman at the point.',
+    'Weak side: a defenceman at the point. Two defenders: one on the half wall, one at the net front.',
+  ],
+  coachingPoints: [
+    'Every defender is watching the puck below the goal line - that is when the weak-side D goes.',
+    'Sneak in down the middle of the far circle, stick down and loaded for a one-timer.',
+    'Strong-side D slides to the middle of the line: someone always covers the blue line.',
+    'Goal-line forward: walk up toward the post to pull the defender and the goalie with you, then bump it up the wall.',
+    'Half wall: step off the boards to open the seam, and pass it through before the defender recovers.',
+    'With the goalie sealing the near post, the far side of the net is the target.',
+  ],
+  progressions: ['The net-front defender is live and may cheat to the back door.'],
+  variations: ['If the seam closes, the half wall goes D-to-D through the strong-side D in the middle.'],
+  actors: [
+    skater('gl', 'home', '17', { x: 900, y: 362 }, 'RW'),
+    skater('hw', 'home', '11', { x: 790, y: 368 }, 'C'),
+    skater('d1', 'home', '4', { x: 660, y: 330 }, 'D'),
+    skater('d2', 'home', '6', { x: 660, y: 112 }, 'D'),
+    skater('x1', 'away', '9', { x: 800, y: 300 }, 'F'),
+    skater('x2', 'away', '5', { x: 878, y: 252 }, 'D'),
+    awayGoalie,
+  ],
+  routes: [
+    // The goal-line forward walks up a stride with the puck and stops.
+    route('gl', [{ x: 900, y: 362 }, { x: 928, y: 330 }, { x: 925, y: 302 }], { startAt: 0.3 }),
+    // The weak-side D reads it and sneaks down.
+    route('d2', [{ x: 660, y: 112 }, { x: 772, y: 128 }, { x: 878, y: 150 }], { startAt: 0.8 }),
+    // The strong-side D slides to the middle to cover the line.
+    route('d1', [{ x: 660, y: 330 }, { x: 664, y: 260 }, { x: 666, y: 212 }], { startAt: 1.4 }),
+    // The net-front defender jumps the goal-line carrier at the post.
+    route('x2', [{ x: 878, y: 252 }, { x: 905, y: 285 }], { startAt: 0.8 }),
+    // The half-wall forward steps off the boards to open the seam...
+    route('hw', [{ x: 790, y: 368 }, { x: 800, y: 344 }], { startAt: 1.4 }),
+    // ...as the defender pressures them from above.
+    route('x1', [{ x: 800, y: 300 }, { x: 772, y: 328 }], { startAt: 1.2 }),
+  ],
+  puck: {
+    from: 'gl',
+    actions: [
+      pass('gl', 'hw', { at: 1.7, flightSeconds: 0.5 }),
+      pass('hw', 'd2', { at: 2.8, flightSeconds: 0.6, passType: 'one-touch' }),
+      shot('d2', { at: 3.8 }),
+    ],
+  },
+  finishPolicy: 'finish-with-shot',
+});
+
 export const CYCLE_TEMPLATES: DrillTemplate[] = [
+  stopUpCycle,
+  reverseBehindNet,
+  weakSideSneak,
   twoManLowCycle,
   threeManCycle,
   cycleDefenceActivation,

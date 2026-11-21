@@ -336,6 +336,7 @@ export const centreTimingDelay: DrillTemplate = template({
     'Do not force the pass to the trailer until they have speed.',
     'Keep your feet moving through the delay; a stopped player is a target.',
     'The trailer calls for it.',
+    'The winger who made the first pass drives the far post - that is what opens the lane for the trailer.',
   ],
   progressions: ['Add a defender who reads the delay.'],
   variations: ['Delay behind the net instead of at the top of the circle.'],
@@ -356,6 +357,13 @@ export const centreTimingDelay: DrillTemplate = template({
       { x: 660, y: 230 },
       { x: 740, y: 245 },
     ]),
+    // Having passed, the winger drives wide to the far post: it pushes the
+    // defence back, which is the space the delay creates, and screens the shot.
+    route('w', [
+      { x: 780, y: 120 },
+      { x: 860, y: 150 },
+      { x: 893, y: 196 },
+    ], { startAt: 1.5 }),
   ],
   puck: {
     from: 'w',

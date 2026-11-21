@@ -36,6 +36,7 @@ const destroySpy = vi.fn();
 const rinkSceneSpy = { setFromMatrix: vi.fn(), destroy: vi.fn() };
 vi.mock('./rinkScene', () => ({
   buildRinkScene: () => rinkSceneSpy,
+  applyCentreIceLogo: vi.fn(),
 }));
 
 // Likewise, the dynamic (game) scene graph's own content is gameScene.ts's

@@ -35,6 +35,7 @@ import { orbitFromCamera, ORBIT_FOV_DEGREES } from './orbit';
 import { RINK_SCALE, rinkToWorld, worldToRink } from './worldMap';
 import { buildArena } from './scene/buildArena';
 import { createIceTexture } from './scene/iceTexture';
+import { subscribeCentreIceLogo } from '@/render/teamLogo';
 import { createGoalNets } from './scene/goalNet';
 import { createRouteOverlay3D } from './scene/routeOverlay';
 import { createEquipmentOverlay3D } from './scene/equipment3D';
@@ -182,6 +183,15 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const iceTexture = createIceTexture();
     const arena = buildArena(iceTexture.canvas, { quality });
     scene.add(arena.root);
+    // A new team logo re-bakes the sheet and re-uploads its texture.
+    const unsubscribeLogo = subscribeCentreIceLogo(() => {
+      iceTexture.redraw();
+      arena.root.traverse(object => {
+        const material = (object as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+        if (material?.map?.image === iceTexture.canvas) material.map.needsUpdate = true;
+      });
+      renderRef.current();
+    });
     const goalNets = createGoalNets(quality);
     scene.add(goalNets.root);
     // Nothing in the arena or the nets ever moves: compute their matrices
@@ -326,6 +336,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       removeEnvironment();
       goalNets.dispose();
       arena.dispose();
+      unsubscribeLogo();
       iceTexture.dispose();
       scene.clear();
       sceneRef.current = null;

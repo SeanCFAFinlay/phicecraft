@@ -20,6 +20,8 @@ import { fiveManCornerRetrievalDrill } from '@/fixtures/fiveManCornerRetrieval.v
 import { fiveManCrossCornerDrill } from '@/fixtures/fiveManCrossCorner.v1';
 import { fiveManLowHighDrill } from '@/fixtures/fiveManLowHigh.v1';
 import type { Drill } from '@/core/types';
+import { compileDrill } from '@/sim/compileDrill';
+import { sampleFrame } from '@/sim/sampleFrame';
 
 const FIXTURES: { name: string; drill: () => Drill }[] = [
   { name: 'give and go', drill: () => structuredClone(giveAndGoRegressionDrill) },
@@ -253,9 +255,33 @@ describe('a player with several movement segments', () => {
     expect(drill.skatePaths[0].points).toHaveLength(3);
   });
 
-  it('reports that the pause between them is not timed', () => {
-    const { losses } = projectToV2(twoSegments());
-    expect(losses.some(loss => loss.kind === 'joined-segments')).toBe(true);
+  it('keeps each segment as a timed leg: the pause and the change of skating survive', () => {
+    const { drill, losses } = projectToV2(twoSegments());
+    const legs = drill.skatePaths[0].legs;
+    expect(legs).toHaveLength(2);
+    expect(legs?.[0]).toMatchObject({ startAtSeconds: 0, mode: 'skate' });
+    expect(legs?.[1]).toMatchObject({ startAtSeconds: 4, mode: 'backward' });
+    expect(losses.some(loss => loss.kind === 'joined-segments')).toBe(false);
+  });
+
+  it('plays the stop: the player waits at the seam until the next leg starts', () => {
+    const document = twoSegments();
+    // Standing where the first leg begins, so its length is exactly 100.
+    document.actors[0] = { ...document.actors[0], position: { x: 100, y: 100 } };
+    const { drill } = projectToV2(document);
+    const compiled = compileDrill(drill);
+    const actorId = drill.skatePaths[0].ownerId;
+    // The first leg (100 units) is done well before 3s; the second starts at 4s.
+    const waiting = sampleFrame(compiled, 3.5).players[actorId];
+    expect(waiting.position.x).toBeCloseTo(200, 0);
+    expect(waiting.position.y).toBeCloseTo(100, 0);
+    expect(waiting.speed).toBe(0);
+    // Going again, backward: facing away from the direction of travel.
+    const going = sampleFrame(compiled, 5).players[actorId];
+    expect(going.position.y).toBeGreaterThan(105);
+    const travel = Math.atan2(going.velocity.y, going.velocity.x);
+    const facing = going.heading;
+    expect(Math.abs(Math.cos(travel - facing) + 1)).toBeLessThan(0.05);
   });
 });
 
