@@ -465,13 +465,16 @@ export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: numbe
         resolution.firedEventIndices.includes(event.index) &&
         defendingGoalieAt(compiled, event.source as ShotEvent, event.arrivalSeconds)?.id === id
       );
-      const goalie = sampleGoalie(base, resolution.puck, Boolean(incoming));
+      const goalieRoute = compiled.routes.get(id);
+      const authored = Boolean(goalieRoute && goalieRoute.totalLength > 0);
+      const goalie = sampleGoalie(base, resolution.puck, Boolean(incoming), authored);
       players[id] = {
         ...base,
+        position: goalie.position,
         heading: goalie.heading,
         goalieAction: goalie.action,
         actionPhase: incoming ? contactPhase(timeSeconds, incoming.arrivalSeconds, 0.35, 0.55) : undefined,
-        bladePosition: getBladePosition(player, base.position, goalie.heading),
+        bladePosition: getBladePosition(player, goalie.position, goalie.heading),
       };
     } else {
       // Skater heading intelligence: stationary skaters track the puck carrier or loose puck rather than staring eastward.

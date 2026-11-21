@@ -203,6 +203,14 @@ describe('reset and document changes', () => {
     expect(store.getFrame().progress).toBe(0);
   });
 
+  it('shows the drill length on the clock before the first play', () => {
+    const timed = buildDrill({ id: 'timed' });
+    timed.settings = { ...timed.settings!, timeLimitSeconds: 9 };
+    store.setDrill(timed);
+    expect(store.getSnapshot().durationSeconds).toBe(9);
+    expect(store.getSnapshot().progressPercent).toBe(0);
+  });
+
   it('does not reset when handed the same drill object again', () => {
     const drill = drillWithRoute();
     store.setDrill(drill);

@@ -20,7 +20,7 @@ async function openLibrary(page: Page) {
 const cards = (page: Page) => page.getByRole('article');
 
 /** Every drill the catalogue ships. Kept in step with DRILL_TEMPLATES. */
-const CATALOGUE = 57;
+const CATALOGUE = 63;
 
 /** Age, area and requirement chips sit behind the Filters button. */
 async function showFilters(page: Page) {

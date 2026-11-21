@@ -9,6 +9,7 @@
 
 import type { Drill, ID, Point } from '@/core/types';
 import { GHOST_TRAIL_MAX_LENGTH } from '@/core/constants';
+import { getMechanicsConfig } from '@/sim/config';
 import { EMPTY_FRAME, GhostTrailBuffer, derivePlaybackFrame, type PlaybackFrame } from './playbackFrame';
 
 /** What React is allowed to see. Deliberately small and low-frequency. */
@@ -129,7 +130,10 @@ export class PlaybackStore {
   reset(): void {
     this.frame = EMPTY_FRAME;
     this.trails.clear();
-    this.display = { progressPercent: 0, durationSeconds: 0, lifecycle: 'ready', firedEventCount: 0 };
+    // The clock shows the drill's real length before the first Play, not
+    // "0.0s / 0.0s" - a coach reads that as an empty or broken drill.
+    const durationSeconds = this.drill ? getMechanicsConfig(this.drill).durationSeconds : 0;
+    this.display = { progressPercent: 0, durationSeconds, lifecycle: 'ready', firedEventCount: 0 };
     for (const listener of this.frameListeners) listener();
     for (const listener of this.displayListeners) listener();
   }

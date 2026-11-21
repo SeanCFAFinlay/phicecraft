@@ -87,7 +87,7 @@ export function FirstRunHint() {
   };
 
   return (
-    <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 z-30 flex w-full max-w-[min(580px,94vw)] justify-center px-2">
+    <div className="pointer-events-none absolute top-14 xl:top-2 left-1/2 -translate-x-1/2 z-30 flex w-full max-w-[min(580px,94vw)] justify-center px-2">
       <div
         role="status"
         aria-live="polite"

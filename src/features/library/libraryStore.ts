@@ -37,6 +37,7 @@ export type LibrarySort = 'featured' | 'newest' | 'shortest' | 'title';
 export type CollectionId =
   | 'top-ten'
   | 'special-teams'
+  | 'cycle'
   | 'team-systems'
   | 'small-games'
   | 'skills'
@@ -53,6 +54,8 @@ const inAny = (entry: LibraryEntry, categories: DrillCategory[]) =>
 
 export const COLLECTIONS: LibraryCollection[] = [
   { id: 'top-ten', label: 'Top Ten', matches: entry => entry.tags.includes('top 10') },
+  // Cycling and the power plays built on it: offensive-zone possession.
+  { id: 'cycle', label: 'Cycle & Power Play', matches: entry => entry.tags.includes('cycle') },
   {
     id: 'special-teams',
     label: 'Special Teams',

@@ -37,7 +37,7 @@ export function ToastHost() {
   const persistent = toast.duration <= 0;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-center px-3 pt-2">
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-center px-3 pt-14 xl:pt-2">
       <div
         role={toast.role}
         aria-live={toast.role === 'alert' ? 'assertive' : 'polite'}

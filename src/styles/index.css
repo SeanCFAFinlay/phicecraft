@@ -90,6 +90,21 @@
   }
 
   /*
+   * The whole app is dark. Without this the browser draws native controls -
+   * the option lists of every <select>, date pickers, scrollbars - in its
+   * light theme, so white option text landed on a white popup.
+   */
+  :root {
+    color-scheme: dark;
+  }
+
+  select option,
+  select optgroup {
+    background-color: #0c1825;
+    color: #e6f1fa;
+  }
+
+  /*
    * Chrome is not selectable, because dragging a toolbar label should not
    * start a text selection. Content is, because a coach copying a drill name
    * or an error message is a legitimate thing to do.

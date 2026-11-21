@@ -32,7 +32,7 @@ export function TopStrip() {
       style={{ minHeight: 'calc(var(--top-strip-height) + var(--safe-top))' }}
     >
       {/* LEFT: Menu button, Brand Logo & Play Name */}
-      <div className="flex items-center gap-1.5 min-w-0">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
         <button
           type="button"
           onClick={() => dispatch({ type: 'TOGGLE_MENU' })}
@@ -81,60 +81,66 @@ export function TopStrip() {
           name or the save state - they were drawn underneath the tabs, and
           at 320px the More button fell off the screen. Every one of these
           destinations is in the main menu. */}
-      <nav aria-label="Workspaces" className="hidden items-center gap-1 rounded-xl bg-black/40 p-0.5 border border-white/10 sm:flex">
+      <nav aria-label="Workspaces" className="mx-2 hidden shrink-0 items-center gap-1 rounded-xl bg-black/40 p-0.5 border border-white/10 sm:flex">
         <button
           type="button"
           onClick={() => dispatch({ type: 'CLOSE_SHEET' })}
+          aria-label="Rink board"
+          aria-current={isRink ? 'page' : undefined}
+          title="Rink"
           className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
             isRink
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
-          <span>🏒</span>
-          <span className="hidden md:inline">Rink</span>
+          <span aria-hidden="true">🏒</span>
+          <span className="hidden xl:inline">Rink</span>
         </button>
 
         <button
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'practice' })}
           aria-label="Practice session planner"
+          title="Practice Plans"
           className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
             isPractice
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
-          <span>📅</span>
-          <span className="hidden md:inline">Practice Plans</span>
+          <span aria-hidden="true">📅</span>
+          <span className="hidden xl:inline">Practice Plans</span>
         </button>
 
         <button
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'library' })}
           aria-label="Drill playbook library"
+          title="Playbook"
           className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
             isLibrary
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
-          <span>📚</span>
-          <span className="hidden md:inline">Playbook</span>
+          <span aria-hidden="true">📚</span>
+          <span className="hidden xl:inline">Playbook</span>
         </button>
 
         <button
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'coach' })}
           aria-label="Coach workspace"
+          title="Teach"
           className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
             isCoach
               ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
               : 'text-white/70 hover:text-white hover:bg-white/5'
           }`}
         >
-          <span>📋</span>
-          <span className="hidden md:inline">Teach</span>
+          <span aria-hidden="true">📋</span>
+          <span className="hidden xl:inline">Teach</span>
         </button>
       </nav>
 

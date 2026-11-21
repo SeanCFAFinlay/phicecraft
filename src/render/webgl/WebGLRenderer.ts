@@ -24,7 +24,7 @@
 // therefore unconditionally Pixi - camera.tilt never routes anywhere else.
 // ============================================================================
 
-import { WebGLRenderer as PixiWebGLRenderer, Matrix, type Container } from 'pixi.js';
+import { WebGLRenderer as PixiWebGLRenderer, Matrix, Ticker, type Container } from 'pixi.js';
 import type { BoardRenderer, RendererHost } from '@/render/BoardRenderer';
 import { staticLayerKey, type StaticLayerInput } from '@/components/canvas/renderStatic';
 import type { DynamicLayerInput } from '@/components/canvas/renderDynamic';
@@ -45,10 +45,40 @@ import { buildGameScene, destroyGameScene, updateGameScene, type GameScene } fro
  * per-frame cost (the driver keeps last frame's buffer around instead of
  * discarding it) for no benefit; only the static layer opts in.
  */
+/**
+ * Pixi's own clock and pointer system, switched off.
+ *
+ * Both renderers register with `Ticker.system`, which then requests an
+ * animation frame 60 times a second for as long as the page is open - even
+ * with the board standing still, because the pointer system (hit-testing a
+ * scene nothing listens to: every gesture goes through the editor's own
+ * GestureStateMachine) and the texture GC scheduler both hang off it. On a
+ * phone that was a CPU core kept awake for nothing, and work competing with
+ * every tap. The clock is stopped and advanced by hand in `renderWithClock`,
+ * so the GC still gets its turn whenever the board actually draws.
+ */
+function quietPixiClock(): void {
+  const clock = Ticker.system;
+  clock.autoStart = false;
+  clock.stop();
+}
+
+function detachPixiPointerEvents(renderer: PixiWebGLRenderer): void {
+  const events = (renderer as unknown as { events?: { setTargetElement(element: null): void } }).events;
+  events?.setTargetElement(null);
+}
+
+/** Render, after giving Pixi's stopped clock (GC, scheduled tasks) its tick. */
+function renderWithClock(renderer: PixiWebGLRenderer, container: Container): void {
+  Ticker.system.update();
+  renderer.render(container);
+}
+
 async function buildRenderer(
   canvas: HTMLCanvasElement,
   preserveDrawingBuffer: boolean
 ): Promise<PixiWebGLRenderer> {
+  quietPixiClock();
   const renderer = new PixiWebGLRenderer();
   // resolution 1: the canvas is resized to the exact device-pixel dimensions
   // Canvas2DRenderer would use (see `resize` below), so nothing here needs
@@ -60,6 +90,8 @@ async function buildRenderer(
     resolution: 1,
     preserveDrawingBuffer,
   });
+  detachPixiPointerEvents(renderer);
+  quietPixiClock();
   return renderer;
 }
 
@@ -128,7 +160,7 @@ export class WebGLRenderer implements BoardRenderer {
 
     const m = cameraMatrix(input.camera);
     this.rinkScene.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.e, m.f));
-    renderer.render(this.rinkScene);
+    renderWithClock(renderer, this.rinkScene);
     this.host.onPaint('static');
   }
 
@@ -139,7 +171,7 @@ export class WebGLRenderer implements BoardRenderer {
     updateGameScene(this.gameScene, input);
     const m = cameraMatrix(input.camera);
     this.gameScene.root.setFromMatrix(new Matrix(m.a, m.b, m.c, m.d, m.e, m.f));
-    renderer.render(this.gameScene.root);
+    renderWithClock(renderer, this.gameScene.root);
     this.host.onPaint('dynamic');
   }
 

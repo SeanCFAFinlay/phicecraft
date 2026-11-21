@@ -44,6 +44,7 @@ export function ModeSwitch({ onSelect }: { onSelect?: () => void } = {}) {
             role="radio"
             aria-checked={checked}
             aria-label={label}
+            title={label}
             onClick={() => {
               commands.setMode(mode);
               onSelect?.();
@@ -55,7 +56,7 @@ export function ModeSwitch({ onSelect }: { onSelect?: () => void } = {}) {
             }`}
           >
             {icon}
-            <span className="hidden text-[12px] font-bold sm:inline">{label}</span>
+            <span className="hidden text-[12px] font-bold lg:inline">{label}</span>
           </button>
         );
       })}

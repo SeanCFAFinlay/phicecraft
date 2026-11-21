@@ -51,6 +51,9 @@ vi.mock('./gameScene', () => ({
   destroyGameScene: (...args: unknown[]) => destroyGameSceneSpy(...args),
 }));
 
+// Pixi's shared clock: stopped by the renderer and advanced only when it draws.
+const tickerSystem = vi.hoisted(() => ({ autoStart: true, stop: vi.fn(), update: vi.fn() }));
+
 vi.mock('pixi.js', () => {
   class FakePixiWebGLRenderer {
     destroy = destroySpy;
@@ -75,6 +78,7 @@ vi.mock('pixi.js', () => {
   return {
     WebGLRenderer: FakePixiWebGLRenderer,
     Matrix: FakeMatrix,
+    Ticker: { system: tickerSystem },
   };
 });
 
@@ -211,6 +215,20 @@ describe('WebGLRenderer.drawDynamic', () => {
 
     expect(updateGameSceneSpy).toHaveBeenCalledTimes(1);
     expect(gameSceneRootSpy.setFromMatrix).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Pixi from running its own 60fps clock, and ticks it only when it draws', async () => {
+    tickerSystem.autoStart = true;
+    tickerSystem.update.mockClear();
+    const renderer = new WebGLRenderer(host());
+    await renderer.whenReady();
+
+    expect(tickerSystem.autoStart).toBe(false);
+    expect(tickerSystem.stop).toHaveBeenCalled();
+    expect(tickerSystem.update).not.toHaveBeenCalled();
+
+    renderer.drawDynamic(dynamicInput(flatCamera()));
+    expect(tickerSystem.update).toHaveBeenCalledTimes(1);
   });
 
   it('tilt no longer routes anywhere else - the Pixi game scene updates and renders even at tabletop tilt', async () => {

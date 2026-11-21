@@ -22,6 +22,20 @@ export default {
         'home': '#e63946',
         'away': '#3a86ff',
       },
+      // Opacity steps the components use that Tailwind's default scale (0, 5,
+      // 10 ... 95, 100) lacks. Without them a class like `bg-[#07131e]/98`
+      // generates NO CSS at all - menus and panels rendered with no
+      // background, white text straight over the white ice.
+      opacity: {
+        2: '0.02',
+        8: '0.08',
+        12: '0.12',
+        88: '0.88',
+        92: '0.92',
+        94: '0.94',
+        97: '0.97',
+        98: '0.98',
+      },
       fontFamily: {
         'sans': ['-apple-system', 'SF Pro Display', 'Helvetica Neue', 'sans-serif'],
       },
