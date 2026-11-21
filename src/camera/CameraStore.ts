@@ -16,7 +16,9 @@ import {
   BOARD_ROTATION_VERTICAL,
   calculateFitCamera,
   cameraForZone,
+  fitRegionCamera,
   normalizeCamera,
+  type WorldRect,
   zoomAt,
   type Viewport,
   type Zone,
@@ -155,6 +157,19 @@ export class CameraStore {
       // "Show me everything" is the one zoom that keeps auto-fit alive.
       userAdjusted: zone !== 'full',
       zone,
+    });
+  }
+
+  /**
+   * Frame an arbitrary patch of ice - the area a drill is actually played in -
+   * keeping the current rotation and tilt.
+   */
+  frameRegion(region: WorldRect): void {
+    this.commit({
+      ...this.snapshot,
+      camera: normalizeCamera(fitRegionCamera(region, this.snapshot.viewport, this.snapshot.camera)),
+      userAdjusted: true,
+      zone: 'custom',
     });
   }
 

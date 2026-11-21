@@ -14,7 +14,7 @@
 
 import type { Drill } from '@/core/types';
 import { RINK } from '@/core/constants';
-import type { Zone } from './cameraMath';
+import type { WorldRect, Zone } from './cameraMath';
 
 export interface ActionFrame {
   zone: Zone;
@@ -24,6 +24,45 @@ export interface ActionFrame {
 
 /** Wider than this (in rink units, 5 per foot) and the play needs the whole sheet. */
 const ONE_ZONE_SPAN = RINK.width * 0.42;
+
+/** Ice kept around the play, so a skater at the edge is not cut in half. */
+const ACTION_MARGIN = 9 * 5;
+/** A drill run in a phone-box of ice is still framed with some rink around it. */
+const MIN_ACTION_WIDTH = 230;
+const MIN_ACTION_HEIGHT = 190;
+
+/**
+ * The patch of ice a drill is played in: every skater's start, every route
+ * point, where every puck action goes - and the net it attacks, so a camera
+ * framing it always shows what the play is for.
+ */
+export function actionBounds(drill: Pick<Drill, 'players' | 'skatePaths' | 'events'>): WorldRect {
+  const skaters = new Set(drill.players.filter(player => player.role !== 'G').map(player => player.id));
+  const points: { x: number; y: number }[] = [];
+  for (const player of drill.players) if (skaters.has(player.id)) points.push(player);
+  for (const path of drill.skatePaths) if (skaters.has(path.ownerId)) points.push(...path.points);
+  for (const event of drill.events) if (event.toPoint) points.push(event.toPoint);
+  if (points.length === 0) return { x: RINK.x, y: RINK.y, width: RINK.width, height: RINK.height };
+
+  const { attackedNet } = actionFrame(drill);
+  points.push({ x: attackedNet === 'right' ? RINK.goalLineRightX : RINK.goalLineLeftX, y: RINK.centerY });
+
+  let minX = Math.min(...points.map(p => p.x)) - ACTION_MARGIN;
+  let maxX = Math.max(...points.map(p => p.x)) + ACTION_MARGIN;
+  let minY = Math.min(...points.map(p => p.y)) - ACTION_MARGIN;
+  let maxY = Math.max(...points.map(p => p.y)) + ACTION_MARGIN;
+  const grow = (lo: number, hi: number, min: number): [number, number] => {
+    const missing = Math.max(0, min - (hi - lo)) / 2;
+    return [lo - missing, hi + missing];
+  };
+  [minX, maxX] = grow(minX, maxX, MIN_ACTION_WIDTH);
+  [minY, maxY] = grow(minY, maxY, MIN_ACTION_HEIGHT);
+  minX = Math.max(RINK.x, minX);
+  maxX = Math.min(RINK.x + RINK.width, maxX);
+  minY = Math.max(RINK.y, minY);
+  maxY = Math.min(RINK.y + RINK.height, maxY);
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
 
 export function actionFrame(drill: Pick<Drill, 'players' | 'skatePaths' | 'events'>): ActionFrame {
   const skaters = new Set(drill.players.filter(player => player.role !== 'G').map(player => player.id));

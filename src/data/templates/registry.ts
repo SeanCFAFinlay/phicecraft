@@ -24,6 +24,7 @@ import { TRANSITION_TEMPLATES } from './transition';
 import { TOP_TEN_TEMPLATES } from './topTen';
 import { SYSTEM_TEMPLATES } from './systems';
 import { CYCLE_TEMPLATES } from './cycle';
+import { FUNDAMENTAL_TEMPLATES } from './fundamentals';
 
 export const DRILL_TEMPLATES: DrillTemplate[] = [
   ...TOP_TEN_TEMPLATES,
@@ -33,6 +34,7 @@ export const DRILL_TEMPLATES: DrillTemplate[] = [
   ...TRANSITION_TEMPLATES,
   ...SYSTEM_TEMPLATES,
   ...CYCLE_TEMPLATES,
+  ...FUNDAMENTAL_TEMPLATES,
 ];
 
 const BY_ID = new Map(DRILL_TEMPLATES.map(item => [item.id, item]));

@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppServices, useAppState } from '@/hooks/useAppState';
-import { actionFrame } from '@/camera/actionZone';
+import { actionBounds, actionFrame } from '@/camera/actionZone';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { useCameraSnapshot } from '@/playback/usePlaybackSnapshot';
 import { useResponsive } from '@/ui/useResponsive';
@@ -19,6 +19,14 @@ import { loadBoard3D } from '@/render3d/loadBoard3D';
 /** Enter a straight side view unless the coach already rotated the rink. */
 const DEFAULT_ANGLE = 0;
 const ANIMATION_MS = 380;
+/**
+ * The flat fit of a region leaves it small in perspective, because the far
+ * side recedes; this brings the play back up to fill the screen. Side-on
+ * only: looking down the ice, the near side is magnified by perspective, and
+ * any extra zoom pushes the skaters nearest the camera off the screen.
+ */
+const ACTION_TIGHTEN = 1.12;
+const PORTRAIT_ENTRY_TILT = 0.7;
 
 /**
  * The views the area button steps through.
@@ -45,6 +53,9 @@ export function useViewActions() {
   const { camera } = useEditorRuntime();
   const { state } = useAppState();
   const drill = state.drill;
+  // Read at call time: the 3D callbacks stay stable while the drill is edited.
+  const drillRef = useRef(drill);
+  drillRef.current = drill;
   const { announcer } = useAppServices();
   const snapshot = useCameraSnapshot(camera);
   const { prefersReducedMotion } = useResponsive();
@@ -104,42 +115,6 @@ export function useViewActions() {
     [camera, prefersReducedMotion]
   );
 
-  const toggle3D = useCallback(() => {
-    if (is3D) {
-      animateTo(0, 0);
-      return;
-    }
-    // Already in flight: a repeat tap while the chunk loads is a no-op, not a
-    // second fetch.
-    if (loadingBoard3D) return;
-
-    setLoadingBoard3D(true);
-    loadBoard3D()
-      .then(() => {
-        const rotation = camera.camera.rotation ?? 0;
-        animateTo(rotation === 0 ? DEFAULT_ANGLE : rotation, TABLETOP_DEFAULT_TILT, true);
-      })
-      .catch(error => {
-        // Stay in 2D: never animate a tilt Board3D cannot actually render.
-        console.warn('phicecraft: Board3D chunk failed to load', error);
-        announcer.announce('3D view unavailable; staying on the flat rink');
-      })
-      .finally(() => setLoadingBoard3D(false));
-  }, [is3D, loadingBoard3D, camera, animateTo, announcer]);
-
-  const spin = useCallback(
-    (delta: number) => animateTo((camera.camera.rotation ?? 0) + delta, camera.camera.tilt ?? 0),
-    [camera, animateTo]
-  );
-
-  const zoomToZone = useCallback((zone: Zone) => camera.zoomToZone(zone), [camera]);
-  const cycleArea = useCallback(() => camera.zoomToZone(nextArea.zone), [camera, nextArea.zone]);
-  const toggleOrientation = useCallback(
-    () => camera.setBoardOrientation(isVerticalBoard ? 'horizontal' : 'vertical'),
-    [camera, isVerticalBoard]
-  );
-  const fit = useCallback(() => camera.fit(), [camera]);
-
   /**
    * Zone framing is computed for the flat board; seen in perspective, that
    * leaves the zone small in the middle of most of the sheet. Tighten about
@@ -153,16 +128,74 @@ export function useViewActions() {
     [camera]
   );
 
-  // Frame the play, not the whole sheet: the zone the skaters work in.
+  // Frame the play, not the whole sheet: the ice the skaters actually use,
+  // plus the net they attack.
   const frameAction = useCallback(() => {
-    const { zone } = actionFrame(drill);
-    if (zone === 'full') {
-      camera.fit();
+    camera.frameRegion(actionBounds(drillRef.current));
+    const downIce = Math.abs(camera.camera.rotation ?? 0) > Math.PI / 4;
+    if (!downIce) tighten(ACTION_TIGHTEN);
+  }, [camera, tighten]);
+
+  /**
+   * Which way the rink faces on entering 3D.
+   *
+   * Side-on suits a wide screen. On a phone held upright, side-on is a thin
+   * strip across the middle of the screen with most of it empty; looking down
+   * the ice toward the net being attacked fills the screen and reads the way
+   * the play actually goes. A rink the coach already turned keeps its angle.
+   */
+  const entryRotation = useCallback((): number => {
+    const current = camera.camera.rotation ?? 0;
+    const { viewport } = camera.getSnapshot();
+    const portrait = viewport.height > viewport.width * 1.15;
+    if (!portrait) return Math.abs(current) > Math.PI / 4 ? DEFAULT_ANGLE : current;
+    return actionFrame(drillRef.current).attackedNet === 'right' ? -Math.PI / 2 : Math.PI / 2;
+  }, [camera]);
+
+  /**
+   * Looking down the ice on an upright phone, a low camera spends half the
+   * screen on near ice the play never reaches. A steeper, more overhead angle
+   * keeps the play big and still reads as 3D.
+   */
+  const entryTilt = useCallback((): number => {
+    const { viewport } = camera.getSnapshot();
+    return viewport.height > viewport.width * 1.15 ? PORTRAIT_ENTRY_TILT : TABLETOP_DEFAULT_TILT;
+  }, [camera]);
+
+  const toggle3D = useCallback(() => {
+    if (is3D) {
+      animateTo(0, 0);
       return;
     }
-    camera.zoomToZone(zone);
-    tighten(1.45);
-  }, [camera, drill, tighten]);
+    // Already in flight: a repeat tap while the chunk loads is a no-op, not a
+    // second fetch.
+    if (loadingBoard3D) return;
+
+    setLoadingBoard3D(true);
+    loadBoard3D()
+      .then(() => {
+        animateTo(entryRotation(), entryTilt(), frameAction);
+      })
+      .catch(error => {
+        // Stay in 2D: never animate a tilt Board3D cannot actually render.
+        console.warn('phicecraft: Board3D chunk failed to load', error);
+        announcer.announce('3D view unavailable; staying on the flat rink');
+      })
+      .finally(() => setLoadingBoard3D(false));
+  }, [is3D, loadingBoard3D, animateTo, entryRotation, entryTilt, frameAction, announcer]);
+
+  const spin = useCallback(
+    (delta: number) => animateTo((camera.camera.rotation ?? 0) + delta, camera.camera.tilt ?? 0),
+    [camera, animateTo]
+  );
+
+  const zoomToZone = useCallback((zone: Zone) => camera.zoomToZone(zone), [camera]);
+  const cycleArea = useCallback(() => camera.zoomToZone(nextArea.zone), [camera, nextArea.zone]);
+  const toggleOrientation = useCallback(
+    () => camera.setBoardOrientation(isVerticalBoard ? 'horizontal' : 'vertical'),
+    [camera, isVerticalBoard]
+  );
+  const fit = useCallback(() => camera.fit(), [camera]);
 
   // Low behind the net the play attacks, looking back up the ice at it.
   const behindTheNet = useCallback(() => {

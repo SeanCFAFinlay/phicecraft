@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Drill } from '@/core/types';
-import { actionFrame } from './actionZone';
+import { actionBounds, actionFrame } from './actionZone';
+import { RINK } from '@/core/constants';
 
 type Shape = Pick<Drill, 'players' | 'skatePaths' | 'events'>;
 
@@ -50,5 +51,33 @@ describe('actionFrame', () => {
 
   it('falls back to the whole sheet for an empty board', () => {
     expect(actionFrame(drill([])).zone).toBe('full');
+  });
+});
+
+describe('actionBounds', () => {
+  it('wraps the skaters and the net they attack, with room around them', () => {
+    const box = actionBounds(drill([700, 800, 880]));
+    expect(box.x).toBeLessThan(700);
+    expect(box.x + box.width).toBeGreaterThanOrEqual(RINK.goalLineRightX);
+    expect(box.y).toBeLessThan(200);
+    expect(box.y + box.height).toBeGreaterThan(212.5);
+  });
+
+  it('never frames a postage stamp, however tight the drill', () => {
+    const box = actionBounds(drill([900, 905]));
+    expect(box.width).toBeGreaterThanOrEqual(150);
+    expect(box.height).toBeGreaterThanOrEqual(150);
+  });
+
+  it('stays on the ice', () => {
+    const box = actionBounds(drill([60, 940]));
+    expect(box.x).toBeGreaterThanOrEqual(RINK.x);
+    expect(box.y).toBeGreaterThanOrEqual(RINK.y);
+    expect(box.x + box.width).toBeLessThanOrEqual(RINK.x + RINK.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(RINK.y + RINK.height);
+  });
+
+  it('is the whole sheet for an empty board', () => {
+    expect(actionBounds(drill([]))).toEqual({ x: RINK.x, y: RINK.y, width: RINK.width, height: RINK.height });
   });
 });
