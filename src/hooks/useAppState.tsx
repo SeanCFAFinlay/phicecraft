@@ -151,7 +151,27 @@ export function AppProvider({ children, services, now, autoInitialize = true }: 
   // Open storage, migrate legacy data, and restore the last drill.
   useEffect(() => {
     if (!autoInitialize) return;
-    void commands.initialize();
+    void commands.initialize().then(async () => {
+      // A play sent as a link (#play=...) opens the import preview once the
+      // library is loaded, so it lands as a copy beside the coach's own plays.
+      if (!window.location.hash.includes('play=')) return;
+      const { takeSharedPlayFromLocation } = await import('@/features/share/shareLink');
+      const shared = await takeSharedPlayFromLocation();
+      if (shared) await commands.prepareImport(shared);
+      else
+        dispatch({
+          type: 'ENQUEUE_TOAST',
+          toast: {
+            id: generateId(),
+            message: 'That play link is incomplete - ask for it to be sent again.',
+            type: 'error',
+            duration: 0,
+            role: 'alert',
+            priority: TOAST_PRIORITY.error,
+            dedupeKey: 'broken-share-link',
+          },
+        });
+    });
   }, [commands, autoInitialize]);
 
   // Auto-save on idle.

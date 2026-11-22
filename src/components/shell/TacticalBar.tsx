@@ -895,6 +895,15 @@ export function TacticalBar() {
               Export & Print
             </div>
             <MenuItem
+              icon="🔗"
+              label="Share Link or Video"
+              sublabel="Send the play, or save it as a video"
+              onClick={() => {
+                closeMenu();
+                dispatch({ type: 'OPEN_SHEET', sheet: 'share' });
+              }}
+            />
+            <MenuItem
               icon="🖨️"
               label="Print Preview (Card / Sheet)"
               sublabel="Interactive print & cut preview"

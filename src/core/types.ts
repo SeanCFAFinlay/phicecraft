@@ -513,7 +513,8 @@ export type SheetKind =
   | 'diagnostics'
   | 'import-preview'
   | 'formations'
-  | 'print-preview';
+  | 'print-preview'
+  | 'share';
 
 /** The three product states. Only 'build' may mutate the document. */
 export type AppMode = 'build' | 'preview' | 'present';

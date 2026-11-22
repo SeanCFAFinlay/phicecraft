@@ -53,6 +53,9 @@ const PracticePage = lazy(() =>
 const LibraryPage = lazy(() =>
   import('@/features/library/LibraryPage').then(module => ({ default: module.LibraryPage }))
 );
+const ShareSheet = lazy(() =>
+  import('@/features/share/ShareSheet').then(module => ({ default: module.ShareSheet }))
+);
 const MenuSheet = lazy(() =>
   import('@/components/sheets/MenuSheet').then(module => ({ default: module.MenuSheet }))
 );
@@ -239,6 +242,7 @@ export function AppShell() {
         {state.ui.openSheet === 'print-preview' && (
           <PrintPreviewModal onClose={() => dispatch({ type: 'CLOSE_SHEET' })} />
         )}
+        {state.ui.openSheet === 'share' && <ShareSheet onClose={() => dispatch({ type: 'CLOSE_SHEET' })} />}
         {state.ui.openSheet === 'import-preview' && (
           <ImportPreviewSheet
             preview={importPreview}

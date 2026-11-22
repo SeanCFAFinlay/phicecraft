@@ -137,3 +137,47 @@ test('the planner builds a practice from a typed request and grades it for the a
   await check.getByLabel('Age group for this plan').selectOption('u18');
   await expect(check).not.toContainText('in stations and small-area games');
 });
+
+test('a play sent as a link opens as a copy, and saves as a video', async ({ page, context }, testInfo) => {
+  test.setTimeout(90_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await useLibraryDrill(page, /Stop-Up Cycle/);
+
+  await page.getByRole('button', { name: 'Open main menu' }).click();
+  await page.getByRole('button', { name: /^Share this play/ }).click();
+  const sheet = page.getByRole('dialog', { name: 'Share this play' });
+  await expect(sheet).toBeVisible();
+  const linkBox = sheet.getByRole('textbox', { name: 'Play link' });
+  await expect(linkBox).toHaveValue(/#play=z/);
+  const link = await linkBox.inputValue();
+  await page.screenshot({ path: testInfo.outputPath('share-sheet.png') });
+
+  // Saved as a video, recorded on the device.
+  await sheet.getByRole('radio', { name: /Slow motion/ }).click();
+  await sheet.getByRole('radio', { name: 'Game speed' }).click();
+  await sheet.getByRole('button', { name: 'Make video' }).click();
+  await expect(sheet.getByRole('progressbar', { name: 'Making the video' })).toBeVisible();
+  await expect(sheet.getByText(/^Ready: stop-up-cycle.*\.(mp4|webm)/)).toBeVisible({ timeout: 30_000 });
+  const duration = await sheet.locator('video').evaluate(
+    video =>
+      new Promise<number>(resolve => {
+        const element = video as HTMLVideoElement;
+        if (element.readyState >= 1) resolve(element.duration);
+        else element.addEventListener('loadedmetadata', () => resolve(element.duration), { once: true });
+      })
+  );
+  // MediaRecorder WebM can report Infinity until fully scanned; either way it has length.
+  expect(duration).toBeGreaterThan(0);
+
+  // Someone else opens the link: the play arrives through the import preview.
+  const other = await context.newPage();
+  await other.emulateMedia({ reducedMotion: 'reduce' });
+  await other.goto(link);
+  const preview = other.getByRole('dialog', { name: /import/i });
+  await expect(preview).toBeVisible({ timeout: 15_000 });
+  await expect(preview).toContainText('Stop-Up Cycle');
+  await other.screenshot({ path: testInfo.outputPath('share-import.png') });
+  expect(new URL(other.url()).hash).toBe('');
+  expect(errors).toEqual([]);
+});

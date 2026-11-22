@@ -341,7 +341,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-3 pb-20 safe-bottom">
         {/* Brand Header Banner */}
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-app-border bg-gradient-to-r from-white/[0.06] to-white/[0.02] p-3.5 shadow-sm">
-          <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-3 sm:flex">
             <img
               src="/assets/ph-logo.webp"
               alt=""
@@ -365,19 +365,19 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={() => setIsRunnerOpen(true)}
               disabled={!activeSession || activeSession.blocks.length === 0}
-              className="touch-target inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-500/20 px-3.5 py-1.5 text-[12.5px] font-black text-emerald-400 hover:bg-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.2)] disabled:opacity-40 disabled:pointer-events-none transition-all"
+              className="touch-target inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-500/20 px-3.5 py-1.5 text-[12.5px] font-black text-emerald-400 hover:bg-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.2)] disabled:opacity-40 disabled:pointer-events-none transition-all"
             >
               ▶ Run Live Practice
             </button>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="touch-target inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-3 py-1.5 text-[12.5px] font-bold text-white/80 hover:bg-white/10 transition-all"
+              className="touch-target inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-3 py-1.5 text-[12.5px] font-bold text-white/80 hover:bg-white/10 transition-all"
             >
               📥 Import Plan
             </button>
@@ -392,14 +392,14 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
               type="button"
               onClick={() => setIsBuilding(value => !value)}
               aria-expanded={isBuilding}
-              className="touch-target inline-flex items-center gap-1.5 rounded-xl border border-app-cyan bg-app-cyan px-3.5 py-1.5 text-[12.5px] font-black text-[#041019] hover:bg-cyan-300"
+              className="touch-target inline-flex items-center justify-center gap-1.5 rounded-xl border border-app-cyan bg-app-cyan px-3.5 py-1.5 text-[12.5px] font-black text-[#041019] hover:bg-cyan-300"
             >
               ✨ Build a Practice
             </button>
             <button
               type="button"
               onClick={() => handleCreateNew(60)}
-              className="touch-target inline-flex items-center gap-1.5 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-3.5 py-1.5 text-[12.5px] font-bold text-app-cyan hover:bg-app-cyan/25"
+              className="touch-target inline-flex items-center justify-center gap-1.5 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-3.5 py-1.5 text-[12.5px] font-bold text-app-cyan hover:bg-app-cyan/25"
             >
               + New Practice Plan
             </button>
@@ -632,7 +632,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                     <button
                       type="button"
                       onClick={() => handleAddBlockFromTemplate(topSuggestedDrill.drill.id)}
-                      className="touch-target inline-flex items-center gap-1.5 rounded-xl bg-app-cyan px-3.5 py-1.5 text-[11.5px] font-black text-[#041019] shadow hover:bg-cyan-300 transition-all"
+                      className="touch-target inline-flex items-center justify-center gap-1.5 rounded-xl bg-app-cyan px-3.5 py-1.5 text-[11.5px] font-black text-[#041019] shadow hover:bg-cyan-300 transition-all"
                     >
                       + Quick Add Fill Drill
                     </button>
@@ -656,7 +656,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                   <button
                     type="button"
                     onClick={() => setIsAddingDrill(true)}
-                    className="touch-target inline-flex items-center gap-1.5 rounded-xl border border-app-cyan bg-app-cyan/20 px-3.5 py-1.5 text-[12px] font-bold text-app-cyan hover:bg-app-cyan/30"
+                    className="touch-target inline-flex items-center justify-center gap-1.5 rounded-xl border border-app-cyan bg-app-cyan/20 px-3.5 py-1.5 text-[12px] font-bold text-app-cyan hover:bg-app-cyan/30"
                   >
                     + Add Drill from Playbook
                   </button>
@@ -1014,7 +1014,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                 <button
                   type="button"
                   onClick={() => printPracticePlan(activeSession, 'cards')}
-                  className="touch-target inline-flex items-center gap-1.5 rounded-xl border border-app-cyan/50 bg-app-cyan/15 px-3.5 py-2 text-[13px] font-bold text-app-cyan hover:bg-app-cyan/25"
+                  className="touch-target inline-flex items-center justify-center gap-1.5 rounded-xl border border-app-cyan/50 bg-app-cyan/15 px-3.5 py-2 text-[13px] font-bold text-app-cyan hover:bg-app-cyan/25"
                 >
                   ✂ Print Cut-Out Cards
                 </button>

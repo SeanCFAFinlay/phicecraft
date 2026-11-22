@@ -7,6 +7,7 @@
 
 import { useRef, type ChangeEvent } from 'react';
 import {
+  ShareIcon,
   ChartIcon,
   CopyIcon,
   DrillIcon,
@@ -116,6 +117,15 @@ export function MenuSheet() {
           label="Save as a new play…"
           detail="Keeps the original untouched"
           onClick={() => void commands.saveAsNewPlay()}
+        />
+        <SheetItem
+          icon={<ShareIcon />}
+          label="Share this play"
+          detail="Send a link, save a video, or print"
+          onClick={() => {
+            dispatch({ type: 'CLOSE_MENU' });
+            dispatch({ type: 'OPEN_SHEET', sheet: 'share' });
+          }}
         />
         <SheetItem icon={<RenameIcon />} label="Rename play" onClick={() => void commands.requestRename()} />
         <SheetItem icon={<NewDrillIcon />} label="New drill" onClick={() => void commands.newDrill()} />

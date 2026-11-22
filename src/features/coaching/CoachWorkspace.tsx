@@ -80,8 +80,8 @@ export function CoachWorkspace() {
           <p className="mt-2 text-xs leading-relaxed text-slate-300">This is a rehearsal of your routes and timing, not a prediction of match results. Selected pass and shot outcomes describe the scenario you want to teach.</p>
         </div>
         <fieldset disabled={!editable} className="space-y-3">
-          <label className="block text-sm font-bold">What are we learning?<textarea className={`${control} mt-1`} maxLength={1000} rows={2} placeholder="Create space, receive in stride, support the rebound…" value={coaching.objective} onChange={event => setCoaching({ ...coaching, objective: event.target.value })} /></label>
-          <label className="block text-sm font-bold">What should everyone watch for?<textarea className={`${control} mt-1`} maxLength={2000} rows={3} placeholder="Player responsibilities, coaching cues, and what success looks like" value={coaching.cues} onChange={event => setCoaching({ ...coaching, cues: event.target.value })} /></label>
+          <label className="block text-sm font-bold">What are we learning?<textarea className={`${control} mt-1 [field-sizing:content] min-h-[4.5rem]`} maxLength={1000} rows={3} placeholder="Create space, receive in stride, support the rebound…" value={coaching.objective} onChange={event => setCoaching({ ...coaching, objective: event.target.value })} /></label>
+          <label className="block text-sm font-bold">What should everyone watch for?<textarea className={`${control} mt-1 [field-sizing:content] min-h-[6rem]`} maxLength={2000} rows={4} placeholder="Player responsibilities, coaching cues, and what success looks like" value={coaching.cues} onChange={event => setCoaching({ ...coaching, cues: event.target.value })} /></label>
           <button className={button} onClick={save}>Apply coaching notes</button>
         </fieldset>
         <div className="flex flex-wrap gap-2">

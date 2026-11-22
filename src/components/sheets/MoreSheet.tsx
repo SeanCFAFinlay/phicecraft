@@ -18,6 +18,7 @@ import { readRendererPreference, writeRendererPreference } from '@/render/select
 import {
   ChartIcon,
   DrillIcon,
+  ShareIcon,
   PlannerIcon,
   MagnetIcon,
   PuckIcon,
@@ -83,6 +84,8 @@ export function MoreSheet() {
   return (
     <Sheet open={open} title="More" onClose={close}>
       <SheetSection title="Coaching">
+        <SheetItem icon={<ShareIcon />} label="Share this play" detail="Send a link, save a video, or print"
+          onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'share' })} />
         <SheetItem icon={<DrillIcon />} label="Coach workspace" detail="Teams, import a sketch, and explain outcomes"
           onClick={() => { dispatch({ type: 'CLOSE_MENU' }); dispatch({ type: 'OPEN_SHEET', sheet: 'coach' }); }} />
       </SheetSection>

@@ -10,6 +10,7 @@ import type { Drill, Point } from '@/core/types';
 import { RINK, RINK_MARKS as M, COLORS } from '@/core/constants';
 import { expandCurve } from '@/utils/curves';
 import { downloadDataUrl } from './download';
+import type { SimulationFrame } from '@/sim/types';
 
 export interface ExportImageOptions {
   /** Output format: 'png' or 'jpeg'. Defaults to 'png'. */
@@ -66,17 +67,43 @@ export function renderDrillDiagram(drill: Drill, options: ExportImageOptions = {
   } = options;
 
   const headerHeight = includeHeader ? 54 : 0;
-  const totalWidth = width;
-  const totalHeight = height + headerHeight;
-
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(totalWidth * scale);
-  canvas.height = Math.round(totalHeight * scale);
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round((height + headerHeight) * scale);
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  paintDrillDiagram(ctx, drill, { width, height, includeHeader });
+
+  const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+  return canvas.toDataURL(mimeType, 0.95);
+}
+
+export interface PaintOptions {
+  width: number;
+  height: number;
+  includeHeader: boolean;
+  /**
+   * A moment of the simulated play. When given, players and the puck are
+   * drawn where they are at that moment and the drawn routes fade back, so
+   * the same picture can be a frame of an animation.
+   */
+  frame?: SimulationFrame;
+  /** The part of the rink to fill the picture with (rink units); the whole rink when absent. */
+  view?: { x: number; y: number; width: number; height: number };
+}
+
+/**
+ * Paints the drill diagram into a 2D context already scaled to logical
+ * pixels: a header band (optional) and the full rink below it.
+ */
+export function paintDrillDiagram(ctx: CanvasRenderingContext2D, drill: Drill, options: PaintOptions): void {
+  const { width, height, includeHeader, frame, view } = options;
+  const headerHeight = includeHeader ? 54 : 0;
+  const totalWidth = width;
+  const totalHeight = height + headerHeight;
 
   // Background
   ctx.fillStyle = '#0a1622';
@@ -123,20 +150,14 @@ export function renderDrillDiagram(drill: Drill, options: ExportImageOptions = {
   // Draw Rink Surface
   ctx.save();
   ctx.translate(0, headerHeight);
+  ctx.beginPath();
+  ctx.rect(0, 0, width, height);
+  ctx.clip();
 
-  const rinkAspect = RINK.width / RINK.height;
-  const canvasRinkAspect = width / height;
-  let zoom: number;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (canvasRinkAspect > rinkAspect) {
-    zoom = height / RINK.height;
-    offsetX = (width - RINK.width * zoom) / 2;
-  } else {
-    zoom = width / RINK.width;
-    offsetY = (height - RINK.height * zoom) / 2;
-  }
+  const region = view ?? { x: RINK.x, y: RINK.y, width: RINK.width, height: RINK.height };
+  const zoom = Math.min(width / region.width, height / region.height);
+  const offsetX = (width - region.width * zoom) / 2 - region.x * zoom;
+  const offsetY = (height - region.height * zoom) / 2 - region.y * zoom;
 
   ctx.translate(offsetX, offsetY);
   ctx.scale(zoom, zoom);
@@ -270,6 +291,8 @@ export function renderDrillDiagram(drill: Drill, options: ExportImageOptions = {
   }
 
   // Draw Skate Paths (Solid line with arrowheads per coaching convention)
+  // In an animation frame the routes are a faint guide under the moving play.
+  if (frame) ctx.globalAlpha = 0.4;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const path of drill.skatePaths) {
@@ -322,8 +345,20 @@ export function renderDrillDiagram(drill: Drill, options: ExportImageOptions = {
     ctx.fillText(String(i + 1), midPt.x, midPt.y + 0.5);
   }
 
+  ctx.globalAlpha = 1;
+
   // Draw Initial / Loose Puck
-  if (drill.initialPuck) {
+  if (frame) {
+    if (frame.puck?.visible) {
+      ctx.fillStyle = '#111820';
+      ctx.beginPath();
+      ctx.arc(frame.puck.x, frame.puck.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  } else if (drill.initialPuck) {
     ctx.fillStyle = '#111820';
     ctx.beginPath();
     ctx.arc(drill.initialPuck.x, drill.initialPuck.y, 8, 0, Math.PI * 2);
@@ -335,7 +370,16 @@ export function renderDrillDiagram(drill: Drill, options: ExportImageOptions = {
 
   // Draw Players (Numbered tokens with bold high-contrast jersey colors)
   const tokenRadius = 18;
-  for (const player of drill.players) {
+  for (const authored of drill.players) {
+    const live = frame?.players[authored.id];
+    const player = live
+      ? {
+          ...authored,
+          x: live.position.x,
+          y: live.position.y,
+          hasPuck: frame?.puck?.state === 'possessed' && frame.puck.carrierId === authored.id,
+        }
+      : authored;
     const isHome = player.team === 'home';
     const fillColor = isHome ? (drill.settings?.jerseys?.home ?? '#e63946') : (drill.settings?.jerseys?.away ?? '#2f80ed');
 
@@ -394,9 +438,6 @@ export function renderDrillDiagram(drill: Drill, options: ExportImageOptions = {
   }
 
   ctx.restore();
-
-  const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-  return canvas.toDataURL(mimeType, 0.95);
 }
 
 /**
