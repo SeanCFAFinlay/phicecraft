@@ -99,8 +99,20 @@ describe('PracticePage', () => {
 
     expect(screen.getByText(/Practice Intelligence & ADM Balance/i)).toBeInTheDocument();
     expect(screen.getByText(/Live Analytics/i)).toBeInTheDocument();
-    expect(screen.getByText(/Station Concurrency/i)).toBeInTheDocument();
-    expect(screen.getByText(/Puck Touch Density/i)).toBeInTheDocument();
+    const check = screen.getByRole('region', { name: /Age-appropriate check/i });
+    expect(check).toHaveTextContent(/score/i);
+    expect(screen.getByLabelText(/Age group for this plan/i)).toBeInTheDocument();
+  });
+
+  it('builds a full practice from a plain-language request', () => {
+    renderPracticePage();
+    fireEvent.click(screen.getByRole('button', { name: /Build a Practice/i }));
+    fireEvent.change(screen.getByLabelText(/Describe the practice/i), { target: { value: '45 min U11 passing, 1 goalie' } });
+    expect(screen.getByRole('radio', { name: 'U11' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: '45m' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('button', { name: /Generate practice/i }));
+    expect(screen.getByText(/Built "U11 Passing \(45 min\)"/)).toBeInTheDocument();
+    expect(screen.getAllByText(/45 \/ 45 MIN/).length).toBeGreaterThan(0);
   });
 
   it('provides smart match ranking in drill picker modal', () => {

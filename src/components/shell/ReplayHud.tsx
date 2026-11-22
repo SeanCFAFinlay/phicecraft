@@ -14,6 +14,7 @@ import { usePlaybackSnapshot } from '@/playback/usePlaybackSnapshot';
 import { useResponsive } from '@/ui/useResponsive';
 import { jerseyColor } from '@/core/types';
 import { replayNarration } from '@/features/coaching/replayNarration';
+import { useDrillSteps } from '@/features/coaching/useDrillSteps';
 
 export function ReplayHud() {
   const { state, dispatch } = useAppState();
@@ -34,6 +35,8 @@ export function ReplayHud() {
       : undefined);
   const carrier = state.drill.players.find(player => player.id === carrierId);
   const narration = replayNarration(state.drill, frame);
+  const { story, current: step, goToStep } = useDrillSteps();
+  const stepLabel = step ? `Step ${step.number}/${story.steps.length} · ${step.title}` : narration.title;
 
   const puckStatus = carrier
     ? `Puck · #${carrier.number} ${carrier.name || carrier.role}`
@@ -76,9 +79,9 @@ export function ReplayHud() {
             className="hidden max-w-[220px] truncate border-l border-white/15 pl-2 text-[11px] font-bold text-cyan-200 sm:inline"
             aria-live="polite"
           >
-            {narration.title}
+            {stepLabel}
           </span>
-          <span className="sr-only">{narration.detail}</span>
+          <span className="sr-only">{narration.title}. {narration.detail}{step ? ` ${step.detail}` : ''}</span>
           <button
             type="button"
             onClick={() => setIsExpanded(true)}
@@ -183,8 +186,42 @@ export function ReplayHud() {
           <span className={`flex h-1.5 w-1.5 rounded-full bg-cyan-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
           <span>Live Play-by-Play</span>
         </div>
-        <p className="mt-0.5 text-xs font-bold text-cyan-100">{narration.title}</p>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{narration.detail}</p>
+        {step ? (
+          <>
+            <p className="mt-0.5 text-xs font-bold text-cyan-100" aria-live="polite">
+              Step {step.number} of {story.steps.length} · {step.title}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{step.detail}</p>
+            <p className="mt-0.5 text-[10.5px] text-cyan-300/80">{narration.title}</p>
+            <ol className="pointer-events-auto mt-1.5 flex flex-wrap gap-1" aria-label="Drill steps">
+              {story.steps.map(item => (
+                <li key={item.number}>
+                  <button
+                    type="button"
+                    onClick={() => goToStep(item)}
+                    aria-label={`Go to step ${item.number}: ${item.title}`}
+                    aria-current={item.number === step.number ? 'step' : undefined}
+                    title={item.title}
+                    className={`touch-target flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 text-[10.5px] font-black transition ${
+                      item.number === step.number
+                        ? 'bg-cyan-400 text-slate-950'
+                        : item.number < step.number
+                          ? 'bg-cyan-400/25 text-cyan-100 hover:bg-cyan-400/40'
+                          : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                    }`}
+                  >
+                    {item.number}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </>
+        ) : (
+          <>
+            <p className="mt-0.5 text-xs font-bold text-cyan-100">{narration.title}</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{narration.detail}</p>
+          </>
+        )}
       </div>
 
       {/* Quick Actions Footer */}

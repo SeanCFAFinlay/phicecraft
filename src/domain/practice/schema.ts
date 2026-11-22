@@ -19,6 +19,8 @@ export const equipmentDemandSchema = z.object({
 export const rinkAreaSchema = z.enum([
   'full',
   'half',
+  'third',
+  'quarter',
   'offensive',
   'defensive',
   'neutral',
@@ -65,6 +67,7 @@ export const practiceSessionSchema = z.object({
   targetMinutes: finiteNumber.refine(n => n >= 5 && n <= 300, 'target minutes must be 5-300'),
   date: z.string().max(50).optional(),
   focus: z.string().max(500),
+  ageBand: z.enum(['u7', 'u9', 'u11', 'u13', 'u15', 'u18', 'adult']).optional(),
   blocks: z.array(practiceBlockSchema).max(100),
   createdAt: z.string().max(100),
   updatedAt: z.string().max(100),

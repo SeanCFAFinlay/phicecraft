@@ -5,7 +5,7 @@
 // station splits (ADM model), timeline duration tracking, and equipment totals.
 // ============================================================================
 
-import type { RinkArea, EquipmentKind, DrillDocumentV3 } from '@/domain/v3/types';
+import type { AgeBand, RinkArea, EquipmentKind, DrillDocumentV3 } from '@/domain/v3/types';
 
 export type PracticeSessionId = string;
 export type PracticeBlockId = string;
@@ -54,6 +54,8 @@ export interface PracticeSession {
   targetMinutes: number; // e.g. 50, 60, 80, 90
   date?: string;
   focus: string; // e.g. "Pace, passing accuracy & neutral zone regroups"
+  /** Who the plan is for; drives the age-appropriate check. */
+  ageBand?: AgeBand;
   blocks: PracticeBlock[];
   createdAt: string;
   updatedAt: string;

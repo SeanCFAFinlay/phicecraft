@@ -87,6 +87,8 @@ export default defineConfig({
 
   projects: [
     { name: 'coaching', testMatch: /coaching\.spec\.ts/, use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] } },
+    { name: 'explain', testMatch: /explain\.spec\.ts/, use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['desktop-1366'] } },
+    { name: 'explain-phone', testMatch: /explain\.spec\.ts/, use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['phone-390-portrait'] } },
     { name: 'coaching-phone', testMatch: /coaching\.spec\.ts/, use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS['phone-390-portrait'] } },
     // The functional flows only need to run once; they are viewport-agnostic.
     {

@@ -6,7 +6,9 @@ import { Sheet } from '@/components/a11y/Sheet';
 import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import { downloadText } from '@/ui/download';
-import { explainPlay, coachingBrief } from './explainPlay';
+import { explainPlay } from './explainPlay';
+import { buildDrillStory, storyText, type DrillStory } from './drillStory';
+import { printPlayerCards } from './printPlayerCards';
 import { importSketch } from './importSketch';
 import { TeamLibrary } from './TeamLibrary';
 import type { RosterPlayer } from './roster';
@@ -46,7 +48,7 @@ export function CoachWorkspace() {
   const { state, dispatch } = useAppState();
   const commands = useCommands();
   const { playback, camera, controller } = useEditorRuntime();
-  const [tab, setTab] = useState<'explain' | 'teams' | 'import'>('explain');
+  const [tab, setTab] = useState<'explain' | 'players' | 'teams' | 'import'>('explain');
   const [coaching, setCoaching] = useState(state.drill.settings?.coaching ?? emptyCoaching);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,14 +56,19 @@ export function CoachWorkspace() {
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const report = useMemo(() => explainPlay(state.drill), [state.drill]);
+  const story = useMemo(() => buildDrillStory(state.drill), [state.drill]);
+  const showOnRink = (seconds: number) => {
+    controller.stop(); dispatch({ type: 'STOP_PLAYBACK' });
+    playback.seek(story.durationSeconds > 0 ? Math.min(1, seconds / story.durationSeconds) : 0); close();
+  };
   const editable = state.ui.mode === 'build';
   const close = () => dispatch({ type: 'CLOSE_SHEET' });
   const save = () => { commands.setCoaching(coaching); setMessage('Coaching details applied. Use Save play to keep them.'); };
 
   return <Sheet open title="Coach workspace" description="Draw it. Rehearse it. Explain it." onClose={close} size="full">
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-3 pb-16 safe-bottom">
-      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Coaching sections">
-        {(['explain', 'teams', 'import'] as const).map(item => <button type="button" key={item} aria-pressed={tab === item} onClick={() => { setTab(item); setMessage(''); }} className={`${button} ${tab === item ? 'bg-cyan-400/25' : 'border-white/10 bg-white/5 text-white'}`}>{item === 'explain' ? 'Explain' : item === 'teams' ? 'Teams' : 'Import'}</button>)}
+      <div className="grid grid-cols-4 gap-2" role="group" aria-label="Coaching sections">
+        {(['explain', 'players', 'teams', 'import'] as const).map(item => <button type="button" key={item} aria-pressed={tab === item} onClick={() => { setTab(item); setMessage(''); }} className={`${button} ${tab === item ? 'bg-cyan-400/25' : 'border-white/10 bg-white/5 text-white'}`}>{item === 'explain' ? 'Explain' : item === 'players' ? 'Players' : item === 'teams' ? 'Teams' : 'Import'}</button>)}
       </div>
       {!editable && <p className="text-sm text-amber-200">Switch to Build to edit teams, notes or imports.</p>}
       {message && <p role="status" className="rounded-xl bg-white/10 p-3 text-sm">{message}</p>}
@@ -92,21 +99,40 @@ export function CoachWorkspace() {
           }}>3D replay</button>
           <button className={button} onClick={() => {
             const draft = { ...state.drill, settings: { ...state.drill.settings!, coaching } };
-            setMessage(downloadText('coaching-brief.txt', coachingBrief(draft, explainPlay(draft))) ? 'Coaching brief downloaded.' : 'Download unavailable. Try again in your browser.');
-          }}>Download brief</button>
+            setMessage(downloadText('drill-handout.txt', storyText(buildDrillStory(draft))) ? 'Drill handout downloaded.' : 'Download unavailable. Try again in your browser.');
+          }}>Download handout</button>
+          <button className={button} disabled={story.players.length === 0} onClick={() => setMessage(printPlayerCards(state.drill, story) ? 'Player cards opened in a new tab - print or save as PDF.' : 'Allow pop-ups to print the player cards.')}>Print player cards</button>
         </div>
-        <h3 className="text-sm font-bold">Sequence & outcomes</h3>
-        {report.steps.length === 0 && <p className="text-sm text-slate-300">Select a player and drag to draw a skating route. Use Pass and tap a teammate to add the puck sequence.</p>}
-        {report.steps.map((step, index) => <article key={step.id} className="space-y-2 rounded-xl border border-white/15 p-3">
-          <p className="text-xs font-bold text-cyan-200">STEP {index + 1} · {step.seconds.toFixed(1)}s</p>
-          <h4 className="font-bold">{step.action}</h4>
-          <p className="text-sm"><span className="font-bold capitalize">{step.outcome}</span>{step.planned ? ` · selected scenario: ${step.planned}` : ''}</p>
-          <p className="text-sm text-slate-300">{step.reason}</p>
-          <p className="text-sm text-cyan-100">{step.cue}</p>
-          <button className={button} onClick={() => { controller.stop(); dispatch({ type: 'STOP_PLAYBACK' }); playback.seek(step.progress); close(); }}>Show step {index + 1} on rink</button>
-        </article>)}
+        {story.steps.length === 0
+          ? <p className="text-sm text-slate-300">Select a player and drag to draw a skating route. Use Pass and tap a teammate to add the puck sequence.</p>
+          : <StoryView story={story} blocked={report.steps.filter(step => step.outcome === 'Blocked').map(step => step.id)} onShow={showOnRink} />}
         {report.issues.length > 0 && <section className="space-y-2 rounded-xl border border-amber-400/25 p-3"><h3 className="font-bold text-amber-200">Review before teaching</h3>{report.issues.map((issue, index) => <p key={index} className="text-sm text-slate-200">{issue.message}</p>)}</section>}
       </>}
+
+      {tab === 'players' && <section className="space-y-3" aria-label="Player jobs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-slate-300">Each player's job in this drill, read from the routes and puck actions you drew.</p>
+          <button className={button} disabled={story.players.length === 0} onClick={() => setMessage(printPlayerCards(state.drill, story) ? 'Player cards opened in a new tab - print or save as PDF.' : 'Allow pop-ups to print the player cards.')}>Print all cards</button>
+        </div>
+        {story.players.length === 0 && <p className="text-sm text-slate-300">Add players to the rink to see their jobs.</p>}
+        <div className="grid gap-3 md:grid-cols-2">
+          {story.players.map(card => <article key={card.playerId} aria-label={`Job card ${card.label}`} className="space-y-2 rounded-xl border border-white/15 p-3" style={{ borderLeft: `6px solid ${jerseyColor(card.team, state.drill.settings)}` }}>
+            <div className="flex items-baseline justify-between gap-2">
+              <h4 className="text-base font-black">{card.label}</h4>
+              <span className="text-xs text-slate-400">{card.teamName}</span>
+            </div>
+            <p className="text-sm"><span className="font-bold text-cyan-200">Start:</span> {card.start}</p>
+            <ol className="space-y-1">
+              {card.duties.map((duty, index) => <li key={index} className="flex gap-2 text-sm">
+                <button type="button" className="shrink-0 rounded bg-white/10 px-1.5 font-mono text-xs text-cyan-200 hover:bg-white/20" aria-label={`Show ${duty.atSeconds.toFixed(1)} seconds on the rink`} onClick={() => showOnRink(duty.atSeconds)}>{duty.atSeconds.toFixed(1)}s</button>
+                <span>{duty.text}</span>
+              </li>)}
+            </ol>
+            <p className="rounded-lg bg-cyan-400/10 p-2 text-xs text-cyan-100">{card.cues.join(' ')}</p>
+            <button className={button} onClick={() => setMessage(printPlayerCards(state.drill, story, [card.playerId]) ? `Card for #${card.number} opened in a new tab.` : 'Allow pop-ups to print the player cards.')}>Print this card</button>
+          </article>)}
+        </div>
+      </section>}
 
       {tab === 'teams' && <>
         <p className="text-sm text-slate-300">Use your actual team names and on-ice lineup. Names, numbers, roles and colours travel with the saved play.</p>
@@ -196,5 +222,34 @@ function TeamLogoControl({ team, logo, onChange, onError }: {
       }} />
     </label>
     {logo && <button type="button" aria-label={`Remove ${label.toLowerCase()} team logo`} className="touch-target h-11 rounded-lg border border-white/20 bg-white/5 px-2 font-bold" onClick={() => onChange(undefined)}>✕</button>}
+  </div>;
+}
+
+/** The generated explanation: overview, setup, numbered steps, cues, mistakes. */
+function StoryView({ story, blocked, onShow }: { story: DrillStory; blocked: string[]; onShow: (seconds: number) => void }) {
+  return <div className="space-y-3">
+    <section className="rounded-xl border border-white/15 p-3">
+      <h3 className="text-sm font-bold text-cyan-200">How this drill works</h3>
+      <p className="mt-1 text-sm text-slate-200">{story.overview}</p>
+      {story.setup.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">{story.setup.map((line, index) => <li key={index}>{line}</li>)}</ul>}
+    </section>
+    <h3 className="text-sm font-bold">Step by step</h3>
+    {story.steps.map(step => <article key={step.number} className="space-y-1.5 rounded-xl border border-white/15 p-3">
+      <p className="text-xs font-bold text-cyan-200">STEP {step.number} · {step.startSeconds.toFixed(1)}s</p>
+      <h4 className="font-bold">{step.title}</h4>
+      <p className="text-sm text-slate-300">{step.detail}</p>
+      {step.eventId && blocked.includes(step.eventId) && <p className="text-sm font-bold text-amber-200">This action is blocked in the simulation - review it in Build.</p>}
+      <button className={button} onClick={() => onShow(step.startSeconds)}>Show step {step.number} on rink</button>
+    </article>)}
+    <div className="grid gap-3 md:grid-cols-2">
+      <section className="rounded-xl border border-emerald-400/25 p-3">
+        <h3 className="text-sm font-bold text-emerald-200">Coaching points</h3>
+        <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">{story.coachingPoints.map((point, index) => <li key={index}>{point}</li>)}</ul>
+      </section>
+      <section className="rounded-xl border border-amber-400/25 p-3">
+        <h3 className="text-sm font-bold text-amber-200">Watch for</h3>
+        <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">{story.mistakes.map((point, index) => <li key={index}>{point}</li>)}</ul>
+      </section>
+    </div>
   </div>;
 }

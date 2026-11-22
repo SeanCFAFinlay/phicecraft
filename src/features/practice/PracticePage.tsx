@@ -32,6 +32,8 @@ import {
   restorePracticeBundle,
 } from '@/domain/practice/practiceBundle';
 import { PracticeRunner } from './PracticeRunner';
+import { PracticeBuilder } from './PracticeBuilder';
+import { AgeCheckPanel } from './AgeCheckPanel';
 import {
   printPracticePlan,
   copyPracticePlanText,
@@ -61,6 +63,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
   });
 
   const [isAddingDrill, setIsAddingDrill] = useState(false);
+  const [isBuilding, setIsBuilding] = useState(false);
   const [drillPickerTab, setDrillPickerTab] = useState<'templates' | 'personal'>('templates');
   const [personalDrills, setPersonalDrills] = useState<DrillDocumentV3[]>([]);
   const [drillSearch, setDrillSearch] = useState('');
@@ -387,6 +390,14 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
             />
             <button
               type="button"
+              onClick={() => setIsBuilding(value => !value)}
+              aria-expanded={isBuilding}
+              className="touch-target inline-flex items-center gap-1.5 rounded-xl border border-app-cyan bg-app-cyan px-3.5 py-1.5 text-[12.5px] font-black text-[#041019] hover:bg-cyan-300"
+            >
+              ✨ Build a Practice
+            </button>
+            <button
+              type="button"
               onClick={() => handleCreateNew(60)}
               className="touch-target inline-flex items-center gap-1.5 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-3.5 py-1.5 text-[12.5px] font-bold text-app-cyan hover:bg-app-cyan/25"
             >
@@ -412,6 +423,20 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
               ✕
             </button>
           </div>
+        )}
+
+        {isBuilding && (
+          <PracticeBuilder
+            onCancel={() => setIsBuilding(false)}
+            onCreate={session => {
+              upsertPracticeSession(session);
+              setSessions(loadPracticeSessions());
+              setActiveSessionId(session.id);
+              setIsBuilding(false);
+              setImportMessage({ text: `Built "${session.title}" - ${session.blocks.length} drills. Adjust anything below.`, isError: false });
+              setTimeout(() => setImportMessage(null), 5000);
+            }}
+          />
         )}
 
         {/* Practice Plan Selector Bar */}
@@ -615,36 +640,10 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                 )}
               </div>
 
-              {/* Station & Engagement Breakdown */}
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-white/10 text-[11.5px]">
-                <div className="rounded-xl bg-white/[0.04] p-2.5 border border-white/5">
-                  <div className="text-white/50 uppercase font-bold text-[10px]">Station Concurrency</div>
-                  <div className="mt-0.5 font-bold text-white flex items-center gap-1.5">
-                    <span>🔄</span>
-                    {activeSession.blocks.some(b => b.stationSplit && b.stationSplit !== 'full')
-                      ? 'ADM Multi-Station Enabled'
-                      : 'Single Station / Full Ice'}
-                  </div>
-                </div>
-                <div className="rounded-xl bg-white/[0.04] p-2.5 border border-white/5">
-                  <div className="text-white/50 uppercase font-bold text-[10px]">Puck Touch Density</div>
-                  <div className="mt-0.5 font-bold text-white flex items-center gap-1.5">
-                    <span>⚡</span>
-                    {activeSession.blocks.some(b => b.stationSplit && b.stationSplit !== 'full')
-                      ? 'High Reps (3.2x vs traditional)'
-                      : 'Standard Rep Density'}
-                  </div>
-                </div>
-                <div className="rounded-xl bg-white/[0.04] p-2.5 border border-white/5">
-                  <div className="text-white/50 uppercase font-bold text-[10px]">Equipment Ready</div>
-                  <div className="mt-0.5 font-bold text-white flex items-center gap-1.5">
-                    <span>📦</span>
-                    {Object.keys(metrics.equipmentTotals).length > 0
-                      ? `${Object.values(metrics.equipmentTotals).reduce((a, b) => a + b, 0)} Total Arena Items`
-                      : 'Standard Rink Setup'}
-                  </div>
-                </div>
-              </div>
+              <AgeCheckPanel
+                session={activeSession}
+                onAgeChange={ageBand => updateActiveSession({ ...activeSession, ageBand })}
+              />
             </div>
 
             {/* Drill Blocks Section */}
