@@ -11,7 +11,7 @@
 import type { Drill } from '@/core/types';
 import { RINK } from '@/core/constants';
 import { compileDrill } from '@/sim/compileDrill';
-import { sampleFrame } from '@/sim/sampleFrame';
+import { sampleFrame, sampleRawFrame } from '@/sim/sampleFrame';
 import { paintDrillDiagram } from '@/ui/exportImage';
 import { buildDrillStory, stepAt, type DrillStory } from '@/features/coaching/drillStory';
 
@@ -101,7 +101,7 @@ export function actionView(drill: Drill, compiled: ReturnType<typeof compileDril
     add(event.toPoint);
   });
   for (let t = 0; t <= duration; t += 0.25) {
-    const frame = sampleFrame(compiled, t);
+    const frame = sampleRawFrame(compiled, t);
     Object.values(frame.players).forEach(player => add(player.position));
     if (frame.puck?.visible) add(frame.puck);
   }

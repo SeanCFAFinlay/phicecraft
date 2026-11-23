@@ -9,7 +9,7 @@ import type {
 import { RINK } from '@/core/constants';
 import { distance } from '@/utils/geometry';
 import { evaluateReception } from './receptionSolver';
-import { contactPhase, getBladePosition, sampleSkater } from './skaterMotor';
+import { contactPhase, getBladePosition, lerpAngle, sampleSkater, strideWeight } from './skaterMotor';
 import { sampleGoalie } from './goalieSolver';
 import { solveLoosePuck } from './puckSolver';
 import { getFlightPath, puckAlongFlight } from './flightPath';
@@ -443,7 +443,12 @@ function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolutio
   };
 }
 
-export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: number): SimulationFrame {
+/**
+ * The frame before turns are eased: positions and events are identical to
+ * `sampleFrame`, only headings may snap. For analysis that samples a play
+ * many times and never draws it.
+ */
+export function sampleRawFrame(compiled: CompiledDrill, requestedTimeSeconds: number): SimulationFrame {
   const timeSeconds = Math.max(0, Math.min(compiled.durationSeconds, requestedTimeSeconds));
   const players: Record<ID, PlaybackPlayerFrame> = {};
   for (const [id, player] of compiled.players) {
@@ -479,10 +484,17 @@ export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: numbe
     } else {
       // Skater heading intelligence: stationary skaters track the puck carrier or loose puck rather than staring eastward.
       const route = compiled.routes.get(id);
-      const isStationary = !route || route.totalLength <= 0 || base.speed < 0.8;
-      if (isStationary && base.action !== 'shot' && base.action !== 'pass') {
+      const hasRoute = !!route && route.totalLength > 0;
+      // Eased by speed, not cut off: a skater slowing to a stop turns to the
+      // play over the last few feet instead of snapping round in one frame.
+      const stride = hasRoute ? strideWeight(base.speed) : 0;
+      if (stride < 1 && base.action !== 'shot' && base.action !== 'pass') {
         let targetHeading: number | null = null;
-        if (resolution.puck && resolution.puck.carrierId !== id) {
+        if (base.action === 'recover' && resolution.puck?.carrierId !== id) {
+          // Picking a puck up from a stand: set the body the way it will carry
+          // the puck, so the blade - not the chest - meets it at the pickup.
+          targetHeading = player.team === 'away' ? Math.PI : 0;
+        } else if (resolution.puck && resolution.puck.carrierId !== id) {
           const dx = resolution.puck.x - base.position.x;
           const dy = resolution.puck.y - base.position.y;
           if (dx * dx + dy * dy > 25) {
@@ -494,10 +506,11 @@ export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: numbe
           targetHeading = player.team === 'away' ? Math.PI : 0;
         }
         if (targetHeading !== null) {
+          const heading = lerpAngle(targetHeading, base.heading, stride);
           players[id] = {
             ...base,
-            heading: targetHeading,
-            bladePosition: getBladePosition(player, base.position, targetHeading),
+            heading,
+            bladePosition: getBladePosition(player, base.position, heading),
           };
         }
       }
@@ -527,6 +540,102 @@ export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: numbe
     firedEventIndices: resolution.firedEventIndices,
     eventExecutions: resolution.eventExecutions,
   };
+}
+
+// ----------------------------------------------------------------------------
+// Turning
+//
+// The raw sample decides where each skater WANTS to face, and that can change
+// in one step: a receiver catches the puck and wants to face the net, a
+// carrier starts a pass and wants to face the receiver. Drawn as is, the body
+// snaps round in a single frame. A skater turns at a human rate instead.
+//
+// Playback must stay a pure function of time (scrubbing, the video and 3D all
+// sample it), so the turn is integrated on a fixed clock - every TURN_STEP
+// seconds from the start of the drill - and the result cached per compiled
+// drill. Any frame then reads the integrated heading at the last tick and
+// eases the rest of the way to its own time, so frames agree whether they are
+// played, scrubbed or sampled out of order. During playback each frame costs
+// about one extra raw sample.
+// ----------------------------------------------------------------------------
+
+/** Fastest body turn, radians a second: half a turn in about a quarter second. */
+const MAX_TURN_RATE = 12;
+/** Time constant of the ease into the wanted heading, in seconds. */
+const TURN_EASE = 0.06;
+const TURN_STEP = 1 / 40;
+/**
+ * Slowest the last of a turn settles, radians a second. The ease alone never
+ * quite arrives; with this floor every turn finishes outright - a half turn in
+ * under 0.3 s, inside the window every pass, shot, catch and pickup gives the
+ * body to face the puck - so at the contact the blade is exactly on it.
+ */
+const MIN_TURN_RATE = 5;
+
+function turnToward(current: number, wanted: number, dt: number): number {
+  const diff = Math.atan2(Math.sin(wanted - current), Math.cos(wanted - current));
+  const step = Math.min(Math.max(Math.abs(diff) * (1 - Math.exp(-dt / TURN_EASE)), MIN_TURN_RATE * dt), MAX_TURN_RATE * dt);
+  return Math.abs(diff) <= step ? wanted : current + Math.sign(diff) * step;
+}
+
+interface TurnTrack {
+  skaters: ID[];
+  /** ticks[k] holds each skater's turned heading at k * TURN_STEP. */
+  ticks: Float64Array[];
+}
+
+const turnTracks = new WeakMap<CompiledDrill, TurnTrack>();
+
+function turnedHeadingsAtTick(compiled: CompiledDrill, tick: number): { skaters: ID[]; headings: Float64Array } {
+  let track = turnTracks.get(compiled);
+  if (!track) {
+    const skaters: ID[] = [];
+    const initial = sampleRawFrame(compiled, 0);
+    for (const [id, player] of compiled.players) if (player.role !== 'G' && initial.players[id]) skaters.push(id);
+    track = { skaters, ticks: [Float64Array.from(skaters, id => initial.players[id].heading)] };
+    turnTracks.set(compiled, track);
+  }
+  while (track.ticks.length <= tick) {
+    const k = track.ticks.length;
+    const previous = track.ticks[k - 1];
+    const wanted = sampleRawFrame(compiled, k * TURN_STEP);
+    track.ticks.push(
+      Float64Array.from(track.skaters, (id, index) => {
+        const target = wanted.players[id]?.heading;
+        return target === undefined ? previous[index] : turnToward(previous[index], target, TURN_STEP);
+      })
+    );
+  }
+  return { skaters: track.skaters, headings: track.ticks[tick] };
+}
+
+export function sampleFrame(compiled: CompiledDrill, requestedTimeSeconds: number): SimulationFrame {
+  const frame = sampleRawFrame(compiled, requestedTimeSeconds);
+  const time = frame.timeSeconds;
+  if (time <= 0) return frame;
+
+  const tick = Math.floor(time / TURN_STEP + 1e-9);
+  const remainder = time - tick * TURN_STEP;
+  const { skaters, headings } = turnedHeadingsAtTick(compiled, tick);
+  if (skaters.length === 0) return frame;
+
+  const players = { ...frame.players };
+  skaters.forEach((id, index) => {
+    const base = players[id];
+    if (!base) return;
+    const turned = remainder > 1e-9 ? turnToward(headings[index], base.heading, remainder) : headings[index];
+    const heading = Math.atan2(Math.sin(turned), Math.cos(turned));
+    if (Math.abs(Math.atan2(Math.sin(heading - base.heading), Math.cos(heading - base.heading))) < 1e-4) return;
+    players[id] = { ...base, heading, bladePosition: getBladePosition(compiled.players.get(id)!, base.position, heading) };
+  });
+
+  // The puck stays on the stick of whoever is carrying it, through the turn.
+  let puck = frame.puck;
+  if (puck && puck.state === 'possessed' && puck.carrierId && players[puck.carrierId]) {
+    const blade = players[puck.carrierId].bladePosition;
+    puck = { ...puck, x: blade.x, y: blade.y };
+  }
+  return { ...frame, players, puck };
 }
 
 export function distanceBetweenPuckAndBlade(puck: AnimatedPuck, frame: PlaybackPlayerFrame): number {

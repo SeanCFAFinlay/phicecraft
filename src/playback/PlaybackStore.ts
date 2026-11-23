@@ -63,6 +63,11 @@ export class PlaybackStore {
 
   getFrame = (): PlaybackFrame => this.frame;
 
+  /** True while the clock is running, so a frame can be drawn the moment it is sampled. */
+  get isPlaying(): boolean {
+    return this.playing;
+  }
+
   get isScrubbed(): boolean {
     return this.frame.progress > 0 || Object.keys(this.frame.positions).length > 0;
   }

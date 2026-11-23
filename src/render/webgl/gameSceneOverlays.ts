@@ -14,6 +14,7 @@
 // ============================================================================
 
 import { Container, FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
+import { redraw } from './redraw';
 import type { AnimatedPuck, CoachMarker, DrillEvent, EquipmentItem, ID, Player, PlaybackPlayerFrame, Point, SkatePath } from '@/core/types';
 import type { DragPreview, DynamicLayerInput } from '@/components/canvas/renderDynamic';
 import type { PassCandidateView } from '@/canvas/PassOverlay';
@@ -152,13 +153,13 @@ export function updateCoaches(
   for (const coach of coaches) {
     const token = pool.get(coach.id);
     token.container.position.set(coach.x, coach.y);
-    drawCoachBody(token.body);
-    token.selectionRing.clear();
-    if (coach.id === selectedCoachId) {
-      token.selectionRing
-        .circle(0, 0, COACH_RADIUS + 4)
-        .stroke({ color: 0x38bdf8, alpha: 0.9, width: 2.2 });
-    }
+    // Drawn once: the jacket gradient is a texture, and making one per coach
+    // per frame was a steady stream of GPU uploads during playback.
+    redraw(token.body, 'coach', drawCoachBody);
+    const selected = coach.id === selectedCoachId;
+    redraw(token.selectionRing, selected ? 'on' : 'off', g => {
+      if (selected) g.circle(0, 0, COACH_RADIUS + 4).stroke({ color: 0x38bdf8, alpha: 0.9, width: 2.2 });
+    });
   }
   pool.end();
 }
@@ -315,8 +316,9 @@ export function updateEquipment(
     const token = pool.get(item.id);
     token.container.position.set(item.position.x, item.position.y);
     token.container.rotation = item.rotation ?? 0;
-    drawEquipmentBody(token.body, item);
-    updateEquipmentSelectionRing(token.selectionRing, item, item.id === selectedEquipmentId);
+    redraw(token.body, `${item.kind}|${JSON.stringify(item.size ?? null)}|${item.count ?? ''}`, g => drawEquipmentBody(g, item));
+    const selected = item.id === selectedEquipmentId;
+    redraw(token.selectionRing, `${item.kind}|${selected}`, g => updateEquipmentSelectionRing(g, item, selected));
   }
   pool.end();
 }
@@ -509,12 +511,16 @@ export function updateEvents(pool: TokenPool<EventToken>, events: DrillEvent[], 
   pool.begin();
   events.forEach((event, index) => {
     const token = pool.get(event.id);
-    drawEventBody(token, event, index + 1);
-    if (event.id === selectedEventId) {
-      for (const point of [event.fromPoint, event.toPoint]) {
-        token.line.circle(point.x, point.y, 11).stroke({ color: 0xffffff, width: 2 });
+    const selected = event.id === selectedEventId;
+    // An arrow only changes when the event does; during playback it never does.
+    redraw(token.line, `${index}|${selected}|${JSON.stringify(event)}`, () => {
+      drawEventBody(token, event, index + 1);
+      if (selected) {
+        for (const point of [event.fromPoint, event.toPoint]) {
+          token.line.circle(point.x, point.y, 11).stroke({ color: 0xffffff, width: 2 });
+        }
       }
-    }
+    });
   });
   pool.end();
 }
@@ -704,11 +710,14 @@ export function updateEditHandles(pool: GraphicsKeyedPool, input: DynamicLayerIn
 // ----------------------------------------------------------------------------
 
 export function updateAnimatedPuck(g: Graphics, puck: AnimatedPuck | null): void {
-  g.clear();
+  g.visible = Boolean(puck?.visible);
   if (!puck?.visible) return;
-  const strokeAlpha = puck.state === 'loose' ? 1 : 0.62;
-  const width = puck.state === 'loose' ? 2.2 : 1.5;
-  g.ellipse(puck.x, puck.y, 7, 5).fill(0x111111).stroke({ color: 0xffffff, alpha: strokeAlpha, width });
+  const loose = puck.state === 'loose';
+  // Shaped once per look and moved by its transform, not rebuilt every frame.
+  redraw(g, loose ? 'loose' : 'held', shape =>
+    shape.ellipse(0, 0, 7, 5).fill(0x111111).stroke({ color: 0xffffff, alpha: loose ? 1 : 0.62, width: loose ? 2.2 : 1.5 })
+  );
+  g.position.set(puck.x, puck.y);
 }
 
 export function updateDiagnostics(

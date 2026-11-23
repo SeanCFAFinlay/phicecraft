@@ -21,7 +21,7 @@ import { FT, RINK } from '@/core/constants';
 import type { DrillDocumentV3 } from '@/domain/v3/types';
 import { projectToV2 } from '@/domain/v3/projectToV2';
 import { compileDrill } from '@/sim/compileDrill';
-import { sampleFrame } from '@/sim/sampleFrame';
+import { sampleRawFrame } from '@/sim/sampleFrame';
 import type { CompiledDrill, SimulationFrame } from '@/sim/types';
 import type { DrillValidationIssue } from './coachIntelligence';
 
@@ -81,7 +81,7 @@ function buildTimeline(drill: DrillDocumentV3): Timeline | null {
     const frames: SimulationFrame[] = [];
     for (let t = 0; t <= compiled.durationSeconds + 1e-6; t += STEP_SECONDS) {
       times.push(t);
-      frames.push(sampleFrame(compiled, t));
+      frames.push(sampleRawFrame(compiled, t));
     }
     return { compiled, times, frames };
   } catch {
@@ -195,7 +195,7 @@ function checkNetFront(drill: DrillDocumentV3, timeline: Timeline, issues: Drill
     if (teammates.length + 1 < TEAM_PLAY_SKATERS) continue;
 
     const side = sideFor(shooter.team);
-    const frame = sampleFrame(compiled, event.departureSeconds);
+    const frame = sampleRawFrame(compiled, event.departureSeconds);
     const from = frame.players[shooter.id]?.position;
     if (!from || Math.hypot(from.x - side.net.x, from.y - side.net.y) < SCREEN_SHOT_DISTANCE) continue;
 

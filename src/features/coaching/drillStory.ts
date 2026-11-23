@@ -18,7 +18,7 @@
 import type { Drill, DrillEvent, Player, Point, Team } from '@/core/types';
 import { FT, RINK } from '@/core/constants';
 import { compileDrill } from '@/sim/compileDrill';
-import { sampleFrame } from '@/sim/sampleFrame';
+import { sampleRawFrame } from '@/sim/sampleFrame';
 import type { CompiledDrill, SimulationFrame } from '@/sim/types';
 
 const STEP_SECONDS = 0.1;
@@ -153,7 +153,7 @@ function sampleTimeline(compiled: CompiledDrill): { times: number[]; frames: Sim
   const frames: SimulationFrame[] = [];
   for (let t = 0; t <= compiled.durationSeconds + 1e-6; t += STEP_SECONDS) {
     times.push(t);
-    frames.push(sampleFrame(compiled, t));
+    frames.push(sampleRawFrame(compiled, t));
   }
   return { times, frames };
 }

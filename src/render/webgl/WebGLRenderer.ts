@@ -87,7 +87,10 @@ async function buildRenderer(
   await renderer.init({
     canvas,
     backgroundAlpha: 0,
-    antialias: false,
+    // Edge smoothing (MSAA). Without it every circle and line of the board
+    // is a staircase on a standard-density screen, and shimmers as players
+    // move. Tile-based phone GPUs resolve it almost for free.
+    antialias: true,
     resolution: 1,
     preserveDrawingBuffer,
   });

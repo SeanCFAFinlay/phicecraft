@@ -236,7 +236,14 @@ export function CanvasSurface() {
     scheduler.requestAll();
   }), [camera, scheduler]);
 
-  useEffect(() => playback.subscribeToFrames(() => scheduler.requestDynamic()), [playback, scheduler]);
+  // While playing, the clock samples inside its own animation frame, so the
+  // frame is drawn right there rather than queued for the next one - a frame
+  // less behind the clock, and one animation callback a frame instead of two.
+  // Scrubbing still coalesces, since pointer events can outpace the display.
+  useEffect(() => playback.subscribeToFrames(() => {
+    scheduler.requestDynamic();
+    if (playback.isPlaying) scheduler.flush();
+  }), [playback, scheduler]);
 
   // A new team logo repaints centre ice.
   useEffect(() => subscribeCentreIceLogo(() => scheduler.requestAll()), [scheduler]);

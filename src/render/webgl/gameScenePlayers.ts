@@ -37,6 +37,7 @@ import { getSkaterPalette, type SkaterPalette } from '@/canvas/skater/skaterPale
 import { getBladePosition } from '@/sim/skaterMotor';
 import { PUCK_MARKER_RX, PUCK_MARKER_RY } from '@/canvas/puckMarker';
 import type { RenderQuality } from '@/render/quality';
+import { redraw } from './redraw';
 
 export interface PlayerVisualOptions {
   isSelected: boolean;
@@ -177,43 +178,40 @@ function updateRings(token: PlayerToken, player: Player, options: PlayerVisualOp
   const homeColor = 0xd7303a;
   const awayColor = 0x3080ff;
 
-  token.ringSelected.clear();
-  if (options.isSelected) {
-    drawDashedCircle(token.ringSelected, pr + 11, player.team === 'home' ? homeColor : awayColor, 0.55, 2);
-  }
+  redraw(token.ringSelected, options.isSelected ? `on|${player.team}` : 'off', g => {
+    if (options.isSelected) drawDashedCircle(g, pr + 11, player.team === 'home' ? homeColor : awayColor, 0.55, 2);
+  });
 
-  token.ringHighlight.clear();
-  if (isHighlighted) {
-    token.ringHighlight.circle(0, 0, pr + 7).stroke({ color: 0xffd20a, alpha: 0.88, width: 2.5 });
-  }
+  redraw(token.ringHighlight, isHighlighted ? 'on' : 'off', g => {
+    if (isHighlighted) g.circle(0, 0, pr + 7).stroke({ color: 0xffd20a, alpha: 0.88, width: 2.5 });
+  });
 
-  token.ringMoving.clear();
-  if (options.isMoving) {
-    token.ringMoving.circle(0, 0, pr + 16).stroke({ color: 0xffd20a, alpha: 0.65, width: 2.5 });
-  }
+  redraw(token.ringMoving, options.isMoving ? 'on' : 'off', g => {
+    if (options.isMoving) g.circle(0, 0, pr + 16).stroke({ color: 0xffd20a, alpha: 0.65, width: 2.5 });
+  });
 
-  token.preparingReceive.clear();
-  if (options.isPreparingReceive) {
-    token.preparingReceive
-      .circle(0, 0, pr + 13)
+  redraw(token.preparingReceive, options.isPreparingReceive ? 'on' : 'off', g => {
+    if (!options.isPreparingReceive) return;
+    g.circle(0, 0, pr + 13)
       .fill({ color: 0x00e676, alpha: 0.08 })
       .stroke({ color: 0x00e676, alpha: 1, width: 2.5 });
-  }
+  });
 }
 
 function updateGoalieRing(token: PlayerToken, player: Player): void {
-  token.goalieRing.clear();
-  if (player.role !== 'G') return;
-  token.goalieRing
-    .circle(0, 0, PLAYER_RADIUS + GOALIE_RING_OFFSET)
-    .stroke({ color: 0xffca00, alpha: 0.78, width: 2.2 });
+  redraw(token.goalieRing, player.role === 'G' ? 'on' : 'off', g => {
+    if (player.role !== 'G') return;
+    g.circle(0, 0, PLAYER_RADIUS + GOALIE_RING_OFFSET).stroke({ color: 0xffca00, alpha: 0.78, width: 2.2 });
+  });
 }
 
 function drawPuckMarkerGraphic(g: Graphics, heading: number): void {
-  g.clear();
-  g.ellipse(0, 0, PUCK_MARKER_RX, PUCK_MARKER_RY)
-    .fill(0x0a0d11)
-    .stroke({ color: 0xd6e2ee, alpha: 0.34, width: 0.9 });
+  redraw(g, 'puck', shape =>
+    shape
+      .ellipse(0, 0, PUCK_MARKER_RX, PUCK_MARKER_RY)
+      .fill(0x0a0d11)
+      .stroke({ color: 0xd6e2ee, alpha: 0.34, width: 0.9 })
+  );
   g.rotation = heading;
 }
 
@@ -233,11 +231,12 @@ function updateCarrierAndPuck(
   heading: number
 ): void {
   const isCarrying = options.isPuckHolder || options.showInitialPuck;
-  token.carrierRing.clear();
-  token.puck.clear();
+  redraw(token.carrierRing, isCarrying ? 'on' : 'off', g => {
+    if (isCarrying) g.circle(0, 0, PLAYER_RADIUS + 5).stroke({ color: 0xffd60a, alpha: 1, width: 2.4 });
+  });
+  token.puck.visible = isCarrying;
   if (!isCarrying) return;
 
-  token.carrierRing.circle(0, 0, PLAYER_RADIUS + 5).stroke({ color: 0xffd60a, alpha: 1, width: 2.4 });
   const blade = { x: frame.bladePosition.x - player.x, y: frame.bladePosition.y - player.y };
   token.puck.position.set(blade.x, blade.y);
   drawPuckMarkerGraphic(token.puck, heading);
@@ -247,8 +246,7 @@ function updateRouteHandle(token: PlayerToken, options: PlayerVisualOptions): vo
   token.routeHandle.visible = options.showRouteHandle;
   if (!options.showRouteHandle) return;
   token.routeHandle.position.set(ROUTE_HANDLE_OFFSET, 0);
-  token.routeHandleGraphic
-    .clear()
+  redraw(token.routeHandleGraphic, 'handle', g => g
     .circle(0, 0, ROUTE_HANDLE_RADIUS)
     .fill({ color: 0x061e30, alpha: 0.92 })
     .stroke({ color: 0x00e5ff, width: 2.2 })
@@ -258,7 +256,7 @@ function updateRouteHandle(token: PlayerToken, options: PlayerVisualOptions): vo
     .stroke({ color: 0x00e5ff, width: 2, cap: 'round', join: 'round' })
     .moveTo(-4, 0)
     .lineTo(2, 0)
-    .stroke({ color: 0x00e5ff, width: 2, cap: 'round' });
+    .stroke({ color: 0x00e5ff, width: 2, cap: 'round' }));
 }
 
 /**
@@ -296,24 +294,24 @@ function drawVectorBody(
   blade: { x: number; y: number },
   effectsEnabled: boolean
 ): void {
-  token.shadow.clear();
   const bodyR = isGoalie ? r * 1.15 : r * 0.95;
-  if (effectsEnabled) {
+  redraw(token.shadow, `${bodyR}|${effectsEnabled}`, g => {
     // Balanced centered contact shadow grounds the player on the ice surface
-    token.shadow.ellipse(0, 0, bodyR * 1.05, bodyR * 0.95).fill({ color: 0x071520, alpha: 0.22 });
-  }
+    if (effectsEnabled) g.ellipse(0, 0, bodyR * 1.05, bodyR * 0.95).fill({ color: 0x071520, alpha: 0.22 });
+  });
 
-  token.stick.clear();
-  token.stick
+  // The blade moves with stickhandling; a tenth of a unit is below a pixel.
+  const bladeKey = `${r}|${Math.round(blade.x * 10)}|${Math.round(blade.y * 10)}`;
+  redraw(token.stick, bladeKey, stick => stick
     .moveTo(-r * 0.2, 0)
     .lineTo(blade.x - r * 0.12, blade.y)
     .stroke({ color: 0xc89a58, width: 2.8, cap: 'round', join: 'round' })
     .moveTo(blade.x - r * 0.12, blade.y)
     .lineTo(blade.x, blade.y)
-    .stroke({ color: 0x1a1a1a, width: 3.2, cap: 'round' }); // blade tape
+    .stroke({ color: 0x1a1a1a, width: 3.2, cap: 'round' })); // blade tape
 
-  token.vectorBody
-    .clear()
+  const bodyKey = `${bodyR}|${palette.jersey}|${palette.jerseyDark}|${palette.helmet}`;
+  redraw(token.vectorBody, bodyKey, body => body
     // Soft outer ring for crisp contrast on light ice
     .ellipse(0, 0, bodyR * 0.82, bodyR * 0.88)
     .stroke({ color: 0xffffff, alpha: 0.95, width: 2.2 })
@@ -328,7 +326,7 @@ function drawVectorBody(
     // Visor / cage detail
     .moveTo(bodyR * 0.78, -bodyR * 0.2)
     .lineTo(bodyR * 0.78, bodyR * 0.2)
-    .stroke({ color: 0x4fc3f7, alpha: 0.75, width: 1.5 });
+    .stroke({ color: 0x4fc3f7, alpha: 0.75, width: 1.5 }));
 }
 
 export interface UpdatePlayerTokenArgs {
@@ -373,6 +371,6 @@ export function updatePlayerToken(token: PlayerToken, { player, options, quality
   token.shadow.visible = true;
   drawVectorBody(token, r, isGoalie, palette, blade, effectsEnabled(quality));
 
-  token.number.text = player.number;
+  if (token.number.text !== player.number) token.number.text = player.number;
   token.number.rotation = -heading - options.screenRotation;
 }

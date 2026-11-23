@@ -21,7 +21,7 @@ import type { Point } from '@/core/types';
 import { FT, NET_LEFT, NET_RIGHT } from '@/core/constants';
 import { projectToV2 } from '@/domain/v3/projectToV2';
 import { compileDrill } from '@/sim/compileDrill';
-import { sampleFrame } from '@/sim/sampleFrame';
+import { sampleRawFrame } from '@/sim/sampleFrame';
 import { validatePositioning } from './positioningIntelligence';
 
 // Documents are stored in board units (FT of them to one foot of real ice).
@@ -163,12 +163,12 @@ function createLocator(drill: DrillDocumentV3): Locator {
 
   try {
     const compiled = compileDrill(projectToV2(drill).drill);
-    const frames = new Map<number, ReturnType<typeof sampleFrame>>();
+    const frames = new Map<number, ReturnType<typeof sampleRawFrame>>();
     return (actor, timeSec) => {
       const key = Math.round(timeSec * 100);
       let frame = frames.get(key);
       if (!frame) {
-        frame = sampleFrame(compiled, Math.max(0, Math.min(compiled.durationSeconds, timeSec)));
+        frame = sampleRawFrame(compiled, Math.max(0, Math.min(compiled.durationSeconds, timeSec)));
         frames.set(key, frame);
       }
       const position = frame.players[actor.id]?.position;
