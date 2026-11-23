@@ -192,3 +192,27 @@ describe('updatePlayerToken — mobile readable player graphics', () => {
     expect(token.bodyGroup.scale.x).toBeLessThanOrEqual(2.05);
   });
 });
+
+describe('skating sway', () => {
+  it('rocks the body with the stride at speed, never the stick, and is still when standing', () => {
+    const token = createPlayerToken();
+    updatePlayerToken(token, { player: skater, options: options(), quality: 'high' });
+    expect(token.vectorBody.rotation).toBe(0);
+
+    updatePlayerToken(token, {
+      player: skater,
+      options: options({ playbackFrame: frameAt({ speed: 60, stridePhase: 0.25 }) }),
+      quality: 'high',
+    });
+    expect(Math.abs(token.vectorBody.rotation)).toBeGreaterThan(0.05);
+    expect(Math.abs(token.vectorBody.rotation)).toBeLessThan(0.1);
+    expect(token.stick.rotation).toBe(0);
+
+    updatePlayerToken(token, {
+      player: skater,
+      options: options({ playbackFrame: frameAt({ speed: 0, stridePhase: 0.25 }) }),
+      quality: 'high',
+    });
+    expect(token.vectorBody.rotation).toBe(0);
+  });
+});

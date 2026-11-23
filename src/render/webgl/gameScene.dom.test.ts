@@ -19,6 +19,8 @@ import { buildGameScene, destroyGameScene, updateGameScene } from './gameScene';
 import { giveAndGoRegressionDrill } from '@/fixtures/giveAndGo.v1';
 import { EMPTY_TRAILS } from '@/playback/playbackFrame';
 import type { DynamicLayerInput } from '@/components/canvas/renderDynamic';
+import { compileDrill } from '@/sim/compileDrill';
+import { sampleFrame } from '@/sim/sampleFrame';
 
 function fakeCanvasRenderingContext2D(): CanvasRenderingContext2D {
   const gradient = { addColorStop: () => {} } as unknown as CanvasGradient;
@@ -77,8 +79,8 @@ describe('buildGameScene', () => {
     const scene = buildGameScene();
     // coaches, equipment, ghost trails, skate paths, transient route, events, drag
     // preview (+label), pass-from highlight, dimmed players, players, pass
-    // candidates, edit handles, animated puck, diagnostics, glow.
-    expect(scene.root.children.length).toBe(16);
+    // candidates, edit handles, puck trail, animated puck, diagnostics, glow.
+    expect(scene.root.children.length).toBe(17);
   });
 
   it('draws coaches as the FIRST group, matching renderDynamic.ts\'s paint order', () => {
@@ -281,5 +283,40 @@ describe('updateGameScene', () => {
     updateGameScene(scene, { ...BASE_INPUT, selectedPlayerId: 'p13', isPlaying: true });
     const editHandles = scene.root.children.find(child => child.label === 'edit-handles')!;
     expect(editHandles.children.some(child => child.visible)).toBe(false);
+  });
+});
+
+describe('puck trail', () => {
+  function inFlightPuck() {
+    const compiled = compileDrill(giveAndGoRegressionDrill);
+    for (let t = 0; t <= compiled.durationSeconds; t += 1 / 30) {
+      const frame = sampleFrame(compiled, t);
+      if (frame.puck?.visible && frame.puck.state === 'in_flight') {
+        // Well into the pass, so there is a trail to draw.
+        const later = sampleFrame(compiled, t + 0.15);
+        if (later.puck?.state === 'in_flight') return later.puck;
+      }
+    }
+    throw new Error('the fixture has no pass in flight');
+  }
+
+  function trail(scene: ReturnType<typeof buildGameScene>): Graphics {
+    return scene.root.children.find(child => child.label === 'puck-trail') as Graphics;
+  }
+
+  it('streaks behind a passed puck, and only while it is in flight', () => {
+    const scene = buildGameScene();
+    updateGameScene(scene, { ...BASE_INPUT, isPlaying: true, puck: inFlightPuck() });
+    expect(trail(scene).context.instructions.length).toBeGreaterThan(0);
+    updateGameScene(scene, { ...BASE_INPUT, isPlaying: true, puck: null });
+    expect(trail(scene).context.instructions.length).toBe(0);
+    destroyGameScene(scene);
+  });
+
+  it('is shed at low quality', () => {
+    const scene = buildGameScene();
+    updateGameScene(scene, { ...BASE_INPUT, isPlaying: true, quality: 'low', puck: inFlightPuck() });
+    expect(trail(scene).context.instructions.length).toBe(0);
+    destroyGameScene(scene);
   });
 });

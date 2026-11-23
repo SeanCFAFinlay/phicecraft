@@ -293,9 +293,22 @@ export function LibraryPage() {
           </div>
 
           {entries.length === 0 ? (
-            <p className="px-1 py-8 text-center text-[13px] text-white/50">
-              Nothing matches those filters. Try clearing one.
-            </p>
+            <div className="mx-auto flex max-w-sm flex-col items-center gap-3 px-4 py-10 text-center">
+              <span aria-hidden="true" className="text-[28px] opacity-70">🔎</span>
+              <p className="text-[14px] font-bold text-app-text">No drills match</p>
+              <p className="text-[13px] leading-snug text-white/55">
+                {filters.query
+                  ? `Nothing matches “${filters.query}” with these filters.`
+                  : 'Nothing matches those filters. Try clearing one.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setFilters(EMPTY_FILTERS)}
+                className="touch-target rounded-xl border border-app-cyan bg-app-cyan/15 px-4 text-[13px] font-bold text-app-cyan"
+              >
+                Show all drills
+              </button>
+            </div>
           ) : (
             <ul className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
               {entries.map(entry => (

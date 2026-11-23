@@ -12,6 +12,7 @@ import type { LibraryEntry } from './libraryStore';
 import { cachedThumbnail } from './thumbnailRenderer';
 import { findTemplate } from '@/data/templates/registry';
 import { projectToV2 } from '@/domain/v3/projectToV2';
+import { useResponsive } from '@/ui/useResponsive';
 
 /** Card image size. Wider than tall, because a rink is. */
 const THUMB = { width: 400, height: 170 };
@@ -64,23 +65,94 @@ export function DrillCard({ entry, onOpen, onToggleFavourite, onUse }: DrillCard
     entry.equipmentCount > 0 ? `${entry.equipmentCount} pieces` : 'pucks only',
   ].join(' · ');
 
+  const { isPhone } = useResponsive();
+
+  const starButton = (
+    <button
+      type="button"
+      onClick={onToggleFavourite}
+      aria-pressed={entry.isFavourite}
+      aria-label={entry.isFavourite ? `Unstar ${entry.title}` : `Star ${entry.title}`}
+      className={`touch-target -mr-1 -mt-1 flex shrink-0 items-center justify-center rounded-xl ${
+        entry.isFavourite ? 'text-app-gold' : 'text-white/35 hover:text-white/60'
+      }`}
+    >
+      <Star filled={entry.isFavourite} />
+    </button>
+  );
+
+  const actions = (
+    <div className={`flex gap-1.5 ${isPhone ? 'mt-2' : 'mt-3 pt-1'}`}>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="touch-target flex-1 rounded-xl border border-app-border bg-white/5 px-3 text-[13px] font-bold text-app-text hover:bg-white/10"
+      >
+        Details
+      </button>
+      <button
+        type="button"
+        onClick={onUse}
+        className="touch-target flex-1 rounded-xl border border-app-cyan bg-app-cyan/15 px-3 text-[13px] font-bold text-app-cyan"
+      >
+        Use drill
+      </button>
+    </div>
+  );
+
+  // A phone shows one card per row; full-width diagrams made each card a
+  // whole screen tall, so a coach scrolled past three drills a swipe. The
+  // compact card puts a small diagram beside the title instead.
+  if (isPhone) {
+    return (
+      <article className="flex flex-col rounded-2xl border border-app-border bg-white/5 p-2.5">
+        <div className="flex gap-2.5">
+          {thumbnail && (
+            <img
+              src={thumbnail}
+              alt=""
+              width={THUMB.width}
+              height={THUMB.height}
+              loading="lazy"
+              decoding="async"
+              className="w-[124px] shrink-0 self-start rounded-lg border border-app-border bg-white"
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-1">
+              <h3 className="line-clamp-2 min-w-0 flex-1 text-[14px] font-black leading-snug text-app-text">
+                {entry.title}
+              </h3>
+              {starButton}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              <span className="rounded-full bg-app-cyan/12 px-1.5 py-0.5 text-[10.5px] font-bold text-app-cyan">
+                {AREA_LABELS[entry.rinkArea] ?? entry.rinkArea}
+              </span>
+              <span className="rounded-full bg-white/8 px-1.5 py-0.5 text-[10.5px] font-bold text-white/65">
+                {entry.durationMinutes} min
+              </span>
+              {entry.ageBands.slice(0, 2).map(band => (
+                <span key={band} className="rounded-full bg-white/8 px-1.5 py-0.5 text-[10.5px] font-bold uppercase text-white/65">
+                  {band}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <p className="mt-1.5 line-clamp-2 text-[12px] leading-snug text-white/60">{entry.summary}</p>
+        {actions}
+      </article>
+    );
+  }
+
   return (
     <article className="flex h-full flex-col rounded-2xl border border-app-border bg-white/5 p-3">
       <div className="flex items-start gap-2">
         <h3 className="min-w-0 flex-1 text-[15px] font-black leading-snug text-app-text">
           {entry.title}
         </h3>
-        <button
-          type="button"
-          onClick={onToggleFavourite}
-          aria-pressed={entry.isFavourite}
-          aria-label={entry.isFavourite ? `Unstar ${entry.title}` : `Star ${entry.title}`}
-          className={`touch-target -mr-1 -mt-1 flex shrink-0 items-center justify-center rounded-xl ${
-            entry.isFavourite ? 'text-app-gold' : 'text-white/35 hover:text-white/60'
-          }`}
-        >
-          <Star filled={entry.isFavourite} />
-        </button>
+        {starButton}
       </div>
 
       {thumbnail && (
@@ -124,22 +196,7 @@ export function DrillCard({ entry, onOpen, onToggleFavourite, onUse }: DrillCard
 
       <p className="mt-1.5 text-[11px] text-white/40">{needs}</p>
 
-      <div className="mt-3 flex gap-1.5 pt-1">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="touch-target flex-1 rounded-xl border border-app-border bg-white/5 px-3 text-[13px] font-bold text-app-text hover:bg-white/10"
-        >
-          Details
-        </button>
-        <button
-          type="button"
-          onClick={onUse}
-          className="touch-target flex-1 rounded-xl border border-app-cyan bg-app-cyan/15 px-3 text-[13px] font-bold text-app-cyan"
-        >
-          Use drill
-        </button>
-      </div>
+      {actions}
     </article>
   );
 }

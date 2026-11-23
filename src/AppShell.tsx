@@ -30,9 +30,11 @@ import { PreviewBar } from '@/components/shell/PreviewBar';
 import { PresentOverlay } from '@/components/shell/PresentOverlay';
 import { ActionChip } from '@/components/shell/RinkChips';
 import { FirstRunHint } from '@/components/shell/FirstRunHint';
+import { WelcomeScreen } from '@/components/shell/WelcomeScreen';
 import { useKeyboardShortcuts } from '@/components/shell/useKeyboardShortcuts';
 import { ToastHost } from '@/components/Toast';
 import { DialogHost } from '@/components/DialogHost';
+import { SheetLoading } from '@/components/SheetLoading';
 import { LiveRegion } from '@/components/a11y/LiveRegion';
 import { ViewControls } from '@/components/ViewControls';
 import { ValidationPanel } from '@/components/ValidationPanel';
@@ -202,7 +204,7 @@ export function AppShell() {
           />
         )}
         {isIntelligenceOpen && (
-          <Suspense fallback={null}>
+          <Suspense fallback={<SheetLoading label="Checking the play" />}>
             <IntelligencePanel onClose={() => setIsIntelligenceOpen(false)} />
           </Suspense>
         )}
@@ -228,7 +230,7 @@ export function AppShell() {
       <ViewSheet />
       <ModeSheet />
 
-      <Suspense fallback={null}>
+      <Suspense fallback={<SheetLoading />}>
         {state.ui.openSheet === 'coach' && <CoachWorkspace />}
         {state.ui.openSheet === 'library' && <LibraryPage />}
         {state.ui.openSheet === 'practice' && <PracticePage />}
@@ -256,6 +258,7 @@ export function AppShell() {
         {state.ui.inspector.kind === 'event' && <EventInspector />}
       </Suspense>
 
+      <WelcomeScreen />
       <DialogHost />
       <LiveRegion />
     </div>

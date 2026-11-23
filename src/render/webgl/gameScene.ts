@@ -53,6 +53,7 @@ import {
   createEventToken,
   createSkatePathCache,
   updateAnimatedPuck,
+  updatePuckTrail,
   createEquipmentToken,
   updateCoaches,
   updateDiagnostics,
@@ -104,6 +105,7 @@ interface InternalGameScene extends GameScene {
   passCandidatesPool: GraphicsKeyedPool;
   editHandlesContainer: Container;
   editHandlesPool: GraphicsKeyedPool;
+  puckTrail: Graphics;
   animatedPuck: Graphics;
   diagnostics: Graphics;
   glowContainer: Container;
@@ -132,6 +134,7 @@ export function buildGameScene(): GameScene {
   const playersContainer = new Container({ label: 'players' });
   const passCandidatesContainer = new Container({ label: 'pass-candidates' });
   const editHandlesContainer = new Container({ label: 'edit-handles' });
+  const puckTrail = new Graphics({ label: 'puck-trail' });
   const animatedPuck = new Graphics({ label: 'animated-puck' });
   const diagnostics = new Graphics({ label: 'diagnostics' });
   const glowContainer = new Container({ label: 'glow' });
@@ -153,6 +156,7 @@ export function buildGameScene(): GameScene {
     playersContainer,
     passCandidatesContainer,
     editHandlesContainer,
+    puckTrail,
     animatedPuck,
     diagnostics,
     glowContainer
@@ -182,6 +186,7 @@ export function buildGameScene(): GameScene {
     passCandidatesPool: new GraphicsKeyedPool(passCandidatesContainer),
     editHandlesContainer,
     editHandlesPool: new GraphicsKeyedPool(editHandlesContainer),
+    puckTrail,
     animatedPuck,
     diagnostics,
     glowContainer,
@@ -308,6 +313,7 @@ export function updateGameScene(scene: GameScene, input: DynamicLayerInput): voi
 
   updatePassCandidates(s.passCandidatesPool, passCandidates, players, drill.skatePaths);
   updateEditHandles(s.editHandlesPool, input);
+  updatePuckTrail(s.puckTrail, input.puck, renderedEvents, input.quality);
   updateAnimatedPuck(s.animatedPuck, input.puck);
   updateDiagnostics(s.diagnostics, players, input.playerFrames, input.puck, input.showDiagnostics);
 

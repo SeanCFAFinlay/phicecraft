@@ -18,7 +18,10 @@ export function IntelligenceBadge({
   onToggle?: () => void;
 } = {}) {
   const { state } = useAppState();
-  const { prefersReducedMotion } = useResponsive();
+  const { prefersReducedMotion, isPhone, isCompactLandscape } = useResponsive();
+  // On a phone the full sentence sat over the corner of the rink; the icon
+  // and a tick or a count say the same thing in a third of the space.
+  const isCompact = isPhone || isCompactLandscape;
   const [report, setReport] = useState<DrillValidationReport | null>(null);
 
   useEffect(() => {
@@ -79,7 +82,7 @@ export function IntelligenceBadge({
       onClick={onToggle}
       aria-label="Toggle coaching intelligence"
       aria-expanded={isOpen}
-      className={`touch-target absolute right-2.5 bottom-2.5 sm:right-3 sm:bottom-3 z-20 flex h-9 sm:h-8 items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] sm:text-[11.5px] font-black shadow-lg backdrop-blur-md transition-all active:scale-95 duration-200 ${
+      className={`touch-target absolute right-2.5 bottom-2.5 sm:right-3 sm:bottom-3 z-20 flex h-9 sm:h-8 items-center gap-1.5 rounded-full border ${isCompact ? 'px-2.5' : 'px-3'} py-1 text-[12px] sm:text-[11.5px] font-black shadow-lg backdrop-blur-md transition-all active:scale-95 duration-200 ${
         isOpen
           ? 'border-app-cyan bg-app-cyan/25 text-white shadow-[0_0_15px_rgba(0,229,255,0.4)]'
           : hasIssues
@@ -88,11 +91,15 @@ export function IntelligenceBadge({
       }`}
     >
       <span className="text-[13px]">🧠</span>
-      <span>
-        {hasIssues
-          ? `${issueCount} Tactical Note${issueCount > 1 ? 's' : ''}`
-          : 'Intelligence: Verified'}
-      </span>
+      {isCompact ? (
+        <span>{hasIssues ? issueCount : '✓'}</span>
+      ) : (
+        <span>
+          {hasIssues
+            ? `${issueCount} Tactical Note${issueCount > 1 ? 's' : ''}`
+            : 'Intelligence: Verified'}
+        </span>
+      )}
       {hasIssues && (
         <span className={`flex h-2 w-2 rounded-full bg-amber-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
       )}

@@ -19,7 +19,10 @@ import { useDrillSteps } from '@/features/coaching/useDrillSteps';
 export function ReplayHud() {
   const { state, dispatch } = useAppState();
   const { playback } = useEditorRuntime();
-  const { prefersReducedMotion } = useResponsive();
+  const { prefersReducedMotion, isPhone, isCompactLandscape } = useResponsive();
+  // The play's name is already in the top strip; on a phone the folded HUD
+  // keeps only the clock and the step, so it covers less of the rink.
+  const isCompact = isPhone || isCompactLandscape;
   const snapshot = usePlaybackSnapshot(playback);
   const frame = playback.getFrame();
 
@@ -67,9 +70,9 @@ export function ReplayHud() {
         className="pointer-events-none absolute left-2 top-2 z-20 flex max-w-[calc(100vw-110px)] items-center gap-1.5"
         aria-label="Drill replay display"
       >
-        <div className="pointer-events-auto flex items-center gap-2 rounded-xl border border-white/20 bg-slate-950/90 px-3 py-1.5 text-xs text-white shadow-xl backdrop-blur-md">
+        <div className={`pointer-events-auto flex items-center rounded-xl border border-white/20 bg-slate-950/90 text-xs ${isCompact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} text-white shadow-xl backdrop-blur-md`}>
           <span className={`flex h-2 w-2 rounded-full bg-cyan-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
-          <span className="max-w-[140px] sm:max-w-[200px] truncate font-bold text-cyan-100">
+          <span className={`max-w-[140px] sm:max-w-[200px] truncate font-bold text-cyan-100 ${isCompact ? 'sr-only' : ''}`}>
             {state.drill.name || 'Tactical Drill'}
           </span>
           <span className="text-[10px] font-mono text-cyan-300/80">{currentTime}s</span>

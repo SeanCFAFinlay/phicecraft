@@ -12,9 +12,8 @@
 // a helmet, and a stick to the blade - not a hand-port of every equipment
 // polygon in SkaterRenderer.ts/GoalieRenderer.ts (laces, cage bars, glove
 // stitching, ...), and it does not port `SkaterEffects.ts`'s stride/skid
-// mark - the only thing Canvas's `reducedEffects` flag ever gated, which is
-// why that field was dropped from `PlayerVisualOptions` rather than wired:
-// there is nothing left for it to gate. It reuses the SAME pure
+// mark. Skating motion is a gentle shoulder sway instead (`strideSway`),
+// read from the frame's stride phase and speed. It reuses the SAME pure
 // `getSkaterPalette` function (colours) and the SAME heading rule Canvas
 // applies per role - `effectiveHeading` below matches SkaterRenderer.ts for
 // skaters (`frame.heading`) and GoalieRenderer.ts's puck-tracking
@@ -64,11 +63,12 @@ export interface PlayerVisualOptions {
 }
 
 const NUMBER_STYLE: TextStyleOptions = {
-  fontSize: 13,
-  fontWeight: '900',
-  fontFamily: 'Inter, system-ui, -apple-system, Arial, sans-serif',
+  fontSize: 12.5,
+  fontWeight: '800',
+  fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif',
   fill: '#ffffff',
-  stroke: { color: 'rgba(5, 15, 25, 0.9)', width: 3 },
+  stroke: { color: 'rgba(5, 15, 25, 0.88)', width: 3, join: 'round' },
+  letterSpacing: -0.3,
 };
 
 /** Mirrors PlayerRenderer.ts's private `createDesignFrame` - the same synthetic frame when nothing is playing back. */
@@ -294,39 +294,83 @@ function drawVectorBody(
   blade: { x: number; y: number },
   effectsEnabled: boolean
 ): void {
-  const bodyR = isGoalie ? r * 1.15 : r * 0.95;
+  const bodyR = bodyRadius(r, isGoalie);
   redraw(token.shadow, `${bodyR}|${effectsEnabled}`, g => {
-    // Balanced centered contact shadow grounds the player on the ice surface
-    if (effectsEnabled) g.ellipse(0, 0, bodyR * 1.05, bodyR * 0.95).fill({ color: 0x071520, alpha: 0.22 });
+    // A soft contact shadow, a touch behind and below, grounds the player.
+    if (!effectsEnabled) return;
+    g.ellipse(-bodyR * 0.06, bodyR * 0.08, bodyR * 0.98, bodyR * 1.04).fill({ color: 0x071520, alpha: 0.14 });
+    g.ellipse(-bodyR * 0.04, bodyR * 0.05, bodyR * 0.86, bodyR * 0.92).fill({ color: 0x071520, alpha: 0.16 });
   });
 
   // The blade moves with stickhandling; a tenth of a unit is below a pixel.
   const bladeKey = `${r}|${Math.round(blade.x * 10)}|${Math.round(blade.y * 10)}`;
-  redraw(token.stick, bladeKey, stick => stick
-    .moveTo(-r * 0.2, 0)
-    .lineTo(blade.x - r * 0.12, blade.y)
-    .stroke({ color: 0xc89a58, width: 2.8, cap: 'round', join: 'round' })
-    .moveTo(blade.x - r * 0.12, blade.y)
-    .lineTo(blade.x, blade.y)
-    .stroke({ color: 0x1a1a1a, width: 3.2, cap: 'round' })); // blade tape
+  redraw(token.stick, bladeKey, stick => drawStick(stick, r, blade));
 
-  const bodyKey = `${bodyR}|${palette.jersey}|${palette.jerseyDark}|${palette.helmet}`;
-  redraw(token.vectorBody, bodyKey, body => body
-    // Soft outer ring for crisp contrast on light ice
-    .ellipse(0, 0, bodyR * 0.82, bodyR * 0.88)
-    .stroke({ color: 0xffffff, alpha: 0.95, width: 2.2 })
-    // Solid team jersey
-    .ellipse(0, 0, bodyR * 0.78, bodyR * 0.84)
-    .fill({ color: shadeToNumber(palette.jersey) })
-    .stroke({ color: shadeToNumber(palette.jerseyDark), width: 1.4 })
-    // Directional helmet facing forward
-    .circle(bodyR * 0.68, 0, bodyR * 0.38)
-    .fill({ color: shadeToNumber(palette.helmet) })
-    .stroke({ color: 0x07111a, width: 1.5 })
-    // Visor / cage detail
-    .moveTo(bodyR * 0.78, -bodyR * 0.2)
-    .lineTo(bodyR * 0.78, bodyR * 0.2)
-    .stroke({ color: 0x4fc3f7, alpha: 0.75, width: 1.5 }));
+  const bodyKey = `${bodyR}|${isGoalie}|${palette.jersey}|${palette.jerseyDark}|${palette.helmet}`;
+  redraw(token.vectorBody, bodyKey, body => drawBody(body, bodyR, isGoalie, palette));
+}
+
+function bodyRadius(r: number, isGoalie: boolean): number {
+  return isGoalie ? r * 1.15 : r * 0.95;
+}
+
+/**
+ * A two-tone composite stick: a dark edge under a light shaft reads on white
+ * ice and on a team colour alike, gloves where the hands hold it, and a taped
+ * blade turned across the puck so the puck sits on its face.
+ */
+function drawStick(g: Graphics, r: number, blade: { x: number; y: number }): void {
+  const butt = { x: -r * 0.05, y: blade.y * 0.18 };
+  const heel = { x: blade.x - r * 0.16, y: blade.y * 0.94 };
+  const side = blade.y >= 0 ? 1 : -1;
+  // The blade runs from the heel across the front of the puck.
+  const toe = { x: blade.x + r * 0.08, y: blade.y + side * r * 0.2 };
+  g.moveTo(butt.x, butt.y).lineTo(heel.x, heel.y).stroke({ color: 0x0b141c, alpha: 0.75, width: 3.6, cap: 'round' });
+  g.moveTo(butt.x, butt.y).lineTo(heel.x, heel.y).stroke({ color: 0xe9edf2, width: 2, cap: 'round' });
+  g.moveTo(heel.x, heel.y).lineTo(toe.x, toe.y).stroke({ color: 0x0b141c, width: 3.6, cap: 'round', join: 'round' });
+  // Gloves: top hand near the body, bottom hand halfway down the shaft.
+  for (const t of [0.12, 0.5]) {
+    const x = butt.x + (heel.x - butt.x) * t;
+    const y = butt.y + (heel.y - butt.y) * t;
+    g.circle(x, y, r * 0.15).fill(0x161d26).stroke({ color: 0xffffff, alpha: 0.35, width: 0.8 });
+  }
+}
+
+/**
+ * Top-down skater: shoulders wider than deep, a white keyline that holds on
+ * white ice, a lighter yoke across the shoulders and a helmet at the front
+ * edge with a visor facing the way the player looks. The number sits behind
+ * the helmet (see `updatePlayerToken`) so the two never overlap.
+ */
+function drawBody(g: Graphics, bodyR: number, isGoalie: boolean, palette: SkaterPalette): void {
+  const jersey = shadeToNumber(palette.jersey);
+  const dark = shadeToNumber(palette.jerseyDark);
+  const depth = isGoalie ? 0.84 : 0.74;
+  const width = isGoalie ? 0.98 : 0.9;
+  g.ellipse(0, 0, bodyR * (depth + 0.07), bodyR * (width + 0.07)).fill({ color: 0xffffff, alpha: 0.96 });
+  g.ellipse(0, 0, bodyR * depth, bodyR * width).fill(jersey).stroke({ color: dark, width: 1.2 });
+  // Shoulder yoke: a thin lighter band across the front of the jersey.
+  g.ellipse(bodyR * 0.2, 0, bodyR * 0.3, bodyR * width * 0.86).fill({ color: 0xffffff, alpha: 0.1 });
+  const helmetX = bodyR * (isGoalie ? 0.66 : 0.58);
+  const helmetR = bodyR * 0.3;
+  g.circle(helmetX, 0, helmetR).fill(shadeToNumber(palette.helmet)).stroke({ color: 0x07111a, width: 1.2 });
+  g.circle(helmetX - helmetR * 0.3, -helmetR * 0.3, helmetR * 0.32).fill({ color: 0xffffff, alpha: 0.28 });
+  g.arc(helmetX, 0, helmetR * 0.78, -0.75, 0.75).stroke({ color: 0x7fd6ff, alpha: 0.9, width: 1.4, cap: 'round' });
+}
+
+/** Most of a stride's sway, in radians, at full skating speed. */
+const STRIDE_SWAY = 0.075;
+
+/**
+ * Skating, the shoulders rock with each push. Read from the frame's own
+ * stride phase and speed, so it is the same on every replay and scrub, fades
+ * in and out with speed, and never moves the stick or the puck on it.
+ */
+function strideSway(frame: PlaybackPlayerFrame, isGoalie: boolean): number {
+  if (isGoalie || frame.speed <= 0.5) return 0;
+  const weight = Math.min(1, Math.max(0, (frame.speed - 0.5) / 24.5));
+  const eased = weight * weight * (3 - 2 * weight);
+  return Math.sin((frame.stridePhase ?? 0) * Math.PI * 2) * STRIDE_SWAY * eased;
 }
 
 export interface UpdatePlayerTokenArgs {
@@ -370,7 +414,17 @@ export function updatePlayerToken(token: PlayerToken, { player, options, quality
   token.stick.visible = true;
   token.shadow.visible = true;
   drawVectorBody(token, r, isGoalie, palette, blade, effectsEnabled(quality));
+  const sway = strideSway(frame, isGoalie);
+  token.vectorBody.rotation = sway;
+  token.shadow.rotation = sway * 0.5;
 
   if (token.number.text !== player.number) token.number.text = player.number;
+  // Behind the helmet, in the middle of the jersey.
+  token.number.position.set(-bodyRadius(r, isGoalie) * 0.12, 0);
   token.number.rotation = -heading - options.screenRotation;
+  // Rasterised at the size it is shown, so it stays sharp when zoomed in
+  // (and the texture is only rebuilt when that size changes a step).
+  const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+  const resolution = Math.min(8, Math.max(2, Math.ceil(dpr * Math.abs(options.zoom) * iconScale * 2) / 2));
+  if (token.number.resolution !== resolution) token.number.resolution = resolution;
 }

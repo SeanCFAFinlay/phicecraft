@@ -16,7 +16,14 @@ import { SaveStatus } from './SaveStatus';
 export function TopStrip() {
   const { state, dispatch } = useAppState();
   const commands = useCommands();
-  const { isPhone, isCompactLandscape } = useResponsive();
+  const { isPhone, isCompactLandscape, width } = useResponsive();
+  // A landscape phone has the width for words on the workspace tabs but not
+  // the height for a second row, so the rest of the strip gives way instead:
+  // the save state becomes a dot, Redo moves to the keyboard/menu and the
+  // mode switch folds into one button. Icons alone said nothing to a coach.
+  const isTightLandscape = isCompactLandscape && !isPhone;
+  const showTabLabels = isTightLandscape && width >= 740;
+  const tabLabel = showTabLabels ? 'inline' : 'hidden xl:inline';
 
   const canUndo = state.undoStack.length > 0;
   const canRedo = state.redoStack.length > 0;
@@ -67,13 +74,13 @@ export function TopStrip() {
         <button
           type="button"
           onClick={() => void commands.requestRename()}
-          className="touch-target truncate max-w-[120px] sm:max-w-[160px] md:max-w-[200px] rounded-lg px-2 py-0.5 text-left text-[12.5px] font-bold text-white/90 hover:bg-white/10 hover:text-white transition-all"
+          className={`touch-target truncate max-w-[120px] sm:max-w-[160px] ${isTightLandscape ? '' : 'md:max-w-[200px]'} rounded-lg px-2 py-0.5 text-left text-[12.5px] font-bold text-white/90 hover:bg-white/10 hover:text-white transition-all`}
           aria-label={`Play name: ${state.drill.name}. Activate to rename.`}
         >
           {state.drill.name}
         </button>
 
-        <SaveStatus compact={isPhone} />
+        <SaveStatus compact={isPhone || isTightLandscape} />
       </div>
 
       {/* CENTER: Workspace Selector Segmented Pills.
@@ -95,7 +102,7 @@ export function TopStrip() {
           }`}
         >
           <span aria-hidden="true">🏒</span>
-          <span className="hidden xl:inline">Rink</span>
+          <span className={tabLabel}>Rink</span>
         </button>
 
         <button
@@ -110,7 +117,7 @@ export function TopStrip() {
           }`}
         >
           <span aria-hidden="true">📅</span>
-          <span className="hidden xl:inline">Practice Plans</span>
+          <span className={tabLabel}>{showTabLabels ? 'Practice' : 'Practice Plans'}</span>
         </button>
 
         <button
@@ -125,7 +132,7 @@ export function TopStrip() {
           }`}
         >
           <span aria-hidden="true">📚</span>
-          <span className="hidden xl:inline">Playbook</span>
+          <span className={tabLabel}>Playbook</span>
         </button>
 
         <button
@@ -140,7 +147,7 @@ export function TopStrip() {
           }`}
         >
           <span aria-hidden="true">📋</span>
-          <span className="hidden xl:inline">Teach</span>
+          <span className={tabLabel}>Teach</span>
         </button>
       </nav>
 
@@ -158,7 +165,7 @@ export function TopStrip() {
           </button>
         )}
 
-        {isPhone ? (
+        {isPhone || isTightLandscape ? (
           <ModeSwitchTrigger />
         ) : (
           <>

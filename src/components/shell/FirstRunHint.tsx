@@ -60,7 +60,7 @@ function stageFor(drill: {
 export function FirstRunHint() {
   const { state, dispatch } = useAppState();
   const commands = useCommands();
-  const { isCompactLandscape } = useResponsive();
+  const { isCompactLandscape, isPhone } = useResponsive();
   const [done, setDone] = useState(readDone);
 
   const stage = done ? null : stageFor(state.drill);
@@ -87,7 +87,10 @@ export function FirstRunHint() {
   };
 
   return (
-    <div className="pointer-events-none absolute top-14 xl:top-2 left-1/2 -translate-x-1/2 z-30 flex w-full max-w-[min(580px,94vw)] justify-center px-2">
+    <div className={`pointer-events-none absolute left-1/2 -translate-x-1/2 z-30 ${
+      // On a phone the top of the rink is where the zone's players stand.
+      isPhone ? 'bottom-14' : 'top-14 xl:top-2'
+    } flex w-full max-w-[min(580px,94vw)] justify-center px-2`}>
       <div
         role="status"
         aria-live="polite"
