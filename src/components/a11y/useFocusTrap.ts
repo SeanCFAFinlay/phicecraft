@@ -43,6 +43,13 @@ export function useFocusTrap<T extends HTMLElement>(options: FocusTrapOptions): 
   const containerRef = useRef<T>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
   const { active, onEscape, initialFocus, closeOnEscape = true } = options;
+  // The latest Escape handler, read when Escape is pressed. Callers usually
+  // pass a fresh arrow function every render; as an effect dependency that
+  // re-ran the trap on every render - restoring focus to the opener and then
+  // re-focusing the Close button - so typing in a sheet's search box lost
+  // focus after the first letter.
+  const onEscapeRef = useRef(onEscape);
+  onEscapeRef.current = onEscape;
 
   useEffect(() => {
     if (!active) return;
@@ -64,7 +71,7 @@ export function useFocusTrap<T extends HTMLElement>(options: FocusTrapOptions): 
       if (event.key === 'Escape' && closeOnEscape) {
         event.stopPropagation();
         event.preventDefault();
-        onEscape?.();
+        onEscapeRef.current?.();
         return;
       }
 
@@ -100,7 +107,7 @@ export function useFocusTrap<T extends HTMLElement>(options: FocusTrapOptions): 
         restore.focus({ preventScroll: true });
       }
     };
-  }, [active, onEscape, initialFocus, closeOnEscape]);
+  }, [active, initialFocus, closeOnEscape]);
 
   return containerRef;
 }

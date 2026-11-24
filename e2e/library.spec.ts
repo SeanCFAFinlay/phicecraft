@@ -228,3 +228,13 @@ test('the puck race remains editable, saved, and outcome-complete after reload',
   await expect(playback).not.toContainText('Route contains');
 });
 
+
+test('typing a search letter by letter keeps focus in the search box', async ({ page }) => {
+  await openLibrary(page);
+  const search = page.getByRole('searchbox', { name: 'Search drills' });
+  await search.click();
+  // Real typing, one key at a time: the list re-renders on every letter.
+  await search.pressSequentially('cycle', { delay: 40 });
+  await expect(search).toHaveValue('cycle');
+  await expect(search).toBeFocused();
+});
