@@ -171,6 +171,11 @@ self.addEventListener('fetch', event => {
 
   // Navigations: network first with a 2.5s timeout for weak arena connectivity,
   // falling back promptly to the cached shell. Validates responses before updating cache.
+  // Only the app itself is the shell. A standalone page (privacy policy,
+  // terms) must not be cached AS index.html, or the next offline launch
+  // would open that page instead of the app.
+  if (request.mode === 'navigate' && /\.html$/.test(url.pathname) && url.pathname !== '/index.html') return;
+
   if (request.mode === 'navigate') {
     event.respondWith(
       (async () => {

@@ -280,6 +280,14 @@ export function MenuSheet() {
           label="How to use PHormation"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'help' })}
         />
+        <p className="flex gap-4 px-4 pb-1 pt-2 text-[12px] text-white/45">
+          <a href="/privacy.html" target="_blank" rel="noopener" className="underline-offset-2 hover:text-app-cyan hover:underline">
+            Privacy policy
+          </a>
+          <a href="/terms.html" target="_blank" rel="noopener" className="underline-offset-2 hover:text-app-cyan hover:underline">
+            Terms of use
+          </a>
+        </p>
       </SheetSection>
     </Sheet>
   );

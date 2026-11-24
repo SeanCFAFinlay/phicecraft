@@ -1,0 +1,19 @@
+/* Privacy policy and terms pages: the app's dark palette, set for reading. */
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #06121d;
+  color: #dbe7f0;
+  font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+}
+main { max-width: 680px; margin: 0 auto; padding: 28px 20px 64px; }
+.back { display: inline-block; margin-bottom: 20px; color: #00e5ff; font-weight: 700; text-decoration: none; }
+.back:hover { text-decoration: underline; }
+h1 { margin: 0; font-size: 30px; font-weight: 900; color: #fff; }
+.updated { margin: 4px 0 24px; color: #8aa3b5; font-size: 14px; }
+.lead { font-size: 18px; color: #fff; }
+h2 { margin: 32px 0 6px; font-size: 18px; font-weight: 800; color: #00e5ff; }
+p { margin: 0 0 12px; }
+a { color: #00e5ff; }
+code { background: rgba(255, 255, 255, 0.08); padding: 1px 5px; border-radius: 4px; }

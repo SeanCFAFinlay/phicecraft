@@ -168,7 +168,7 @@ export function TacticalBar() {
   const { carrier } = usePuckActions();
   const { fit, zoomToZone } = useViewActions();
 
-  const [openMenu, setOpenMenu] = useState<'drills' | 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'drills' | 'players' | 'objects' | 'draw' | 'export' | 'remove' | 'flip' | null>(null);
 
   const currentTool = state.ui.currentTool;
   const isPlacingObject = currentTool === 'cone' || currentTool === 'tire' || currentTool === 'mini-net' || currentTool === 'barrier';
@@ -189,7 +189,7 @@ export function TacticalBar() {
   if (state.ui.mode !== 'build' || isCompactLandscape) return null;
 
   const closeMenu = () => setOpenMenu(null);
-  const toggleMenu = (menu: 'drills' | 'players' | 'objects' | 'draw' | 'lineups' | 'defense' | 'export' | 'remove' | 'flip' | 'coach-tools') => {
+  const toggleMenu = (menu: 'drills' | 'players' | 'objects' | 'draw' | 'export' | 'remove' | 'flip') => {
     setOpenMenu(prev => (prev === menu ? null : menu));
   };
 
@@ -399,9 +399,11 @@ export function TacticalBar() {
 
         {/* GROUP 3: COACH TACTICS, SYSTEMS & EQUIPMENT */}
         <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm" role="group" aria-label="Tactical systems and equipment">
-          {/* Pre-Done Drills Flyout */}
+          {/* Ready-made plays: drills, coach drills, team systems and
+              defensive looks in ONE menu. Four separate flyouts made this
+              row the most crowded part of the screen. */}
           <FlyoutMenu
-            label="Drills"
+            label="Plays"
             icon="📚"
             isOpen={openMenu === 'drills'}
             onToggle={() => toggleMenu('drills')}
@@ -504,22 +506,13 @@ export function TacticalBar() {
             <MenuItem
               icon="📖"
               label="Open Full Playbook Library..."
-              sublabel="Browse 32+ categorized drills with filters & plans"
+              sublabel="Every drill, with filters and practice plans"
               onClick={() => {
                 closeMenu();
                 dispatch({ type: 'OPEN_SHEET', sheet: 'library' });
               }}
             />
-          </FlyoutMenu>
-
-          {/* Coach Tools & Drills Flyout */}
-          <FlyoutMenu
-            label="Coach"
-            icon="📋"
-            isOpen={openMenu === 'coach-tools'}
-            onToggle={() => toggleMenu('coach-tools')}
-            onClose={closeMenu}
-          >
+            <div className="my-1 h-px bg-white/10" role="separator" />
             <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400/80">
               Coach Drill Tools
             </div>
@@ -596,32 +589,7 @@ export function TacticalBar() {
                 dispatch({ type: 'OPEN_SHEET', sheet: 'coach' });
               }}
             />
-          </FlyoutMenu>
-
-          {/* Formations Quick Find Button */}
-          <button
-            type="button"
-            onClick={() => {
-              closeMenu();
-              dispatch({ type: 'OPEN_SHEET', sheet: 'formations' });
-            }}
-            aria-label="Formations quick find"
-            title="Formations & Systems (F) — Quick Find"
-            className="flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/20 hover:text-white transition-all"
-          >
-            <span>📋</span>
-            <span>Formations</span>
-            <kbd className="hidden 2xl:inline-block rounded bg-black/40 px-1 py-0.2 text-[9px] font-mono text-emerald-300/90 border border-emerald-500/30">F</kbd>
-          </button>
-
-          {/* Setups / Formations Flyout */}
-          <FlyoutMenu
-            label="Systems"
-            icon="⚡"
-            isOpen={openMenu === 'lineups'}
-            onToggle={() => toggleMenu('lineups')}
-            onClose={closeMenu}
-          >
+            <div className="my-1 h-px bg-white/10" role="separator" />
             <div className="flex items-center justify-between px-2 py-1">
               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400/80">
                 Tactical Formations
@@ -696,16 +664,7 @@ export function TacticalBar() {
               sublabel="Defensive zone coverage"
               onClick={() => applyFormation('faceoff-dzone')}
             />
-          </FlyoutMenu>
-
-          {/* Defending / Opposing Team Movement Flyout */}
-          <FlyoutMenu
-            label="Defend"
-            icon="🛡️"
-            isOpen={openMenu === 'defense'}
-            onToggle={() => toggleMenu('defense')}
-            onClose={closeMenu}
-          >
+            <div className="my-1 h-px bg-white/10" role="separator" />
             <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-rose-400/80">
               Opposing Defense Tactics
             </div>
@@ -783,6 +742,22 @@ export function TacticalBar() {
               }}
             />
           </FlyoutMenu>
+
+          {/* Formations Quick Find Button */}
+          <button
+            type="button"
+            onClick={() => {
+              closeMenu();
+              dispatch({ type: 'OPEN_SHEET', sheet: 'formations' });
+            }}
+            aria-label="Formations quick find"
+            title="Formations & Systems (F) — Quick Find"
+            className="flex h-7 min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/20 hover:text-white transition-all"
+          >
+            <span>📋</span>
+            <span>Formations</span>
+            <kbd className="hidden 2xl:inline-block rounded bg-black/40 px-1 py-0.2 text-[9px] font-mono text-emerald-300/90 border border-emerald-500/30">F</kbd>
+          </button>
 
           {/* Objects / Equipment Flyout */}
           <FlyoutMenu

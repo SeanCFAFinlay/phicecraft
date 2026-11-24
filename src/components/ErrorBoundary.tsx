@@ -12,6 +12,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { getSaveCoordinator } from '@/persistence';
 import { downloadTextFile } from '@/ui/download';
+import { reportCrash } from '@/telemetry/crashReporter';
 
 interface Props {
   children: ReactNode;
@@ -34,9 +35,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Diagnostic logging, kept deliberately: this is the only trace of a crash
-    // in a local-first app with no server to report to.
+    // Logged locally, and sent as a short crash report (no drill data) so a
+    // crash on a coach's phone is visible to whoever maintains the app.
     console.error('PHormation crashed:', error, info.componentStack);
+    reportCrash(error, 'boundary');
     this.setState(state => ({ crashCount: state.crashCount + 1 }));
   }
 

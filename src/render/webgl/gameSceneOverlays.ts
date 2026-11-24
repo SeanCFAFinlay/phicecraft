@@ -26,6 +26,7 @@ import { flightControls } from '@/sim/flightPath';
 import { getCurrentPuckHolder } from '@/engine/puck';
 import { CONTROL_HANDLE_RADIUS, eventFlightLine } from '@/canvas/PathRenderer';
 import type { RenderQuality } from '@/render/quality';
+import { puckTrailPath, puckTrailStroke } from '@/render/puckTrailPath';
 import { polylineOf, type DashPattern } from './dashedLine';
 import type { GraphicsKeyedPool, TokenPool } from './gameScenePool';
 
@@ -726,87 +727,17 @@ export function updateAnimatedPuck(g: Graphics, puck: AnimatedPuck | null): void
   g.position.set(puck.x, puck.y);
 }
 
-/** Longest puck trail, in world units (about a third of a zone). */
-const PUCK_TRAIL_LENGTH = 90;
-const PUCK_TRAIL_SEGMENTS = 12;
-
-/** Nearest point on a polyline: the segment it falls in and how far along. */
-function nearestOnLine(line: Point[], p: Point): { index: number; point: Point; distance: number } {
-  let best = { index: 0, point: line[0], distance: Infinity };
-  for (let i = 1; i < line.length; i++) {
-    const a = line[i - 1];
-    const b = line[i];
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const lengthSq = dx * dx + dy * dy;
-    const t = lengthSq < 1e-9 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq));
-    const point = { x: a.x + dx * t, y: a.y + dy * t };
-    const distance = Math.hypot(point.x - p.x, point.y - p.y);
-    if (distance < best.distance) best = { index: i, point, distance };
-  }
-  return best;
-}
-
-/**
- * A fading streak behind a passed or shot puck, so the eye follows it. Traced
- * back along the flight line of the pass or shot the puck is on (curved
- * passes included), never past where it left the stick - a pure function of
- * the frame, so a scrubbed frame shows the same trail as a played one.
- */
+/** The streak behind a passed or shot puck - see puckTrailPath.ts. Shed at low quality. */
 export function updatePuckTrail(g: Graphics, puck: AnimatedPuck | null, events: DrillEvent[], quality: RenderQuality): void {
   g.clear();
-  if (!puck?.visible || quality === 'low') return;
-  if (puck.state !== 'in_flight' && puck.state !== 'shot') return;
-  let line: Point[] | null = null;
-  let nearest: ReturnType<typeof nearestOnLine> | null = null;
-  for (const event of events) {
-    if (event.type !== 'pass' && event.type !== 'shot') continue;
-    const candidate = eventFlightLine(event);
-    if (candidate.length < 2) continue;
-    const hit = nearestOnLine(candidate, puck);
-    if (!nearest || hit.distance < nearest.distance) {
-      nearest = hit;
-      line = candidate;
-    }
-  }
-  if (!line || !nearest || nearest.distance > 10) return;
-
-  // Walk back from the puck towards the stick it left.
-  const trail: Point[] = [{ x: puck.x, y: puck.y }, nearest.point];
-  let remaining = PUCK_TRAIL_LENGTH - Math.hypot(nearest.point.x - puck.x, nearest.point.y - puck.y);
-  for (let i = nearest.index - 1; i >= 0 && remaining > 0; i--) {
-    const from = trail[trail.length - 1];
-    const to = line[i];
-    const step = Math.hypot(to.x - from.x, to.y - from.y);
-    if (step <= remaining) {
-      trail.push(to);
-      remaining -= step;
-    } else {
-      const t = remaining / step;
-      trail.push({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
-      remaining = 0;
-    }
-  }
-  const lengths = [0];
-  for (let i = 1; i < trail.length; i++) {
-    lengths.push(lengths[i - 1] + Math.hypot(trail[i].x - trail[i - 1].x, trail[i].y - trail[i - 1].y));
-  }
-  const total = lengths[lengths.length - 1];
-  if (total < 2) return;
-
-  const at = (distance: number): Point => {
-    let i = 1;
-    while (i < lengths.length - 1 && lengths[i] < distance) i++;
-    const span = lengths[i] - lengths[i - 1];
-    const t = span < 1e-9 ? 0 : (distance - lengths[i - 1]) / span;
-    return { x: trail[i - 1].x + (trail[i].x - trail[i - 1].x) * t, y: trail[i - 1].y + (trail[i].y - trail[i - 1].y) * t };
-  };
-  const color = puck.state === 'shot' ? 0xff6b0f : 0xffd60a;
-  for (let k = 0; k < PUCK_TRAIL_SEGMENTS; k++) {
-    const a = at((k / PUCK_TRAIL_SEGMENTS) * total);
-    const b = at(((k + 1) / PUCK_TRAIL_SEGMENTS) * total);
-    const fade = 1 - k / PUCK_TRAIL_SEGMENTS;
-    g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color, alpha: 0.5 * fade * fade, width: 1.5 + 4.5 * fade, cap: 'round' });
+  if (quality === 'low') return;
+  const trail = puckTrailPath(puck, events);
+  if (!trail) return;
+  for (const segment of trail.segments) {
+    const { alpha, width } = puckTrailStroke(segment.fade);
+    g.moveTo(segment.from.x, segment.from.y)
+      .lineTo(segment.to.x, segment.to.y)
+      .stroke({ color: trail.color, alpha, width, cap: 'round' });
   }
 }
 

@@ -8,7 +8,9 @@
 
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 4173;
+// E2E_PORT lets the suite run while something else holds 4173 (a reused
+// server on that port would otherwise be tested in place of this app).
+const PORT = Number(process.env.E2E_PORT ?? 4173);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 /** The required viewports, named so failures say which one broke. */

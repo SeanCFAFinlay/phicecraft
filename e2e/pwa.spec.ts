@@ -114,3 +114,16 @@ test('the rink is usable offline, not just visible', async ({ page, context }) =
 
   await context.setOffline(false);
 });
+
+test('opening the privacy policy does not replace the app in the offline cache', async ({ page, context }) => {
+  await openEditor(page);
+  expect(await waitForController(page)).toBe(true);
+
+  await page.goto('/privacy.html');
+  await expect(page.getByRole('heading', { name: 'Privacy policy' })).toBeVisible();
+
+  await context.setOffline(true);
+  await page.goto('/');
+  await expect(page.getByRole('application', { name: /hockey rink/i })).toBeVisible({ timeout: 20_000 });
+  await context.setOffline(false);
+});

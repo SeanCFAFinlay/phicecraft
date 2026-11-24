@@ -141,6 +141,12 @@ export function WelcomeScreen() {
             Start drawing
           </button>
         </div>
+        <p className="mt-3 text-center text-[11.5px] text-white/40">
+          Your plays stay on this device.{' '}
+          <a href="/privacy.html" target="_blank" rel="noopener" className="underline hover:text-app-cyan">Privacy</a>
+          {' · '}
+          <a href="/terms.html" target="_blank" rel="noopener" className="underline hover:text-app-cyan">Terms</a>
+        </p>
       </div>
     </div>
   );

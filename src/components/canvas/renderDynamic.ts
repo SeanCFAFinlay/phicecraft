@@ -40,6 +40,7 @@ import { cameraMatrix } from '@/utils/geometry';
 import { compileDrill } from '@/sim/compileDrill';
 import { getCompiledEventEndpoints } from '@/sim/sampleFrame';
 import type { RenderQuality } from '@/render/quality';
+import { puckTrailPath, puckTrailStroke, type PuckTrailPath } from '@/render/puckTrailPath';
 
 export interface DragPreview {
   kind: 'pass' | 'shoot';
@@ -117,6 +118,24 @@ export interface DynamicLayerInput {
  * was one of the biggest per-frame costs; the drill object only changes when
  * the document does.
  */
+function drawPuckTrail(ctx: CanvasRenderingContext2D, trail: PuckTrailPath | null): void {
+  if (!trail) return;
+  const hex = `#${trail.color.toString(16).padStart(6, '0')}`;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = hex;
+  for (const segment of trail.segments) {
+    const { alpha, width } = puckTrailStroke(segment.fade);
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(segment.from.x, segment.from.y);
+    ctx.lineTo(segment.to.x, segment.to.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 let compiledCacheKey: Drill | null = null;
 let compiledCacheValue: ReturnType<typeof compileDrill> | null = null;
 
@@ -308,6 +327,9 @@ export function drawDynamicLayer(ctx: CanvasRenderingContext2D, input: DynamicLa
       }
     }
   }
+
+  // The same streak behind a passed or shot puck the WebGL board draws.
+  if (input.quality !== 'low') drawPuckTrail(ctx, puckTrailPath(input.puck, renderedEvents));
 
   if (input.puck?.visible) {
     drawAnimatedPuck(ctx, input.puck.x, input.puck.y, input.puck.state);
