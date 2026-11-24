@@ -117,9 +117,9 @@ describe('context tray', () => {
     renderApp();
 
     // Seed a player in Build, via the Add sheet, the same way other tests do.
-    await user.click(screen.getByRole('button', { name: /Add/ }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
     const addSheet = await screen.findByRole('dialog', { name: 'Add to the rink' });
-    await user.click(within(addSheet).getByRole('button', { name: /Home player/ }));
+    await user.click(within(addSheet).getByRole('button', { name: /Skater, your team/ }));
 
     const rink = screen.getByRole('application', { name: /hockey rink/i });
     const playerTap = { pointerId: 1, x: 300, y: 200 };
@@ -159,9 +159,9 @@ describe('sheets', () => {
     const user = userEvent.setup();
     renderApp();
 
-    await user.click(screen.getByRole('button', { name: /Add/ }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add to the rink' });
-    expect(within(sheet).getByRole('button', { name: /Home player/ })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: /Skater, your team/ })).toBeInTheDocument();
 
     await user.click(within(sheet).getByRole('button', { name: 'Close' }));
     await waitFor(() =>
@@ -173,7 +173,7 @@ describe('sheets', () => {
     const user = userEvent.setup();
     renderApp();
 
-    const opener = screen.getByRole('button', { name: /Add/ });
+    const opener = screen.getByRole('button', { name: 'Add' });
     await user.click(opener);
     await screen.findByRole('dialog', { name: 'Add to the rink' });
 
@@ -319,9 +319,9 @@ describe('preview mode', () => {
     renderApp();
 
     // Seed a player in Build, via the Add sheet, the same way the dock does it.
-    await user.click(screen.getByRole('button', { name: /Add/ }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
     const addSheet = await screen.findByRole('dialog', { name: 'Add to the rink' });
-    await user.click(within(addSheet).getByRole('button', { name: /Home player/ }));
+    await user.click(within(addSheet).getByRole('button', { name: /Skater, your team/ }));
 
     const rink = screen.getByRole('application', { name: /hockey rink/i });
     const playerTap = { pointerId: 1, x: 300, y: 200 };

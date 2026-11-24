@@ -121,10 +121,10 @@ test('the Add sheet places a player where you tap', async ({ page }) => {
 
   const before = await countPlayers();
 
-  await page.getByRole('button', { name: /Add/ }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
   await page
     .getByRole('dialog', { name: 'Add to the rink' })
-    .getByRole('button', { name: /Away player/ })
+    .getByRole('button', { name: /Skater, opponents/ })
     .click();
 
   await clickWorld(page, LINEUP.emptyIce);

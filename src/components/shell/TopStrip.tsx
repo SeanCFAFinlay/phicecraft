@@ -12,6 +12,7 @@ import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
 import { ModeSwitch, ModeSwitchTrigger } from './ModeSwitch';
 import { SaveStatus } from './SaveStatus';
+import { BookIcon, DrillIcon, PlannerIcon, WhistleIcon } from '@/ui/icons';
 
 export function TopStrip() {
   const { state, dispatch } = useAppState();
@@ -23,7 +24,7 @@ export function TopStrip() {
   // mode switch folds into one button. Icons alone said nothing to a coach.
   const isTightLandscape = isCompactLandscape && !isPhone;
   const showTabLabels = isTightLandscape && width >= 740;
-  const tabLabel = showTabLabels ? 'inline' : 'hidden xl:inline';
+  const tabLabel = showTabLabels ? 'inline' : 'hidden lg:inline';
 
   const canUndo = state.undoStack.length > 0;
   const canRedo = state.redoStack.length > 0;
@@ -35,7 +36,7 @@ export function TopStrip() {
 
   return (
     <header
-      className="app-chrome safe-top safe-x z-[130] flex flex-shrink-0 items-center justify-between border-b border-cyan-500/20 bg-[#06121d]/95 backdrop-blur-md px-2.5 shadow-sm select-none"
+      className="app-chrome safe-top safe-x z-[130] flex flex-shrink-0 items-center justify-between border-b border-white/[0.07] bg-[#08121b] px-2.5 select-none"
       style={{ minHeight: 'calc(var(--top-strip-height) + var(--safe-top))' }}
     >
       {/* LEFT: Menu button, Brand Logo & Play Name */}
@@ -45,11 +46,11 @@ export function TopStrip() {
           onClick={() => dispatch({ type: 'TOGGLE_MENU' })}
           aria-label="Open main menu"
           aria-expanded={state.ui.showMenu}
-          className="touch-target flex h-8 w-8 shrink-0 flex-col items-center justify-center gap-[3.5px] rounded-lg hover:bg-app-cyan/15 transition-colors"
+          className="touch-target flex h-8 w-8 shrink-0 flex-col items-center justify-center gap-[3.5px] rounded-lg hover:bg-white/[0.07] transition-colors"
         >
-          <span className="block h-[2px] w-[16px] rounded-sm bg-app-cyan shadow-[0_0_6px_rgba(0,229,255,0.4)]" />
-          <span className="block h-[2px] w-[16px] rounded-sm bg-app-cyan shadow-[0_0_6px_rgba(0,229,255,0.4)]" />
-          <span className="block h-[2px] w-[16px] rounded-sm bg-app-cyan shadow-[0_0_6px_rgba(0,229,255,0.4)]" />
+          <span className="block h-[2px] w-[16px] rounded-sm bg-white/80" />
+          <span className="block h-[2px] w-[16px] rounded-sm bg-white/80" />
+          <span className="block h-[2px] w-[16px] rounded-sm bg-white/80" />
         </button>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -59,7 +60,7 @@ export function TopStrip() {
             width={26}
             height={26}
             decoding="async"
-            className="h-6 w-6 rounded-md object-contain ring-1 ring-app-cyan/30"
+            className="h-6 w-6 rounded-md object-contain ring-1 ring-white/10"
             draggable={false}
           />
           {!isCompactLandscape && (
@@ -88,20 +89,20 @@ export function TopStrip() {
           name or the save state - they were drawn underneath the tabs, and
           at 320px the More button fell off the screen. Every one of these
           destinations is in the main menu. */}
-      <nav aria-label="Workspaces" className="mx-2 hidden shrink-0 items-center gap-1 rounded-xl bg-black/40 p-0.5 border border-white/10 sm:flex">
+      <nav aria-label="Workspaces" className="mx-2 hidden shrink-0 items-center gap-0.5 rounded-lg bg-white/[0.03] p-0.5 sm:flex">
         <button
           type="button"
           onClick={() => dispatch({ type: 'CLOSE_SHEET' })}
           aria-label="Rink board"
           aria-current={isRink ? 'page' : undefined}
           title="Rink"
-          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
+          className={`touch-target flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] font-semibold transition-colors ${
             isRink
-              ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
-              : 'text-white/70 hover:text-white hover:bg-white/5'
+              ? 'bg-white/[0.1] text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/[0.05]'
           }`}
         >
-          <span aria-hidden="true">🏒</span>
+          <DrillIcon size={16} />
           <span className={tabLabel}>Rink</span>
         </button>
 
@@ -110,13 +111,13 @@ export function TopStrip() {
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'practice' })}
           aria-label="Practice session planner"
           title="Practice Plans"
-          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
+          className={`touch-target flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] font-semibold transition-colors ${
             isPractice
-              ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
-              : 'text-white/70 hover:text-white hover:bg-white/5'
+              ? 'bg-white/[0.1] text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/[0.05]'
           }`}
         >
-          <span aria-hidden="true">📅</span>
+          <PlannerIcon size={16} />
           <span className={tabLabel}>{showTabLabels ? 'Practice' : 'Practice Plans'}</span>
         </button>
 
@@ -125,13 +126,13 @@ export function TopStrip() {
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'library' })}
           aria-label="Drill playbook library"
           title="Playbook"
-          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
+          className={`touch-target flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] font-semibold transition-colors ${
             isLibrary
-              ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
-              : 'text-white/70 hover:text-white hover:bg-white/5'
+              ? 'bg-white/[0.1] text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/[0.05]'
           }`}
         >
-          <span aria-hidden="true">📚</span>
+          <BookIcon size={16} />
           <span className={tabLabel}>Playbook</span>
         </button>
 
@@ -140,13 +141,13 @@ export function TopStrip() {
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'coach' })}
           aria-label="Coach workspace"
           title="Teach"
-          className={`touch-target flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all ${
+          className={`touch-target flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] font-semibold transition-colors ${
             isCoach
-              ? 'bg-app-cyan text-[#041019] shadow-sm font-black'
-              : 'text-white/70 hover:text-white hover:bg-white/5'
+              ? 'bg-white/[0.1] text-white'
+              : 'text-white/60 hover:text-white hover:bg-white/[0.05]'
           }`}
         >
-          <span aria-hidden="true">📋</span>
+          <WhistleIcon size={16} />
           <span className={tabLabel}>Teach</span>
         </button>
       </nav>

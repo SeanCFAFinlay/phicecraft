@@ -9,7 +9,7 @@ export function replayNarration(drill: Drill, frame: PlaybackFrame): { title: st
   const execution = frame.eventExecutions?.filter(item => item.status !== 'pending').at(-1);
   const event = execution ? drill.events.find(item => item.id === execution.eventId) : undefined;
   if (!event || !execution) return {
-    title: drill.initialPuck && drill.events[0]?.type === 'pickup' ? 'Set for the puck' : 'Ready to rehearse',
+    title: drill.initialPuck && drill.events[0]?.type === 'pickup' ? 'Set for the puck' : 'Ready to play',
     detail: drill.settings?.coaching?.objective || 'Watch the spacing and support around the puck.',
   };
   if (execution.status === 'blocked') return { title: 'Action blocked', detail: execution.reason || 'Review possession and timing in Build.' };

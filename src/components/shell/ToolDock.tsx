@@ -67,16 +67,16 @@ function DockButton({
       aria-haspopup={ariaHasPopup ? 'dialog' : undefined}
       aria-expanded={ariaHasPopup ? ariaExpanded : undefined}
       style={active && accent ? { borderColor: accent, color: accent, backgroundColor: `${accent}22` } : undefined}
-      className={`touch-target flex flex-1 flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-xl border-2 px-2.5 py-1 sm:py-1.5 transition-all duration-150 disabled:opacity-35 lg:max-w-44 ${
+      className={`touch-target flex flex-1 flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-lg border px-2.5 py-1 sm:py-1.5 transition-all duration-150 disabled:opacity-35 lg:max-w-44 ${
         active && !accent
-          ? 'border-app-cyan bg-app-cyan/20 text-app-cyan shadow-[0_0_12px_rgba(0,229,255,0.25)]'
+          ? 'border-app-cyan/60 bg-app-cyan/15 text-white'
           : active
-            ? 'shadow-[0_0_12px_rgba(255,214,10,0.25)]'
+            ? ''
             : 'border-white/5 bg-white/[0.04] text-white/70 hover:border-white/15 hover:bg-white/[0.08] hover:text-white disabled:hover:bg-white/[0.04]'
       }`}
     >
       <span className="flex h-5 items-center justify-center leading-none">{icon}</span>
-      <span className="text-[12px] font-bold tracking-tight">{label}</span>
+      <span className="text-[12.5px] font-semibold">{label}</span>
     </button>
   );
 }
@@ -202,10 +202,10 @@ export function ToolDock({
           type="button"
           onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
           aria-label={isPlaying ? 'Stop playback' : 'Play drill'}
-          className={`touch-target flex flex-1 flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-xl border-2 px-2.5 py-1 sm:py-1.5 font-bold transition-all duration-150 lg:max-w-44 ${
+          className={`touch-target flex flex-1 flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-lg border px-2.5 py-1 sm:py-1.5 font-bold transition-all duration-150 lg:max-w-44 ${
             isPlaying
-              ? 'border-red-400 bg-gradient-to-b from-red-500 to-red-600 text-white shadow-[0_0_14px_rgba(239,68,68,0.4)]'
-              : 'border-cyan-400 bg-gradient-to-b from-cyan-400 to-cyan-500 text-[#03121c] shadow-[0_0_14px_rgba(0,229,255,0.35)] hover:brightness-105 active:scale-95'
+              ? 'border-red-500 bg-red-600 text-white'
+              : 'border-transparent bg-app-cyan text-[#06131c] hover:brightness-110'
           }`}
         >
           <span className="flex h-5 items-center justify-center leading-none">

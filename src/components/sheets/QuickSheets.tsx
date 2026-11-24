@@ -155,50 +155,20 @@ export function AddSheet() {
     <Sheet
       open={open}
       title="Add to the rink"
-      description="Start a drill instantly, or add individual players and equipment."
+      description="Tap one, then tap the ice where it goes."
       onClose={close}
     >
-      <section className="mx-4 my-3 rounded-xl border border-cyan-300/40 bg-cyan-400/10 p-3" aria-label="Complete demonstration drill">
-        <h3 className="text-sm font-bold text-cyan-100">Faceoff to finish</h3>
-        <p className="my-2 text-xs text-slate-300">3 attackers, a faceoff partner and goalie. Watch the win, two passes and a shot with a planned save.</p>
-        <div className="flex gap-2">
-          <button type="button" disabled={loadingDemo || state.ui.mode !== 'build'} onClick={() => void watchDemo()} className="touch-target flex-1 rounded-lg bg-cyan-400 px-3 text-sm font-bold text-slate-950 disabled:opacity-50">{loadingDemo ? 'Loading demo…' : 'Watch 3D demo'}</button>
-          <button type="button" disabled={loadingDemo || state.ui.mode !== 'build'} onClick={() => void applyPreset('showcase-faceoff')} className="touch-target rounded-lg border border-white/25 px-3 text-sm text-white disabled:opacity-50">Edit demo</button>
-        </div>
-      </section>
-      <SheetSection title="Quick drill commands">
-        <p className="px-3 pb-2 text-xs text-slate-300">Loads an editable lineup. Battles and dump-ins include routes. Undo restores your previous setup.</p>
-        <div className="grid grid-cols-2 gap-2 px-3 pb-3">
-          <label className="text-xs text-slate-300">Rink end<select className="touch-target mt-1 block w-full rounded-lg border border-white/20 bg-slate-900 px-2 text-sm text-white" value={end} onChange={event => setEnd(event.target.value as typeof end)}><option value="left">Left end</option><option value="right">Right end</option></select></label>
-          <label className="text-xs text-slate-300">Board side<select className="touch-target mt-1 block w-full rounded-lg border border-white/20 bg-slate-900 px-2 text-sm text-white" value={side} onChange={event => setSide(event.target.value as typeof side)}><option value="top">Upper boards</option><option value="bottom">Lower boards</option></select></label>
-        </div>
-        <div className="grid grid-cols-2 gap-2 px-3 pb-2">
-          {([
-            ['faceoff-center', 'Centre faceoff', '5v5 · both goalies'],
-            [`faceoff-${spot}`, 'Zone faceoff', 'At the selected dot'],
-            ['pp-131', '5v4 power play', 'Your team attacks · 1-3-1'],
-            ['pk-box', '4v5 penalty kill', 'Your team defends · box'],
-            [`corner-${spot}`, 'Corner setup', 'Carrier, support & defender'],
-            [`dump-in-${spot}`, 'Dump-in', 'Puck flight, chase & retrieval'],
-            [`battle-1v1-${spot}`, '1v1 battle', 'Race to a loose corner puck'],
-            [`battle-2v2-${spot}`, '2v2 battle', 'Corner battle with support'],
-          ] satisfies [PlayFormationPreset, string, string][]).map(([id, label, detail]) => <button key={label} type="button" disabled={state.ui.mode !== 'build'} onClick={() => void applyPreset(id)} className="touch-target min-w-0 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-3 py-3 text-left text-cyan-100 hover:bg-cyan-400/20 disabled:opacity-40">
-            <span className="block text-sm font-bold">{label}</span><span className="mt-1 block text-xs text-slate-300">{detail}</span>
-          </button>)}
-        </div>
-        <p className="px-3 pb-2 text-xs text-slate-400">Location applies to zone faceoffs, corners, battles and dump-ins. Player counts exclude goalies. Your team is Home.</p>
-      </SheetSection>
-      <SheetSection title="Add individual players">
+      <SheetSection title="Players">
       <SheetItem
         icon={<SkaterIcon className="text-red-400" />}
-        label="Home player"
+        label="Skater, your team"
         detail="Defends the left net"
         selected={state.ui.currentTool === 'home'}
         onClick={() => choose('home')}
       />
       <SheetItem
         icon={<SkaterIcon className="text-blue-400" />}
-        label="Away player"
+        label="Skater, opponents"
         detail="Defends the right net"
         selected={state.ui.currentTool === 'away'}
         onClick={() => choose('away')}
@@ -222,7 +192,7 @@ export function AddSheet() {
         <SheetItem
           icon={<ConeIcon className="text-orange-400" />}
           label="Cone"
-          detail="Agility, boundary or turn pylon"
+          detail="Turn, boundary or agility marker"
           selected={state.ui.currentTool === 'cone'}
           onClick={() => choose('cone')}
         />
@@ -236,19 +206,49 @@ export function AddSheet() {
         <SheetItem
           icon={<MiniNetIcon className="text-red-400" />}
           label="Mini net"
-          detail="Target net for small-area games & accuracy"
+          detail="Target for small-area games"
           selected={state.ui.currentTool === 'mini-net'}
           onClick={() => choose('mini-net')}
         />
         <SheetItem
           icon={<BarrierIcon className="text-sky-400" />}
-          label="Divider pad"
-          detail="Cross-ice bumper or station separator"
+          label="Divider"
+          detail="Splits the ice into stations"
           selected={state.ui.currentTool === 'barrier'}
           onClick={() => choose('barrier')}
         />
       </SheetSection>
-      <SheetSection title="More systems">
+      <SheetSection title="Start from a setup">
+        <p className="px-3 pb-2 text-xs text-white/55">Replaces the players on the ice with a lineup you can change. Undo brings yours back.</p>
+        <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+          <label className="text-xs text-slate-300">Rink end<select className="touch-target mt-1 block w-full rounded-lg border border-white/20 bg-slate-900 px-2 text-sm text-white" value={end} onChange={event => setEnd(event.target.value as typeof end)}><option value="left">Left end</option><option value="right">Right end</option></select></label>
+          <label className="text-xs text-slate-300">Board side<select className="touch-target mt-1 block w-full rounded-lg border border-white/20 bg-slate-900 px-2 text-sm text-white" value={side} onChange={event => setSide(event.target.value as typeof side)}><option value="top">Upper boards</option><option value="bottom">Lower boards</option></select></label>
+        </div>
+        <div className="grid grid-cols-2 gap-2 px-3 pb-2">
+          {([
+            ['faceoff-center', 'Centre faceoff', '5v5 · both goalies'],
+            [`faceoff-${spot}`, 'Zone faceoff', 'At the selected dot'],
+            ['pp-131', '5v4 power play', 'Your team attacks · 1-3-1'],
+            ['pk-box', '4v5 penalty kill', 'Your team defends · box'],
+            [`corner-${spot}`, 'Corner setup', 'Carrier, support & defender'],
+            [`dump-in-${spot}`, 'Dump-in', 'Puck flight, chase & retrieval'],
+            [`battle-1v1-${spot}`, '1v1 battle', 'Race to a loose corner puck'],
+            [`battle-2v2-${spot}`, '2v2 battle', 'Corner battle with support'],
+          ] satisfies [PlayFormationPreset, string, string][]).map(([id, label, detail]) => <button key={label} type="button" disabled={state.ui.mode !== 'build'} onClick={() => void applyPreset(id)} className="touch-target min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-white hover:bg-white/[0.08] disabled:opacity-40">
+            <span className="block text-sm font-semibold">{label}</span><span className="mt-0.5 block text-xs text-white/50">{detail}</span>
+          </button>)}
+        </div>
+        <p className="px-3 pb-2 text-xs text-white/45">End and side set where zone faceoffs, corners, battles and dump-ins go.</p>
+      </SheetSection>
+      <section className="mx-4 my-3 rounded-lg border border-white/10 bg-white/[0.03] p-3" aria-label="Complete demonstration drill">
+        <h3 className="text-sm font-semibold text-white">Example: faceoff to finish</h3>
+        <p className="my-2 text-xs text-white/55">3 attackers, a faceoff partner and goalie. Watch the win, two passes and a shot with a planned save.</p>
+        <div className="flex gap-2">
+          <button type="button" disabled={loadingDemo || state.ui.mode !== 'build'} onClick={() => void watchDemo()} className="touch-target flex-1 rounded-lg bg-app-cyan px-3 text-sm font-semibold text-[#06131c] disabled:opacity-50">{loadingDemo ? 'Loading demo…' : 'Watch 3D demo'}</button>
+          <button type="button" disabled={loadingDemo || state.ui.mode !== 'build'} onClick={() => void applyPreset('showcase-faceoff')} className="touch-target rounded-lg border border-white/25 px-3 text-sm text-white disabled:opacity-50">Edit demo</button>
+        </div>
+      </section>
+      <SheetSection title="More formations">
         {FORMATION_PRESETS.filter(preset => preset.id === 'breakout-5v5' || preset.id === 'rush-3v2').map(preset => (
           <SheetItem
             key={preset.id}

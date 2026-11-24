@@ -99,7 +99,7 @@ test('clearing the filters brings the catalogue back', async ({ page }) => {
   await page.getByRole('button', { name: 'U9' }).click();
   expect(await cards(page).count()).toBeLessThan(CATALOGUE);
 
-  await page.getByRole('button', { name: /^Clear/ }).click();
+  await library.getByRole('button', { name: /^Clear/ }).click();
   await expect(library).toContainText(`${CATALOGUE} of ${CATALOGUE} drills`);
 });
 

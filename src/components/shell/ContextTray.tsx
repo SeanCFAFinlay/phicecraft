@@ -27,6 +27,7 @@ import { useResponsive } from '@/ui/useResponsive';
 import { PuckActionButtons } from './PuckActions';
 import { usePuckActions } from '@/hooks/usePuckActions';
 import { ToolDock } from './ToolDock';
+import { PuckIcon } from '@/ui/icons';
 
 export function ContextTray() {
   const { state } = useAppState();
@@ -74,7 +75,7 @@ export function ContextTray() {
           aria-label="Selection"
           className="flex h-[var(--tool-dock-height)] items-center gap-2 overflow-x-auto scrollbar-hide border-t border-app-border bg-[#0c1825] px-2.5"
         >
-          <span className="truncate text-[13px] font-black text-app-text">
+          <span className="truncate pr-1 text-[13px] font-semibold text-white">
             {player
               ? `#${player.number} · ${player.role}`
               : event
@@ -94,7 +95,7 @@ export function ContextTray() {
               // controls reading just "Move" are indistinguishable to anyone
               // listening rather than looking.
               aria-label={`Move #${player.number}`}
-              className="touch-target relative overflow-hidden rounded-xl border border-app-cyan/40 bg-app-cyan/10 px-3 text-[12px] font-bold text-app-cyan"
+              className="touch-target relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[12.5px] font-semibold text-white/90 hover:bg-white/[0.09]"
             >
               {/* Hold-to-move progress, when that shortcut is being used. */}
               {hold.playerId === player.id && hold.fraction > 0 && (
@@ -108,17 +109,8 @@ export function ContextTray() {
             </button>
           )}
 
-          {player && (
-            <button
-              type="button"
-              onClick={() => commands.setPendingAction({ kind: 'draw-route', playerId: player.id })}
-              aria-label={`Draw route for #${player.number}`}
-              className="touch-target flex shrink-0 items-center gap-1.5 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-3 text-[12px] font-bold text-cyan-200 hover:bg-cyan-500/20 transition-all shadow-sm"
-            >
-              <span>⛸️</span>
-              <span>Skate</span>
-            </button>
-          )}
+          {/* Skate is not repeated here: the dock's Skate, right below, already
+              draws a route for the selected player. */}
 
           {/* The player holding the puck can pass or shoot from here, which is
               what makes a four-pass chain four taps: each pass selects the
@@ -130,20 +122,19 @@ export function ContextTray() {
               type="button"
               onClick={() => void commands.setPuckCarrier(player.id)}
               aria-label={`Give puck to #${player.number}`}
-              className="touch-target flex shrink-0 items-center gap-1.5 rounded-xl border border-app-gold/45 bg-app-gold/15 px-3 text-[12px] font-bold text-app-gold hover:bg-app-gold/25 transition-all shadow-sm"
+              className="touch-target flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[12.5px] font-semibold text-white/90 hover:bg-white/[0.09]"
             >
-              <span>🏒</span>
-              <span>Give Puck</span>
+              <PuckIcon size={16} />
+              <span>Give puck</span>
             </button>
           )}
 
-          {coach && <span className="text-[11.5px] text-white/60">Drag on ice to reposition</span>}
-          {equipment && <span className="text-[11.5px] text-white/60">Drag on ice to reposition</span>}
+          {(coach || equipment) && <span className="text-[12px] text-white/50">Drag it on the ice to move it</span>}
           {(player || event) && (
             <button
               type="button"
               onClick={openDetails}
-              className="touch-target rounded-xl border border-app-border bg-white/5 px-3 text-[12px] font-bold text-app-text"
+              className="touch-target rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[12.5px] font-semibold text-white/90 hover:bg-white/[0.09]"
             >
               Details
             </button>
@@ -152,7 +143,7 @@ export function ContextTray() {
           <button
             type="button"
             onClick={remove}
-            className="touch-target rounded-xl border border-red-400/40 bg-red-500/10 px-3 text-[12px] font-bold text-red-200"
+            className="touch-target rounded-lg border border-red-400/25 bg-transparent px-3 text-[12.5px] font-semibold text-red-300 hover:bg-red-500/10"
           >
             Delete
           </button>

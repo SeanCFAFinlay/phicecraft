@@ -55,9 +55,9 @@ export function PuckActionButtons({ onlyFor, compact }: PuckActionButtonsProps) 
         disabled={!canPass}
         title={passBlockedReason ?? `Pass from #${carrier.number}`}
         aria-label={`Pass from #${carrier.number}`}
-        className="touch-target shrink-0 rounded-xl border border-app-gold/45 bg-app-gold/12 px-3 text-[12px] font-bold text-app-gold disabled:opacity-35"
+        className="touch-target shrink-0 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[12.5px] font-semibold text-white/90 hover:bg-white/[0.09] disabled:opacity-35"
       >
-        <span className="inline-flex items-center align-middle">
+        <span className="inline-flex items-center align-middle text-app-gold">
           <PassIcon size={16} />
         </span>
         {!compact && <span className="ml-1.5">Pass</span>}
@@ -69,9 +69,9 @@ export function PuckActionButtons({ onlyFor, compact }: PuckActionButtonsProps) 
         disabled={!canShoot}
         title={canShoot ? `Shoot from #${carrier.number}` : 'The drill has already ended'}
         aria-label={`Shoot from #${carrier.number}`}
-        className="touch-target shrink-0 rounded-xl border border-app-orange/45 bg-app-orange/12 px-3 text-[12px] font-bold text-app-orange disabled:opacity-35"
+        className="touch-target shrink-0 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[12.5px] font-semibold text-white/90 hover:bg-white/[0.09] disabled:opacity-35"
       >
-        <span className="inline-flex items-center align-middle">
+        <span className="inline-flex items-center align-middle text-app-orange">
           <ShootIcon size={16} />
         </span>
         {!compact && <span className="ml-1.5">Shoot</span>}

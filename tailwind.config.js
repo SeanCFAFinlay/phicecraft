@@ -7,13 +7,13 @@ export default {
   theme: {
     extend: {
       colors: {
-        'app-bg': '#06101a',
-        'app-surface': '#0c1d2d',
-        'app-border': 'rgba(0, 185, 230, 0.16)',
-        'app-cyan': '#00c8f0',
+        'app-bg': '#0a1118',
+        'app-surface': '#111b25',
+        'app-border': 'rgba(255, 255, 255, 0.09)',
+        'app-cyan': '#3db4e6',
         'app-cyan-dark': '#007fa8',
-        'app-text': '#daf0f8',
-        'app-dim': 'rgba(150, 210, 230, 0.42)',
+        'app-text': '#e6edf3',
+        'app-dim': 'rgba(220, 230, 240, 0.5)',
         'app-gold': '#ffd60a',
         'app-red': '#e63946',
         'app-blue': '#3a86ff',

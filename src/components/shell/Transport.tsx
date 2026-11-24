@@ -106,8 +106,8 @@ export function Transport({
           aria-label={isPlaying ? 'Pause playback' : 'Start playback'}
           className={`touch-target flex items-center justify-center rounded-full border-2 text-[17px] shadow-sm transition-all ${
             isPlaying
-              ? 'border-red-400 bg-gradient-to-b from-red-500 to-red-600 text-white shadow-[0_0_12px_rgba(239,68,68,0.4)]'
-              : 'border-cyan-400 bg-gradient-to-b from-cyan-400 to-cyan-500 text-[#03121c] shadow-[0_0_12px_rgba(0,229,255,0.4)] hover:brightness-105 active:scale-95'
+              ? 'border-red-400 bg-gradient-to-b from-red-500 to-red-600 text-white'
+              : 'border-cyan-400 bg-app-cyan text-[#03121c] hover:brightness-105 active:scale-95'
           }`}
         >
           {isPlaying ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
@@ -133,7 +133,7 @@ export function Transport({
           aria-valuetext={formatClock(progress, snapshot.durationSeconds)}
         >
           <div
-            className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.7)]"
+            className="h-full rounded-full bg-app-cyan"
             style={{ width: `${snapshot.progressPercent}%` }}
           />
         </div>

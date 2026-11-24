@@ -16,6 +16,23 @@ async function waitForSaved(page: Page): Promise<void> {
     .toBe('Save status: Saved');
 }
 
+/**
+ * Drag a route for #13 with a bend in it. A dead-straight drag is stored as
+ * just its two ends, so tests about the handles in between need a corner.
+ */
+async function drawBentRoute(page: Page, to = { x: 560, y: 120 }, steps = 16): Promise<void> {
+  const from = LINEUP.home13;
+  const via = { x: (from.x + to.x) / 2, y: Math.max(from.y, to.y) + 70 };
+  const a = await worldToScreen(page, from.x, from.y);
+  const b = await worldToScreen(page, via.x, via.y);
+  const c = await worldToScreen(page, to.x, to.y);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps });
+  await page.mouse.move(c.x, c.y, { steps });
+  await page.mouse.up();
+}
+
 /** Draw a route for #13, then open its inspector. */
 async function drawRouteAndOpenDetails(page: Page): Promise<void> {
   await dragWorld(page, LINEUP.home13, { x: 560, y: 120 });
@@ -76,12 +93,12 @@ test.beforeEach(async ({ page }) => {
 // ----------------------------------------------------------------------------
 
 test('a drawn route becomes a handful of editable control points', async ({ page }) => {
-  await dragWorld(page, LINEUP.home13, { x: 560, y: 120 }, 60);
+  await drawBentRoute(page, { x: 560, y: 120 }, 30);
   await waitForSaved(page);
 
   const { skatePaths } = await storedDrill(page);
   expect(skatePaths).toHaveLength(1);
-  // Not the hundreds of raw pointer samples, and not a fixed five proxies.
+  // Not the hundreds of raw pointer samples: the two ends and the bend.
   expect(skatePaths[0].points.length).toBeGreaterThan(2);
   expect(skatePaths[0].points.length).toBeLessThanOrEqual(16);
   expect(skatePaths[0].shape ?? 'spline').toBe('spline');
@@ -105,7 +122,7 @@ test('a route can be switched between curved and straight', async ({ page }) => 
 });
 
 test('dragging one route handle moves only that point', async ({ page }) => {
-  await dragWorld(page, LINEUP.home13, { x: 560, y: 120 });
+  await drawBentRoute(page);
   await waitForSaved(page);
 
   const before = (await storedDrill(page)).skatePaths[0].points;

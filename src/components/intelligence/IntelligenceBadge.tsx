@@ -82,26 +82,23 @@ export function IntelligenceBadge({
       onClick={onToggle}
       aria-label="Toggle coaching intelligence"
       aria-expanded={isOpen}
-      className={`touch-target absolute right-2.5 bottom-2.5 sm:right-3 sm:bottom-3 z-20 flex h-9 sm:h-8 items-center gap-1.5 rounded-full border ${isCompact ? 'px-2.5' : 'px-3'} py-1 text-[12px] sm:text-[11.5px] font-black shadow-lg backdrop-blur-md transition-all active:scale-95 duration-200 ${
+      className={`touch-target absolute right-2.5 bottom-2.5 sm:right-3 sm:bottom-3 z-20 flex h-9 sm:h-8 items-center gap-1.5 rounded-full border ${isCompact ? 'px-2.5' : 'px-3'} py-1 text-[12px] font-semibold shadow-md transition-colors ${
         isOpen
-          ? 'border-app-cyan bg-app-cyan/25 text-white shadow-[0_0_15px_rgba(0,229,255,0.4)]'
+          ? 'border-white/30 bg-[#13222f] text-white'
           : hasIssues
-            ? 'border-amber-400/50 bg-[#0b1b28]/90 text-amber-300 hover:border-amber-300 hover:bg-amber-500/20'
-            : 'border-cyan-500/30 bg-[#081523]/85 text-app-cyan hover:border-cyan-400 hover:bg-app-cyan/15'
+            ? 'border-amber-400/40 bg-[#0d1924]/95 text-amber-200 hover:bg-[#13222f]'
+            : 'border-white/10 bg-[#0d1924]/90 text-white/70 hover:bg-[#13222f] hover:text-white'
       }`}
     >
-      <span className="text-[13px]">🧠</span>
+      <span className={`h-2 w-2 shrink-0 rounded-full ${hasIssues ? 'bg-amber-400' : 'bg-emerald-400'} ${hasIssues && !prefersReducedMotion ? 'animate-pulse' : ''}`} aria-hidden="true" />
       {isCompact ? (
-        <span>{hasIssues ? issueCount : '✓'}</span>
+        <span>{hasIssues ? issueCount : 'OK'}</span>
       ) : (
         <span>
           {hasIssues
-            ? `${issueCount} Tactical Note${issueCount > 1 ? 's' : ''}`
-            : 'Intelligence: Verified'}
+            ? `${issueCount} thing${issueCount > 1 ? 's' : ''} to check`
+            : 'Play check: all good'}
         </span>
-      )}
-      {hasIssues && (
-        <span className={`flex h-2 w-2 rounded-full bg-amber-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
       )}
     </button>
   );

@@ -320,8 +320,8 @@ test('pinching over a player while a Pass is armed creates nothing', async ({ pa
 test('pinching over empty ice while Add is active places nothing', async ({ page, browser }) => {
   test.skip(browser.browserType().name() !== 'chromium', 'Touch dispatch needs CDP');
 
-  await page.getByRole('button', { name: /Add/ }).click();
-  await page.getByRole('dialog', { name: 'Add to the rink' }).getByRole('button', { name: /Home player/ }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Add to the rink' }).getByRole('button', { name: /Skater, your team/ }).click();
 
   const before = await storedDrills(page);
   const beforeCount = before[0].document.players.length;

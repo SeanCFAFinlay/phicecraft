@@ -265,20 +265,67 @@ export function controlMidpoints(controls: Point[]): { index: number; point: Poi
 }
 
 /**
+ * How far (world units, about a fifth of a foot each) a simplified route may
+ * stray from what was drawn. Small enough that the shape is the one the coach
+ * drew; large enough that a wobbly hand does not become a dozen handles.
+ */
+export const ROUTE_SIMPLIFY_TOLERANCE = 4;
+
+function perpendicularDistance(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSq = dx * dx + dy * dy;
+  if (lengthSq < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq));
+  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+}
+
+/** Ramer-Douglas-Peucker: keeps the corners, drops points on the way between them. */
+function douglasPeucker(points: Point[], tolerance: number): Point[] {
+  const keep = new Array<boolean>(points.length).fill(false);
+  keep[0] = true;
+  keep[points.length - 1] = true;
+  const stack: [number, number][] = [[0, points.length - 1]];
+  while (stack.length > 0) {
+    const [first, last] = stack.pop()!;
+    let worst = -1;
+    let worstDistance = tolerance;
+    for (let i = first + 1; i < last; i++) {
+      const d = perpendicularDistance(points[i], points[first], points[last]);
+      if (d > worstDistance) {
+        worst = i;
+        worstDistance = d;
+      }
+    }
+    if (worst >= 0) {
+      keep[worst] = true;
+      stack.push([first, worst], [worst, last]);
+    }
+  }
+  return points.filter((_, i) => keep[i]).map(point => ({ ...point }));
+}
+
+/**
  * Reduce a dense point list to at most `target` controls, keeping the ends.
  *
  * Used for a freshly drawn route (hundreds of raw pointer samples) and offered
  * as an explicit action for legacy routes stored by an older build, which kept
  * fifty pre-smoothed points and were therefore impossible to hand-edit.
+ *
+ * Only the points that carry the shape survive: a straight drag becomes its
+ * two ends, a single sweep three or four points, and only a genuinely twisty
+ * route gets near `target`. Fewer handles means each one is easy to grab.
  */
 export function simplifyToControls(points: Point[], target = ROUTE_CONTROL_TARGET): Point[] {
-  if (points.length <= target) return clonePoints(points);
+  if (points.length <= 2) return clonePoints(points);
   if (target < MIN_CONTROLS) return [{ ...points[0] }, { ...points[points.length - 1] }];
+  if (points.length <= 4) return clonePoints(points);
 
-  const controls: Point[] = [];
-  for (let index = 0; index < target; index++) {
-    const source = Math.round((index / (target - 1)) * (points.length - 1));
-    controls.push({ ...points[source] });
+  let tolerance = ROUTE_SIMPLIFY_TOLERANCE;
+  let controls = douglasPeucker(points, tolerance);
+  while (controls.length > target) {
+    tolerance *= 1.5;
+    controls = douglasPeucker(points, tolerance);
   }
   return controls;
 }

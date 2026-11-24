@@ -139,12 +139,13 @@ describe('buildCenterLogo', () => {
 });
 
 describe('applyCentreIceLogo', () => {
-  it('shows the crest when there is no team logo', () => {
+  it('leaves centre ice plain when there is no team logo', () => {
     const root = new Container();
     root.addChild(buildCenterLogo());
     applyCentreIceLogo(root, null);
     const logo = root.getChildByLabel('center-logo', true)!;
-    expect(logo.getChildByLabel('ph-crest')!.visible).toBe(true);
+    expect(logo.visible).toBe(false);
+    expect(logo.getChildByLabel('ph-crest')!.visible).toBe(false);
     expect(logo.getChildByLabel('team-logo')!.visible).toBe(false);
   });
 });

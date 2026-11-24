@@ -370,7 +370,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
               type="button"
               onClick={() => setIsRunnerOpen(true)}
               disabled={!activeSession || activeSession.blocks.length === 0}
-              className="touch-target inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-500/20 px-3.5 py-1.5 text-[12.5px] font-black text-emerald-400 hover:bg-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.2)] disabled:opacity-40 disabled:pointer-events-none transition-all"
+              className="touch-target inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-500/20 px-3.5 py-1.5 text-[12.5px] font-black text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-40 disabled:pointer-events-none transition-all"
             >
               ▶ Run Live Practice
             </button>
@@ -762,7 +762,7 @@ export function PracticePage({ isOpen }: { isOpen?: boolean } = {}) {
                               <button
                                 type="button"
                                 onClick={() => handleLoadDrillOnIce(block)}
-                                className="touch-target ml-1 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-3 py-1 text-[11px] font-extrabold text-app-cyan hover:bg-app-cyan/25 hover:shadow-[0_0_10px_rgba(0,229,255,0.25)] transition-all flex items-center justify-center"
+                                className="touch-target ml-1 rounded-xl border border-app-cyan/40 bg-app-cyan/15 px-3 py-1 text-[11px] font-extrabold text-app-cyan hover:bg-app-cyan/25 transition-all flex items-center justify-center"
                               >
                                 Open on Ice
                               </button>

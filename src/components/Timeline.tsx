@@ -55,7 +55,7 @@ export function Timeline({ players, activePlayerIds, events, progress, disabled,
         style={{ minHeight: '44px' }}
       />
       <span
-        className="pointer-events-none absolute top-1 bottom-1 w-1 -translate-x-1/2 rounded-full bg-white shadow-[0_0_8px_rgba(34,211,238,.9)]"
+        className="pointer-events-none absolute top-1 bottom-1 w-1 -translate-x-1/2 rounded-full bg-white"
         style={{ left: `calc(48px + (100% - 48px) * ${progress})` }}
       />
     </div>

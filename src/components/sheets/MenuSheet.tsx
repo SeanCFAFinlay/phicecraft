@@ -57,7 +57,7 @@ function JerseyRow({ team }: { team: Team }) {
               aria-label={colour.name}
               onClick={() => commands.setJersey(team, colour.hex)}
               className={`h-9 w-9 rounded-full border-2 transition-all flex-shrink-0 ${
-                active ? 'border-white ring-2 ring-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.5)] scale-105' : 'border-white/30 hover:border-white/70'
+                active ? 'border-white ring-2 ring-app-cyan scale-105' : 'border-white/30 hover:border-white/70'
               }`}
               style={{ backgroundColor: colour.hex }}
             />

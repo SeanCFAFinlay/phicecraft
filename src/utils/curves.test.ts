@@ -36,6 +36,20 @@ function nearestVertexDistance(points: Point[], point: Point): number {
   return Math.min(...points.map(candidate => Math.hypot(candidate.x - point.x, candidate.y - point.y)));
 }
 
+function nearestLineDistance(points: Point[], point: Point): number {
+  let best = Infinity;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lengthSq = dx * dx + dy * dy;
+    const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSq));
+    best = Math.min(best, Math.hypot(point.x - (a.x + dx * t), point.y - (a.y + dy * t)));
+  }
+  return best;
+}
+
 /** The sharpest direction change anywhere along a polyline, in radians. */
 function maxTurnAngle(points: Point[]): number {
   let sharpest = 0;
@@ -274,7 +288,9 @@ describe('simplifyToControls', () => {
 
   it('reduces a dense path to a handleable number of controls', () => {
     const controls = simplifyToControls(dense);
-    expect(controls).toHaveLength(ROUTE_CONTROL_TARGET);
+    // A straight drag is just its two ends.
+    expect(controls).toHaveLength(2);
+    expect(controls.length).toBeLessThanOrEqual(ROUTE_CONTROL_TARGET);
     expect(controls.length).toBeLessThanOrEqual(MAX_COMFORTABLE_CONTROLS);
   });
 
@@ -293,8 +309,20 @@ describe('simplifyToControls', () => {
     // Every original point stays near the simplified line.
     const line = expandCurve(controls, 'spline');
     for (const point of dense) {
-      expect(nearestVertexDistance(line, point)).toBeLessThan(2);
+      expect(nearestLineDistance(line, point)).toBeLessThan(2);
     }
+  });
+
+  it('keeps the corners of a hand-drawn route and drops the wobble', () => {
+    // An L-shaped drag with a little hand tremor on each leg.
+    const drawn: Point[] = [
+      ...Array.from({ length: 60 }, (_, i) => ({ x: i * 4, y: (i % 3) - 1 })),
+      ...Array.from({ length: 60 }, (_, i) => ({ x: 240 + ((i % 3) - 1), y: i * 4 })),
+    ];
+    const controls = simplifyToControls(drawn);
+    expect(controls.length).toBeLessThanOrEqual(4);
+    // The corner survives.
+    expect(controls.some(p => Math.hypot(p.x - 240, p.y) < 6)).toBe(true);
   });
 
   it('degrades to the two endpoints for a nonsense target', () => {

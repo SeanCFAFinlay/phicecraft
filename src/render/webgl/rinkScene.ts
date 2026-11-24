@@ -115,6 +115,8 @@ function buildCenterLogo(): Container {
   const logo = new Container({ label: 'center-logo' });
   logo.position.set(cx, cy);
   logo.alpha = 0.62;
+  // Centre ice is plain, like a real rink, until the team adds its own logo.
+  logo.visible = false;
 
   const rings = new Graphics()
     .circle(0, 0, R)
@@ -123,8 +125,9 @@ function buildCenterLogo(): Container {
     .stroke({ color: 'rgba(22, 163, 74, 0.55)', width: 1.6 });
   logo.addChild(rings);
 
-  // The PHormation crest: hidden while a team logo is shown instead.
-  const crest = new Container({ label: 'ph-crest' });
+  // The PHormation crest is kept for the brand pages but not painted on the
+  // ice: a coach's diagram should look like their rink, not an advert.
+  const crest = new Container({ label: 'ph-crest', visible: false });
   logo.addChild(crest);
   const teamLogo = new Sprite({ label: 'team-logo', anchor: 0.5, visible: false });
   logo.addChild(teamLogo);
@@ -177,8 +180,8 @@ function buildCenterLogo(): Container {
 }
 
 /**
- * Show the team's logo at centre ice, or the PHormation crest when there is
- * none. The previous logo's texture is released when it is replaced.
+ * Show the team's logo at centre ice, or nothing (a plain rink) when there
+ * is none. The previous logo's texture is released when it is replaced.
  */
 export function applyCentreIceLogo(root: Container, image: HTMLImageElement | null): void {
   const logo = root.getChildByLabel('center-logo', true);
@@ -188,7 +191,8 @@ export function applyCentreIceLogo(root: Container, image: HTMLImageElement | nu
   const previous = sprite.texture;
   if (!image || image.naturalWidth === 0) {
     sprite.visible = false;
-    crest.visible = true;
+    crest.visible = false;
+    logo.visible = false;
     sprite.texture = Texture.EMPTY;
   } else {
     const size = fitInCircle(image.naturalWidth, image.naturalHeight, 19 * FT * 0.84);
@@ -197,6 +201,7 @@ export function applyCentreIceLogo(root: Container, image: HTMLImageElement | nu
     sprite.height = size.height;
     sprite.visible = true;
     crest.visible = false;
+    logo.visible = true;
   }
   if (previous && previous !== Texture.EMPTY && previous !== sprite.texture) previous.destroy(true);
 }
@@ -521,7 +526,7 @@ function buildArenaFloor(): Graphics {
   // A plain underlay - see file header for why this drops the canvas
   // version's blurred drop shadow.
   g.roundRect(rx - 10, ry - 10, rw + 20, rh + 20, cr + 10).fill('#07121c');
-  g.roundRect(rx - 7, ry - 7, rw + 14, rh + 14, cr + 7).stroke({ color: 'rgba(19, 210, 255, 0.18)', width: 12 });
+  g.roundRect(rx - 7, ry - 7, rw + 14, rh + 14, cr + 7).stroke({ color: 'rgba(255, 255, 255, 0.04)', width: 12 });
 
   return g;
 }
@@ -537,12 +542,12 @@ function buildBoards(): Graphics {
 
   g.roundRect(rx, ry, rw, rh, cr).stroke({ color: 'rgba(0, 0, 0, 0.55)', width: 13 });
   g.roundRect(rx, ry, rw, rh, cr).stroke({ color: '#f5f8fb', width: 8 });
-  g.roundRect(rx + 2, ry + 2, rw - 4, rh - 4, Math.max(0, cr - 2)).stroke({ color: '#f2c94c', width: 2.2 });
-  g.roundRect(rx, ry, rw, rh, cr).stroke({ color: 'rgba(94, 211, 255, 0.72)', width: 2 });
+  g.roundRect(rx + 2, ry + 2, rw - 4, rh - 4, Math.max(0, cr - 2)).stroke({ color: 'rgba(70, 84, 98, 0.55)', width: 2.2 });
+  g.roundRect(rx, ry, rw, rh, cr).stroke({ color: 'rgba(120, 135, 150, 0.35)', width: 2 });
 
   // Glass edge and steel stanchion rail outside the boards.
-  g.roundRect(rx - 5, ry - 5, rw + 10, rh + 10, cr + 5).stroke({ color: 'rgba(157, 224, 247, .42)', width: 3.2 });
-  g.roundRect(rx - 6.5, ry - 6.5, rw + 13, rh + 13, cr + 6.5).stroke({ color: 'rgba(235, 250, 255, .72)', width: 0.9 });
+  g.roundRect(rx - 5, ry - 5, rw + 10, rh + 10, cr + 5).stroke({ color: 'rgba(205, 218, 230, .2)', width: 3.2 });
+  g.roundRect(rx - 6.5, ry - 6.5, rw + 13, rh + 13, cr + 6.5).stroke({ color: 'rgba(235, 242, 248, .3)', width: 0.9 });
 
   return g;
 }

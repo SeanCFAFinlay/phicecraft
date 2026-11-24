@@ -190,8 +190,9 @@ describe('simplifyRoute', () => {
     );
 
     expect(harness.commands.simplifyRoute('dense').status).toBe('done');
-    expect(route().points).toHaveLength(ROUTE_CONTROL_TARGET);
-    expect(toasted(harness, /50 points to 10 editable/)).toBe(true);
+    // A straight line of 50 points is really just its two ends.
+    expect(route().points).toHaveLength(2);
+    expect(toasted(harness, /50 points to 2 editable/)).toBe(true);
   });
 
   it('declines when the route is already handleable', () => {
@@ -384,7 +385,9 @@ describe('commitRoute', () => {
     harness.commands.commitRoute('h11', raw);
 
     const stored = harness.getState().drill.skatePaths[0];
-    expect(stored.points).toHaveLength(ROUTE_CONTROL_TARGET);
+    // One gentle S-curve: a few handles, not one per pointer sample.
+    expect(stored.points.length).toBeGreaterThanOrEqual(3);
+    expect(stored.points.length).toBeLessThanOrEqual(ROUTE_CONTROL_TARGET);
     expect(stored.points.length).toBeLessThanOrEqual(MAX_COMFORTABLE_CONTROLS);
   });
 

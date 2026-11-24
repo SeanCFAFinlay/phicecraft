@@ -385,123 +385,19 @@ function drawZoneTints(ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
-/** Draw a string of characters spread along the top arc of a circle. */
-function drawArcTextTop(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  radius: number,
-  anglePer: number
-): void {
-  const start = -Math.PI / 2 - ((text.length - 1) * anglePer) / 2;
-  for (let i = 0; i < text.length; i++) {
-    const a = start + i * anglePer;
-    ctx.save();
-    ctx.translate(radius * Math.cos(a), radius * Math.sin(a));
-    ctx.rotate(a + Math.PI / 2);
-    ctx.fillText(text[i], 0, 0);
-    ctx.restore();
-  }
-}
-
-let centerLogoBadge: HTMLImageElement | null = null;
-if (typeof window !== 'undefined' && typeof Image !== 'undefined') {
-  const img = new Image();
-  img.src = '/assets/ph-logo-badge.webp';
-  img.onload = () => {
-    centerLogoBadge = img;
-  };
-}
-
 /**
- * The PH Hockey Practice centre-ice crest: a brand-coloured crest painted on
- * the sheet, kept translucent so the lines and circle stay legible over it.
+ * Centre ice stays plain, like a real rink, unless the team has added its own
+ * logo - then that is painted inside the centre circle.
  */
 function drawCenterIceLogo(ctx: CanvasRenderingContext2D): void {
+  const teamLogo = centreIceLogo();
+  if (!teamLogo || teamLogo.naturalWidth === 0) return;
   const { centerX: cx, centerY: cy } = RINK;
-  const R = 19 * FT;
-
+  const size = fitInCircle(teamLogo.naturalWidth, teamLogo.naturalHeight, 19 * FT * 0.84);
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.globalAlpha = 0.68;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  // Ambient brand glow behind center ice
-  const outerGlow = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.08);
-  outerGlow.addColorStop(0, 'rgba(0, 229, 255, 0.09)');
-  outerGlow.addColorStop(0.7, 'rgba(16, 185, 129, 0.05)');
-  outerGlow.addColorStop(1, 'rgba(0, 229, 255, 0)');
-  ctx.fillStyle = outerGlow;
-  ctx.beginPath();
-  ctx.arc(0, 0, R * 1.08, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Dual neon brand rings (Cyan & Emerald)
-  ctx.lineWidth = 2.2;
-  ctx.strokeStyle = 'rgba(0, 229, 255, 0.65)';
-  ctx.beginPath();
-  ctx.arc(0, 0, R * 0.98, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.lineWidth = 1.6;
-  ctx.strokeStyle = 'rgba(16, 185, 129, 0.65)';
-  ctx.beginPath();
-  ctx.arc(0, 0, R * 0.91, 0, Math.PI * 2);
-  ctx.stroke();
-
-  const teamLogo = centreIceLogo();
-  if (teamLogo && teamLogo.naturalWidth > 0) {
-    // The team's own logo, whole and undistorted inside the rings.
-    const size = fitInCircle(teamLogo.naturalWidth, teamLogo.naturalHeight, R * 0.84);
-    ctx.globalAlpha = 0.8;
-    ctx.drawImage(teamLogo, -size.width / 2, -size.height / 2, size.width, size.height);
-  } else if (centerLogoBadge && centerLogoBadge.complete && centerLogoBadge.naturalWidth > 0) {
-    const badgeR = R * 0.84;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(0, 0, badgeR, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.drawImage(centerLogoBadge, -badgeR, -badgeR, badgeR * 2, badgeR * 2);
-    ctx.restore();
-
-    // Ice rim highlight
-    ctx.lineWidth = 1.8;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.38)';
-    ctx.beginPath();
-    ctx.arc(0, 0, badgeR, 0, Math.PI * 2);
-    ctx.stroke();
-  } else {
-    // High-fidelity vector crest fallback
-    ctx.fillStyle = 'rgba(16, 185, 129, 0.85)';
-    ctx.font = `800 ${R * 0.13}px Arial, sans-serif`;
-    drawArcTextTop(ctx, 'TRAIN · PLAY · IMPROVE', R * 0.72, 0.115);
-
-    // PH monogram with emerald-to-cyan brand gradient
-    const grad = ctx.createLinearGradient(-R * 0.55, 0, R * 0.55, 0);
-    grad.addColorStop(0, '#10b981');
-    grad.addColorStop(1, '#00e5ff');
-    ctx.font = `900 ${R * 0.88}px "Arial Black", Arial, sans-serif`;
-    ctx.lineWidth = R * 0.035;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-    ctx.strokeText('PH', 0, -R * 0.04);
-    ctx.fillStyle = grad;
-    ctx.fillText('PH', 0, -R * 0.04);
-
-    // Hockey stick blade accent
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.lineWidth = R * 0.04;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-R * 0.42, R * 0.32);
-    ctx.quadraticCurveTo(0, R * 0.4, R * 0.42, R * 0.32);
-    ctx.stroke();
-
-    // Wordmark beneath
-    ctx.fillStyle = 'rgba(240, 246, 252, 0.9)';
-    ctx.font = `800 ${R * 0.14}px Arial, sans-serif`;
-    ctx.fillText('PHORMATION', 0, R * 0.52);
-  }
-
+  ctx.globalAlpha = 0.8;
+  ctx.drawImage(teamLogo, -size.width / 2, -size.height / 2, size.width, size.height);
   ctx.restore();
 }
 
@@ -536,7 +432,7 @@ export function drawRink(ctx: CanvasRenderingContext2D): void {
   ctx.fill();
   ctx.restore();
 
-  ctx.strokeStyle = 'rgba(19, 210, 255, 0.18)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
   ctx.lineWidth = 12;
   roundedRectPath(ctx, rx - 7, ry - 7, rw + 14, rh + 14, cr + 7);
   ctx.stroke();
@@ -659,21 +555,21 @@ export function drawRink(ctx: CanvasRenderingContext2D): void {
   ctx.lineWidth = 8;
   roundedRectPath(ctx, rx, ry, rw, rh, cr);
   ctx.stroke();
-  ctx.strokeStyle = '#f2c94c';
+  ctx.strokeStyle = 'rgba(70, 84, 98, 0.55)';
   ctx.lineWidth = 2.2;
   roundedRectPath(ctx, rx + 2, ry + 2, rw - 4, rh - 4, Math.max(0, cr - 2));
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(94, 211, 255, 0.72)';
+  ctx.strokeStyle = 'rgba(120, 135, 150, 0.35)';
   ctx.lineWidth = 2;
   roundedRectPath(ctx, rx, ry, rw, rh, cr);
   ctx.stroke();
 
   // Glass edge and steel stanchion rail outside the boards.
-  ctx.strokeStyle = 'rgba(157, 224, 247, .42)';
+  ctx.strokeStyle = 'rgba(205, 218, 230, .2)';
   ctx.lineWidth = 3.2;
   roundedRectPath(ctx, rx - 5, ry - 5, rw + 10, rh + 10, cr + 5);
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(235, 250, 255, .72)';
+  ctx.strokeStyle = 'rgba(235, 242, 248, .3)';
   ctx.lineWidth = 0.9;
   roundedRectPath(ctx, rx - 6.5, ry - 6.5, rw + 13, rh + 13, cr + 6.5);
   ctx.stroke();

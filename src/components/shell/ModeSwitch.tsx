@@ -51,7 +51,7 @@ export function ModeSwitch({ onSelect }: { onSelect?: () => void } = {}) {
             }}
             className={`touch-target flex items-center justify-center gap-1 rounded-lg px-2 text-[16px] transition-all ${
               checked
-                ? 'bg-app-cyan/20 text-app-cyan shadow-[0_0_8px_rgba(0,229,255,0.3)] ring-1 ring-app-cyan/40'
+                ? 'bg-app-cyan/20 text-app-cyan ring-1 ring-app-cyan/40'
                 : 'text-app-text/75 hover:bg-white/10 hover:text-white'
             }`}
           >

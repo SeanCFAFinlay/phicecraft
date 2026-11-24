@@ -560,14 +560,15 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       }
 
       const before = path.points.length;
+      const simplified = simplifyToControls(path.points);
       dispatch({ type: 'PUSH_UNDO' });
       dispatch({
         type: 'UPDATE_SKATE_POINTS',
         id: pathId,
-        points: simplifyToControls(path.points),
+        points: simplified,
       });
       notify.toast({
-        message: `Route reduced from ${before} points to ${ROUTE_CONTROL_TARGET} editable ones`,
+        message: `Route reduced from ${before} points to ${simplified.length} editable ones`,
         type: 'success',
       });
       return done();

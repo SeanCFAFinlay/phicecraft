@@ -12,7 +12,7 @@
 // ============================================================================
 
 import { subscribeCentreIceLogo } from '@/render/teamLogo';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppState, useAppServices } from '@/hooks/useAppState';
 import type { AppState } from '@/core/types';
 import { useEditorRuntime } from '@/hooks/useEditorRuntime';
@@ -25,8 +25,8 @@ import type { GestureHandlers, PointerSample, PressTarget } from '@/editor/input
 import { subscribeToHockeySpriteAtlas } from '@/canvas/HockeySpriteAtlas';
 import { EMPTY_TRAILS } from '@/playback/playbackFrame';
 import { RINK, WHEEL_ZOOM_SENSITIVITY } from '@/core/constants';
-import { distance, screenToWorld, worldToScreen } from '@/utils/geometry';
-import { authoredEvents, getAimedNetTarget, attackingNetFor, getCurrentPuckHolder } from '@/engine/puck';
+import { distance, screenToWorld } from '@/utils/geometry';
+import { authoredEvents, getAimedNetTarget } from '@/engine/puck';
 import {
   eligibleReceivers,
   resolvePassTarget,
@@ -59,35 +59,6 @@ export function CanvasSurface() {
   stateRef.current = state;
 
   const getState = useCallback(() => stateRef.current, []);
-
-  const [cameraState, setCameraState] = useState(camera.camera);
-  useEffect(() => camera.subscribe(() => setCameraState({ ...camera.camera })), [camera]);
-
-  const selectedObj = useMemo(() => {
-    const { selectedPlayerId, selectedCoachId, selectedEquipmentId, selectedEventId } = state.selection;
-    if (selectedPlayerId) {
-      const player = state.drill.players.find(p => p.id === selectedPlayerId);
-      if (player) return { kind: 'player' as const, id: selectedPlayerId, player, point: { x: player.x, y: player.y } };
-    }
-    if (selectedCoachId) {
-      const coach = (state.drill.coaches ?? []).find(c => c.id === selectedCoachId);
-      if (coach) return { kind: 'coach' as const, id: selectedCoachId, coach, point: { x: coach.x, y: coach.y } };
-    }
-    if (selectedEquipmentId) {
-      const item = (state.drill.equipment ?? []).find(e => e.id === selectedEquipmentId);
-      if (item) return { kind: 'equipment' as const, id: selectedEquipmentId, item, point: item.position };
-    }
-    if (selectedEventId) {
-      const event = state.drill.events.find(e => e.id === selectedEventId);
-      if (event) return { kind: 'event' as const, id: selectedEventId, event, point: event.toPoint };
-    }
-    return null;
-  }, [state.selection, state.drill.players, state.drill.coaches, state.drill.equipment, state.drill.events]);
-
-  const screenPoint = useMemo(() => {
-    if (!selectedObj) return null;
-    return worldToScreen(selectedObj.point.x, selectedObj.point.y, cameraState);
-  }, [selectedObj, cameraState]);
 
   const onResize = useCallback(
     (width: number, height: number) => camera.setViewport(width, height),
@@ -787,181 +758,6 @@ export function CanvasSurface() {
         onContextMenu={event => event.preventDefault()}
       />
 
-      {/* On-Ice Floating Quick-Action HUD */}
-      {selectedObj && screenPoint && state.pendingAction.kind === 'none' && !state.playback.isPlaying && (() => {
-        const isNearTop = screenPoint.y < 95;
-        const containerWidth = layers.containerRef.current?.clientWidth ?? 1200;
-        const hudLeft = Math.max(160, Math.min(containerWidth - 160, screenPoint.x));
-        const hudTop = isNearTop ? screenPoint.y + 26 : screenPoint.y - 32;
-        const hudTransform = isNearTop ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)';
-        return (
-          <div
-            role="toolbar"
-            aria-label="Selected object actions"
-            style={{
-              position: 'absolute',
-              left: `${hudLeft}px`,
-              top: `${hudTop}px`,
-              transform: hudTransform,
-              zIndex: 30,
-            }}
-            className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-cyan-400/50 bg-[#06121f]/95 px-2.5 py-1 shadow-[0_4px_20px_rgba(0,0,0,0.7)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-100 select-none whitespace-nowrap"
-          >
-          {selectedObj.kind === 'player' && (
-            <>
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  commands.selectPlayer(selectedObj.id);
-                  commands.setTool('move');
-                  commands.setPendingAction({ kind: 'draw-route', playerId: selectedObj.id });
-                }}
-                title="Draw skating route"
-                className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/20 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)] active:scale-95 transition-all"
-              >
-                <span>⛸️</span>
-                <span>Route</span>
-              </button>
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  if (getCurrentPuckHolder(state.drill.players, state.drill.events)?.id !== selectedObj.id) void commands.setPuckCarrier(selectedObj.id);
-                  commands.setTool('move');
-                  commands.setPendingAction({ kind: 'pass', playerId: selectedObj.id });
-                }}
-                title="Pass puck"
-                className="touch-target flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(245,158,11,0.4)] active:scale-95 transition-all"
-              >
-                <span>⚡</span>
-                <span>Pass</span>
-              </button>
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  if (getCurrentPuckHolder(state.drill.players, state.drill.events)?.id !== selectedObj.id) void commands.setPuckCarrier(selectedObj.id);
-                  commands.setTool('move');
-                  void commands.requestShot(selectedObj.id, attackingNetFor(selectedObj.player.team));
-                }}
-                title="Shoot on net"
-                className="touch-target flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-0.5 text-[11px] font-bold text-orange-200 hover:bg-orange-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(249,115,22,0.4)] active:scale-95 transition-all"
-              >
-                <span>🏒</span>
-                <span>Shoot</span>
-              </button>
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  if (getCurrentPuckHolder(state.drill.players, state.drill.events)?.id !== selectedObj.id) void commands.setPuckCarrier(selectedObj.id);
-                  commands.setTool('move');
-                  void commands.generateDumpAndChase();
-                }}
-                title="Dump puck deep into corner & chase"
-                className="touch-target flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(16,185,129,0.4)] active:scale-95 transition-all"
-              >
-                <span>🎯</span>
-                <span>Dump</span>
-              </button>
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  commands.openPlayerInspector(selectedObj.id);
-                }}
-                title="Player details"
-                className="touch-target flex items-center justify-center rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] font-bold text-white/80 hover:bg-white/20 hover:text-white hover:scale-105 hover:shadow-[0_0_8px_rgba(255,255,255,0.3)] active:scale-95 transition-all"
-              >
-                <span>ℹ️</span>
-              </button>
-            </>
-          )}
-
-          {selectedObj.kind === 'coach' && (
-            <>
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  void commands.generateDumpAndChase();
-                }}
-                title="Dump puck into corner & have players chase it"
-                className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/25 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)] active:scale-95 transition-all shadow-sm"
-              >
-                <span>🏒</span>
-                <span>Dump & Chase</span>
-              </button>
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  void commands.generateCoachFeed();
-                }}
-                title="Coach feed pass to slot for one-timer"
-                className="touch-target flex items-center gap-1 rounded-full bg-amber-500/25 px-2 py-0.5 text-[11px] font-bold text-amber-200 hover:bg-amber-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(245,158,11,0.4)] active:scale-95 transition-all shadow-sm"
-              >
-                <span>⚡</span>
-                <span>Feed Slot</span>
-              </button>
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  void commands.generateCoachRim();
-                }}
-                title="Rim puck along boards into far corner"
-                className="touch-target flex items-center gap-1 rounded-full bg-purple-500/25 px-2 py-0.5 text-[11px] font-bold text-purple-200 hover:bg-purple-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(168,85,247,0.4)] active:scale-95 transition-all shadow-sm"
-              >
-                <span>🌀</span>
-                <span>Rim Boards</span>
-              </button>
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  commands.requestPlaybackStart();
-                }}
-                title="Rehearse drill"
-                className="touch-target flex items-center gap-1 rounded-full bg-emerald-500/25 px-2 py-0.5 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(16,185,129,0.4)] active:scale-95 transition-all shadow-sm"
-              >
-                <span>▶️</span>
-                <span>Play</span>
-              </button>
-            </>
-          )}
-
-          {selectedObj.kind === 'event' && (
-            <button
-              type="button"
-              onClick={e => {
-                e.stopPropagation();
-                commands.openEventInspector(selectedObj.id);
-              }}
-              title="Adjust timing & release"
-              className="touch-target flex items-center gap-1 rounded-full bg-cyan-500/20 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/35 hover:text-white hover:scale-105 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)] active:scale-95 transition-all"
-            >
-              <span>⏱️</span>
-              <span>Timing</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={e => {
-              e.stopPropagation();
-              commands.removeSelected();
-            }}
-            title="Delete this object"
-            aria-label="Delete this object"
-            className="touch-target flex items-center justify-center rounded-full bg-red-500/25 px-2 py-0.5 text-[11px] font-bold text-red-200 hover:bg-red-500/40 hover:text-white hover:scale-105 hover:shadow-[0_0_10px_rgba(239,68,68,0.4)] active:scale-95 transition-all"
-          >
-            <span>🗑️</span>
-          </button>
-        </div>
-        );
-      })()}
     </div>
   );
 }
