@@ -31,6 +31,12 @@ export const CHIP_LANE = 'pointer-events-none absolute inset-x-0 top-11 z-30 fle
  * invisible modes: whenever one is armed, this chip states which player it is
  * for, what to do next, and offers Cancel.
  */
+const ROUTE_MODES = [
+  { mode: 'skate', label: 'Forward', title: 'Skating forward' },
+  { mode: 'backward', label: 'Backward', title: 'Skating backward' },
+  { mode: 'glide', label: 'Glide', title: 'Gliding, no strides' },
+] as const;
+
 export function ActionChip() {
   const { state } = useAppState();
   const commands = useCommands();
@@ -42,42 +48,6 @@ export function ActionChip() {
 
   if (pending.kind === 'none' && !isPlacing) return null;
 
-  if (pending.kind === 'none' && isPlacing) {
-    const TOOL_LABELS: Record<string, string> = {
-      home: 'Placing Home Skater',
-      away: 'Placing Away Skater',
-      goalie: 'Placing Goalie',
-      coach: 'Placing Coach',
-      cone: 'Placing Cone',
-      tire: 'Placing Tire',
-      'mini-net': 'Placing Mini-Net',
-      barrier: 'Placing Divider Barrier',
-    };
-    const label = TOOL_LABELS[tool] ?? 'Placing Item';
-
-    return (
-      <div className={`${CHIP_LANE} justify-center`}>
-        <div
-          role="status"
-          aria-live="polite"
-          className="rink-chip pointer-events-auto flex max-w-[min(560px,94vw)] items-center gap-3 rounded-2xl border border-app-cyan/35 bg-[#071522]/95 px-3 py-1.5 shadow-xl backdrop-blur-md"
-        >
-          <div className="min-w-0">
-            <div className="truncate text-[13px] font-black text-app-cyan">{label}</div>
-            <div className="truncate text-[11.5px] text-white/70">Tap anywhere on the ice to drop · click Done to finish</div>
-          </div>
-          <button
-            type="button"
-            onClick={() => commands.setTool('move')}
-            className="touch-target shrink-0 rounded-xl bg-app-cyan px-3 py-1 text-[11.5px] font-black text-[#041019] hover:bg-cyan-300 transition-all shadow"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const subjectId =
     'playerId' in pending ? pending.playerId : 'coachId' in pending ? pending.coachId : null;
   const subject = subjectId
@@ -85,13 +55,17 @@ export function ActionChip() {
     : null;
 
   const instruction = instructionFor({
-    tool: state.ui.currentTool,
+    tool,
     pendingAction: pending,
     carrier: getCurrentPuckHolder(state.drill.players, state.drill.events),
     subject,
     pointer: isTouch ? 'touch' : 'mouse',
     holdToMoveEnabled: true,
   });
+
+  // Placing is one tap: the item goes where you tap and the tool goes back
+  // to Move. Cancel backs out without placing anything.
+  const cancel = () => (pending.kind === 'none' ? commands.setTool('move') : commands.cancelPendingAction());
 
   return (
     // Pinned under the toast strip at the TOP of the rink: the centre and the
@@ -100,59 +74,42 @@ export function ActionChip() {
       <div
         role="status"
         aria-live="polite"
-        className="rink-chip pointer-events-auto flex max-w-[min(640px,94vw)] items-center gap-3 rounded-2xl px-3 py-2"
+        className="rink-chip pointer-events-auto flex w-full max-w-[min(560px,96vw)] flex-col gap-1.5 rounded-xl px-3 py-2"
       >
-        <div className="min-w-0">
-          <div className="truncate text-[13px] font-black text-app-gold">{instruction.label}</div>
-          <div className="truncate text-[12px] text-white/70">{instruction.next}</div>
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-semibold text-white">{instruction.label}</div>
+            <div className="text-[12px] leading-snug text-white/65">{instruction.next}</div>
+          </div>
+          <button
+            type="button"
+            onClick={cancel}
+            className="touch-target shrink-0 rounded-lg border border-white/10 bg-white/[0.05] px-3 text-[12.5px] font-semibold text-white/90 hover:bg-white/[0.1]"
+          >
+            Cancel
+          </button>
         </div>
         {pending.kind === 'draw-route' && (
-          <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-lg border border-white/10 shrink-0" role="group" aria-label="Route drawing mode">
-            <button
-              type="button"
-              onClick={() => commands.setPendingAction({ ...pending, mode: 'skate' })}
-              className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
-                (pending.mode ?? 'skate') === 'skate'
-                  ? 'bg-amber-400 text-black shadow'
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-              title="Forward skating route"
-            >
-              ➔ Forward
-            </button>
-            <button
-              type="button"
-              onClick={() => commands.setPendingAction({ ...pending, mode: 'backward' })}
-              className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
-                pending.mode === 'backward'
-                  ? 'bg-amber-400 text-black shadow'
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-              title="Backward skating route with gap control"
-            >
-              ╌ Backward
-            </button>
-            <button
-              type="button"
-              onClick={() => commands.setPendingAction({ ...pending, mode: 'glide' })}
-              className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
-                pending.mode === 'glide'
-                  ? 'bg-amber-400 text-black shadow'
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-              title="Glide or coast route"
-            >
-              ~ Glide
-            </button>
+          <div className="flex items-center gap-0.5 self-start rounded-lg border border-white/10 bg-black/30 p-0.5" role="group" aria-label="Route drawing mode">
+            {ROUTE_MODES.map(option => {
+              const active = (pending.mode ?? 'skate') === option.mode;
+              return (
+                <button
+                  key={option.mode}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => commands.setPendingAction({ ...pending, mode: option.mode })}
+                  title={option.title}
+                  className={`rounded-md px-2.5 py-1 text-[12px] font-semibold transition-colors ${
+                    active ? 'bg-white/[0.14] text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
         )}
-        <button
-          type="button"
-          onClick={commands.cancelPendingAction}
-          className="touch-target shrink-0 rounded-xl border border-app-border bg-white/5 px-3 text-[12px] font-bold text-app-text hover:bg-white/10"
-        >
-          Cancel
-        </button>
       </div>
     </div>
   );

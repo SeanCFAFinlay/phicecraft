@@ -43,6 +43,9 @@ export function useKeyboardShortcuts(): void {
         // Topmost first: pending action, then inspector, then sheet, then menu.
         if (state.pendingAction.kind !== 'none') {
           commands.cancelPendingAction();
+        } else if (state.ui.currentTool !== 'move') {
+          // An armed Add button: back out without placing anything.
+          commands.setTool('move');
         } else if (state.ui.inspector.kind !== 'none') {
           commands.closeInspector();
           announcer.announce('Details closed');

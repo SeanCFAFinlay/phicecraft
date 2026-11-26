@@ -33,7 +33,7 @@ export function ContextTray() {
   const { state } = useAppState();
   const commands = useCommands();
   const hold = useHoldProgress();
-  const { isPhone, isCompactLandscape } = useResponsive();
+  const { isPhone, isCompactLandscape, isTouch } = useResponsive();
   const { carrier } = usePuckActions();
 
   const playerId = state.selection.selectedPlayerId;
@@ -66,9 +66,27 @@ export function ContextTray() {
   // (below); everywhere else it is the stacked row this component is named
   // for.
   const showSelection = hasSelection && !isCompactLandscape;
+  // On tablets and desktops the row is always there, showing a short hint
+  // when nothing is selected. Adding and removing it resized the rink, and
+  // the camera re-fit the ice under the cursor on every click. Phones keep
+  // the row only while something is selected: their rink is width-bound, so
+  // the extra height is not worth taking from it permanently.
+  const keepRow = !isPhone && !isCompactLandscape && state.ui.mode === 'build';
+  const pointerVerb = isTouch ? 'Tap' : 'Click';
 
   return (
     <div className="shrink-0">
+      {keepRow && !showSelection && (
+        <div
+          className="flex h-[var(--tool-dock-height)] items-center gap-2 overflow-hidden border-t border-app-border bg-[#0c1825] px-3 text-[12.5px] text-white/50"
+        >
+          <span className="truncate">
+            {state.pendingAction.kind !== 'none' || state.ui.currentTool !== 'move'
+              ? 'Follow the instruction at the top of the rink, or press Esc to cancel.'
+              : `${pointerVerb} a player to select it. Drag a player to draw where they skate. Drag the puck carrier to a teammate to pass.`}
+          </span>
+        </div>
+      )}
       {showSelection && (
         <div
           role="group"

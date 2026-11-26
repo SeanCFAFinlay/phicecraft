@@ -108,7 +108,7 @@ export function ToolDock({
   return (
     <nav
       aria-label="Editing tools"
-      className="app-chrome safe-bottom safe-x flex flex-shrink-0 items-stretch justify-center gap-1.5 border-t border-cyan-500/20 bg-gradient-to-t from-[#040b12] via-[#081523] to-[#0a1b2d] px-2 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.5)] backdrop-blur-md"
+      className="app-chrome safe-bottom safe-x flex flex-shrink-0 items-stretch justify-center gap-1.5 border-t border-white/[0.07] bg-[#08121b] px-2 py-1.5"
       style={{ minHeight: 'calc(var(--tool-dock-height) + var(--safe-bottom))' }}
     >
       <DockButton
@@ -193,7 +193,7 @@ export function ToolDock({
           type="button"
           onClick={compactSelection.onDelete}
           aria-label="Delete"
-          className="touch-target flex flex-1 items-center justify-center rounded-xl border-2 border-red-400/40 bg-red-500/10 px-2 py-1.5 text-red-200 transition-colors"
+          className="touch-target flex flex-1 items-center justify-center rounded-lg border border-red-400/25 bg-transparent px-2 py-1.5 text-red-300 transition-colors hover:bg-red-500/10"
         >
           <DeleteIcon />
         </button>

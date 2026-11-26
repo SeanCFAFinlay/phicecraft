@@ -63,7 +63,7 @@ export function Transport({
       className={
         inline
           ? 'flex min-w-0 flex-[2] items-center gap-1.5'
-          : 'app-chrome safe-x flex flex-shrink-0 items-center gap-2 border-t border-cyan-500/20 bg-gradient-to-t from-[#040b12] to-[#0a1827] px-2 py-1.5 shadow-[0_-2px_12px_rgba(0,0,0,0.4)]'
+          : 'app-chrome safe-x flex flex-shrink-0 items-center gap-2 border-t border-white/[0.07] bg-[#08121b] px-2 py-1.5'
       }
       style={inline ? undefined : { minHeight: 'var(--transport-height)' }}
     >
@@ -75,7 +75,7 @@ export function Transport({
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'possession' })}
           aria-haspopup="dialog"
-          className="touch-target flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 text-[12px] font-bold hover:border-cyan-500/30 hover:bg-white/10 transition-all"
+          className="touch-target flex shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[12px] font-semibold hover:bg-white/[0.08] transition-colors"
         >
           {/* /45 measured 4.32:1 against this row's background - just under
               the 4.5:1 axe requires; /60 clears it with room to spare. */}
@@ -94,20 +94,22 @@ export function Transport({
         type="button"
         onClick={commands.resetPlayback}
         aria-label="Reset playback to the start"
-        className="touch-target flex items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[15px] text-app-text hover:border-cyan-500/30 hover:bg-white/10 hover:text-white transition-all"
+        className="touch-target flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-[15px] text-app-text hover:bg-white/[0.08] hover:text-white transition-colors"
       >
         <StepBackIcon size={16} />
       </button>
 
-      {!inline && (
+      {/* In Build the dock's Play, right below, is the one play button. A
+          second round Play beside the timeline did exactly the same thing. */}
+      {!inline && state.ui.mode !== 'build' && (
         <button
           type="button"
           onClick={() => (isPlaying ? commands.stopPlayback() : commands.requestPlaybackStart())}
           aria-label={isPlaying ? 'Pause playback' : 'Start playback'}
           className={`touch-target flex items-center justify-center rounded-full border-2 text-[17px] shadow-sm transition-all ${
             isPlaying
-              ? 'border-red-400 bg-gradient-to-b from-red-500 to-red-600 text-white'
-              : 'border-cyan-400 bg-app-cyan text-[#03121c] hover:brightness-105 active:scale-95'
+              ? 'border-red-500 bg-red-600 text-white'
+              : 'border-transparent bg-app-cyan text-[#03121c] hover:brightness-110'
           }`}
         >
           {isPlaying ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
@@ -124,7 +126,7 @@ export function Transport({
       */}
       <div className="relative min-w-0 flex-1 flex items-center group py-2">
         <div
-          className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10 transition-all group-hover:h-3 pointer-events-none"
+          className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/10 transition-all group-hover:h-2 pointer-events-none"
           role="progressbar"
           aria-label="Playback position"
           aria-valuemin={0}
@@ -159,7 +161,7 @@ export function Transport({
         <div
           role="radiogroup"
           aria-label="Playback speed"
-          className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-black/40 p-0.5 shrink-0 shadow-sm"
+          className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-black/30 p-0.5 shrink-0"
         >
           {PLAYBACK_SPEEDS.map(speed => (
             <button
@@ -171,8 +173,8 @@ export function Transport({
               title={`${speed}x tempo`}
               className={`flex h-6 min-w-0 items-center justify-center rounded px-1.5 text-[10.5px] font-bold transition-all ${
                 state.playback.speed === speed
-                  ? 'border border-cyan-400/50 bg-app-cyan text-[#041019] shadow-sm font-black'
-                  : 'text-white/60 hover:bg-white/10 hover:text-white'
+                  ? 'bg-white/[0.14] text-white'
+                  : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
               }`}
             >
               {speed}×
@@ -181,21 +183,13 @@ export function Transport({
         </div>
       )}
 
-      {/* The lifecycle status used to ride along on the (now-gone) workflow
-          chip, shown only where there is room to spare for it. */}
-      {!inline && !isPhone && state.playback.lifecycle !== 'ready' && (
-        <span className="shrink-0 text-[11px] font-black uppercase tracking-wide text-cyan-200">
-          {state.playback.lifecycle}
-        </span>
-      )}
-
       {showExpand && (
         <button
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'playback' })}
           aria-label="Expand playback controls"
           aria-haspopup="dialog"
-          className="touch-target flex items-center justify-center rounded-xl border border-app-border bg-white/5 text-[14px] text-app-text hover:bg-white/10"
+          className="touch-target flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-[14px] text-app-text hover:bg-white/[0.08]"
         >
           <ExpandIcon size={16} />
         </button>

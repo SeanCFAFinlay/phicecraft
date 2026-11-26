@@ -24,7 +24,7 @@ import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useViewActions } from './useViewActions';
 import { useResponsive } from '@/ui/useResponsive';
 import type { PlayFormationPreset } from '@/engine/formations';
-import { DEFAULT_JERSEYS } from '@/core/types';
+import { DEFAULT_JERSEYS, type Tool } from '@/core/types';
 import {
   BarrierIcon,
   CoachIcon,
@@ -41,6 +41,7 @@ import {
 } from '@/ui/icons';
 
 type MenuName = 'setups' | 'flip' | 'clear' | 'export';
+type PlaceTool = Exclude<Tool, 'move'>;
 
 const BUTTON =
   'flex h-8 min-w-0 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12px] font-semibold text-white/75 transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-app-cyan';
@@ -191,35 +192,18 @@ export function TacticalBar() {
     void action();
   };
 
-  const addSkater = (team: 'home' | 'away') => {
-    const count = state.drill.players.filter(p => p.team === team && p.role !== 'G').length;
-    const x = Math.min(840, (team === 'home' ? 480 : 560) + (count % 4) * 60);
-    const y = (team === 'home' ? 120 : 140) + ((count * 70) % 200);
-    const res = commands.addPlayer({ x, y }, team);
-    if (res.status === 'done') commands.selectPlayer(res.value);
-    commands.setTool('move');
+  // Each Add button arms placement: the next tap on the ice puts the item
+  // exactly there, then the tool returns to Move. Pressing the armed button
+  // again, Cancel on the rink chip, or Escape backs out. Dropping items at a
+  // fixed spot in the middle of the ice meant dragging every one of them
+  // across the rink afterwards.
+  const tool = state.ui.currentTool;
+  const arm = (next: PlaceTool) => () => {
+    commands.cancelPendingAction();
+    commands.setTool(tool === next ? 'move' : next);
   };
-
-  const addGoalie = () => {
-    const hasHomeGoalie = state.drill.players.some(p => p.team === 'home' && p.role === 'G');
-    const res = commands.addPlayer({ x: hasHomeGoalie ? 920 : 80, y: 212.5 }, 'goalie');
-    if (res.status === 'done') commands.selectPlayer(res.value);
-    commands.setTool('move');
-  };
-
-  const addCoach = () => {
-    const coachCount = (state.drill.coaches ?? []).length;
-    const res = commands.addCoach({ x: Math.min(840, 460 + coachCount * 55), y: 65 });
-    if (res && 'value' in res && res.value) commands.selectCoach(res.value);
-    commands.setTool('move');
-  };
-
-  const addGear = (kind: 'cone' | 'tire' | 'mini-net' | 'barrier') => {
-    const count = (state.drill.equipment ?? []).length;
-    const res = commands.addEquipment(kind, { x: Math.min(840, 480 + (count % 4) * 55), y: 180 + ((count * 40) % 120) });
-    if (res && 'value' in res && res.value) commands.selectEquipment(res.value);
-    commands.setTool('move');
-  };
+  const addButton = (next: PlaceTool) =>
+    `${BUTTON} ${tool === next ? 'bg-app-cyan/15 text-white ring-1 ring-inset ring-app-cyan/50' : ''}`;
 
   const formation = (preset: PlayFormationPreset) => run(() => commands.loadFormation(preset, true));
 
@@ -231,19 +215,19 @@ export function TacticalBar() {
     >
       <div className="flex min-w-0 items-center overflow-x-auto scrollbar-hide">
         <div className="flex items-center" role="group" aria-label="Add players">
-          <button type="button" onClick={() => addSkater('home')} aria-label="Add a skater" title="Add a skater to your team" className={BUTTON}>
+          <button type="button" onClick={arm('home')} aria-pressed={tool === 'home'} aria-label="Add a skater" title="Add a skater to your team, then tap the ice" className={addButton('home')}>
             <TeamDot color={jerseys.home} />
             <span className="hidden lg:inline">Skater</span>
           </button>
-          <button type="button" onClick={() => addSkater('away')} aria-label="Add an opponent" title="Add an opposing skater" className={BUTTON}>
+          <button type="button" onClick={arm('away')} aria-pressed={tool === 'away'} aria-label="Add an opponent" title="Add an opposing skater, then tap the ice" className={addButton('away')}>
             <TeamDot color={jerseys.away} />
             <span className="hidden lg:inline">Opponent</span>
           </button>
-          <button type="button" onClick={addGoalie} aria-label="Add a goalie" title="Add a goalie" className={BUTTON}>
+          <button type="button" onClick={arm('goalie')} aria-pressed={tool === 'goalie'} aria-label="Add a goalie" title="Add a goalie, then tap near a net" className={addButton('goalie')}>
             <GoalieIcon size={16} />
             <span className="hidden lg:inline">Goalie</span>
           </button>
-          <button type="button" onClick={addCoach} aria-label="Add a coach" title="Add a coach" className={BUTTON}>
+          <button type="button" onClick={arm('coach')} aria-pressed={tool === 'coach'} aria-label="Add a coach" title="Add a coach, then tap the ice" className={addButton('coach')}>
             <CoachIcon size={16} />
             <span className="hidden lg:inline">Coach</span>
           </button>
@@ -252,19 +236,19 @@ export function TacticalBar() {
         <Divider />
 
         <div className="flex items-center" role="group" aria-label="Add equipment">
-          <button type="button" onClick={() => addGear('cone')} aria-label="Add a cone" title="Add a cone" className={BUTTON}>
+          <button type="button" onClick={arm('cone')} aria-pressed={tool === 'cone'} aria-label="Add a cone" title="Add a cone, then tap the ice" className={addButton('cone')}>
             <ConeIcon size={16} />
             <span className="hidden xl:inline">Cone</span>
           </button>
-          <button type="button" onClick={() => addGear('tire')} aria-label="Add a tire" title="Add a tire" className={BUTTON}>
+          <button type="button" onClick={arm('tire')} aria-pressed={tool === 'tire'} aria-label="Add a tire" title="Add a tire, then tap the ice" className={addButton('tire')}>
             <TireIcon size={16} />
             <span className="hidden xl:inline">Tire</span>
           </button>
-          <button type="button" onClick={() => addGear('mini-net')} aria-label="Add a mini net" title="Add a mini net" className={BUTTON}>
+          <button type="button" onClick={arm('mini-net')} aria-pressed={tool === 'mini-net'} aria-label="Add a mini net" title="Add a mini net, then tap the ice" className={addButton('mini-net')}>
             <MiniNetIcon size={16} />
             <span className="hidden xl:inline">Net</span>
           </button>
-          <button type="button" onClick={() => addGear('barrier')} aria-label="Add a divider" title="Add a cross-ice divider" className={BUTTON}>
+          <button type="button" onClick={arm('barrier')} aria-pressed={tool === 'barrier'} aria-label="Add a divider" title="Add a cross-ice divider, then tap the ice" className={addButton('barrier')}>
             <BarrierIcon size={16} />
             <span className="hidden xl:inline">Divider</span>
           </button>

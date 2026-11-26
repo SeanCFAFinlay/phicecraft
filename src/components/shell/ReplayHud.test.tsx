@@ -22,9 +22,9 @@ describe('Drill Information ReplayHud', () => {
     fireEvent.click(expandBtn);
 
     // Now in expanded mode:
-    expect(screen.getByText(/TACTICAL HUD|DRILL REPLAY/i)).toBeInTheDocument();
+    expect(screen.getByText(/^(Drill notes|Playing)$/)).toBeInTheDocument();
     expect(screen.getByText(/Objective/i)).toBeInTheDocument();
-    expect(screen.getByText(/Live Play-by-Play/i)).toBeInTheDocument();
+    expect(screen.getByText(/Play-by-play/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /teach guide/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /practice plan/i })).toBeInTheDocument();
 

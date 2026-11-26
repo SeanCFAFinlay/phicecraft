@@ -168,6 +168,34 @@ describe('taps', () => {
   });
 });
 
+describe('armed Skate on open ice', () => {
+  it('draws the armed player route from where they stand instead of panning', () => {
+    context.armedRoutePlayerId = 'p1';
+    context.armedRouteStart = { x: 10, y: 10 };
+    const machine = build();
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerMove(touch(1, 100 + MOVE_THRESHOLD + 30, 100));
+    scheduler.flushFrames();
+    machine.pointerUp(touch(1, 100 + MOVE_THRESHOLD + 30, 100));
+
+    expect(handlers.onPanOrOrbit).not.toHaveBeenCalled();
+    expect(handlers.onRouteCommit).toHaveBeenCalledTimes(1);
+    const [owner, points] = handlers.onRouteCommit.mock.calls[0];
+    expect(owner).toBe('p1');
+    expect(points[0]).toEqual({ x: 10, y: 10 });
+  });
+
+  it('still pans open ice when nothing is armed', () => {
+    const machine = build();
+    machine.pointerDown(touch(1, 100, 100));
+    machine.pointerMove(touch(1, 100 + MOVE_THRESHOLD + 30, 100));
+    scheduler.flushFrames();
+    machine.pointerUp(touch(1, 100 + MOVE_THRESHOLD + 30, 100));
+
+    expect(handlers.onRouteCommit).not.toHaveBeenCalled();
+  });
+});
+
 // ----------------------------------------------------------------------------
 // P0: a pinch release must never become a tap or an edit.
 // ----------------------------------------------------------------------------

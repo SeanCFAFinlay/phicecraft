@@ -479,7 +479,7 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       dispatch({ type: 'SELECT_PLAYER', id: ownerId });
       dispatch({ type: 'CANCEL_PENDING_ACTION' });
       notify.toast({
-        message: `${effectiveMode === 'backward' ? 'Backward route' : effectiveMode === 'glide' ? 'Glide route' : 'Route'} drawn for #${owner.number} — drag its handles to reshape`,
+        message: `${effectiveMode === 'backward' ? 'Backward route' : effectiveMode === 'glide' ? 'Glide route' : 'Route'} drawn for #${owner.number}. Drag the dots to reshape it.`,
         type: 'success',
         dedupeKey: 'route-drawn',
       });

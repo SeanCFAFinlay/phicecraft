@@ -19,7 +19,7 @@ import { useDrillSteps } from '@/features/coaching/useDrillSteps';
 export function ReplayHud() {
   const { state, dispatch } = useAppState();
   const { playback } = useEditorRuntime();
-  const { prefersReducedMotion, isPhone, isCompactLandscape } = useResponsive();
+  const { isPhone, isCompactLandscape } = useResponsive();
   // The play's name is already in the top strip; on a phone the folded HUD
   // keeps only the clock and the step, so it covers less of the rink.
   const isCompact = isPhone || isCompactLandscape;
@@ -64,22 +64,23 @@ export function ReplayHud() {
     100
   ).toFixed(1);
 
+  const chevron = (up: boolean) => (
+    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+      <path d={up ? 'M2 6.5 5 3.5 8 6.5' : 'M2 3.5 5 6.5 8 3.5'} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+
   if (!isExpanded) {
+    // Folded: just what is happening now. The play's name is in the top
+    // strip and the clock is on the timeline, so neither is repeated here.
     return (
       <div
-        className="pointer-events-none absolute left-2 top-2 z-20 flex max-w-[calc(100vw-110px)] items-center gap-1.5"
+        className="pointer-events-none absolute left-2 top-2 z-20 flex max-w-[calc(100vw-110px)] items-center"
         aria-label="Drill replay display"
       >
-        <div className={`pointer-events-auto flex items-center rounded-xl border border-white/20 bg-slate-950/90 text-xs ${isCompact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} text-white shadow-xl backdrop-blur-md`}>
-          <span className={`flex h-2 w-2 rounded-full bg-cyan-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
-          <span className={`max-w-[140px] sm:max-w-[200px] truncate font-bold text-cyan-100 ${isCompact ? 'sr-only' : ''}`}>
-            {state.drill.name || 'Tactical Drill'}
-          </span>
-          <span className="text-[10px] font-mono text-cyan-300/80">{currentTime}s</span>
-          {/* Folded, the HUD still says what is happening - one line, and the
-              full commentary for a screen reader. */}
+        <div className={`pointer-events-auto flex items-center rounded-lg border border-white/10 bg-[#08121b]/90 text-white backdrop-blur ${isCompact ? 'gap-1 py-0.5 pl-2 pr-0.5' : 'gap-2 py-0.5 pl-3 pr-0.5'}`}>
           <span
-            className="hidden max-w-[220px] truncate border-l border-white/15 pl-2 text-[11px] font-bold text-cyan-200 sm:inline"
+            className={`truncate text-[12px] font-medium text-white/80 ${isCompact ? 'max-w-[150px]' : 'max-w-[280px]'}`}
             aria-live="polite"
           >
             {stepLabel}
@@ -88,10 +89,11 @@ export function ReplayHud() {
           <button
             type="button"
             onClick={() => setIsExpanded(true)}
-            className="touch-target ml-1 flex h-6 w-6 items-center justify-center rounded-lg bg-white/10 text-[10px] text-cyan-200 transition hover:bg-white/20"
+            className="touch-target flex h-7 w-7 items-center justify-center rounded-md text-white/60 transition-colors hover:bg-white/[0.08] hover:text-white"
             aria-label="Expand drill details"
+            title="Show the drill notes and steps"
           >
-            ▼
+            {chevron(false)}
           </button>
         </div>
       </div>
@@ -100,42 +102,38 @@ export function ReplayHud() {
 
   return (
     <div
-      className="pointer-events-none absolute left-2 sm:left-3 top-2 sm:top-3 z-20 w-80 max-w-[calc(100vw-110px)] sm:max-w-md overflow-hidden rounded-xl border border-white/20 bg-slate-950/92 text-white shadow-2xl backdrop-blur-md"
+      className="pointer-events-none absolute left-2 sm:left-3 top-2 sm:top-3 z-20 w-80 max-w-[calc(100vw-110px)] sm:max-w-md overflow-hidden rounded-lg border border-white/10 bg-[#08121b]/95 text-white shadow-[0_12px_32px_rgba(0,0,0,0.45)] backdrop-blur"
       aria-label="Drill replay display"
     >
-      {/* Top Banner */}
-      <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-black tracking-widest text-cyan-200">
-        <div className="flex items-center gap-2 truncate">
-          <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] text-cyan-300">
-            {state.playback.isPlaying ? 'DRILL REPLAY' : 'TACTICAL HUD'}
+      <div className="flex items-center justify-between gap-2 border-b border-white/[0.08] px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-[11px] font-semibold text-white/50">
+            {state.playback.isPlaying ? 'Playing' : 'Drill notes'}
           </span>
-          <span className="font-bold text-white truncate max-w-[150px] sm:max-w-[220px]">
-            {state.drill.name || 'Tactical Drill'}
+          <span className="truncate text-[12.5px] font-semibold text-white">
+            {state.drill.name || 'Untitled drill'}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-cyan-200">{currentTime}s / {snapshot.durationSeconds.toFixed(1)}s</span>
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] tabular-nums text-white/55">{currentTime}s / {snapshot.durationSeconds.toFixed(1)}s</span>
           <button
             type="button"
             onClick={() => setIsExpanded(false)}
-            className="pointer-events-auto touch-target flex h-5 w-5 items-center justify-center rounded bg-white/10 text-[9px] text-cyan-200 transition hover:bg-white/20"
+            className="pointer-events-auto touch-target flex h-6 w-6 items-center justify-center rounded-md text-white/60 transition-colors hover:bg-white/[0.08] hover:text-white"
             aria-label="Collapse drill details"
           >
-            ▲
+            {chevron(true)}
           </button>
         </div>
       </div>
 
-      {/* Teams & Puck Carrier */}
-      <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs font-bold border-b border-white/10">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+      <div className="flex items-center justify-between gap-2 border-b border-white/[0.08] px-3 py-1.5 text-[11.5px]">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {(['home', 'away'] as const).map((team, index) => (
             <span key={team} className="contents">
-              {index === 1 && <span className="text-[9px] text-slate-500">VS</span>}
-              <span
-                className="flex min-w-0 items-center gap-1 truncate border-l-4 pl-1.5 text-[11px]"
-                style={{ borderColor: jerseyColor(team, state.drill.settings) }}
-              >
+              {index === 1 && <span className="text-[10px] text-white/40">vs</span>}
+              <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: jerseyColor(team, state.drill.settings) }} aria-hidden="true" />
                 {state.drill.settings?.coaching?.logos?.[team] && (
                   <img
                     src={state.drill.settings.coaching.logos[team]}
@@ -150,32 +148,20 @@ export function ReplayHud() {
             </span>
           ))}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 rounded bg-cyan-950/60 border border-cyan-800/40 px-2 py-0.5 text-[10px] text-cyan-200">
-          <span>🏒</span>
-          <span className="truncate max-w-[120px]">{puckStatus}</span>
-        </div>
+        <span className="max-w-[140px] shrink-0 truncate text-[11px] text-white/60">{puckStatus}</span>
       </div>
 
-      {/* Tactical Objective */}
-      <div className="px-3 py-1.5 border-b border-white/10 bg-slate-900/40">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-300/90 flex items-center gap-1">
-          <span>🎯</span> Objective
-        </div>
-        <p className="mt-0.5 text-[11.5px] leading-snug text-slate-200">{objective}</p>
+      <div className="border-b border-white/[0.08] px-3 py-1.5">
+        <div className="text-[11px] font-semibold text-white/50">Objective</div>
+        <p className="mt-0.5 text-[12px] leading-snug text-white/85">{objective}</p>
       </div>
 
-      {/* Coaching Cues */}
       {cues.length > 0 && (
-        <div className="px-3 py-1.5 border-b border-white/10">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-300/90 flex items-center gap-1">
-            <span>💡</span> Key Cues
-          </div>
+        <div className="border-b border-white/[0.08] px-3 py-1.5">
+          <div className="text-[11px] font-semibold text-white/50">Key cues</div>
           <div className="mt-1 flex flex-wrap gap-1">
             {cues.map((cue, idx) => (
-              <span
-                key={idx}
-                className="rounded-md bg-white/10 px-2 py-0.5 text-[10px] text-slate-200"
-              >
+              <span key={idx} className="rounded-md bg-white/[0.07] px-2 py-0.5 text-[11px] text-white/80">
                 {cue}
               </span>
             ))}
@@ -183,19 +169,15 @@ export function ReplayHud() {
         </div>
       )}
 
-      {/* Play-by-Play Live Narration Ticker */}
-      <div className="px-3 py-2 bg-cyan-950/20">
-        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-400">
-          <span className={`flex h-1.5 w-1.5 rounded-full bg-cyan-400 ${prefersReducedMotion ? '' : 'animate-pulse'}`} />
-          <span>Live Play-by-Play</span>
-        </div>
+      <div className="px-3 py-2">
+        <div className="text-[11px] font-semibold text-white/50">Play-by-play</div>
         {step ? (
           <>
-            <p className="mt-0.5 text-xs font-bold text-cyan-100" aria-live="polite">
+            <p className="mt-0.5 text-[12.5px] font-semibold text-white" aria-live="polite">
               Step {step.number} of {story.steps.length} · {step.title}
             </p>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{step.detail}</p>
-            <p className="mt-0.5 text-[10.5px] text-cyan-300/80">{narration.title}</p>
+            <p className="mt-0.5 text-[11.5px] leading-relaxed text-white/70">{step.detail}</p>
+            <p className="mt-0.5 text-[11px] text-white/50">{narration.title}</p>
             <ol className="pointer-events-auto mt-1.5 flex flex-wrap gap-1" aria-label="Drill steps">
               {story.steps.map(item => (
                 <li key={item.number}>
@@ -205,12 +187,12 @@ export function ReplayHud() {
                     aria-label={`Go to step ${item.number}: ${item.title}`}
                     aria-current={item.number === step.number ? 'step' : undefined}
                     title={item.title}
-                    className={`touch-target flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 text-[10.5px] font-black transition ${
+                    className={`touch-target flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold transition-colors ${
                       item.number === step.number
-                        ? 'bg-cyan-400 text-slate-950'
+                        ? 'bg-app-cyan text-[#06131c]'
                         : item.number < step.number
-                          ? 'bg-cyan-400/25 text-cyan-100 hover:bg-cyan-400/40'
-                          : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                          ? 'bg-white/[0.12] text-white hover:bg-white/[0.18]'
+                          : 'bg-white/[0.05] text-white/60 hover:bg-white/[0.1]'
                     }`}
                   >
                     {item.number}
@@ -221,34 +203,26 @@ export function ReplayHud() {
           </>
         ) : (
           <>
-            <p className="mt-0.5 text-xs font-bold text-cyan-100">{narration.title}</p>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{narration.detail}</p>
+            <p className="mt-0.5 text-[12.5px] font-semibold text-white">{narration.title}</p>
+            <p className="mt-0.5 text-[11.5px] leading-relaxed text-white/70">{narration.detail}</p>
           </>
         )}
       </div>
 
-      {/* Quick Actions Footer */}
-      <div className="flex items-center justify-between border-t border-white/10 bg-white/5 px-2.5 py-1.5">
+      <div className="flex items-center gap-1 border-t border-white/[0.08] px-2 py-1">
         <button
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'coach' })}
-          className="pointer-events-auto touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition"
+          className="pointer-events-auto touch-target rounded-md px-2 py-1 text-[12px] font-medium text-white/75 transition-colors hover:bg-white/[0.07] hover:text-white"
         >
-          <span>📋</span> Teach Guide
+          Teach guide
         </button>
         <button
           type="button"
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'practice' })}
-          className="pointer-events-auto touch-target flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition"
+          className="pointer-events-auto touch-target rounded-md px-2 py-1 text-[12px] font-medium text-white/75 transition-colors hover:bg-white/[0.07] hover:text-white"
         >
-          <span>📅</span> Practice Plan
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsExpanded(false)}
-          className="pointer-events-auto touch-target text-[10px] text-slate-400 hover:text-white transition px-1.5 py-0.5"
-        >
-          Fold ▲
+          Practice plan
         </button>
       </div>
     </div>

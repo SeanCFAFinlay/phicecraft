@@ -660,6 +660,12 @@ export function CanvasSurface() {
           stateRef.current.pendingAction.kind === 'draw-route'
             ? stateRef.current.pendingAction.playerId
             : null,
+        armedRouteStart: (() => {
+          const pending = stateRef.current.pendingAction;
+          if (pending.kind !== 'draw-route') return null;
+          const player = stateRef.current.drill.players.find(p => p.id === pending.playerId);
+          return player ? { x: player.x, y: player.y } : null;
+        })(),
         // Move is the neutral authoring surface: dragging a skater draws a
         // route, while the selection chip explicitly arms repositioning.
         isMoveToolActive: false,

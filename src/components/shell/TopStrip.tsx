@@ -12,7 +12,7 @@ import { useAppState, useCommands } from '@/hooks/useAppState';
 import { useResponsive } from '@/ui/useResponsive';
 import { ModeSwitch, ModeSwitchTrigger } from './ModeSwitch';
 import { SaveStatus } from './SaveStatus';
-import { BookIcon, DrillIcon, PlannerIcon, WhistleIcon } from '@/ui/icons';
+import { BookIcon, DrillIcon, PlannerIcon, RedoIcon, UndoIcon, WhistleIcon } from '@/ui/icons';
 
 export function TopStrip() {
   const { state, dispatch } = useAppState();
@@ -160,9 +160,9 @@ export function TopStrip() {
             onClick={commands.undo}
             disabled={!canUndo}
             aria-label="Undo"
-            className="touch-target flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-[14px] text-white hover:border-cyan-500/30 hover:bg-app-cyan/15 hover:text-app-cyan transition-all disabled:opacity-20 disabled:pointer-events-none"
+            className="touch-target flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:bg-white/[0.08] hover:text-white transition-colors disabled:opacity-25 disabled:pointer-events-none"
           >
-            ↩
+            <UndoIcon size={18} />
           </button>
         )}
 
@@ -176,9 +176,9 @@ export function TopStrip() {
                 onClick={commands.redo}
                 disabled={!canRedo}
                 aria-label="Redo"
-                className="touch-target flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-[14px] text-white hover:border-cyan-500/30 hover:bg-app-cyan/15 hover:text-app-cyan transition-all disabled:opacity-20 disabled:pointer-events-none"
+                className="touch-target flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:bg-white/[0.08] hover:text-white transition-colors disabled:opacity-25 disabled:pointer-events-none"
               >
-                ↪
+                <RedoIcon size={18} />
               </button>
             )}
             <ModeSwitch />
@@ -190,9 +190,13 @@ export function TopStrip() {
           onClick={() => dispatch({ type: 'OPEN_SHEET', sheet: 'more' })}
           aria-label="More actions"
           aria-haspopup="dialog"
-          className="touch-target flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-[14px] text-white hover:border-cyan-500/30 hover:bg-app-cyan/15 hover:text-app-cyan transition-all"
+          className="touch-target flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:bg-white/[0.08] hover:text-white transition-colors"
         >
-          ⋯
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+            <circle cx="5" cy="12" r="1.8" />
+            <circle cx="12" cy="12" r="1.8" />
+            <circle cx="19" cy="12" r="1.8" />
+          </svg>
         </button>
       </div>
     </header>

@@ -10,7 +10,7 @@ test('full 3D demo plays, explains the save and can be scrubbed', async ({ page 
   await page.getByRole('button', { name: 'Add', exact: true }).click();
   const started = Date.now();
   await page.getByRole('button', { name: 'Watch 3D demo', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Pause playback', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(Pause|Stop) playback$/ }).first()).toBeVisible();
   await page.waitForFunction(() => window.__phicecraftBoard3d?.actorsBuilt);
   const launchMilliseconds = Date.now() - started;
   await expect(page.locator('canvas[data-board3d]')).toBeVisible();

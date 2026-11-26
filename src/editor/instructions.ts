@@ -64,7 +64,7 @@ export function instructionFor(context: InstructionContext): Instruction {
     case 'draw-route':
       return {
         label: `Route for ${who}`,
-        next: 'Draw the movement path, then release.',
+        next: 'Drag from the player, or anywhere on the ice, to draw where they skate.',
         cancellable: true,
       };
 
@@ -109,24 +109,24 @@ function toolInstruction(context: InstructionContext): Omit<Instruction, 'cancel
           : `${verb(pointer)} a player to select it · ${dragVerb(pointer).toLowerCase()} one to draw a route.`,
       };
     case 'home':
-      return { label: 'Add home', next: `${verb(pointer)} empty ice to place a home player.` };
+      return { label: 'Add a skater', next: `${verb(pointer)} the ice where they start.` };
     case 'away':
-      return { label: 'Add away', next: `${verb(pointer)} empty ice to place an away player.` };
+      return { label: 'Add an opponent', next: `${verb(pointer)} the ice where they start.` };
     case 'goalie':
       return {
-        label: 'Add goalie',
-        next: `${verb(pointer)} an end to place its goalie — home defends the left net.`,
+        label: 'Add a goalie',
+        next: `${verb(pointer)} near a net. Your team defends the left one.`,
       };
     case 'coach':
-      return { label: 'Add coach', next: `${verb(pointer)} empty ice to place the coach.` };
+      return { label: 'Add a coach', next: `${verb(pointer)} the ice where the coach stands.` };
     case 'cone':
-      return { label: 'Add cone', next: `${verb(pointer)} empty ice to place a training cone.` };
+      return { label: 'Add a cone', next: `${verb(pointer)} the ice where it goes.` };
     case 'tire':
-      return { label: 'Add tire', next: `${verb(pointer)} empty ice to place a tire obstacle.` };
+      return { label: 'Add a tire', next: `${verb(pointer)} the ice where it goes.` };
     case 'mini-net':
-      return { label: 'Add mini-net', next: `${verb(pointer)} empty ice to place a target net.` };
+      return { label: 'Add a mini net', next: `${verb(pointer)} the ice where it goes.` };
     case 'barrier':
-      return { label: 'Add divider', next: `${verb(pointer)} empty ice to place a divider pad.` };
+      return { label: 'Add a divider', next: `${verb(pointer)} the ice where it goes.` };
   }
 }
 

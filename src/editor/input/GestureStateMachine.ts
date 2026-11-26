@@ -307,6 +307,14 @@ export class GestureStateMachine {
 
     switch (target.kind) {
       case 'empty':
+        // With Skate armed, a drag on open ice is that player's route, drawn
+        // from where they stand. Panning here moved the rink out from under a
+        // coach who had just asked to draw.
+        if (context.armedRoutePlayerId && context.armedRouteStart) {
+          this.gesture = { kind: 'draw-route', ownerId: context.armedRoutePlayerId };
+          this.routeSamples = [{ ...context.armedRouteStart }, hitTester.toWorld(origin)];
+          break;
+        }
         // Only now is this a camera gesture: a drag on empty ice pans.
         this.gesture = {
           kind: 'pan',

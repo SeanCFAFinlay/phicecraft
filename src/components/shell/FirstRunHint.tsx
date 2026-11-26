@@ -94,8 +94,8 @@ export function FirstRunHint() {
       <div
         role="status"
         aria-live="polite"
-        className="pointer-events-auto flex w-full items-center justify-between gap-2 rounded-xl border border-app-cyan/30 bg-[#071522]/90 px-3 py-1 shadow-xl backdrop-blur-md">
-        <div className="min-w-0 flex-1 text-[12px] font-bold leading-tight text-app-gold">
+        className="rink-chip pointer-events-auto flex w-full items-center justify-between gap-2 rounded-xl px-3 py-1.5">
+        <div className="min-w-0 flex-1 text-[12.5px] font-medium leading-snug text-white/85">
           {MESSAGE[stage]}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -105,9 +105,9 @@ export function FirstRunHint() {
               await commands.useTemplate('tpl-play-131-power-play');
               dismiss();
             }}
-            className="touch-target inline-flex items-center gap-1 rounded-lg bg-app-cyan px-2 py-0.5 text-[11px] font-black text-[#041019] shadow hover:bg-cyan-300 transition-all"
+            className="touch-target inline-flex items-center rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-0.5 text-[12px] font-semibold text-white/90 hover:bg-white/[0.1] transition-colors"
           >
-            ▶ Example
+            See an example
           </button>
           <button
             type="button"
@@ -115,17 +115,17 @@ export function FirstRunHint() {
               dispatch({ type: 'OPEN_SHEET', sheet: 'library' });
               dismiss();
             }}
-            className="touch-target hidden md:inline-flex items-center gap-1 rounded-lg border border-app-cyan/40 bg-app-cyan/15 px-2 py-0.5 text-[11px] font-bold text-app-cyan hover:bg-app-cyan/25 transition-all"
+            className="touch-target hidden md:inline-flex items-center rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-0.5 text-[12px] font-semibold text-white/90 hover:bg-white/[0.1] transition-colors"
           >
-            📚 Drills
+            Browse drills
           </button>
           <button
             type="button"
             onClick={dismiss}
             aria-label="Dismiss hint"
-            className="touch-target rounded-lg border border-app-border bg-white/5 px-2 py-0.5 text-[11px] font-bold text-app-text hover:bg-white/10"
+            className="touch-target flex items-center justify-center rounded-lg px-2 py-0.5 text-white/60 hover:bg-white/[0.08] hover:text-white"
           >
-            ✕
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
           </button>
         </div>
       </div>

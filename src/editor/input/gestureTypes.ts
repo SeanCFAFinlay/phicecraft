@@ -126,6 +126,12 @@ export interface GestureContext {
    * skating in and shooting. Arming Skate says "this drag is a route".
    */
   armedRoutePlayerId: ID | null;
+  /**
+   * Where the armed player stands. With Skate armed, a drag that starts on
+   * open ice draws their route from here instead of panning the camera:
+   * a coach aims at where the player goes, not at the token itself.
+   */
+  armedRouteStart?: Point | null;
   /** Optional host override for a direct move tool; the editor arms moves explicitly. */
   isMoveToolActive?: boolean;
   isAddToolActive?: boolean;
