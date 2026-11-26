@@ -572,6 +572,95 @@ function validateTacticalLaneAndNetAngles(
   }
 }
 
+/** Teammates closer than this while at least one is moving are skating into each other. */
+const TEAMMATE_COLLISION = 2.5 * FT;
+/** A skater counts as moving above this speed (board units per second). */
+const MOVING_SPEED = 1.5 * FT;
+const TIMELINE_STEP_SECONDS = 0.1;
+
+/**
+ * Plays the drill through the engine and checks it over time, not just at
+ * the start: teammates whose routes run them into each other, and skaters
+ * whose route takes them through a goal. Each problem is reported once, at
+ * the first moment it happens.
+ */
+function validateTimelineConflicts(drill: DrillDocumentV3, issues: DrillValidationIssue[]): void {
+  let compiled: ReturnType<typeof compileDrill>;
+  try {
+    compiled = compileDrill(projectToV2(drill).drill);
+  } catch {
+    return;
+  }
+  const skaters = drill.actors.filter(actor => isSkater(actor) && isOnIce(actor)) as SkaterActor[];
+  if (skaters.length === 0 || compiled.durationSeconds <= 0) return;
+  const label = (actor: Actor) => actor.label || actor.id;
+  const reported = new Set<string>();
+  let previous: Record<string, Point> = {};
+
+  // The goal frame on each line, padded a little: 6 ft mouth, ~3.3 ft deep behind the line.
+  const nets = [
+    { x0: NET_LEFT.x - 3.3 * FT, x1: NET_LEFT.x, y: NET_LEFT.y },
+    { x0: NET_RIGHT.x, x1: NET_RIGHT.x + 3.3 * FT, y: NET_RIGHT.y },
+  ];
+  const pad = 0.8 * FT;
+
+  for (let t = 0; t <= compiled.durationSeconds + 1e-9; t += TIMELINE_STEP_SECONDS) {
+    const frame = sampleRawFrame(compiled, t);
+    const now: Record<string, Point> = {};
+    const moving = new Set<string>();
+    for (const actor of skaters) {
+      const position = frame.players[actor.id]?.position;
+      if (!position || !Number.isFinite(position.x)) continue;
+      now[actor.id] = position;
+      const before = previous[actor.id];
+      if (before && distance(before, position) / TIMELINE_STEP_SECONDS > MOVING_SPEED) moving.add(actor.id);
+    }
+
+    for (let i = 0; i < skaters.length; i++) {
+      const a = skaters[i];
+      const pa = now[a.id];
+      if (!pa) continue;
+      for (let j = i + 1; j < skaters.length; j++) {
+        const b = skaters[j];
+        const pb = now[b.id];
+        if (!pb || a.team !== b.team) continue;
+        if (!moving.has(a.id) && !moving.has(b.id)) continue;
+        const key = `collide-${a.id}-${b.id}`;
+        if (reported.has(key)) continue;
+        const gap = distance(pa, pb);
+        if (gap < TEAMMATE_COLLISION) {
+          reported.add(key);
+          issues.push({
+            id: `space-collision-${a.id}-${b.id}`,
+            kind: 'space_conflict',
+            severity: 'warning',
+            title: 'Teammates collide',
+            message: `${label(a)} and ${label(b)} skate into each other ${t.toFixed(1)}s in (${feet(gap).toFixed(1)} ft apart). Offset one of the routes or its start time.`,
+            affectedActorIds: [a.id, b.id],
+            timestamp: t,
+          });
+        }
+      }
+      if (moving.has(a.id) && !reported.has(`net-${a.id}`)) {
+        const inNet = nets.some(net => pa.x > net.x0 - pad && pa.x < net.x1 + pad && Math.abs(pa.y - net.y) < 3 * FT + pad);
+        if (inNet) {
+          reported.add(`net-${a.id}`);
+          issues.push({
+            id: `space-net-${a.id}`,
+            kind: 'space_conflict',
+            severity: 'warning',
+            title: 'Skates through the net',
+            message: `${label(a)}'s route runs through the goal ${t.toFixed(1)}s in. Bend it around the net.`,
+            affectedActorIds: [a.id],
+            timestamp: t,
+          });
+        }
+      }
+    }
+    previous = now;
+  }
+}
+
 export function validateDrillIntelligence(
   drill: DrillDocumentV3,
   context?: TeamSessionContext
@@ -583,6 +672,7 @@ export function validateDrillIntelligence(
   validatePassTiming(drill, locate, issues);
   validateRolesAndAttendance(drill, context, issues);
   validateSpatialConflicts(drill, issues);
+  validateTimelineConflicts(drill, issues);
   validateEquipmentSufficiency(drill, context, issues);
   validateTacticalLaneAndNetAngles(drill, locate, issues);
   validatePositioning(drill, issues);

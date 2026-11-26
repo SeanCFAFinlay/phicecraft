@@ -115,6 +115,18 @@ describe('every template', () => {
         expect(unfinished, unfinished.join(' | ')).toEqual([]);
       });
 
+      it('puts every shot it draws on target: no unintended wide shots or posts', () => {
+        const { drill } = projectToV2(item.document);
+        const compiled = compileDrill(drill);
+        const finished = sampleFrame(compiled, compiled.durationSeconds);
+        const offTarget = drill.events
+          .filter(event => event.type === 'shot' && !event.result)
+          .map(event => ({ event, outcome: finished.eventExecutions.find(e => e.eventId === event.id)?.outcome }))
+          .filter(({ outcome }) => outcome === 'wide' || outcome === 'post')
+          .map(({ event, outcome }) => `${event.id}: ${outcome}`);
+        expect(offTarget, offTarget.join(' | ')).toEqual([]);
+      });
+
       it('only asks for a finishing shot when it means it', () => {
         const policy = item.document.phases[0].finishPolicy;
         const hasShot = item.document.puckTracks.some(track =>

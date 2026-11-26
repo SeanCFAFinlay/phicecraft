@@ -57,9 +57,15 @@ export function EditorRuntimeProvider({ children }: { children: ReactNode }) {
         // Reaching the end IS the review, provided the drill still validates.
         commands.completeReview({ announce: false });
 
+        // Judge the ending by what the engine actually simulated, not by
+        // the authored field: an un-authored shot that rings off the post
+        // is not a goal just because nobody typed "goal".
         const events = stateRef.current.drill.events;
         const final = events[events.length - 1];
-        const scored = final?.type === 'shot' && (final.result ?? 'goal') === 'goal';
+        const executed = services.playback
+          .getFrame()
+          .eventExecutions?.find(execution => execution.eventId === final?.id)?.outcome;
+        const scored = final?.type === 'shot' && (executed ?? final.result ?? 'goal') === 'goal';
         dispatch({
           type: 'SET_PLAYBACK_LIFECYCLE',
           lifecycle: scored ? 'success' : 'review',

@@ -6,7 +6,7 @@ import type {
   Point,
   ShotEvent,
 } from '@/core/types';
-import { RINK } from '@/core/constants';
+import { FT, RINK } from '@/core/constants';
 import { distance } from '@/utils/geometry';
 import { evaluateReception } from './receptionSolver';
 import { contactPhase, getBladePosition, lerpAngle, sampleSkater, strideWeight } from './skaterMotor';
@@ -189,6 +189,40 @@ function defendingGoalieAt(
   return candidates.sort((a, b) => a.gap - b.gap)[0]?.frame ?? null;
 }
 
+interface ShotPlan {
+  result: NonNullable<ShotEvent['result']>;
+  /** Where the puck ends up once the shot is over. */
+  puckRestsAt: Point;
+}
+
+/**
+ * How a shot ends, decided from where it was released and aimed and where the
+ * defending goalie is when it arrives. A save is frozen in the goalie's
+ * equipment, a little in front of them, out at the top of the crease - not
+ * left on the goal line behind them, which read as a puck in the net and
+ * pulled the goalie back onto the post.
+ */
+function planShot(compiled: CompiledDrill, shot: ShotEvent, arrivalSeconds: number, from: Point, to: Point): ShotPlan {
+  const defender = defendingGoalieAt(compiled, shot, arrivalSeconds);
+  const result = resolveShotResult(shot, compiled.config, {
+    from,
+    to,
+    goalie: defender,
+    miniNets: (compiled.source.equipment ?? []).filter(item => item.kind === 'mini-net').map(item => item.position),
+  });
+  if (result === 'save' && defender) {
+    const toShooter = Math.atan2(from.y - defender.position.y, from.x - defender.position.x);
+    return {
+      result,
+      puckRestsAt: {
+        x: defender.position.x + Math.cos(toShooter) * 1.2 * FT,
+        y: defender.position.y + Math.sin(toShooter) * 1.2 * FT,
+      },
+    };
+  }
+  return { result, puckRestsAt: to };
+}
+
 /**
  * Walk the puck along the AUTHORED line rather than straight to the target.
  *
@@ -325,8 +359,16 @@ function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolutio
     const { from, to } = getCompiledEventEndpoints(compiled, event);
     if (timeSeconds < event.arrivalSeconds - 0.000001) {
       execution.status = 'active';
+      let flying = interpolateFlight(event, from, to, timeSeconds);
+      if (event.source.type === 'shot') {
+        // A shot the goalie saves stops in their equipment, not on the goal line behind them.
+        const plan = planShot(compiled, event.source as ShotEvent, event.arrivalSeconds, from, to);
+        if (plan.result === 'save' && distance(from, { x: flying.x, y: flying.y }) >= distance(from, plan.puckRestsAt)) {
+          flying = { ...flying, x: plan.puckRestsAt.x, y: plan.puckRestsAt.y, velocity: { x: 0, y: 0 } };
+        }
+      }
       return {
-        puck: interpolateFlight(event, from, to, timeSeconds),
+        puck: flying,
         firedEventIndices,
         eventExecutions,
         lastShotResult,
@@ -393,11 +435,8 @@ function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolutio
     }
 
     const shot = event.source as ShotEvent;
-    const result = resolveShotResult(shot, compiled.config, {
-      from,
-      to,
-      goalie: defendingGoalieAt(compiled, shot, event.arrivalSeconds),
-    });
+    const plan = planShot(compiled, shot, event.arrivalSeconds, from, to);
+    const result = plan.result;
     lastShotResult = result;
     execution.outcome = result;
 
@@ -422,7 +461,7 @@ function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolutio
     } else {
       state = {
         mode: 'dead',
-        position: to,
+        position: plan.puckRestsAt,
         velocity: result === 'goal'
           ? shotVelocity(from, to, compiled.config.shotSpeed)
           : { x: 0, y: 0 },

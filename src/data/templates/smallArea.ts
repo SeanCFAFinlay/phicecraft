@@ -67,7 +67,7 @@ export const puckRaceToPossession: DrillTemplate = template({
     actions: [
       dump('r1', { x: 850, y: 100 }, { at: 0.25, flightSeconds: 0.95 }),
       pickup('r1', { at: 3.1, flightSeconds: 0.3, target: { x: 900, y: 82 } }),
-      shot('r1', { at: 5.25, flightSeconds: 0.65, target: { x: L.goalLineRight, y: L.centreY - 18 } }),
+      shot('r1', { at: 5.25, flightSeconds: 0.65, target: { x: L.goalLineRight, y: L.centreY - 11 } }),
     ],
   },
   finishPolicy: 'finish-with-shot',

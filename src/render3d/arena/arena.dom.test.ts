@@ -82,7 +82,7 @@ describe('createArena', () => {
   it('assembles the building around the ice', () => {
     const arena = createArena('high');
     const names = arena.root.children.map(c => c.name);
-    expect(names).toEqual(['arena-floor', 'ice', 'boards', 'glass', 'benches', 'goal-nets', 'bowl', 'roof', 'scoreboard', 'lights']);
+    expect(names).toEqual(['arena-floor', 'ice', 'boards', 'glass', 'benches', 'goal-nets', 'bowl', 'roof', 'scoreboard', 'lights', 'goal-lights']);
     arena.dispose();
   });
 

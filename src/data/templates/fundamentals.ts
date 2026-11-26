@@ -82,9 +82,10 @@ const figureEightEdges = template({
     skater('s3', 'home', '3', { x: 340, y: 230 }),
   ],
   routes: [
-    route('s1', FIGURE_EIGHT, { startAt: 0, durationSeconds: 13 }),
-    route('s2', [{ x: 305, y: 196 }, ...FIGURE_EIGHT], { startAt: 2.2, durationSeconds: 13 }),
-    route('s3', [{ x: 340, y: 230 }, ...FIGURE_EIGHT], { startAt: 4.4, durationSeconds: 13 }),
+    // Each skater rejoins the back of the line at their own spot, so nobody stops where the next one finishes.
+    route('s1', [...FIGURE_EIGHT, { x: 345, y: 200 }], { startAt: 0, durationSeconds: 14 }),
+    route('s2', [{ x: 305, y: 196 }, ...FIGURE_EIGHT, { x: 310, y: 232 }], { startAt: 2.2, durationSeconds: 14 }),
+    route('s3', [{ x: 340, y: 230 }, ...FIGURE_EIGHT], { startAt: 5.0, durationSeconds: 13 }),
   ],
   // Skating only: the pucks stay by the boards until the progression.
   puck: { from: { x: 330, y: 400 }, actions: [] },

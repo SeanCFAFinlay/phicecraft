@@ -31,6 +31,7 @@ import { useEditorRuntime } from '@/hooks/useEditorRuntime';
 import type { RenderQuality } from '@/render/quality';
 import type { CoachMarker, Drill, ID, Point, Player } from '@/core/types';
 import { jerseyColor } from '@/core/types';
+import { RINK } from '@/core/constants';
 import { orbitFromCamera, ORBIT_FOV_DEGREES } from './orbit';
 import { RINK_SCALE, rinkToWorld, worldToRink } from './worldMap';
 import { createArena, ARENA_BACKGROUND } from './arena/arena';
@@ -133,6 +134,8 @@ export default function Board3D({ quality: requestedQuality = 'high' }: Board3DP
   const routesVisibleRef = useRef(true);
   routesVisibleRef.current = state.ui.mode === 'build';
   const renderRef = useRef<() => void>(() => {});
+  /** Lights the goal light behind a net; set by the renderer effect, called per frame. */
+  const goalLightRef = useRef<(side: 'left' | 'right' | null) => void>(() => {});
   // Bumped every time the renderer effect below (re)creates the
   // THREE.Scene - included in the actor effect's deps so it re-runs and
   // re-reads `sceneRef.current` instead of going on adding actors to a scene
@@ -187,6 +190,7 @@ export default function Board3D({ quality: requestedQuality = 'high' }: Board3DP
     scene.add(arena.root);
     // A new team logo re-bakes the sheet; the arena re-uploads it.
     const unsubscribeLogo = arena.onLogoChange(() => renderRef.current());
+    goalLightRef.current = side => arena.setGoalLight(side);
     // The building reflects in the ice, glass and helmets: bake it once.
     const removeEnvironment = arena.captureEnvironment(renderer, scene);
     sceneRef.current = scene;
@@ -337,6 +341,7 @@ export default function Board3D({ quality: requestedQuality = 'high' }: Board3DP
       } catch {
         /* already lost - nothing left to release */
       }
+      goalLightRef.current = () => {};
       removeEnvironment();
       postFx?.dispose();
       arena.dispose();
@@ -546,6 +551,10 @@ export default function Board3D({ quality: requestedQuality = 'high' }: Board3DP
         contactShadows.place(marker.root.position.x, marker.root.position.z, COACH_SHADOW_RADIUS);
       }
 
+      // A goal turns on the red light behind the net it went into.
+      const scored = frame.puck?.state === 'dead' && frame.puck.result === 'goal';
+      goalLightRef.current(scored && frame.puck ? (frame.puck.x < RINK.centerX ? 'left' : 'right') : null);
+
       const puckPosition = resolvePuckPosition();
       puckActor.root.visible = puckPosition !== null;
       puckTrail.hide();
@@ -628,8 +637,23 @@ export default function Board3D({ quality: requestedQuality = 'high' }: Board3DP
       // the extension three polls a synchronous compile on timers, which is
       // slower than simply letting the first frame compile.
       if (renderer && camera && renderer.extensions.has('KHR_parallel_shader_compile')) {
+        // Not `renderer.compileAsync`: its internal poll throws (uncaught,
+        // from a timer) if any material it waits on is disposed mid-compile -
+        // which happens whenever an edit rebuilds the actors. Compile just the
+        // actors, and poll their programs ourselves, giving up on cancel.
         try {
-          await renderer.compileAsync(scene, camera);
+          const materials = renderer.compile(actorGroup, camera, scene);
+          const deadline = performance.now() + 4000;
+          while (!cancelled && performance.now() < deadline) {
+            let pending = 0;
+            for (const material of materials) {
+              const program = (renderer.properties.get(material) as { currentProgram?: { isReady?: () => boolean } })
+                .currentProgram;
+              if (program?.isReady && !program.isReady()) pending++;
+            }
+            if (pending === 0) break;
+            await new Promise(resolve => setTimeout(resolve, 16));
+          }
         } catch {
           /* the first render compiles them instead */
         }

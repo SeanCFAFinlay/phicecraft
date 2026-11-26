@@ -22,7 +22,7 @@
 import * as THREE from 'three';
 import type { RenderQuality } from '@/render/quality';
 import { subscribeCentreIceLogo } from '@/render/teamLogo';
-import { ICE_LENGTH, ICE_WIDTH, LIGHT_GRID_Y, SCOREBOARD_BOTTOM_Y } from './layout';
+import { BOARD_HEIGHT, BOARD_THICKNESS, END_GLASS_HEIGHT, ICE_LENGTH, ICE_WIDTH, LIGHT_GRID_Y, SCOREBOARD_BOTTOM_Y } from './layout';
 import { createIceSurface } from './iceSurface';
 import { createRinkside } from './rinkside';
 import { createBowl, BOWL_BACK } from './bowl';
@@ -41,6 +41,8 @@ export interface Arena {
   renderReflection(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera): void;
   /** Drawing-buffer size, in pixels. */
   setSize(width: number, height: number): void;
+  /** Lights the red goal light behind the left or right net (or neither). */
+  setGoalLight(side: 'left' | 'right' | null): void;
   /** Bakes the arena into `scene.environment`. Returns its cleanup. */
   captureEnvironment(renderer: THREE.WebGLRenderer, scene: THREE.Scene): () => void;
   /** Called when the centre-ice logo changes; the caller re-renders. */
@@ -108,6 +110,30 @@ export function createArena(quality: RenderQuality): Arena {
   const lights = buildLights(quality);
 
   root.add(floor, ice.mesh, rinkside.boards, rinkside.glass, rinkside.benches, nets.root, bowl.root, roof.roof, roof.scoreboard, lights);
+
+  // Goal lights: a red lamp on top of the end glass behind each net.
+  const goalLights = new THREE.Group();
+  goalLights.name = 'goal-lights';
+  const lampHousing = new THREE.MeshStandardMaterial({ color: 0x1b1f24, roughness: 0.5, metalness: 0.4 });
+  const lensOff = new THREE.MeshStandardMaterial({ color: 0x5a0d12, roughness: 0.25, emissive: 0x000000 });
+  const lensOn = new THREE.MeshStandardMaterial({ color: 0xff2a2a, roughness: 0.25, emissive: 0xff1a1a, emissiveIntensity: 9 });
+  const housingGeometry = new THREE.CylinderGeometry(0.16, 0.2, 0.14, 20);
+  const lensGeometry = new THREE.SphereGeometry(0.15, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  const lenses: Record<'left' | 'right', THREE.Mesh> = {} as Record<'left' | 'right', THREE.Mesh>;
+  for (const side of ['left', 'right'] as const) {
+    const sign = side === 'left' ? -1 : 1;
+    const lamp = new THREE.Group();
+    lamp.position.set(sign * (ICE_LENGTH / 2 + BOARD_THICKNESS * 0.55), BOARD_HEIGHT + END_GLASS_HEIGHT, 0);
+    const housing = new THREE.Mesh(housingGeometry, lampHousing);
+    housing.position.y = 0.07;
+    const lens = new THREE.Mesh(lensGeometry, lensOff);
+    lens.position.y = 0.14;
+    lenses[side] = lens;
+    lamp.add(housing, lens);
+    goalLights.add(lamp);
+  }
+  root.add(goalLights);
+  let litSide: 'left' | 'right' | null = null;
 
   let reflection: IceReflection | null = null;
   /** Turned on after the environment capture, whose cube camera only sees layer 0. */
@@ -180,6 +206,12 @@ export function createArena(quality: RenderQuality): Arena {
     setSize(width, height) {
       reflection?.setSize(width, height);
     },
+    setGoalLight(side) {
+      if (side === litSide) return;
+      litSide = side;
+      lenses.left.material = side === 'left' ? lensOn : lensOff;
+      lenses.right.material = side === 'right' ? lensOn : lensOff;
+    },
     captureEnvironment(renderer, scene) {
       if (quality === 'low') return () => {};
       let target: THREE.WebGLRenderTarget | null = null;
@@ -227,6 +259,7 @@ export function createArena(quality: RenderQuality): Arena {
     },
     dispose() {
       reflection?.dispose();
+      for (const disposable of [lampHousing, lensOff, lensOn, housingGeometry, lensGeometry]) disposable.dispose();
       floor.geometry.dispose();
       (floor.material as THREE.Material).dispose();
       ice.dispose();

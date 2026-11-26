@@ -328,8 +328,8 @@ export const offensiveZoneFaceoff: DrillTemplate = template({
     ]),
     route('lw', [
       { x: 790, y: 280 },
-      { x: 835, y: 320 },
-      { x: 810, y: 310 },
+      { x: 822, y: 300 },
+      { x: 805, y: 296 },
     ]),
     route('rw', [
       { x: 880, y: 375 },

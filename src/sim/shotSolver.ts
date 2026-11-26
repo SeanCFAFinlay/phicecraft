@@ -7,7 +7,12 @@ export interface ShotResolutionContext {
   from: Point;
   to: Point;
   goalie?: PlaybackPlayerFrame | null;
+  /** Centres of any mini-nets on the ice: small-area games shoot at these, not the regulation goal. */
+  miniNets?: Point[];
 }
+
+/** A shot landing this close (rink units) to a mini-net's centre is in: its 3 ft mouth plus a little give. */
+export const MINI_NET_REACH = 2.5 * FT;
 
 /**
  * Resolve an un-authored shot from goal geometry, flight time, and the
@@ -20,6 +25,9 @@ export function resolveShotResult(
   context?: ShotResolutionContext
 ): NonNullable<ShotEvent['result']> {
   if (event.result) return event.result;
+  const aimed = context?.to ?? event.toPoint;
+  // Mini-nets have no goalie: a shot that lands on one is a goal.
+  if (context?.miniNets?.some(net => Math.hypot(aimed.x - net.x, aimed.y - net.y) <= MINI_NET_REACH)) return 'goal';
   if (hitsGoalPost(event.toPoint, config.puckRadius, event.targetNet)) return 'post';
 
   const target = context?.to ?? event.toPoint;

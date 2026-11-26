@@ -220,7 +220,9 @@ test('the puck race remains editable, saved, and outcome-complete after reload',
   await expect(page.getByRole('button', { name: /^Play name: Puck Race — Reviewed/ })).toBeVisible();
   await page.getByRole('button', { name: 'Play drill' }).click();
   await expect(page.getByRole('button', { name: 'Stop playback' })).toBeVisible();
-  await expect(page.getByText('success', { exact: true })).toBeVisible({ timeout: 10_000 });
+  // The race finishes with a goal, as the engine simulates it.
+  await expect(page.getByText(/Shot outcome: goal/)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('button', { name: 'Play drill' })).toBeVisible({ timeout: 10_000 });
 
   await page.getByRole('button', { name: 'Expand playback controls' }).click();
   const playback = page.getByRole('dialog', { name: 'Playback' });

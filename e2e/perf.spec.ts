@@ -123,7 +123,11 @@ test('a route drag does not put a React render on every pointer sample', async (
   // here, BEFORE instrumenting, or it gets counted as a repaint per pointer
   // sample instead of what it actually is.
   await page.mouse.move(start.x + 15, start.y + 15, { steps: 3 });
-  await expect.poll(async () => (await rinkBox(page)).height).not.toBe(heightWhileSelected);
+  // On desktop the selection row now stays put while drawing (the rink no
+  // longer re-fits on selection), so the rink keeps its height; on layouts
+  // that do hide the row, let that one-time change settle first.
+  await expect.poll(async () => (await rinkBox(page)).height).toBeGreaterThanOrEqual(heightWhileSelected);
+  await page.waitForTimeout(150);
 
   await instrument(page);
   await resetCounters(page);
