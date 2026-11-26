@@ -33,14 +33,13 @@ import type { CoachMarker, Drill, ID, Point, Player } from '@/core/types';
 import { jerseyColor } from '@/core/types';
 import { orbitFromCamera, ORBIT_FOV_DEGREES } from './orbit';
 import { RINK_SCALE, rinkToWorld, worldToRink } from './worldMap';
-import { buildArena } from './scene/buildArena';
-import { createIceTexture } from './scene/iceTexture';
-import { subscribeCentreIceLogo } from '@/render/teamLogo';
-import { createGoalNets } from './scene/goalNet';
+import { createArena, ARENA_BACKGROUND } from './arena/arena';
+import { createPostFx, type PostFx } from './arena/postfx';
+import { excludeFromReflection, NO_REFLECT_LAYER } from './arena/iceReflection';
+import { isSoftwareRenderer } from './gpuTier';
 import { createRouteOverlay3D } from './scene/routeOverlay';
 import { createEquipmentOverlay3D } from './scene/equipment3D';
 import { actorSignature } from './actorSignature';
-import { applyArenaEnvironment } from './scene/environment';
 import { createContactShadows } from './scene/contactShadows';
 import { createIceSpray } from './scene/iceSpray';
 import { createPuckTrail } from './scene/puckTrail';
@@ -99,7 +98,10 @@ export interface Board3DProps {
   quality?: RenderQuality;
 }
 
-export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
+export default function Board3D({ quality: requestedQuality = 'high' }: Board3DProps = {}) {
+  // A CPU-drawn WebGL (no usable GPU) always gets the light tier: the full
+  // arena would take tens of seconds to draw its first frame there.
+  const quality: RenderQuality = isSoftwareRenderer() ? 'low' : requestedQuality;
   const { camera: cameraStore, playback } = useEditorRuntime();
   const { state } = useAppState();
   const commands = useCommands();
@@ -166,11 +168,10 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     renderer.shadowMap.autoUpdate = false;
     renderer.shadowMap.needsUpdate = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.12;
-        // Transparent: the scene sits over the container's own CSS gradient
-    // (`.board3d-stage`, src/styles/index.css) around the arena floor's own
-    // edges, rather than a solid clear.
-    renderer.setClearColor(0x000000, 0);
+    renderer.toneMappingExposure = 1.0;
+    renderer.setClearColor(ARENA_BACKGROUND, 1);
+    // Draw calls and triangles are counted across every pass of a frame.
+    renderer.info.autoReset = false;
     // A stable hook for e2e (board3d.spec.ts) and the "tabletop rink" visual
     // baseline to find this canvas by, independent of DOM order - unlike the
     // flat 2D pair, there is exactly one of these and it is the only canvas
@@ -180,29 +181,14 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const iceTexture = createIceTexture();
-    const arena = buildArena(iceTexture.canvas, { quality });
+    scene.background = new THREE.Color(ARENA_BACKGROUND);
+    scene.fog = new THREE.Fog(ARENA_BACKGROUND, 150, 340);
+    const arena = createArena(quality);
     scene.add(arena.root);
-    // A new team logo re-bakes the sheet and re-uploads its texture.
-    const unsubscribeLogo = subscribeCentreIceLogo(() => {
-      iceTexture.redraw();
-      arena.root.traverse(object => {
-        const material = (object as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-        if (material?.map?.image === iceTexture.canvas) material.map.needsUpdate = true;
-      });
-      renderRef.current();
-    });
-    const goalNets = createGoalNets(quality);
-    scene.add(goalNets.root);
-    // Nothing in the arena or the nets ever moves: compute their matrices
-    // once rather than on every frame.
-    for (const fixed of [arena.root, goalNets.root]) {
-      fixed.updateMatrixWorld(true);
-      fixed.traverse(node => {
-        node.matrixAutoUpdate = false;
-      });
-    }
-    const removeEnvironment = applyArenaEnvironment(renderer, scene, quality);
+    // A new team logo re-bakes the sheet; the arena re-uploads it.
+    const unsubscribeLogo = arena.onLogoChange(() => renderRef.current());
+    // The building reflects in the ice, glass and helmets: bake it once.
+    const removeEnvironment = arena.captureEnvironment(renderer, scene);
     sceneRef.current = scene;
     setSceneEpoch(epoch => epoch + 1);
 
@@ -212,7 +198,17 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       CAMERA_NEAR,
       CAMERA_FAR
     );
+    // Flat on-ice overlays and the stands live on the no-reflect layer; the main camera sees them.
+    perspectiveCamera.layers.enable(NO_REFLECT_LAYER);
     cameraRef.current = perspectiveCamera;
+    let postFx: PostFx | null = null;
+    if (quality === 'high') {
+      try {
+        postFx = createPostFx(renderer, scene, perspectiveCamera);
+      } catch {
+        postFx = null;
+      }
+    }
 
     /** Positions the three.js camera from the current camera-store snapshot. */
     const applyOrbit = () => {
@@ -269,8 +265,13 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const render = (cameraOnly = false) => {
       if (!cameraOnly) renderer.shadowMap.needsUpdate = true;
       applyOrbit();
+      perspectiveCamera.updateMatrixWorld();
+      arena.update(perspectiveCamera);
+      arena.renderReflection(renderer, scene, perspectiveCamera);
       const start = performance.now();
-      renderer.render(scene, perspectiveCamera);
+      renderer.info.reset();
+      if (postFx) postFx.render();
+      else renderer.render(scene, perspectiveCamera);
       recordBoard3DFrame(performance.now() - start, renderer.info.render.calls, renderer.info.render.triangles);
     };
     renderRef.current = render;
@@ -280,6 +281,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
       const height = container.clientHeight;
       if (width === 0 || height === 0) return;
       renderer.setSize(width, height, false);
+      postFx?.setSize(width, height);
+      const buffer = renderer.getDrawingBufferSize(new THREE.Vector2());
+      arena.setSize(buffer.x, buffer.y);
       perspectiveCamera.aspect = width / height;
       perspectiveCamera.updateProjectionMatrix();
       render();
@@ -334,10 +338,9 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
         /* already lost - nothing left to release */
       }
       removeEnvironment();
-      goalNets.dispose();
+      postFx?.dispose();
       arena.dispose();
       unsubscribeLogo();
-      iceTexture.dispose();
       scene.clear();
       sceneRef.current = null;
       cameraRef.current = null;
@@ -411,6 +414,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     actorGroup.add(iceSpray.root);
     const puckTrail = createPuckTrail();
     actorGroup.add(puckTrail.root);
+    for (const flat of [contactShadows.root, possessionHalo, selectionHalo]) excludeFromReflection(flat);
 
     // dt for the mixers is a PROGRESS delta times duration, not wall-clock
     // time - see the module header: scrubbing the timeline must move the
@@ -664,6 +668,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     const routes = createRouteOverlay3D(drillRef.current);
     routesRef.current = routes.root;
     routes.root.visible = routesVisibleRef.current;
+    excludeFromReflection(routes.root);
     scene.add(routes.root);
     renderRef.current();
     return () => { routesRef.current = null; scene.remove(routes.root); routes.dispose(); };
@@ -692,6 +697,7 @@ export default function Board3D({ quality = 'high' }: Board3DProps = {}) {
     if (!scene) return;
     const group = new THREE.Group();
     group.name = 'transient-routes';
+    group.layers.set(NO_REFLECT_LAYER);
     scene.add(group);
     transientRouteGroupRef.current = group;
     return () => {

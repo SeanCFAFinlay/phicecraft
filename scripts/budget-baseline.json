@@ -1,6 +1,6 @@
 {
-  "recordedAt": "2026-10-30",
-  "note": "Updated for performance optimizations, tactical bar overhaul, on-ice quick action HUD, drill mirroring, and event release timing controls.",
-  "jsBytes": 2007161,
+  "recordedAt": "2026-11-26",
+  "note": "Rebuilt 3D arena (seating bowl, roof lights, scoreboard, dasher boards, glass, nets, ice painter), planar ice reflection and high-tier post-processing (ambient occlusion, bloom) in the lazily loaded 3D chunk.",
+  "jsBytes": 2324353.0,
   "cssBytes": 61967
 }

@@ -50,31 +50,21 @@ def refine(name):
     rebuild_body(mesh, goalie=name == 'hockey_goalie')
     author_motion(rig, goalie=name == 'hockey_goalie')
 
-    # Eight-millimetre equipment edges catch light without inflating the rig.
-    # Apply before the armature so the interpolated skin weights survive export.
-    bevel = mesh.modifiers.new('Equipment edge detail', 'BEVEL')
-    bevel.width = 0.008
-    bevel.segments = 3
-    bevel.limit_method = 'ANGLE'
-    bevel.angle_limit = math.radians(35)
-    bpy.ops.object.modifier_move_to_index(modifier=bevel.name, index=0)
-    bpy.ops.object.modifier_apply(modifier=bevel.name)
-    for polygon in mesh.data.polygons:
-        polygon.use_smooth = True
-    normals = mesh.modifiers.new('Weighted equipment normals', 'WEIGHTED_NORMAL')
-    normals.keep_sharp = True
-    normals.weight = 50
-    bpy.ops.object.modifier_move_to_index(modifier=normals.name, index=0)
-    bpy.ops.object.modifier_apply(modifier=normals.name)
+    # The body builder shapes every part from smooth lofts with its own hard
+    # edges (see hockey_body.py), so no blanket bevel pass is needed here.
     mesh.data.validate(clean_customdata=True)
     mesh.data.update()
 
     # Distinct cloth, rubber, skin and steel responses, instead of one roughness.
     surfaces = {
-        'jersey': (0.86, 0.0), 'accent': (0.8, 0.0), 'pants': (0.94, 0.0),
-        'skin': (0.6, 0.0), 'white': (0.65, 0.0), 'dark': (0.42, 0.0),
-        'steel': (0.24, 0.8), 'stick': (0.46, 0.15),
-        'number': (0.8, 0.0), 'visor': (0.06, 0.0),
+        'jersey': (0.82, 0.0), 'accent': (0.78, 0.0), 'pants': (0.88, 0.0),
+        'skin': (0.55, 0.0), 'white': (0.5, 0.0), 'dark': (0.3, 0.0),
+        'steel': (0.2, 0.9), 'stick': (0.38, 0.1),
+        'number': (0.8, 0.0), 'visor': (0.05, 0.0),
+    }
+    colours = {
+        'skin': (0.78, 0.55, 0.42, 1), 'dark': (0.035, 0.038, 0.045, 1),
+        'white': (0.9, 0.91, 0.92, 1), 'steel': (0.78, 0.8, 0.83, 1),
     }
     for material in bpy.data.materials:
         if not material.use_nodes:
@@ -86,6 +76,8 @@ def refine(name):
             shader.inputs['Metallic'].default_value = metallic
             if material.name == 'stick':
                 shader.inputs['Base Color'].default_value = (0.035, 0.045, 0.055, 1)
+            if material.name in colours:
+                shader.inputs['Base Color'].default_value = colours[material.name]
 
     bpy.ops.object.select_all(action='DESELECT')
     for obj in bpy.context.scene.objects:
@@ -129,8 +121,13 @@ def refine(name):
         target = ROOT / 'output/playwright/models'
         target.mkdir(parents=True, exist_ok=True)
         scene.cycles.samples = 16
-        poses = ['goalie_idle', 'goalie_save'] if name == 'hockey_goalie' else ['idle', 'stride', 'stop', 'shot']
-        views = {'front': (3.0, -4.8, 2.5), 'back': (-2.6, 4.9, 2.3)}
+        poses = ['goalie_idle', 'goalie_save'] if name == 'hockey_goalie' else ['idle', 'stride', 'shot']
+        views = {
+            'front': ((3.0, -4.8, 2.5), (0, 0, 0.95), 65),
+            'back': ((-2.6, 4.9, 2.3), (0, 0, 0.95), 65),
+            'face': ((0.55, -1.25, 1.75), (0, -0.25, 1.55), 85),
+            'skate': ((0.9, -1.1, 0.45), (0, -0.25, 0.2), 70),
+        }
         for pose_name in poses:
             action = bpy.data.actions.get(pose_name)
             if action is None:
@@ -140,9 +137,12 @@ def refine(name):
                 rig.animation_data.action_slot = action.slots[0]
             start, end = action.frame_range
             scene.frame_set(int(start + (end - start) * 0.5))
-            for view, location in views.items():
+            for view, (location, aim, lens) in views.items():
+                if view in ('face', 'skate') and pose_name != poses[0]:
+                    continue
                 scene.camera.location = location
-                scene.camera.rotation_euler = (Vector((0, 0, 0.95)) - scene.camera.location).to_track_quat('-Z', 'Y').to_euler()
+                scene.camera.data.lens = lens
+                scene.camera.rotation_euler = (Vector(aim) - scene.camera.location).to_track_quat('-Z', 'Y').to_euler()
                 scene.render.filepath = str(target / f'{name}-{pose_name}-{view}.png')
                 bpy.ops.render.render(write_still=True)
 
