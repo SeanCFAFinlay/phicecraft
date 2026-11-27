@@ -29,6 +29,7 @@ import type {
 } from '@/core/types';
 import { DEFAULT_JERSEYS } from '@/core/types';
 import { IMPORT_LIMITS } from './schema';
+import { isPlaybackPace } from '@/sim/pace';
 
 export const CURRENT_DRILL_SCHEMA_VERSION = 2 as const;
 
@@ -336,6 +337,7 @@ function normalizeSettings(value: unknown, events: DrillEvent[]): DrillSettings 
     timeLimitSeconds: Math.min(600, Math.max(2, asFiniteNumber(source.timeLimitSeconds, 8))),
     reducedEffects: asBoolean(source.reducedEffects, false),
   };
+  if (isPlaybackPace(source.pace)) settings.pace = source.pace;
 
   const coaching = coachingSchema.safeParse(source.coaching);
   if (coaching.success) settings.coaching = coaching.data;

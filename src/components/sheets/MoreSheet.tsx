@@ -12,9 +12,10 @@
 import { Sheet } from '../a11y/Sheet';
 import { SheetItem, SheetSection } from './QuickSheets';
 import { useAppState, useCommands } from '@/hooks/useAppState';
-import type { FinishPolicy, RendererPreference } from '@/core/types';
+import type { FinishPolicy, PlaybackPace, RendererPreference } from '@/core/types';
 import { DEFAULT_RENDERER_PREFERENCE } from '@/core/constants';
 import { readRendererPreference, writeRendererPreference } from '@/render/selectRenderer';
+import { PACES, PACE_FACTOR, PACE_LABEL } from '@/sim/pace';
 import {
   ChartIcon,
   DrillIcon,
@@ -62,6 +63,16 @@ const FINISHES: { policy: FinishPolicy; label: string; detail: string }[] = [
   { policy: 'loop', label: 'Loop', detail: 'Continuous patterns that run back to the start' },
   { policy: 'stop-after-sequence', label: 'Stop after the sequence', detail: 'Races and timed stations' },
 ];
+
+/** How a pace changes the drill, in words a coach reads at a glance. */
+function paceDetail(pace: PlaybackPace): string {
+  const factor = PACE_FACTOR[pace];
+  if (factor === 1) return 'Same as standard';
+  const percent = Math.round(Math.abs(1 - 1 / factor) * 100);
+  return factor < 1
+    ? `Skates, passes and shoots slower: the drill runs ${percent}% longer`
+    : `Faster: the drill runs ${percent}% shorter`;
+}
 
 export function MoreSheet() {
   const { state, dispatch } = useAppState();
@@ -138,6 +149,28 @@ export function MoreSheet() {
               detail={option.detail}
               selected={(state.drill.settings?.finishPolicy ?? 'none') === option.policy}
               onClick={() => commands.setFinishPolicy(option.policy)}
+            />
+          ))}
+        </SheetSection>
+      )}
+
+      {isBuild && (
+        <SheetSection title="Playback pace">
+          <SheetItem
+            icon={!state.drill.settings?.pace ? '●' : '○'}
+            label="Standard pace"
+            detail="About U15 speed"
+            selected={!state.drill.settings?.pace}
+            onClick={() => commands.setPace(null)}
+          />
+          {PACES.filter(pace => PACE_FACTOR[pace] !== 1).map(pace => (
+            <SheetItem
+              key={pace}
+              icon={state.drill.settings?.pace === pace ? '●' : '○'}
+              label={`${PACE_LABEL[pace]} pace`}
+              detail={paceDetail(pace)}
+              selected={state.drill.settings?.pace === pace}
+              onClick={() => commands.setPace(pace)}
             />
           ))}
         </SheetSection>

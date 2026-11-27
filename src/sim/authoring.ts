@@ -1,11 +1,10 @@
 import type { Drill, ID, PlaybackPlayerFrame, Point } from '@/core/types';
 import { closestPointOnPolyline } from '@/utils/geometry';
 import { compileDrill } from './compileDrill';
-import { sampleMotionProfile } from './movementCurves';
 import { solvePassInterception } from './passSolver';
 import { sampleFrame } from './sampleFrame';
 import { sampleSkater } from './skaterMotor';
-import { timeAtRouteDistance } from './routeCompiler';
+import { sampleRouteMotion, timeAtRouteDistance } from './routeCompiler';
 
 export function getAuthoredReleaseProgress(drill: Drill, playerId: ID, point: Point): number {
   const compiled = compileDrill(drill);
@@ -118,8 +117,7 @@ export function getAuthoredPuck(drill: Drill, progress: number) {
 export function getRouteMotionAtProgress(drill: Drill, playerId: ID, progress: number) {
   const compiled = compileDrill(drill);
   const route = compiled.routes.get(playerId);
-  return route
-    ? sampleMotionProfile(route.motion, Math.max(0,
-      progress * compiled.durationSeconds - (route.source?.startAtSeconds ?? 0)))
-    : null;
+  if (!route) return null;
+  const { distance, speed, phase } = sampleRouteMotion(route, progress * compiled.durationSeconds);
+  return { distance, speed, phase };
 }

@@ -15,6 +15,7 @@ import type {
   FinishPolicy,
   ID,
   PendingEditorAction,
+  PlaybackPace,
   Point,
   ToastType,
 } from '@/core/types';
@@ -171,6 +172,8 @@ export interface AuthoringCommands {
   swapJerseys(): void;
   /** How this drill is meant to end. Only `finish-with-shot` derives a shot. */
   setFinishPolicy(policy: FinishPolicy): void;
+  /** The age group the drill plays back at; null for standard pace. */
+  setPace(pace: PlaybackPace | null): void;
 
   /**
    * Tell the coach what to do next, without changing the drill.

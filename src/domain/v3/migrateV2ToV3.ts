@@ -322,6 +322,7 @@ export function migrateV2ToV3(input: Drill | DrillDocumentV3): DrillDocumentV3 {
         away: drill.settings?.jerseys?.away ?? DEFAULT_JERSEYS.away,
       },
       reducedEffects: drill.settings?.reducedEffects ?? false,
+      ...(drill.settings?.pace ? { pace: drill.settings.pace } : {}),
       defaultView: '2d',
       showPlayerNumbers: true,
     },

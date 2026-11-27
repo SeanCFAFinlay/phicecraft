@@ -10,6 +10,7 @@
 // ============================================================================
 
 import type {
+  AgeBand,
   DrillDocumentV3,
   Actor,
   MovementSegment,
@@ -507,6 +508,8 @@ function validateTacticalLaneAndNetAngles(
           if (actor.id === pass.fromActorId || actor.id === pass.toActorId) continue;
           if (!isOnIce(actor)) continue;
           if (actor.team === passer.team) continue; // Only check opponents
+          // Already reported from playback: the pass runs right through them.
+          if (issues.some(issue => issue.id === `pass-through-${pass.id}-${actor.id}`)) continue;
 
           const midTime = (pass.releaseAt + pass.arrivalAt) / 2;
           const oppPos = locate(actor, midTime);
@@ -577,6 +580,8 @@ const TEAMMATE_COLLISION = 2.5 * FT;
 /** A skater counts as moving above this speed (board units per second). */
 const MOVING_SPEED = 1.5 * FT;
 const TIMELINE_STEP_SECONDS = 0.1;
+/** A puck in flight this close to a player's centre is going through their body or stick. */
+const PUCK_THROUGH_BODY = 1.5 * FT;
 
 /**
  * Plays the drill through the engine and checks it over time, not just at
@@ -606,6 +611,10 @@ function validateTimelineConflicts(drill: DrillDocumentV3, issues: DrillValidati
 
   for (let t = 0; t <= compiled.durationSeconds + 1e-9; t += TIMELINE_STEP_SECONDS) {
     const frame = sampleRawFrame(compiled, t);
+    const activePass = compiled.events.find(event =>
+      event.source.type === 'pass' && event.departureSeconds < t && t < event.arrivalSeconds - TIMELINE_STEP_SECONDS);
+    const puckInFlight = frame.puck && frame.puck.state === 'in_flight' && activePass ? { x: frame.puck.x, y: frame.puck.y } : null;
+    const passReceiver = activePass?.source.type === 'pass' ? activePass.source.toPlayerId : undefined;
     const now: Record<string, Point> = {};
     const moving = new Set<string>();
     for (const actor of skaters) {
@@ -641,6 +650,27 @@ function validateTimelineConflicts(drill: DrillDocumentV3, issues: DrillValidati
           });
         }
       }
+      // A pass in flight that runs through a player the drill did not send it to.
+      if (puckInFlight && activePass && a.id !== activePass.source.fromPlayerId && a.id !== passReceiver) {
+        const key = `through-${activePass.source.id}-${a.id}`;
+        const gap = distance(pa, puckInFlight);
+        if (!reported.has(key) && gap < PUCK_THROUGH_BODY) {
+          reported.add(key);
+          const passer = drill.actors.find(actor => actor.id === activePass.source.fromPlayerId);
+          const receiver = drill.actors.find(actor => actor.id === passReceiver);
+          const teammate = passer && 'team' in passer && passer.team === a.team;
+          issues.push({
+            id: `pass-through-${activePass.source.id}-${a.id}`,
+            kind: teammate ? 'space_conflict' : 'passing_lane_obstruction',
+            severity: 'warning',
+            title: teammate ? 'Pass goes through a teammate' : 'Pass goes through an opponent',
+            message: `${passer ? label(passer) : 'The'}'s pass${receiver ? ` to ${label(receiver)}` : ''} runs through ${label(a)} ${t.toFixed(1)}s in. ${teammate ? `Move ${label(a)} out of the lane or change the pass.` : 'Open the lane or pass around them.'}`,
+            affectedActorIds: [a.id, ...(passer ? [passer.id] : [])],
+            affectedActionIds: [activePass.source.id],
+            timestamp: t,
+          });
+        }
+      }
       if (moving.has(a.id) && !reported.has(`net-${a.id}`)) {
         const inNet = nets.some(net => pa.x > net.x0 - pad && pa.x < net.x1 + pad && Math.abs(pa.y - net.y) < 3 * FT + pad);
         if (inNet) {
@@ -661,6 +691,59 @@ function validateTimelineConflicts(drill: DrillDocumentV3, issues: DrillValidati
   }
 }
 
+/** A pass shorter than this is a hand-off: the players are practically touching. */
+const SHORT_PASS = 6 * FT;
+/** The longest pass most players of the age can make flat and on the tape. Standard pace uses U15+. */
+const LONG_PASS_FEET: Record<AgeBand, number> = { u7: 45, u9: 60, u11: 75, u13: 90, u15: 110, u18: 120, adult: 130 };
+const AGE_ORDER: AgeBand[] = ['u7', 'u9', 'u11', 'u13', 'u15', 'u18', 'adult'];
+
+/** The age the drill is judged for: its playback pace, else the youngest group it is meant for. */
+function judgedAge(drill: DrillDocumentV3): AgeBand | null {
+  if (drill.presentation.pace) return drill.presentation.pace;
+  const bands = drill.metadata.ageBands ?? [];
+  if (bands.length === 0) return null;
+  return [...bands].sort((a, b) => AGE_ORDER.indexOf(a) - AGE_ORDER.indexOf(b))[0];
+}
+
+/** Passes too short to be a pass, or too long for the age group to make. */
+function validatePassLengths(drill: DrillDocumentV3, issues: DrillValidationIssue[]): void {
+  const age = judgedAge(drill);
+  const longest = LONG_PASS_FEET[age ?? 'u15'] * FT;
+  const actors = new Map(drill.actors.map(actor => [actor.id, actor]));
+  for (const track of drill.puckTracks ?? []) {
+    for (const action of track.actions) {
+      if (action.type !== 'pass' || !action.toActorId || action.passType === 'rim' || action.passType === 'bank') continue;
+      const length = distance(action.fromPoint, action.target);
+      const passer = actors.get(action.fromActorId);
+      const receiver = actors.get(action.toActorId);
+      const who = `${passer ? passer.label || passer.id : 'The'}'s pass to ${receiver ? receiver.label || receiver.id : 'the receiver'}`;
+      if (length < SHORT_PASS) {
+        issues.push({
+          id: `pass-short-${action.id}`,
+          kind: 'timing_mismatch',
+          severity: 'suggestion',
+          title: 'Very short pass',
+          message: `${who} travels only ${feet(length).toFixed(0)} ft. Spread the players out so it is a real pass.`,
+          affectedActionIds: [action.id],
+          timestamp: action.releaseAt,
+        });
+      } else if (length > longest) {
+        issues.push({
+          id: `pass-long-${action.id}`,
+          kind: 'timing_mismatch',
+          severity: 'suggestion',
+          title: 'Long pass for the age group',
+          message: `${who} travels ${feet(length).toFixed(0)} ft. Most ${age ? AGE_NAMES[age] : 'U15'} players can't pass that far flat and on the tape (about ${LONG_PASS_FEET[age ?? 'u15']} ft). Add a pass in between or bring the players closer.`,
+          affectedActionIds: [action.id],
+          timestamp: action.releaseAt,
+        });
+      }
+    }
+  }
+}
+
+const AGE_NAMES: Record<AgeBand, string> = { u7: 'U7', u9: 'U9', u11: 'U11', u13: 'U13', u15: 'U15', u18: 'U18', adult: 'adult' };
+
 export function validateDrillIntelligence(
   drill: DrillDocumentV3,
   context?: TeamSessionContext
@@ -673,6 +756,7 @@ export function validateDrillIntelligence(
   validateRolesAndAttendance(drill, context, issues);
   validateSpatialConflicts(drill, issues);
   validateTimelineConflicts(drill, issues);
+  validatePassLengths(drill, issues);
   validateEquipmentSufficiency(drill, context, issues);
   validateTacticalLaneAndNetAngles(drill, locate, issues);
   validatePositioning(drill, issues);

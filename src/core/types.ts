@@ -301,7 +301,15 @@ export interface DrillSettings {
   finishPolicy?: FinishPolicy;
   /** Base jersey colours per team (hex). Absent = the classic red/blue. */
   jerseys?: { home: string; away: string };
+  /**
+   * The age group the drill plays back at. Absent = standard pace (about U15).
+   * Younger players skate, pass and shoot slower, so the drill takes longer.
+   */
+  pace?: PlaybackPace;
 }
+
+/** Age groups the way youth associations band them; the playback pace options. */
+export type PlaybackPace = 'u7' | 'u9' | 'u11' | 'u13' | 'u15' | 'u18' | 'adult';
 
 /** Portable coaching context saved with the play and its lineup. */
 export interface CoachingDetails {
@@ -684,6 +692,7 @@ export type AppAction =
   | { type: 'SET_PUCK_CARRIER'; id: ID }
   | { type: 'SET_JERSEY'; team: Team; hex: string }
   | { type: 'SET_FINISH_POLICY'; policy: FinishPolicy }
+  | { type: 'SET_PACE'; pace: PlaybackPace | null }
   | { type: 'SWAP_JERSEYS' }
   | { type: 'SET_FORMATION'; players: Player[]; initialPuck?: Point; skatePaths?: SkatePath[]; events?: DrillEvent[]; settings?: DrillSettings }
 

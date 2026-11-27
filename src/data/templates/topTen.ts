@@ -419,7 +419,7 @@ export const TOP_TEN_TEMPLATES: DrillTemplate[] = [
     puck: {
       from: 'f1',
       actions: [
-        pass('f1', 'f2', { at: 3.1, flightSeconds: 0.7 }),
+        pass('f1', 'f2', { at: 3.3, flightSeconds: 0.7 }),
         shot('f2', { at: 5.9 }),
       ],
     },

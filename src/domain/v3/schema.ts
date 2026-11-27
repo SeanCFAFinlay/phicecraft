@@ -332,6 +332,7 @@ const presentationSettings: z.ZodType<PresentationSettings> = z.object({
   durationSeconds: z.number(),
   jerseys: z.object({ home: z.string(), away: z.string() }),
   reducedEffects: z.boolean(),
+  pace: z.enum(['u7', 'u9', 'u11', 'u13', 'u15', 'u18', 'adult']).optional(),
   defaultView: z.enum(['2d', '3d']),
   showPlayerNumbers: z.boolean(),
 }) satisfies z.ZodType<PresentationSettings>;

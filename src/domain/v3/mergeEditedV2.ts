@@ -61,11 +61,17 @@ export function mergeEditedIntoStored(
     // equivalent (migrateV2ToV3 always hardcodes them), so the stored value -
     // kept by the spread below - survives an edit-save untouched.
     presentation: {
-      ...stored.presentation,
+      ...(() => {
+        // Pace is edited in v2 too: clearing it there must clear it here.
+        const kept = { ...stored.presentation };
+        delete kept.pace;
+        return kept;
+      })(),
       durationSeconds: edited.presentation.durationSeconds,
       jerseys: edited.presentation.jerseys,
       coaching: edited.presentation.coaching,
       reducedEffects: edited.presentation.reducedEffects,
+      ...(edited.presentation.pace ? { pace: edited.presentation.pace } : {}),
     },
     templateId: stored.templateId,
     createdAt: stored.createdAt,

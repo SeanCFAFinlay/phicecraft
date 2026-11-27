@@ -422,7 +422,7 @@ export const penaltyKillBox: DrillTemplate = template({
   puck: {
     from: 'qb',
     actions: [
-      pass('qb', 'flank1', { at: 1.1 }),
+      pass('qb', 'flank1', { at: 0.8 }),
       pass('flank1', 'd1', { at: 2.7 }),
       dump('d1', { x: 880, y: 120 }, { at: 4.0 }),
     ],
@@ -671,7 +671,7 @@ export const rimRetrievalTwoOnOne: DrillTemplate = template({
       pass('d1', 'lw', { at: 1.2 }),
       pass('lw', 'c', { at: 2.8 }),
       pass('c', 'lw', { at: 4.7 }),
-      shot('lw', { at: 6.8 }),
+      shot('lw', { at: 7.1 }),
     ],
   },
   finishPolicy: 'finish-with-shot',

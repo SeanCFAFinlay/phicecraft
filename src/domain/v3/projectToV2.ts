@@ -346,6 +346,7 @@ export function projectToV2(document: DrillDocumentV3): ProjectionResult {
       recovery: initialPuck ? 'authored' : 'nearest-teammate',
       timeLimitSeconds: duration,
       reducedEffects: document.presentation.reducedEffects,
+      ...(document.presentation.pace ? { pace: document.presentation.pace } : {}),
       jerseys: { ...document.presentation.jerseys },
       coaching: document.presentation.coaching,
       finishPolicy: document.phases[0]?.finishPolicy ?? 'none',

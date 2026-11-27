@@ -38,7 +38,9 @@ export function resolveShotResult(
   if (!goalie) return 'goal';
 
   const from = context?.from ?? event.fromPoint;
-  const flightSeconds = Math.hypot(target.x - from.x, target.y - from.y) / config.shotSpeed;
+  // Judged at standard pace: a slower age group slows the goalie with the
+  // shot, so the pace never turns a goal into a save.
+  const flightSeconds = Math.hypot(target.x - from.x, target.y - from.y) / config.shotSpeed / (config.timeScale ?? 1);
   const reactionSeconds = Math.max(0, flightSeconds - 0.18);
   const gloveAndPadReach = 1.15 * FT;
   const lateralCoverage = gloveAndPadReach + reactionSeconds * 2.2 * FT;

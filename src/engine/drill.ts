@@ -313,6 +313,7 @@ export function repairDrill(drill: Drill): Drill {
     timeLimitSeconds: Math.max(2, repaired.settings?.timeLimitSeconds ?? 8),
     reducedEffects: repaired.settings?.reducedEffects ?? false,
     jerseys: repaired.settings?.jerseys,
+    ...(repaired.settings?.pace ? { pace: repaired.settings.pace } : {}),
   };
   repaired.players = repaired.players.map(player => ({
     ...player,

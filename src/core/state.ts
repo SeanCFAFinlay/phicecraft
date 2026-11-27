@@ -18,6 +18,7 @@ import type {
   AppState,
   AppAction,
   Drill,
+  DrillSettings,
   Player,
   UndoSnapshot,
   PendingEditorAction,
@@ -120,6 +121,7 @@ const UNDOABLE_ACTIONS: ReadonlySet<AppAction['type']> = new Set([
   'SET_COACHING',
   'SET_JERSEY',
   'SET_FINISH_POLICY',
+  'SET_PACE',
   'SWAP_JERSEYS',
   'ADD_COACH',
   'REMOVE_COACH',
@@ -438,6 +440,20 @@ function reduce(state: AppState, action: AppAction): AppState {
             ...(state.drill.settings ?? FALLBACK_SETTINGS),
             finishPolicy: action.policy,
           },
+          updatedAt: Date.now(),
+        },
+      };
+    }
+
+    case 'SET_PACE': {
+      if ((state.drill.settings?.pace ?? null) === action.pace) return state;
+      const rest: DrillSettings = { ...(state.drill.settings ?? FALLBACK_SETTINGS) };
+      delete rest.pace;
+      return {
+        ...state,
+        drill: {
+          ...state.drill,
+          settings: action.pace ? { ...rest, pace: action.pace } : rest,
           updatedAt: Date.now(),
         },
       };

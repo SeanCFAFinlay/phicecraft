@@ -154,6 +154,7 @@ export const DrillSettingsSchema = z.looseObject({
   recovery: z.enum(['authored', 'nearest-teammate']),
   timeLimitSeconds: finiteNumber.min(1).max(600),
   reducedEffects: z.boolean(),
+  pace: z.enum(['u7', 'u9', 'u11', 'u13', 'u15', 'u18', 'adult']).optional(),
   jerseys: z
     .object({
       home: z.string().min(1).max(32),

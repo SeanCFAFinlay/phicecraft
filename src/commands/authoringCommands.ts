@@ -362,6 +362,10 @@ export function createAuthoringCommands(host: CommandHost): AuthoringCommands {
       dispatch({ type: 'SET_FINISH_POLICY', policy });
     },
 
+    setPace(pace) {
+      dispatch({ type: 'SET_PACE', pace });
+    },
+
     guide(message) {
       notify.toast({ message, type: 'info', dedupeKey: `guide:${message}` });
       host.announce(message);

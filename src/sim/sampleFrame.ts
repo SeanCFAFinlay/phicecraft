@@ -386,7 +386,7 @@ function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolutio
           position: to,
           velocity: { x: flightVelocity.x * 0.55, y: flightVelocity.y * 0.55 },
           sinceSeconds: event.arrivalSeconds,
-          pickupAvailableAt: event.arrivalSeconds + 0.35,
+          pickupAvailableAt: event.arrivalSeconds + 0.35 * (compiled.config.timeScale ?? 1),
           intendedReceiverId: event.source.toPlayerId,
           result: 'missed',
         };
@@ -411,7 +411,7 @@ function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolutio
           position: to,
           velocity: { x: flightVelocity.x * 0.55, y: flightVelocity.y * 0.55 },
           sinceSeconds: event.arrivalSeconds,
-          pickupAvailableAt: event.arrivalSeconds + 0.35,
+          pickupAvailableAt: event.arrivalSeconds + 0.35 * (compiled.config.timeScale ?? 1),
           excludedCollectorId: receiver.id,
           intendedReceiverId: receiver.id,
           result: 'missed',
@@ -446,7 +446,7 @@ function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolutio
         position: to,
         velocity: shotVelocity(to, from, compiled.config.shotSpeed * 0.42),
         sinceSeconds: event.arrivalSeconds,
-        pickupAvailableAt: event.arrivalSeconds + 0.15,
+        pickupAvailableAt: event.arrivalSeconds + 0.15 * (compiled.config.timeScale ?? 1),
         result,
       };
     } else if (result === 'wide') {
@@ -455,7 +455,7 @@ function samplePuck(compiled: CompiledDrill, timeSeconds: number): PuckResolutio
         position: to,
         velocity: shotVelocity(from, to, compiled.config.shotSpeed * 0.5),
         sinceSeconds: event.arrivalSeconds,
-        pickupAvailableAt: event.arrivalSeconds + 0.15,
+        pickupAvailableAt: event.arrivalSeconds + 0.15 * (compiled.config.timeScale ?? 1),
         result,
       };
     } else {

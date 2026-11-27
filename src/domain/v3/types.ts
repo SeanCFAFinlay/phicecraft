@@ -387,6 +387,8 @@ export interface PresentationSettings {
   durationSeconds: number;
   jerseys: { home: string; away: string };
   reducedEffects: boolean;
+  /** The age group the drill plays back at. Absent = standard pace. */
+  pace?: AgeBand;
   /** Preferred playback view. 3D is optional and never required. */
   defaultView: '2d' | '3d';
   showPlayerNumbers: boolean;

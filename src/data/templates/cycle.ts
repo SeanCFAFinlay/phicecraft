@@ -276,7 +276,7 @@ const ppLowCycleUmbrella = template({
     actions: [
       pass('qb', 'h2', { at: 0.5, flightSeconds: 0.7 }),
       pass('h2', 'gl', { at: 1.6, flightSeconds: 0.6 }),
-      pass('gl', 'qb', { at: 3.6, flightSeconds: 0.8 }),
+      pass('gl', 'qb', { at: 3.75, flightSeconds: 0.8 }),
       pass('qb', 'h1', { at: 4.6, flightSeconds: 0.8, passType: 'one-touch' }),
       shot('h1', { at: 5.6 }),
     ],
@@ -325,7 +325,7 @@ const pp131WallCycle = template({
     // The rotation: the goal-line forward carries up the wall...
     route('gl', [{ x: 912, y: 332 }, { x: 880, y: 362 }, { x: 822, y: 358 }], { startAt: 1.2, durationSeconds: 1.4 }),
     // ...as the half-wall forward drops down inside them to the goal line.
-    route('hw', [{ x: 760, y: 348 }, { x: 805, y: 328 }, { x: 880, y: 318 }, { x: 915, y: 322 }], { startAt: 1.3, durationSeconds: 1.6 }),
+    route('hw', [{ x: 760, y: 348 }, { x: 805, y: 328 }, { x: 880, y: 318 }, { x: 915, y: 322 }], { startAt: 1.0, durationSeconds: 1.6 }),
     // The strong-side killer chases the puck down the wall.
     route('k2', [{ x: 800, y: 290 }, { x: 838, y: 330 }, { x: 852, y: 342 }], { startAt: 1.4, durationSeconds: 1.2 }),
     // The bumper finds the soft spot.
@@ -333,7 +333,7 @@ const pp131WallCycle = template({
     // The weak-side flank steps off the wall into the lane.
     route('ws', [{ x: 770, y: 80 }, { x: 790, y: 110 }], { startAt: 3.2, durationSeconds: 0.9 }),
     // Now low, the half-wall forward steps to the top of the crease for the screen.
-    route('hw', [{ x: 915, y: 322 }, { x: 905, y: 282 }, { x: 892, y: 250 }], { startAt: 3.5 }),
+    route('hw', [{ x: 915, y: 322 }, { x: 905, y: 282 }, { x: 892, y: 250 }], { startAt: 3.2 }),
     // The high killer collapses on the bumper, a step too late.
     route('k1', [{ x: 720, y: 245 }, { x: 742, y: 232 }], { startAt: 3.3, durationSeconds: 0.7 }),
   ],

@@ -1,9 +1,10 @@
 import type { Player, Point, SkateLeg, SkatePath } from '@/core/types';
+import { FT } from '@/core/constants';
 import { distance } from '@/utils/geometry';
 import { expandCurve } from '@/utils/curves';
 import { buildMotionProfile, sampleMotionProfile } from './movementCurves';
 import { validateRoute } from './routeValidation';
-import type { CompiledLeg, CompiledRoute, MechanicsConfig, MotionProfile } from './types';
+import type { CompiledLeg, CompiledRoute, MechanicsConfig, MotionProfile, TurnWarp } from './types';
 
 type SkateMode = 'skate' | 'glide' | 'backward';
 
@@ -62,16 +63,125 @@ function measure(points: Point[]): Polyline {
   return { points, segmentLengths, cumulativeLengths, totalLength };
 }
 
+// ----------------------------------------------------------------------------
+// Slowing down through turns
+//
+// A skater cannot carry full speed through a tight turn. Each stretch of route
+// is skated at a fraction of the speed it would get on a straight:
+//
+//   factor = 1 - 0.35 * min(1, turn / pi)
+//
+// where `turn` is how far the heading swings within TURN_REACH either side.
+// A full U-turn runs at 65%, a square corner at about 82%, and a wide sweep
+// barely slows at all.
+//
+// The motion profile is built over "straight-line equivalent" distance: each
+// stretch counts as length / factor. Mapping that back to real distance
+// slows the skater exactly where the route bends.
+// ----------------------------------------------------------------------------
+
+const TURN_SLOWDOWN = 0.35;
+/** The heading change is measured over this far either side of each stretch. */
+const TURN_REACH = 8 * FT;
+
+function headingOf(points: Point[], index: number): number {
+  return Math.atan2(points[index + 1].y - points[index].y, points[index + 1].x - points[index].x);
+}
+
+function turnDelta(a: number, b: number): number {
+  return Math.abs(Math.atan2(Math.sin(b - a), Math.cos(b - a)));
+}
+
+/** The warp is sampled at least this often along the route. */
+const WARP_STEP = 1 * FT;
+
+function upperBound(values: number[], target: number): number {
+  let low = 0;
+  let high = values.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (values[mid] <= target) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
+/**
+ * Real and straight-line-equivalent distance, sampled about every foot along
+ * the route, or undefined for a route with no turn worth slowing for.
+ */
+function turnWarp(polyline: Polyline, breaks: number[] = []): TurnWarp | undefined {
+  const { points, segmentLengths, cumulativeLengths } = polyline;
+  const segments = segmentLengths.length;
+  if (segments < 2) return undefined;
+  const headings = segmentLengths.map((_, index) => headingOf(points, index));
+  // Where each turn happens along the route, and how sharp it is. A seam
+  // between legs is a stop, not a turn: the skater stopped and set off again.
+  const turnAt: number[] = [];
+  const turnSum = [0];
+  for (let vertex = 1; vertex < segments; vertex++) {
+    if (segmentLengths[vertex - 1] <= 1e-6 || segmentLengths[vertex] <= 1e-6) continue;
+    if (breaks.some(seam => Math.abs(seam - cumulativeLengths[vertex]) < 1e-6)) continue;
+    const turn = turnDelta(headings[vertex - 1], headings[vertex]);
+    if (turn < 1e-4) continue;
+    turnAt.push(cumulativeLengths[vertex]);
+    turnSum.push(turnSum[turnSum.length - 1] + turn);
+  }
+  if (turnAt.length === 0) return undefined;
+  // Total heading change within TURN_REACH of a point on the route.
+  const turnNear = (at: number) => turnSum[upperBound(turnAt, at + TURN_REACH)] - turnSum[upperBound(turnAt, at - TURN_REACH - 1e-9)];
+
+  const actual = [0];
+  const nominal = [0];
+  let slowed = false;
+  for (let segment = 0; segment < segments; segment++) {
+    const length = segmentLengths[segment];
+    if (length <= 1e-9) continue;
+    const steps = Math.max(1, Math.ceil(length / WARP_STEP));
+    for (let step = 0; step < steps; step++) {
+      const from = cumulativeLengths[segment] + (length * step) / steps;
+      const to = cumulativeLengths[segment] + (length * (step + 1)) / steps;
+      const factor = 1 - TURN_SLOWDOWN * Math.min(1, turnNear((from + to) / 2) / Math.PI);
+      if (factor < 0.999) slowed = true;
+      actual.push(to);
+      nominal.push(nominal[nominal.length - 1] + (to - from) / factor);
+    }
+  }
+  return slowed ? { actual, nominal } : undefined;
+}
+
+/** Map a distance through one column of the warp table to the other, with the slope there. */
+function throughWarp(from: number[], to: number[], value: number): { value: number; slope: number } {
+  const last = from.length - 1;
+  if (value <= 0) return { value: 0, slope: (to[1] - to[0]) / Math.max(1e-9, from[1] - from[0]) };
+  if (value >= from[last]) return { value: to[last] + (value - from[last]), slope: 1 };
+  const index = Math.min(last, Math.max(1, upperBound(from, value))) - 1;
+  const span = from[index + 1] - from[index];
+  const slope = span > 1e-12 ? (to[index + 1] - to[index]) / span : 1;
+  return { value: to[index] + (value - from[index]) * slope, slope };
+}
+
+/** Straight-line-equivalent distance at a real distance along the route. */
+export function nominalDistance(route: Pick<CompiledRoute, 'turnWarp'>, actual: number): number {
+  return route.turnWarp ? throughWarp(route.turnWarp.actual, route.turnWarp.nominal, actual).value : actual;
+}
+
+/** Real distance along the route for a straight-line-equivalent distance, and the speed factor there. */
+function actualDistance(route: CompiledRoute, requested: number): { distance: number; factor: number } {
+  if (!route.turnWarp) return { distance: requested, factor: 1 };
+  const mapped = throughWarp(route.turnWarp.nominal, route.turnWarp.actual, requested);
+  return { distance: Math.min(route.totalLength, mapped.value), factor: requested >= route.turnWarp.nominal[route.turnWarp.nominal.length - 1] ? 1 : mapped.slope };
+}
+
 function compileLegs(
   player: Player,
   path: SkatePath,
   config: MechanicsConfig
-): { polyline: Polyline; legs: CompiledLeg[]; endSeconds: number } {
+): { polyline: Polyline; turnWarp: TurnWarp | undefined; legs: CompiledLeg[]; endSeconds: number } {
   const shape = path.shape ?? 'spline';
   const allPoints: Point[] = [];
-  const legs: CompiledLeg[] = [];
+  const pieces: { length: number; offset: number; mode: SkateMode; finish: SkatePath['finish']; requested: number }[] = [];
   let cursor: Point = { x: player.x, y: player.y };
-  let clock = 0;
   let offset = 0;
 
   for (const [index, leg] of (path.legs ?? []).entries()) {
@@ -81,23 +191,36 @@ function compileLegs(
       : [{ ...cursor }, ...leg.points.map(point => ({ ...point }))];
     const expanded = authored.length > 1 ? expandCurve(authored, shape) : authored;
     const { totalLength } = measure(expanded);
-    const mode: SkateMode = leg.mode ?? 'skate';
-    const motion = motionFor(totalLength, mode, leg.finish ?? path.finish, config);
-    const requested = index === 0 ? leg.startAtSeconds ?? path.startAtSeconds ?? 0 : leg.startAtSeconds;
-    const startAtSeconds = Math.max(requested, clock);
-
     for (const point of expanded) {
       const previous = allPoints[allPoints.length - 1];
       if (previous && samePoint(previous, point)) continue;
       allPoints.push(point);
     }
-    legs.push({ startAtSeconds, distanceOffset: offset, length: totalLength, motion, mode });
+    pieces.push({
+      length: totalLength,
+      offset,
+      mode: leg.mode ?? 'skate',
+      finish: leg.finish ?? path.finish,
+      requested: index === 0 ? leg.startAtSeconds ?? path.startAtSeconds ?? 0 : leg.startAtSeconds,
+    });
     offset += totalLength;
-    clock = startAtSeconds + motion.duration;
     cursor = expanded[expanded.length - 1];
   }
 
-  return { polyline: measure(allPoints), legs, endSeconds: clock };
+  const polyline = measure(allPoints);
+  const warp = { turnWarp: turnWarp(polyline, pieces.slice(1).map(piece => piece.offset)) };
+  const legs: CompiledLeg[] = [];
+  let clock = 0;
+  for (const piece of pieces) {
+    const nominalOffset = nominalDistance(warp, piece.offset);
+    const nominalLength = nominalDistance(warp, piece.offset + piece.length) - nominalOffset;
+    const motion = motionFor(nominalLength, piece.mode, piece.finish, config);
+    const startAtSeconds = Math.max(piece.requested, clock);
+    legs.push({ startAtSeconds, distanceOffset: piece.offset, nominalOffset, length: piece.length, motion, mode: piece.mode });
+    clock = startAtSeconds + motion.duration;
+  }
+
+  return { polyline, turnWarp: warp.turnWarp, legs, endSeconds: clock };
 }
 
 export function compileRoute(
@@ -106,13 +229,15 @@ export function compileRoute(
   config: MechanicsConfig
 ): CompiledRoute {
   if (path && legsMatchRoute(path)) {
-    const { polyline, legs, endSeconds } = compileLegs(player, path, config);
+    const { polyline, turnWarp: warp, legs, endSeconds } = compileLegs(player, path, config);
+    const nominalTotal = nominalDistance({ turnWarp: warp }, polyline.totalLength);
     return {
       ownerId: player.id,
       source: path,
       ...polyline,
+      ...(warp ? { turnWarp: warp } : {}),
       durationSeconds: endSeconds,
-      motion: motionFor(polyline.totalLength, path.mode ?? 'skate', path.finish, config),
+      motion: motionFor(nominalTotal, path.mode ?? 'skate', path.finish, config),
       warnings: validateRoute(path.points),
       legs,
     };
@@ -127,12 +252,15 @@ export function compileRoute(
   // polyline with deliberate sharp corners was impossible to author - the
   // simulation rounded every pivot no matter what was drawn.
   const polyline = measure(expandCurve(authoredPoints, path?.shape ?? 'spline'));
-  const motion = motionFor(polyline.totalLength, path?.mode ?? 'skate', path?.finish, config);
+  const warp = turnWarp(polyline);
+  const nominalTotal = nominalDistance({ turnWarp: warp }, polyline.totalLength);
+  const motion = motionFor(nominalTotal, path?.mode ?? 'skate', path?.finish, config);
 
   return {
     ownerId: player.id,
     source: path,
     ...polyline,
+    ...(warp ? { turnWarp: warp } : {}),
     durationSeconds: motion.duration + (path?.startAtSeconds ?? 0),
     motion,
     warnings: validateRoute(authoredPoints),
@@ -156,7 +284,8 @@ export function sampleRouteMotion(route: CompiledRoute, timeSeconds: number): Ro
   const legs = route.legs;
   if (!legs || legs.length === 0) {
     const motion = sampleMotionProfile(route.motion, Math.max(0, timeSeconds - (route.source?.startAtSeconds ?? 0)));
-    return { ...motion, mode: route.source?.mode ?? 'skate' };
+    const actual = actualDistance(route, motion.distance);
+    return { ...motion, distance: actual.distance, speed: motion.speed * actual.factor, mode: route.source?.mode ?? 'skate' };
   }
 
   let active = legs[0];
@@ -167,9 +296,13 @@ export function sampleRouteMotion(route: CompiledRoute, timeSeconds: number): Ro
     : local.phase === 'finished' && active !== legs[legs.length - 1]
       ? 'idle'
       : local.phase;
+  const nominalOffset = active.nominalOffset ?? active.distanceOffset;
+  const actual = actualDistance(route, nominalOffset + local.distance);
+  // Never past the end of the active leg, whatever rounding the warp does.
+  const distance = Math.min(active.distanceOffset + active.length, Math.max(active.distanceOffset, actual.distance));
   return {
-    distance: active.distanceOffset + local.distance,
-    speed: local.speed,
+    distance,
+    speed: local.speed * actual.factor,
     phase,
     mode: active.mode,
   };
@@ -194,12 +327,13 @@ function timeAtProfileDistance(profile: MotionProfile, requestedDistance: number
 /** Drill seconds at which a skater first reaches `distance` along their route. */
 export function timeAtRouteDistance(route: CompiledRoute, requestedDistance: number): number {
   const legs = route.legs;
+  const nominal = nominalDistance(route, requestedDistance);
   if (!legs || legs.length === 0) {
-    return (route.source?.startAtSeconds ?? 0) + timeAtProfileDistance(route.motion, requestedDistance);
+    return (route.source?.startAtSeconds ?? 0) + timeAtProfileDistance(route.motion, nominal);
   }
   let leg = legs[0];
   for (const candidate of legs) if (requestedDistance >= candidate.distanceOffset) leg = candidate;
-  return leg.startAtSeconds + timeAtProfileDistance(leg.motion, requestedDistance - leg.distanceOffset);
+  return leg.startAtSeconds + timeAtProfileDistance(leg.motion, nominal - (leg.nominalOffset ?? leg.distanceOffset));
 }
 
 export function pointAndTangentAtDistance(

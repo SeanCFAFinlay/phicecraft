@@ -176,7 +176,7 @@ export const fourDotWarmUp: DrillTemplate = template({
   durationMinutes: 4,
   equipmentSummary: ['pucks'],
   setupNotes: [
-    'One player on each end-zone faceoff dot.',
+    'One player on each of the four neutral-zone faceoff dots.',
     'The puck goes around the square; change direction on the whistle.',
   ],
   coachingPoints: [
@@ -185,17 +185,18 @@ export const fourDotWarmUp: DrillTemplate = template({
   ],
   variations: ['Reverse direction.', 'Add a second puck going the other way.'],
   actors: [
-    skater('d1', 'home', '1', { x: L.faceoffLeftX, y: L.faceoffTopY }),
-    skater('d2', 'home', '2', { x: L.faceoffRightX, y: L.faceoffTopY }),
-    skater('d3', 'home', '3', { x: L.faceoffRightX, y: L.faceoffBottomY }),
-    skater('d4', 'home', '4', { x: L.faceoffLeftX, y: L.faceoffBottomY }),
+    // The neutral-zone dots make a 60 x 44 ft square: passes a U9 can make.
+    skater('d1', 'home', '1', { x: L.neutralLeftX, y: L.faceoffTopY }),
+    skater('d2', 'home', '2', { x: L.neutralRightX, y: L.faceoffTopY }),
+    skater('d3', 'home', '3', { x: L.neutralRightX, y: L.faceoffBottomY }),
+    skater('d4', 'home', '4', { x: L.neutralLeftX, y: L.faceoffBottomY }),
   ],
   puck: {
     from: 'd1',
     actions: [
-      pass('d1', 'd2', { flightSeconds: 1.6 }),
+      pass('d1', 'd2', { flightSeconds: 1.1 }),
       pass('d2', 'd3', { flightSeconds: 0.9 }),
-      pass('d3', 'd4', { flightSeconds: 1.6 }),
+      pass('d3', 'd4', { flightSeconds: 1.1 }),
       pass('d4', 'd1', { flightSeconds: 0.9 }),
     ],
   },
