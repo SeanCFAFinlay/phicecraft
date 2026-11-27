@@ -14,6 +14,8 @@ import { cachedThumbnail } from './thumbnailRenderer';
 import { projectToV2 } from '@/domain/v3/projectToV2';
 import { PrintIcon } from '@/ui/icons';
 import { printSingleDrillCard } from '@/ui/exportDrillCard';
+import { analyzeDrillEfficiency } from '@/domain/validation/drillEfficiency';
+import { EfficiencySummary } from '@/components/intelligence/EfficiencySummary';
 
 function Points({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
@@ -53,6 +55,8 @@ export function DrillDetails({
       { width: 500, height: 215 }
     );
   }, [template.document]);
+
+  const efficiency = useMemo(() => analyzeDrillEfficiency(template.document), [template.document]);
 
   const facts: [string, string][] = [
     ['Rink area', meta.rinkArea],
@@ -131,6 +135,12 @@ export function DrillDetails({
             </div>
           ))}
         </dl>
+      </SheetSection>
+
+      <SheetSection title="Activity">
+        <div className="px-3 pb-2">
+          <EfficiencySummary efficiency={efficiency} />
+        </div>
       </SheetSection>
 
       <Points title="Setup" items={meta.setupNotes} />

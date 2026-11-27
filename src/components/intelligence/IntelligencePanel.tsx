@@ -15,6 +15,8 @@ import { migrateV2ToV3 } from '@/domain/v3/migrateV2ToV3';
 import { projectToV2 } from '@/domain/v3/projectToV2';
 import { validateDrillIntelligence } from '@/domain/validation/coachIntelligence';
 import type { DrillValidationIssue } from '@/domain/validation/coachIntelligence';
+import { analyzeDrillEfficiency } from '@/domain/validation/drillEfficiency';
+import { EfficiencySummary } from './EfficiencySummary';
 
 export function IntelligencePanel({
   isOpen = true,
@@ -36,6 +38,8 @@ export function IntelligencePanel({
   const report = useMemo(() => {
     return validateDrillIntelligence(v3Doc);
   }, [v3Doc]);
+
+  const efficiency = useMemo(() => analyzeDrillEfficiency(v3Doc), [v3Doc]);
 
   if (!isOpen) return null;
 
@@ -157,6 +161,16 @@ export function IntelligencePanel({
             </p>
           </div>
         </div>
+
+        {/* How much each player gets out of it */}
+        <details className="mt-2.5 rounded-xl border border-white/5 bg-white/[0.03] p-2.5">
+          <summary className="cursor-pointer text-[10.5px] font-bold uppercase tracking-wider text-white/50">
+            Activity grade: {efficiency.grade}
+          </summary>
+          <div className="mt-2">
+            <EfficiencySummary efficiency={efficiency} compact />
+          </div>
+        </details>
 
         {/* Quick Category Filter Pills */}
         {report.issues.length > 0 && (

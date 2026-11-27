@@ -111,6 +111,9 @@ test('details show the coaching content that makes a drill usable', async ({ pag
   await expect(details).toBeVisible();
   await expect(details).toContainText('Setup');
   await expect(details).toContainText('At a glance');
+  // How much each player gets out of it, with a grade.
+  await expect(details.getByRole('group', { name: /^Activity grade [ABCD], \d+ out of 100$/ })).toBeVisible();
+  await expect(details).toContainText('Reps per player');
   // Provenance, because a template with no recorded source is not cleared to ship.
   await expect(details).toContainText('PHormation');
 });
